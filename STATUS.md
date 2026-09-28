@@ -56,12 +56,19 @@
 
 User's next ask (2026-09-28): audio cues for quest objects and things to interact with to progress (e.g. prisoners). Needs a live actor/gizmo list (only the player record is known so far) — find it the same way as the scene pool (static route from `.data`). Then: L3 beacon via read-only XInput (D2R design).
 
+## User and decisions
+
+- **Player:** blind; plays with a **controller** and NVDA through D4's third-party screen-reader option. Talk to them in Spanish; speech output is Spanish. Design around screen-relative stick directions and few extra buttons. Any TTS capture must keep NVDA speaking the game's text.
+- **Risk (2026-09-26):** the user accepted the ban risk of **read-only** memory reading on their main account (no second account). Don't re-litigate it. Don't suggest asking Blizzard: promised for 3 years, nothing delivered, Diablo 5 announced. Never write to or inject into the game, never implement anti-cheat evasion or stealth, read memory only while in a dungeon, and keep live RE sessions short.
+- **Minimap computer vision:** rejected by the user as imprecise and needing per-resolution/per-PC setup. Don't propose it without new evidence.
+- **Navigation audio = the user's D2R radar** (`D:\code\c++\diablo 2 access project\d2r-access`, read-only, never modify): same cues, 4-ray Cardinal frame, same anti-spam, cues one after another. Copy the D2R design first and deviate only when D4 forces it or the user asks. The one requested deviation: the open-floor breath must sound clearly different up vs down (the user fixes D2R themselves).
+- **Features (2026-09-28):** first = automatic spoken announcements (junctions, dead ends, big rooms) in stick directions, then the radar. Language: C# (.NET 10).
+- **Repository:** private GitHub `Ali-Bueno/d4-dungeon-assist`. Never make it public without asking (it reads game memory).
+- **Project knowledge lives in this repo only** (this file, `research/`, READMEs), never in assistant memory.
+
 ## Known issues / open questions
 
 - Preset rooms (96×96 pieces): the walkable area doesn't touch the tile edge, so `OpeningFinder` finds no runs and falls back to edge midpoints (path fails → straight line). Scan a band of a few cells inward instead of the boundary row. The radar is unaffected.
 - The first room after the app starts is called "Entrada." even when the app was started mid-dungeon.
 - The app loads walkability for all ~4000 scenes (≈650 MB); load lazily.
 
-- Player position and the instance tile list exist only in client memory. Minimap CV was rejected by the user.
-- Target setup: controller + NVDA via the in-game third-party SR option — TTS capture must not silence NVDA.
-- UX decisions (2026-09-28): speech in Spanish; first feature = automatic announcements (junctions, dead ends, big rooms) in stick directions. Controls: copy the user's D2R radar (`D:\code\c++\diablo 2 access project\d2r-access`), see [d2r-radar-port](research/d2r-radar-port.md). Language: C# (.NET 10).

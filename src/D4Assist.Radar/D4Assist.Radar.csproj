@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <!-- Matches D4Assist.Audio, which it references for the ray/cue types. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4Assist.Radar</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Engine-agnostic port of the D2R reactive radar (see README.md): BCL + D4Assist.Audio only, no game or process access. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\D4Assist.Audio\D4Assist.Audio.csproj" />
+  </ItemGroup>
+
+</Project>

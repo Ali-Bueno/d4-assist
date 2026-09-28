@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tests exercise scan/pose logic only, via IMemoryReader fakes — no process access. -->
+    <ProjectReference Include="..\D4MemScan\D4MemScan.csproj" />
+    <ProjectReference Include="..\..\src\D4Data\D4Data.csproj" />
+    <ProjectReference Include="..\..\src\D4Memory\D4Memory.csproj" />
+    <!-- Reuses FakeMemoryReader instead of duplicating it. -->
+    <ProjectReference Include="..\..\tests\D4Memory.Tests\D4Memory.Tests.csproj" />
+  </ItemGroup>
+
+</Project>

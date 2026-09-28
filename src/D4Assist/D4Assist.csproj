@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4Assist</RootNamespace>
+    <!-- Needed so restore/build copies Prismatoid's bundled win-x64 prism.dll (runtimes/win-x64/native) to
+         the output dir — see reference/screen-reader-integration/prism-prebuilt.md (no x86 PRISM build exists). -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Official .NET PRISM binding (targets .NET 10) — see reference/screen-reader-integration/prism-prebuilt.md. -->
+    <PackageReference Include="Prismatoid" Version="0.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\D4Data\D4Data.csproj" />
+    <ProjectReference Include="..\D4Memory\D4Memory.csproj" />
+    <ProjectReference Include="..\D4Assist.Navigation\D4Assist.Navigation.csproj" />
+    <ProjectReference Include="..\D4Assist.Audio\D4Assist.Audio.csproj" />
+    <ProjectReference Include="..\D4Assist.Radar\D4Assist.Radar.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ships next to the exe so a fresh checkout has a starting config; see Config/AppConfig.cs. -->
+    <None Update="d4assist.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

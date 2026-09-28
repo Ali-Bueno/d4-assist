@@ -1,0 +1,98 @@
+using System.Text;
+
+namespace D4Assist.Game;
+
+/// <summary>
+/// Tails the game's FenrisDebug.txt for "Client entered world" lines (research/runtime-signals.md §2), so
+/// the app learns world transitions without reading process memory. Opens the file with FileShare.ReadWrite
+/// on every poll (the game keeps writing to it) and copes with truncation/rotation by restarting from the
+/// top when the file has shrunk since the last poll.
+/// </summary>
+public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
+{
+    public const string LogFileName = "FenrisDebug.txt";
+    private const string EnteredWorldMarker = "[Game] Client entered world | world: ";
+
+    // World transitions are infrequent (dungeon entry/exit); no need to react faster than this.
+    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
+
+    private readonly string _path;
+    private readonly Timer _timer;
+    private readonly object _gate = new();
+    private long _position;
+    private bool _disposed;
+
+    /// <summary>Raised once per "Client entered world" line seen after startup, with the world's name.</summary>
+    public event Action<string>? WorldChanged;
+
+    public WorldLogWatcher(string installPath)
+    {
+        _path = Path.Combine(installPath, LogFileName);
+        _position = File.Exists(_path) ? new FileInfo(_path).Length : 0;
+        _timer = new Timer(_ => PollOnce(), null, PollInterval, PollInterval);
+    }
+
+    /// <summary>The last "Client entered world" line already in the file — the world to assume at startup.</summary>
+    public string? ReadLastWorldNameAtStartup()
+    {
+        if (!File.Exists(_path)) return null;
+        string? last = null;
+        foreach (var line in File.ReadLines(_path))
+            if (ExtractWorldName(line) is { } name) last = name;
+        return last;
+    }
+
+    /// <summary>Reads whatever new, complete lines exist since the last poll. Public so tests can drive it
+    /// deterministically instead of waiting on the timer.</summary>
+    public void PollOnce()
+    {
+        lock (_gate)
+        {
+            if (_disposed || !File.Exists(_path)) return;
+            try
+            {
+                using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length < _position) _position = 0; // truncated or rotated to a fresh file: start over
+                int toRead = (int)(stream.Length - _position);
+                if (toRead <= 0) return;
+
+                stream.Seek(_position, SeekOrigin.Begin);
+                var buffer = new byte[toRead];
+                int read = stream.Read(buffer, 0, toRead);
+                _position += ProcessCompleteLines(Encoding.UTF8.GetString(buffer, 0, read));
+            }
+            catch (IOException) { } // file briefly locked while rotating; retried next poll
+        }
+    }
+
+    /// <summary>Only consumes bytes up to the last newline, so a line still being written is retried whole next poll.</summary>
+    private int ProcessCompleteLines(string text)
+    {
+        int lastNewline = text.LastIndexOf('\n');
+        if (lastNewline < 0) return 0;
+        string complete = text[..(lastNewline + 1)];
+        foreach (var line in complete.Split('\n'))
+            if (ExtractWorldName(line) is { } name)
+                WorldChanged?.Invoke(name);
+        return Encoding.UTF8.GetByteCount(complete);
+    }
+
+    internal static string? ExtractWorldName(string line)
+    {
+        int i = line.IndexOf(EnteredWorldMarker, StringComparison.Ordinal);
+        if (i < 0) return null;
+        var rest = line[(i + EnteredWorldMarker.Length)..];
+        int end = rest.IndexOfAny([' ', '\t', '\r', '\n']);
+        return (end < 0 ? rest : rest[..end]).Trim();
+    }
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
+        _timer.Dispose();
+    }
+}

@@ -1,0 +1,10 @@
+{
+  "InstallPath": "D:\\games\\battlenet\\Diablo IV",
+  "DefinitionsPath": "D:\\code\\d4 dungeon assist\\data\\definitions.json",
+  "SpeechEnabled": true,
+  "AutoAnnouncementsEnabled": true,
+  "InterruptOnContextChange": true,
+  "RadarVolume": 1.0,
+  "RadarEnabled": true,
+  "RadarFrame": "Cardinal"
+}

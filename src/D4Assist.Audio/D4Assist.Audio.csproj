@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4Assist.Audio</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Radar cue audio: BCL only, WinMM waveOut* via P/Invoke (see README.md). No game or process access. -->
+
+</Project>

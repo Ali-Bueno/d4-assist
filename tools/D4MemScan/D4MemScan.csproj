@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4MemScan</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Scene/CoreTOC data for the candidate set and offline walkability; no game process access lives here. -->
+    <ProjectReference Include="..\..\src\D4Data\D4Data.csproj" />
+    <!-- Read-only process access + record matchers, shared with D4Assist; see src/D4Memory. -->
+    <ProjectReference Include="..\..\src\D4Memory\D4Memory.csproj" />
+  </ItemGroup>
+
+</Project>

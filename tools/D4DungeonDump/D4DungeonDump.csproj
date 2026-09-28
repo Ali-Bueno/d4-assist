@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4DungeonDump</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- CASC/definitions.json reading lives in the shared D4Data library (also used by D4MemScan). -->
+    <ProjectReference Include="..\..\src\D4Data\D4Data.csproj" />
+  </ItemGroup>
+
+</Project>

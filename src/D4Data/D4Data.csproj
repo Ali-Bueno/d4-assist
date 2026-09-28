@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4Data</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Read-only CASC/TVFS + CoreTOC access to the local Diablo IV install. Shared by every offline tool. -->
+    <PackageReference Include="WiseOwl.Casc.Diablo4" Version="0.8.0" />
+  </ItemGroup>
+
+</Project>

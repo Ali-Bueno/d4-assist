@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>D4Assist.Navigation</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Pure navigation/announcement logic: BCL only, no game or process access. -->
+
+</Project>

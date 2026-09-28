@@ -1,0 +1,8 @@
+bin/
+obj/
+data/
+# Native binaries (PRISM comes from the Prismatoid NuGet package; templates' copies aren't needed here)
+*.dll
+*.lib
+*.exe
+*.pdb

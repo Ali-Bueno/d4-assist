@@ -1,14 +1,15 @@
 # STATUS — Diablo IV Dungeon Assist
 
-**Last updated:** 2026-09-28 — `tools/D4MemScan` scanner switched to the validated CScene record signature (30 unit tests, offline only, not yet run against the game).
+**Last updated:** 2026-09-28 — live test 3 passed: spoken room announcements + D2R-ported radar work in real dungeons (incl. a preset throne room). Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
 
 ## Identity
 
 - **Engine / framework:** Blizzard proprietary ("Fenris"), always-online. **No modding framework, no injection** — this is an *external companion app*; the game install and process stay untouched.
-- **Screen-reader transport:** .NET companion app → PRISM (`prism.dll`, Prismatoid binding if it loads on the chosen TFM).
+- **Screen-reader transport:** .NET 10 companion app → PRISM via the Prismatoid 0.3.0 NuGet package (backend NVDA live).
 - **Build command:** `dotnet build`
 - **Game install:** `D:\games\battlenet\Diablo IV` (build 3.2.1.73552 on 2026-09-16)
-- **Run / test:** run the companion app, then play D4 with the screen reader on.
+- **Run / test:** `dotnet build D4DungeonAssist.sln`, `dotnet test D4DungeonAssist.sln` (~250 tests). Run `src/D4Assist/bin/Debug/net10.0-windows/win-x64/D4Assist.exe --debug > log.txt`, then play; it idles until `FenrisDebug.txt` shows a dungeon world. Flags and config (`d4assist.json`): [src/D4Assist/README](src/D4Assist/README.md). The exe must be stopped before rebuilding (file lock).
+- **Code map:** `src/D4Data` (offline CASC), `src/D4Memory` (read-only process access, scene route, player record), `src/D4Assist.Navigation` (rooms, openings, spoken announcements), `src/D4Assist.Radar` (D2R radar port), `src/D4Assist.Audio` (cue synth + WinMM mixer), `src/D4Assist` (app: `Game/GameSession`, `NavigationBridge`, `RadarBridge`); `tools/D4MemScan` (live RE diagnostics, e.g. `scene-route --diagnose --slots`), `tools/D4DungeonDump` (offline dumps). Each has a README.
 - **Brief:** [`diablo4-dungeon-assist-research-for-claude.md`](diablo4-dungeon-assist-research-for-claude.md)
 
 ## Section status
@@ -20,7 +21,7 @@
 | P2 Game TTS capture | todo | route chosen: NVDA add-on ([runtime-signals](research/runtime-signals.md) §1) |
 | P1b Live layout (CScene records) | done | static route `[[base+0x368D188]+0xC18]` validated live, used by the app every 1 s. Preset rooms are split into 96×96 pieces whose live exit mask is a subset of the offline one (`Triad_B_ThroneRoom_N02_E03_DGN`: offline 15, live 7) — matcher accepts subsets since 2026-09-28. Free slots (`id == -1`) keep stale records: never trust a full-scan hit without the route |
 | P3 Runtime anchor | done | `D4MemScan player`: static record (RVA 0x3445004, live `MEM_MAPPED` view) found in ms, updates live at ≥4 Hz; verified in 2 dungeons |
-| P4 Auto room announcements (D2R `Rooms::Describe` port) | wip | live test 2 (2026-09-28): user finished the dungeon faster but directions felt imprecise. Fixed: bearing to the farthest line-of-sight path point (was a 3-unit look-ahead → diagonal bias), widest run wins per neighbour (a 1-cell noise run hid the real 15-wide exit), start-cell snap, 4-unit doorway stickiness + silent rekey, entry opening not spoken ("Sin otras salidas."), first room = "Entrada.", repeated directions grouped. Needs live test 3 |
+| P4 Auto room announcements (D2R `Rooms::Describe` port) | wip | live test 2 (2026-09-28): user finished the dungeon faster but directions felt imprecise. Fixed: bearing to the farthest line-of-sight path point (was a 3-unit look-ahead → diagonal bias), widest run wins per neighbour (a 1-cell noise run hid the real 15-wide exit), start-cell snap, 4-unit doorway stickiness + silent rekey, entry opening not spoken ("Sin otras salidas."), first room = "Entrada.", repeated directions grouped. Live test 3: "funcionó"; direction accuracy not yet re-assessed in detail |
 | P5 Procedural dungeon / exploration tracking | todo | |
 | P5b D2R radar (port) | wip | `src/D4Assist.Radar` ([README](src/D4Assist.Radar/README.md)) + `DungeonRadarWorld`/`RadarBridge`; Cardinal frame; cues queued like D2R (`CueScheduler`). **Live test 3 (2026-09-28): works, user impressed**, incl. a preset throne room. Depths (10/7) not tuned yet. No beacon/XInput yet |
 | P6 UX (cues, TTS, anti-spam, controller) | todo | |
@@ -33,7 +34,7 @@
 | Game speaks via Tolk; NVDA outranks the SA shim | Tolk driver order JAWS → WE → NVDA → SA | [runtime-signals](research/runtime-signals.md) §1 |
 | World / dungeon identity | `Client entered world \| world: <World>` and `[WarpManager] Intro portal to dungeon Subzone '<name>'` | `FenrisDebug.txt`, [runtime-signals](research/runtime-signals.md) §2 |
 | Dungeon worlds are procedural | World `eLayoutType` 2 for all `DGN_`/`CSD_`/`QST_`/`PIT_`/`TWR_` (802 worlds), empty scene list | [dungeon-data](research/dungeon-data.md) §3 |
-| Tile walkability offline | 0.5-unit voxel grid (64×64 × 72 levels) in scene payload | [dungeon-data](research/dungeon-data.md) §4 |
+| Tile walkability offline | 0.5-unit voxel grid (64×64 × 72 levels) in scene payload; the app uses its 1-unit 2D map (`NavGridReader.MapResolution`) | [dungeon-data](research/dungeon-data.md) §4 |
 | Tile exits offline | scene exit bitmask N=1 S=2 E=4 W=8 | [dungeon-data](research/dungeon-data.md) §4 |
 | WalkableMap orientation confirmed | row = X (north-south, row 0 = N edge), column = Y (west-east, col 0 = W edge); N/S/E/W walkable runs land exactly on their exit sides | `D4DungeonDump --grid` on `TT_Step_City_to_Protodun_Jail_NSEW_01` (SNO 715062, 2026-09-28); pinned in `WalkGridOrientationTests` |
 | Player collision radius (min opening width) | ≈0.38 world units, unmeasured/task-supplied — not found in any research doc; still listed as missing in [d2r-radar-port](research/d2r-radar-port.md) §5 | `OpeningFinder.PlayerCollisionRadius` |

@@ -43,6 +43,12 @@ The player's scene id is at `ACD+0x7A8` (the ACD container is at `[G+0xB78]`). T
 **Only scenes near the player are loaded** (about two tiles around them); records are unloaded and their
 slots reused as the player moves.
 
+**Preset rooms and stale slots** (live pool dump, `D4MemScan scene-route --diagnose --slots`, 2026-09-28, `S15_Triad_B_Worldstone`):
+
+- Large preset rooms are placed as 96×96 pieces (`Triad_B_ThroneRoom_N02_E03_DGN`, `…_N03_E03_DGN`) sharing one node/group id. Their live exit mask is a **subset** of the offline one (offline 15, live 7 and 6), so matching must accept subsets. The tile hash keeps the 32-unit formula.
+- Filler tiles (`*_FILLER_01`) and UI scenes (`PaperDoll_*`, `Portrait_*`) share the pool with `a−20 == 0`; the matcher rejects them.
+- Free slots (`id == 0xFFFFFFFF`) keep the old record intact, so a heap scan also finds tiles from earlier floors. Only the route's free-slot check tells live from stale.
+
 ## 2. Other records
 
 - **RevealSceneMessage copy** (transient, slots `0x10080` apart): exact d4data wire layout

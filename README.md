@@ -1,27 +1,53 @@
-# Modding Projects — Accessibility Template Workspace
+# Diablo IV Dungeon Assist
 
-Reusable workspace for building **game accessibility mods** (screen-reader output via PRISM + audio
-cues). It bundles a project playbook and a growing reverse-engineering reference library so each new
-mod can be structured section by section instead of from scratch.
+An external companion app that makes Diablo IV's procedural dungeons navigable for blind players. It runs
+next to the game (controller + NVDA through D4's third-party screen-reader option) and adds:
 
-## Contents
+- **Spoken room announcements** in Spanish through PRISM: junctions, dead ends, big rooms and the dungeon
+  entrance, with their exits as controller-stick directions ("Cruce. Salidas: arriba, derecha sin explorar.").
+- **A reactive audio radar**, a port of the author's Diablo II Resurrected radar: four screen directions,
+  a bright tin for a passage into another room or unexplored area, a breath for open floor and a dull tock
+  for a nearby wall.
 
-| Path | Purpose |
-|------|---------|
-| [`CLAUDE.md`](CLAUDE.md) | **The playbook.** How to approach an accessibility mod: investigate the engine, choose the framework, integrate PRISM, structure code, accessibilize menus, hook patterns, conventions. |
-| [`PRINCIPLES.md`](PRINCIPLES.md) | **The ground rules.** General engineering & accessibility principles that apply under the playbook: code discipline, scope, testing/build, no magic numbers, framework rules, RE tools, publishing. Drop it into any project (or your AI assistant's config). |
-| [`reference/`](reference/) | **Reference library.** Engine-agnostic reverse-engineering studies of how real games implement the systems we reproduce (currently: audio navigation). |
-| [`reference/_engine-study-template.md`](reference/_engine-study-template.md) | Blank template to document a new engine/game when asked to study one. |
+It never moves the character and never reveals enemies or loot.
 
-## Starting a new mod
+## How it works
 
-1. Read [`CLAUDE.md`](CLAUDE.md) → **Investigar el Engine** and pick the framework for *that* game.
-2. Pull the relevant subsystem references from [`reference/`](reference/) (e.g. for navigation, start
-   at [`reference/audio-navigation/README.md`](reference/audio-navigation/README.md)).
-3. Build in the recommended order: adapter + speech → beacon → radar → scan → polish.
+Dungeon layouts are generated on the server, so the app reads them from the running game, **read-only**. It
+never writes to the game, injects code or hooks it.
 
-## Asked to study an engine?
+- **Offline data:** the scene library comes from the local game install (CASC): tile exits and walkability.
+- **World identity:** read from the game's own log (`FenrisDebug.txt`).
+- **Live data:** the placed tiles and the player position are read from process memory, and only while in a
+  dungeon.
 
-Copy [`reference/_engine-study-template.md`](reference/_engine-study-template.md) into
-`reference/<topic>/<game-slug>/`, identify the engine first, then fill it in with confidence notes.
-See [`reference/README.md`](reference/README.md).
+## Requirements
+
+- Windows, the .NET 10 SDK, and Diablo IV installed (build 3.2.1.73552; memory offsets are per build).
+- A screen reader (NVDA tested), reached through PRISM (Prismatoid NuGet package).
+- `data/definitions.json` from d4data for the same build (not committed).
+
+## Build and run
+
+```
+dotnet build D4DungeonAssist.sln
+dotnet test D4DungeonAssist.sln
+src\D4Assist\bin\Debug\net10.0-windows\win-x64\D4Assist.exe [--debug] [--no-speech] [--sound-test]
+```
+
+Configuration lives in `d4assist.json` next to the exe; see [src/D4Assist/README.md](src/D4Assist/README.md).
+
+## Where to start reading
+
+- [STATUS.md](STATUS.md): current state, derived offsets and facts, next step, known issues. **Start here
+  when resuming.**
+- [research/](research/): the findings behind the code (client memory layout, offline dungeon data, runtime
+  signals, the D2R radar study).
+- Each project under `src/` and `tools/` has its own README.
+- [CLAUDE.md](CLAUDE.md), [principles.md](principles.md), [reference/](reference/) and [templates/](templates/)
+  are the general accessibility-modding playbook this repo started from.
+
+## Risk
+
+Reading game memory can conflict with Blizzard's terms of service. This is a personal accessibility tool.
+The repository is private and must stay that way.

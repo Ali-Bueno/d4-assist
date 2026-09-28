@@ -18,8 +18,8 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
     build, with further rescans only on demand (`GameSession.RescanTiles`).
 - Speaks "Asistente de mazmorras activo" at startup and dungeon-enter/leave announcements in Spanish
   (`Strings/SpanishStrings`), through PRISM.
-- `--debug` prints the player position and tile count once per second; `--no-speech` swaps PRISM for a
-  console sink so you can run it without a screen reader.
+- `--debug` logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
+  swaps PRISM for a console sink so you can run it without a screen reader.
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
 
@@ -58,7 +58,8 @@ error. Only `DefinitionsPath` has no usable default.
 ## Command-line flags
 
 - `--no-speech` — use `ConsoleSpeechSink` instead of PRISM (debugging without a screen reader).
-- `--debug` — print `player=(x,y,z) tiles=N` once per second, and one `RADAR` line per confirmed radar reading
+- `--debug` — log a `TILES` line when the loaded tile set changes, a `SAY` line per announcement with each opening
+  (side, position, width, path length, `entry`), and one `RADAR` line per confirmed radar reading
   change (direction, reading, unexplored, player position) and per rebuilt radar map.
 - `--sound-test` — speak and play every radar cue in every direction, without the game.
 

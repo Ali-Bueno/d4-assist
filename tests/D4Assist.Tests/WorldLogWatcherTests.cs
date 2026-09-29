@@ -46,6 +46,26 @@ public class WorldLogWatcherTests
     }
 
     [Fact]
+    public void PollOnce_FiresCutsceneStateChangedWithTheState()
+    {
+        string dir = MakeTempInstallDir();
+        string path = Path.Combine(dir, WorldLogWatcher.LogFileName);
+        File.WriteAllText(path, "");
+
+        using var watcher = new WorldLogWatcher(dir);
+        var seen = new List<string>();
+        watcher.CutsceneStateChanged += seen.Add;
+
+        File.AppendAllText(path,
+            "I 2026.09.29 03:53:07.864062 1\t[Game] ptCutscene->m_eCutsceneState: PRELOADING\r\n" +
+            "I 2026.09.29 03:53:08.011002 1\t[Game] ptCutscene->m_eCutsceneState: PLAYBACK\r\n" +
+            "I 2026.09.29 03:53:05.119000 1\t[Game] CutscenesGfxInit\r\n");
+        watcher.PollOnce();
+
+        Assert.Equal(["PRELOADING", "PLAYBACK"], seen);
+    }
+
+    [Fact]
     public void PollOnce_DoesNotFireForAPartialLineStillBeingWritten()
     {
         string dir = MakeTempInstallDir();

@@ -16,6 +16,9 @@ internal readonly record struct PassageQuery(
 /// </summary>
 internal static class PassageScanner
 {
+    // One diagonal step: a door counts when it stops the route within this much past the closing depth (radar_passage.cpp:9).
+    private static readonly double MaxStep = Math.Sqrt(2);
+
     // Native movement trace 0x364700 allows diagonal destination steps (radar_passage.cpp:27-28).
     private static readonly (int X, int Y)[] Steps = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)];
 
@@ -25,6 +28,7 @@ internal static class PassageScanner
 
         var home = grid.Room(0, 0);
         double depth = 0, crossing = -1, unknownDepth = -1;
+        var door = false;
         var crossingRoom = -1;
         var queue = new List<(int X, int Y)> { (0, 0) };
         var visited = new bool[grid.Side * grid.Side];
@@ -48,6 +52,7 @@ internal static class PassageScanner
                     if (unknownDepth < 0 || projection < unknownDepth) unknownDepth = projection;
                     continue;
                 }
+                if (cell == RadarCell.Door && projection <= query.CloseDepth + MaxStep) door = true;
                 if (cell != RadarCell.Open || (step.X != 0 && step.Y != 0 && Pinched(grid, current, step))) continue;
                 var index = grid.Index(next.X, next.Y);
                 if (visited[index]) continue;
@@ -66,7 +71,7 @@ internal static class PassageScanner
         var passage = new Passage
         {
             Depth = depth, OpenDepth = query.OpenDepth, CloseDepth = query.CloseDepth, Available = true,
-            Crossing = crossing, CrossingRoom = crossingRoom, UnknownDepth = unknownDepth,
+            Crossing = crossing, CrossingRoom = crossingRoom, UnknownDepth = unknownDepth, Door = door,
         };
         return passage with { Observed = Classify(passage, query) };
     }
@@ -74,7 +79,7 @@ internal static class PassageScanner
     private static RadarCueKind Classify(Passage passage, PassageQuery query)
     {
         if (passage.LeadsUnknown) return RadarCueKind.Exit;
-        if (passage.Depth <= query.CloseDepth) return RadarCueKind.Blocked;
+        if (passage.Depth <= query.CloseDepth) return passage.Door ? RadarCueKind.Door : RadarCueKind.Blocked;
         if (passage.Depth < query.OpenDepth && query.Committed is { } committed && committed.IsObstacle()) return committed;
         // Another room entered and its border cleared by a doorway's width (radar_passage.cpp:93-106).
         var leaves = passage.Crossing >= 0 && passage.Depth >= passage.Crossing + query.WayThrough;

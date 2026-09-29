@@ -33,10 +33,22 @@ Line shape (regex from `DiabloDungeonTimer/LogEntry.cs:43`):
 | Waypoint | `[WarpManager] Intro waypoint to LevelArea 'Frac_Kyovashad'` |
 | Game language (each start) | `[Game] Current Speech Locale: enUS  Current Text Locale: enUS` |
 | Transition done | `[WarpManager] Portal completed` |
+| Cutscene start | `[Game] ptCutscene->m_eCutsceneState: PRELOADING`, then `... PLAYBACK` |
+
+**Game language before the game runs:** `<install>\Launcher.db` holds just the locale Battle.net will start the
+game in (4 bytes, `esES`). The launcher rewrites it when the user changes the language (seen 2026-09-29: the
+file changed at 09:50, after a session logged `enUS` at 03:53). It is unknown whether it is the text or the
+spoken language. The app reads it at startup, and the log's `Current Text Locale` line wins once the game starts.
 
 `Limbo`, `FrontendStartup` and `Sanctuary_Eastern_Continent` are loading/overworld worlds, not dungeons.
 DiabloDungeonTimer uses exactly this (FileSystemWatcher + poll, `LogMonitorService.cs:88-89`).
 **No log line carries player coordinates**, and there are no quest/objective/death categories.
+
+**Cutscenes:** the exe holds only these two state strings, so **the end of a cutscene is never logged**. As of
+2026-09-29, 8 logs showed only the two startup logo videos. Each game launch also logs `CutscenesGfxInit` at startup
+and `CutscenesGfxDispose` at exit. No story cutscene had been logged yet. The app pauses its cues on
+`PLAYBACK` and resumes when the world changes or the player walks one map cell (`Game/CutscenePause.cs`).
+In-engine scripted cutscenes (`ScriptedCutsceneUI` in the exe) may not log at all.
 
 ## 3. Player position
 

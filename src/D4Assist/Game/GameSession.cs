@@ -1,3 +1,5 @@
+using D4Memory.Ui;
+
 namespace D4Assist.Game;
 
 public enum SessionState { WaitingForGame, Idle, InDungeon }
@@ -49,6 +51,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public event Action<IReadOnlyList<TileState>>? TilesUpdated;
     public event Action<PlayerState>? PlayerMoved;
     public event Action<IReadOnlyList<ActorState>>? ActorsUpdated;
+
+    /// <summary>The dialogue menu and playing conversations, read at the player-poll rate while a memory session is open.</summary>
+    public event Action<ConversationSnapshot>? ConversationRead;
 
     /// <param name="staticTiles">Offline tiles of a radar-only (static-grid) world, raised once on entry; null means none.</param>
     /// <param name="playerPollIntervalMs">Timer.Infinite disables the automatic timer entirely — tests then
@@ -145,6 +150,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         if (player is null) { HandleSessionLost(session); return; } // process likely exited
         if (player.IsWorldUnloaded) return;
         Raise("player", PlayerMoved, h => h(player));
+        if (session.ReadConversation() is { } talk) Raise("conversation", ConversationRead, h => h(talk));
     }
 
     /// <summary>Runs one actor-pool read; an unavailable pool is skipped silently (the reader logs it once).</summary>

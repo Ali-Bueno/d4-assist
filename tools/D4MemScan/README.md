@@ -32,7 +32,8 @@ D4MemScan scenes --defs <definitions.json> [--install <dir>] [--tiles-only] [--f
 D4MemScan pose-snapshot --scenes <report.json> --defs <definitions.json> [--install <dir>] [--out <file.json>]
 D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.json>]
 D4MemScan pose-context --in <file.json> [--out <file.focus.json>]
-D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>]
+D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>] [--snapshot-pointers <file> [--snapshot-count N --snapshot-every-ms M]]
+D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]
 ```
@@ -93,6 +94,13 @@ the repo.
    `--watch N` picks the nearest gizmo/prisoner actor (or, with `--match`, the nearest actor whose name matches) and, every `--interval-ms` (default 250) for N seconds, prints the
    4-byte words of its slot that changed (and slot free/reuse), to find the "used" signal while you free a prisoner or
    pull a lever.
+
+7. **`player --snapshot-pointers`** — depth-1 heap snapshot for UI-state searches (`Commands/PointerSnapshotWriter.cs`):
+   - It keeps every word in the live module's writable data that points into readable memory, plus 0x400 bytes at each target.
+   - A series (`--snapshot-count`) numbers the files and logs each capture time.
+   - Diffing snapshots taken with a panel closed and open finds `[base+rva]+offset` routes. That is how the
+     conversation state was found ([client-memory](../../research/client-memory.md) §5).
+8. **`peek`** — prints every change of a few u32 words at absolute addresses, to confirm a candidate live.
 
 ## Layout
 

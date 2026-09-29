@@ -57,7 +57,7 @@ internal static class Program
         var language = new LanguageSetting();
         using var logWatcher = new WorldLogWatcher(installPath);
         var follower = new LanguageFollower(language, config.ForcedLanguage(), debug ? Console.WriteLine : null);
-        if (logWatcher.ReadLastTextLocaleAtStartup() is { } startLocale) follower.OnTextLocale(startLocale);
+        if ((GameLocale.ReadLauncherLocale(installPath) ?? logWatcher.ReadLastTextLocaleAtStartup()) is { } startLocale) follower.OnTextLocale(startLocale);
         logWatcher.TextLocaleChanged += follower.OnTextLocale;
 
         using ISpeechSink speech = noSpeech || !config.SpeechEnabled ? new ConsoleSpeechSink() : new PrismSpeechSink();
@@ -93,6 +93,10 @@ internal static class Program
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains);
 
         // One mixer and one output for the radar cues and the beacon loops.
+        var actorDefinitions = new ActorDefinitionReader(store, schema);
+        Func<int, ActorDefinitionInfo?> definitionOf = sno => { lock (cascGate) return actorDefinitions.Read(sno); };
+        var interactables = new InteractableClassifier(definitionOf, store.Name);
+
         var mixer = new AudioMixer();
         using var radarPlayer = config.RadarEnabled
             ? new RadarCuePlayer(new WaveOutAudioOut(), mixer) { Frame = config.RadarFrame, Volume = config.RadarVolume }
@@ -100,15 +104,25 @@ internal static class Program
         if (radarPlayer is not null)
         {
             var radarSettings = new RadarSettings { Frame = config.RadarFrame, PollMs = GameSession.DefaultPlayerPollIntervalMs };
-            _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug);
+            var doors = config.RadarClosedDoorsEnabled ? new DoorObstacles(interactables, definitionOf) : null;
+            _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug, doors);
         }
 
         bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
-        bool needsOwnOutput = (config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.ExplorationGuideEnabled || routesEnabled)
-            && radarPlayer is null;
+        bool actorLoops = config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.LoopedInteractables().Count > 0;
+        bool needsOwnOutput = (actorLoops || config.ExplorationGuideEnabled || routesEnabled) && radarPlayer is null;
         using IAudioOut? beaconOut = needsOwnOutput ? new WaveOutAudioOut() : null;
         beaconOut?.Start(mixer.Render);
-        var loops = config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled ? StartLoops(session, mixer, config, store, schema, cascGate, debug) : null;
+        var loops = actorLoops ? StartLoops(session, mixer, config, store, schema, cascGate, debug, definitionOf, interactables) : null;
+        var cueGate = new CueGate(paused => mixer.Paused = paused, debug ? Console.WriteLine : null);
+        if (config.PauseCuesInCutscenes) WatchCutscenes(logWatcher, session, cueGate, debug);
+        using var focus = config.PauseCuesInBackground ? new GameWindowFocus(cueGate) : null;
+        if (config.PauseCuesInConversations)
+        {
+            var talk = new ConversationMute(muted => cueGate.Set(CueMute.Conversation, muted), store.Name, debug ? Console.WriteLine : null);
+            session.ConversationRead += talk.OnSnapshot;
+            session.WorldChanged += (_, _, _) => talk.Reset();
+        }
 
         // Created after the NavigationBridge so each poll marks the tile visited before the guide reads it.
         // The exploration guide (dungeons) and the quest routes (overworld) share one ping and D-pad left.
@@ -128,7 +142,8 @@ internal static class Program
         // Sound examples on Ctrl+Alt+Shift+1..8, to show the cues without a fight's noise.
         var demo = new SoundDemo(
             speech, digit => AppStrings.For(language.Current).SoundExamples[digit - 1], radarPlayer, mixer,
-            LoadLoopSounds()?.GetValueOrDefault(LoopTargetSelector.QuestItemSound), LoopProfiles.Quest.NearGain * config.ObjectiveVolume, guidePing);
+            LoadLoopSounds()?.GetValueOrDefault(LoopTargetSelector.QuestItemSound), LoopProfiles.Quest.NearGain * config.ObjectiveVolume, guidePing,
+            cueGate.Example);
         using var hotkeys = new DemoHotkeys(SoundDemo.ExampleCount);
         hotkeys.DigitPressed += demo.Play;
         hotkeys.Start();
@@ -172,7 +187,8 @@ internal static class Program
     }
 
     private static ActorLoopBridge? StartLoops(
-        GameSession session, AudioMixer mixer, AppConfig config, SnoStore store, TypeSchema schema, object cascGate, bool debug)
+        GameSession session, AudioMixer mixer, AppConfig config, SnoStore store, TypeSchema schema, object cascGate, bool debug,
+        Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables)
     {
         if (LoadLoopSounds() is not { } sounds) return null;
 
@@ -184,19 +200,25 @@ internal static class Program
             : new HashSet<int>();
 
         var dpo = new DungeonObjectiveReader(store, schema);
-        var actorDefinitions = new ActorDefinitionReader(store, schema);
-        var objectives = config.ObjectiveSoundsEnabled
-            ? new ObjectiveClassifier(sno => { lock (cascGate) return actorDefinitions.Read(sno); }, store.Name)
-            : null;
+        var objectives = config.ObjectiveSoundsEnabled ? new ObjectiveClassifier(definitionOf, store.Name) : null;
         var selector = new LoopTargetSelector(
-            beaconSnos, config.BeaconVolume, objectives, config.ObjectiveVolume, world => { lock (cascGate) return dpo.ActorSnos(world); });
+            beaconSnos, config.BeaconVolume, objectives, config.ObjectiveVolume, world => { lock (cascGate) return dpo.ActorSnos(world); },
+            interactables, config.LoopedInteractables(), config.InteractableVolume);
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name)); // app started mid-dungeon
 
         var player = new SpatialLoopPlayer(mixer, sounds);
         var sightings = debug
-            ? new ActorSightingLog(sno => { lock (cascGate) return actorDefinitions.Read(sno); }, store.Name, Console.WriteLine)
+            ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;
         return new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings);
+    }
+
+    private static void WatchCutscenes(WorldLogWatcher log, GameSession session, CueGate gate, bool debug)
+    {
+        var pause = new CutscenePause(paused => gate.Set(CueMute.Cutscene, paused), debug ? Console.WriteLine : null);
+        log.CutsceneStateChanged += pause.OnCutsceneState;
+        session.WorldChanged += (_, _, _) => pause.OnWorldChanged();
+        session.PlayerMoved += pause.OnPlayer;
     }
 
     private static IReadOnlySet<int> LoadExitCandidateScenes(SnoStore store, TypeSchema schema, object cascGate)

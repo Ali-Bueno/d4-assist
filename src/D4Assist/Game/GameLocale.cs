@@ -19,6 +19,28 @@ public static class GameLocale
         return locale.Length == 0 ? null : locale;
     }
 
+    /// <summary>The Battle.net launcher's file in the install folder holding the game language (e.g. "esES").</summary>
+    public const string LauncherFileName = "Launcher.db";
+
+    // A locale code: two lowercase letters, two uppercase letters (enUS, esES, esMX).
+    private const int LocaleLength = 4;
+
+    /// <summary>The language Battle.net will start the game in, from <c>&lt;install&gt;\Launcher.db</c>; null when absent or not a locale.
+    /// It is current before the game runs, unlike the last log line (research/runtime-signals.md §2).</summary>
+    public static string? ReadLauncherLocale(string installPath)
+    {
+        try
+        {
+            var text = File.ReadAllText(Path.Combine(installPath, LauncherFileName)).Trim();
+            return IsLocale(text) ? text : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    private static bool IsLocale(string text) =>
+        text.Length == LocaleLength && char.IsAsciiLetterLower(text[0]) && char.IsAsciiLetterLower(text[1])
+        && char.IsAsciiLetterUpper(text[2]) && char.IsAsciiLetterUpper(text[3]);
+
     /// <summary>esES/esMX are Spanish; every other locale is English (only two languages exist).</summary>
     public static SpeechLanguage ToLanguage(string locale) =>
         locale.StartsWith(SpanishLocalePrefix, StringComparison.OrdinalIgnoreCase) ? SpeechLanguage.Spanish : SpeechLanguage.English;

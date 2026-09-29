@@ -12,6 +12,8 @@ internal static class PlayerCommand
 {
     private const int DefaultSamples = 10;
     private const int DefaultIntervalMs = 250;
+    // Bytes kept per pointed-to object in --snapshot-pointers: enough for a manager's flag fields, small enough for ~100 MB files.
+    private const int PointerBlockBytes = 0x400;
 
     public static int Run(string[] args)
     {
@@ -20,6 +22,9 @@ internal static class PlayerCommand
         int intervalMs = ParseIntOrDefault(reader.Get("--interval-ms"), DefaultIntervalMs);
         string? dumpModulePath = reader.Get("--dump-module");
         string? replayModulePath = reader.Get("--replay-module");
+        string? pointerSnapshotPath = reader.Get("--snapshot-pointers");
+        int snapshotCount = ParseIntOrDefault(reader.Get("--snapshot-count"), 1);
+        int snapshotEveryMs = ParseIntOrDefault(reader.Get("--snapshot-every-ms"), 0);
 
         var (store, schema, install) = GameData.Open(reader);
         using (store)
@@ -43,6 +48,19 @@ internal static class PlayerCommand
 
             var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, worldSno, sceneSnos);
             long reportBase = (liveModule ?? modules[0]).Base;
+            if (pointerSnapshotPath is not null && liveModule is { } live)
+            {
+                // A series (--snapshot-count > 1) numbers the files and logs each capture time, to line them up with a peek log.
+                var clock = Stopwatch.StartNew();
+                for (int i = 0; i < snapshotCount; i++)
+                {
+                    string path = snapshotCount == 1 ? pointerSnapshotPath : $"{pointerSnapshotPath}-{i:D2}.bin";
+                    var (pointers, bytes) = PointerSnapshotWriter.Write(
+                        process, live.Base, ModuleLocator.WritableRegionsAt(regions, live.Base), path, PointerBlockBytes);
+                    Console.WriteLine($"[{clock.ElapsedMilliseconds,7}ms] Pointer snapshot: {pointers} pointers, {bytes} bytes -> {path}");
+                    if (i + 1 < snapshotCount) Thread.Sleep(snapshotEveryMs);
+                }
+            }
             return ReportAndSample(process, store, reportBase, hits, samples, intervalMs);
         }
     }

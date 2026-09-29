@@ -21,9 +21,12 @@ internal static class ActorsCommand
     private const int MaxConsoleLines = 40;
     private const string PrisonerNameFragment = "Prisoner";
 
+    // Slot words that changed when a hollow-tree clicky was used (live 2026-09-29, research/client-memory.md §4); printed for gizmos.
+    private static readonly int[] UseCandidateOffsets = [0x78, 0xA0, 0x140, 0x148, 0x230];
+
     private sealed record ActorLine(
         float Distance, string Direction, int ActorSno, string? Name, int? EType, int? GizmoType,
-        uint Id, uint AcdId, long SlotAddress, float X, float Y, float Z);
+        uint Id, uint AcdId, long SlotAddress, float X, float Y, float Z, string? UseWords = null);
 
     public static int Run(string[] args)
     {
@@ -66,7 +69,8 @@ internal static class ActorsCommand
             var defs = new ActorDefinitionReader(store, schema);
             var lines = actors.Where(a => a.IsPlaced && a.Id != playerActor?.Id && IsFinite(a.Position))
                 .Select(a => ToLine(a, player.Position, store.Name(a.ActorSno), defs.Read(a.ActorSno)))
-                .Where(l => l.Distance <= range).OrderBy(l => l.Distance).ToList();
+                .Where(l => l.Distance <= range).OrderBy(l => l.Distance)
+                .Select(l => l.GizmoType >= 0 ? l with { UseWords = UseWords(process, l.SlotAddress) } : l).ToList();
             PrintAndSave(lines, range);
 
             if (watchSeconds > 0) Watch(process, module.Base, offsets, actors, lines, watchSeconds, intervalMs, watchMatch);
@@ -86,7 +90,7 @@ internal static class ActorsCommand
     {
         Console.WriteLine($"Placed actors within {range} units: {lines.Count}");
         foreach (var l in lines.Take(MaxConsoleLines))
-            Console.WriteLine($"  {l.Distance,6:F1} {l.Direction,-9} sno {l.ActorSno} {l.Name ?? "?"} eType {l.EType?.ToString() ?? "?"} gizmo {l.GizmoType?.ToString() ?? "?"}");
+            Console.WriteLine($"  {l.Distance,6:F1} {l.Direction,-9} sno {l.ActorSno} {l.Name ?? "?"} eType {l.EType?.ToString() ?? "?"} gizmo {l.GizmoType?.ToString() ?? "?"}{(l.UseWords is { } w ? " " + w : "")}");
         if (lines.Count > MaxConsoleLines) Console.WriteLine($"  ... {lines.Count - MaxConsoleLines} more (see JSON)");
 
         string path = Path.Combine(Path.GetTempPath(), $"d4memscan-actors-{DateTime.Now:yyyyMMdd-HHmmss}.json");
@@ -111,6 +115,13 @@ internal static class ActorsCommand
 
         var target = actors.First(a => a.SlotAddress == pick.SlotAddress);
         ActorsWatch.Run(process, target, $"{pick.Name ?? "?"}, {pick.Distance:F1} units {pick.Direction}", pool.Stride, seconds, intervalMs);
+    }
+
+    private static string UseWords(ProcessReader process, long slot)
+    {
+        var word = new byte[sizeof(uint)];
+        return string.Join(" ", UseCandidateOffsets.Select(o =>
+            process.TryRead(slot + o, word, word.Length) ? $"+0x{o:X}={BitConverter.ToUInt32(word):X}" : $"+0x{o:X}=?"));
     }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);

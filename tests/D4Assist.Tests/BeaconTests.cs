@@ -71,6 +71,25 @@ public class BeaconTests
     }
 
     [Fact]
+    public void ActorFilter_APreviousStateMarksTheActorChanged()
+    {
+        var used = Record(1, Vector3.One, placement: 0) with { PreviousState = 0x61 };
+
+        Assert.Equal([true, false], ActorFilter.Placed([used, Record(2, Vector3.One, placement: 0)]).Select(a => a.StateChanged));
+    }
+
+    [Fact]
+    public void Bridge_KeepsTheBeaconWhenThePadChangesState()
+    {
+        var (feed, player, _) = Create();
+        feed.RaiseActors(new ActorState(1, PadSno, -20, -20, 0, StateChanged: true));
+
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+
+        Assert.Equal(1, player.ActiveCount);
+    }
+
+    [Fact]
     public void Bridge_IsSilentBeyondTheBeaconReach()
     {
         var (feed, player, _) = Create();

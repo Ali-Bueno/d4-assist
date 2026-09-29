@@ -31,6 +31,11 @@ public static class Conventions
 
     // ActorDefinition.eActorGizmoType (+392); each value is named after the data class at ptGizmoData
     // (definitions.json has no enum strings). research/dungeon-objectives.md §3.
+    public const int GizmoDoor = 0;                 // DoorGizmoData
+    public const int GizmoChest = 1;                // ChestGizmoData
+    public const int GizmoRewardChest = 19;         // data class unread; every actor is a *_Chest_Reward* event chest
+    public const int GizmoSign = 98;                // SignGizmoData: lore books, notes, notices
+    public const int GizmoLockedChest = 106;        // data class unread; mostly *_Chest_Rare_Locked_* key chests
     public const int GizmoSwitch = 57;              // SwitchGizmoData
     public const int GizmoCarryable = 94;           // CarryableGizmoData
     public const int GizmoCarryableReceptacle = 95; // CarryableReceptacleGizmoData

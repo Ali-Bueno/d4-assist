@@ -6,10 +6,13 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Turns live actor and player snapshots into positional loops (SpatialLoopPlayer) at the actors the
-/// <see cref="LoopTargetSelector"/> picks. The feed fires only while a memory session is open (dungeon, radar-only world, overworld); every world change stops every loop.
+/// <see cref="LoopTargetSelector"/> picks, the nearest few per kind. The feed fires only while a memory session is open (dungeon, radar-only world, overworld); every world change stops every loop.
 /// </summary>
 public sealed class ActorLoopBridge
 {
+    // d2r-access src/ground_items.h:42-44: MaxContainerVoices 3, MaxDoorVoices 2; beacons and objectives may use the whole loop budget.
+    private const int MaxContainerVoices = 3, MaxDoorVoices = 2;
+
     private readonly SpatialLoopPlayer _player;
     private readonly LoopTargetSelector _selector;
     private readonly Func<ActorState, bool> _isUsed;
@@ -22,7 +25,8 @@ public sealed class ActorLoopBridge
     private Dictionary<uint, (ActorState Actor, LoopTarget Target)> _targets = [];
     private PlayerState? _lastPlayer;
 
-    /// <param name="isUsed">True once an actor was used (prisoner freed, lever pulled): its loop stops. Default: never.</param>
+    /// <param name="isUsed">True once an actor was used (lever pulled, chest opened): its loop stops if its target says so.
+    /// Default: the live gizmo state signal (<see cref="ActorState.StateChanged"/>).</param>
     /// <param name="log">Debug sink for loop start/stop lines; null when not debugging.</param>
     /// <param name="sightings">Debug log of gizmo and portal-like actors; null when not debugging.</param>
     public ActorLoopBridge(
@@ -32,7 +36,7 @@ public sealed class ActorLoopBridge
         _player = player;
         _selector = selector;
         _nameOf = nameOf;
-        _isUsed = isUsed ?? (_ => false);
+        _isUsed = isUsed ?? (a => a.StateChanged);
         _log = log;
         _sightings = sightings;
 
@@ -60,7 +64,8 @@ public sealed class ActorLoopBridge
             .Select(a => (Actor: a, Target: _selector.Select(a)))
             .Where(x => x.Target is not null)
             .GroupBy(x => x.Actor.Id).ToDictionary(g => g.Key, g => g.First());
-        var next = selected.Where(kv => !_isUsed(kv.Value.Actor)).ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, kv.Value.Target!));
+        var next = selected.Where(kv => !(kv.Value.Target!.StopsWhenUsed && _isUsed(kv.Value.Actor)))
+            .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, kv.Value.Target!));
         if (_log is not null) LogChanges(_targets, next, selected.Keys.ToHashSet());
         _targets = next;
     }
@@ -68,13 +73,24 @@ public sealed class ActorLoopBridge
     private void OnPlayer(PlayerState p)
     {
         _lastPlayer = p;
-        _player.Update([.. _targets.Values.Select(t => ToSource(t.Actor, t.Target, p))]);
+        _player.Update([.. _targets.Values
+            .GroupBy(t => t.Target.Kind)
+            .SelectMany(kind => kind.OrderBy(t => Sq(t.Actor.X - p.X) + Sq(t.Actor.Y - p.Y)).Take(MaxVoices(kind.Key)))
+            .Select(t => ToSource(t.Actor, t.Target, p))]);
     }
+
+    /// <summary>How many loops of one kind may sound at once (the nearest ones).</summary>
+    public static int MaxVoices(LoopKind kind) => kind switch
+    {
+        LoopKind.Door => MaxDoorVoices,
+        LoopKind.Container => MaxContainerVoices,
+        _ => AudioMixer.MaxLoopVoices,
+    };
 
     private static LoopSource ToSource(ActorState actor, LoopTarget target, PlayerState p)
     {
         var (right, up) = ScreenDirections.ToScreen(actor.X - p.X, actor.Y - p.Y);
-        return new LoopSource(actor.Id.ToString(), target.Sound, right, up, target.Profile);
+        return new LoopSource(actor.Id.ToString(), target.Sound, right, up, target.Profile, Priority: (int)target.Kind);
     }
 
     private void LogChanges(

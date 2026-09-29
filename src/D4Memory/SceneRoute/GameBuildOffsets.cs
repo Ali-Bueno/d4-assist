@@ -1,3 +1,5 @@
+using D4Memory.Ui;
+
 namespace D4Memory.SceneRoute;
 
 /// <summary>Layout shared by every pool container (0x2B8-byte template, research/client-memory.md §1, §4).</summary>
@@ -27,12 +29,14 @@ public sealed record PoolParameters(long ContainerOffset, long SeedRva, int Stri
 /// </summary>
 /// <param name="GameObjectPointerRva">RVA of the u64 pointer to the game object G.</param>
 /// <param name="CSceneVtableRva">RVA of the CScene vtable a valid scene slot's record must point at.</param>
+/// <param name="Conversation">Dialogue menu and playing-conversation addresses; null when unknown for the build.</param>
 public sealed record GameBuildOffsets(
     long GameObjectPointerRva,
     PoolLayout Pool,
     PoolParameters Scene,
     PoolParameters Actor,
-    long CSceneVtableRva);
+    long CSceneVtableRva,
+    ConversationOffsets? Conversation = null);
 
 /// <summary>Looks up <see cref="GameBuildOffsets"/> by the installed exe's PE TimeDateStamp (see PeHeaderReader).</summary>
 public static class GameBuildOffsetsTable
@@ -55,7 +59,10 @@ public static class GameBuildOffsetsTable
                 ChunkTableOffset: 0x120),
             Scene: new PoolParameters(ContainerOffset: 0xC18, SeedRva: 0x37CC63C, StrideBase: 0x92F),
             Actor: new PoolParameters(ContainerOffset: 0xB78, SeedRva: 0x37CC5A0, StrideBase: 0xC27),
-            CSceneVtableRva: 0x2819030),
+            CSceneVtableRva: 0x2819030,
+            // Live pointer snapshots while talking to Vani, 2026-09-29 (client-memory.md §5).
+            Conversation: new ConversationOffsets(
+                OptionsPointerRva: 0x31326A0, OptionStride: 0x20, OptionSnoOffset: 0x10, PlayingListRva: 0x30D28F8, NodeSnoOffset: 0x28)),
     };
 
     /// <summary>False when the build isn't known — callers must fall back to the full signature scan.</summary>

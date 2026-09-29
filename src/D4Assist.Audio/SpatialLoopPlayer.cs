@@ -7,7 +7,8 @@ public sealed record LoopProfile(double Reach, double NearGain, double Falloff);
 /// <summary>A positioned loop source: stable key, sound id, offset to it in screen axes, and its profile.</summary>
 /// <param name="Right">World units to the right of the listener on screen.</param>
 /// <param name="Up">World units above the listener on screen (negative = below, i.e. behind).</param>
-public readonly record struct LoopSource(string Key, string Sound, double Right, double Up, LoopProfile Profile);
+/// <param name="Priority">Lower claims the loop budget first; ties go to the nearer source.</param>
+public readonly record struct LoopSource(string Key, string Sound, double Right, double Up, LoopProfile Profile, int Priority = 0);
 
 /// <summary>Named loop profiles. Port of d2r-access ground-item loops, src/ground_items.h and ground_items.cpp.</summary>
 public static class LoopProfiles
@@ -15,11 +16,14 @@ public static class LoopProfiles
     // d2r-access ground_items.h:53 LoopVolume: near gain for peak-normalized loops.
     private const double D2rNearGain = 0.4;
 
-    // d2r-access ground_items.h:34: quest loop reach, in subtiles.
+    // d2r-access ground_items.h:37: quest loop reach, in subtiles.
     private const double QuestReachSubtiles = 45;
 
+    // d2r-access ground_items.h:33 AudibleRadius: reach of every other loop (doors, containers), in subtiles.
+    private const double ContainerReachSubtiles = 30;
+
     /// <summary>D2R quest source: linear fade (ground_items.cpp:39, one-third left at 30 of 45), reach 45 subtiles
-    /// (ground_items.h:34), converted with <see cref="D2rScale.D4UnitsPerSubtile"/>. Near gain is D2R's 0.4 times the radar's
+    /// (ground_items.h:37), converted with <see cref="D2rScale.D4UnitsPerSubtile"/>. Near gain is D2R's 0.4 times the radar's
     /// D4 loudness boost (combat drowned D2R levels, 2026-09-28), capped at full scale: min(1, 0.4 * 4) = 1.</summary>
     public static readonly LoopProfile Quest = new(
         Reach: QuestReachSubtiles * D2rScale.D4UnitsPerSubtile, NearGain: Math.Min(1.0, D2rNearGain * RadarCuePlayer.LoudnessBoost), Falloff: 1);
@@ -27,6 +31,11 @@ public static class LoopProfiles
     /// <summary>User request (2026-09-28: "un audio beacon bien fuerte para el portal"): as loud as a quest source
     /// at close range, audible from more than twice as far. Linear fade like quest sources.</summary>
     public static readonly LoopProfile Beacon = new(Reach: 60, NearGain: 1.0, Falloff: 1);
+
+    /// <summary>D2R door and container source: squared fade (ground_items.cpp:39), reach 30 subtiles (ground_items.h:33),
+    /// same near gain as <see cref="Quest"/>. D2R's +4 dB chest trim is absorbed by that full-scale cap.</summary>
+    public static readonly LoopProfile Container = new(
+        Reach: ContainerReachSubtiles * D2rScale.D4UnitsPerSubtile, NearGain: Quest.NearGain, Falloff: 2);
 }
 
 /// <summary>
@@ -96,11 +105,11 @@ public sealed class SpatialLoopPlayer
     /// <summary>1 in front or beside the listener, easing to <see cref="RearPitch"/> when the source is below on screen.</summary>
     public static double Pitch(double up) => 1 + (RearPitch - 1) * Math.Clamp(-up / RearBlendUnits, 0.0, 1.0);
 
-    /// <summary>Applies this poll's sources: retargets known keys, starts new audible ones (nearest first), stops the rest.</summary>
+    /// <summary>Applies this poll's sources: retargets known keys, starts new audible ones (by priority, then nearest), stops the rest.</summary>
     public void Update(IReadOnlyCollection<LoopSource> sources)
     {
         var live = new HashSet<string>();
-        foreach (var source in sources.OrderBy(s => Math.Sqrt(s.Right * s.Right + s.Up * s.Up)))
+        foreach (var source in sources.OrderBy(s => s.Priority).ThenBy(s => Math.Sqrt(s.Right * s.Right + s.Up * s.Up)))
         {
             double gain = Gain(source.Profile, Math.Sqrt(source.Right * source.Right + source.Up * source.Up)) * Volume;
             if (gain <= 0 || !_sounds.TryGetValue(source.Sound, out var samples)) continue;

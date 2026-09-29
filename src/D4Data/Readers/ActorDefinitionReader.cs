@@ -1,15 +1,19 @@
+using System.Numerics;
 using D4Data.Casc;
 using D4Data.Schema;
 
 namespace D4Data.Readers;
 
 /// <summary>The ActorDefinition fields that classify an actor (looked up by field name in definitions.json).</summary>
-public readonly record struct ActorDefinitionInfo(int EType, int GizmoType);
+/// <param name="BoundsCenter">aabbBounds centre, actor-local (a door: X = thin passage axis, Y = width).</param>
+/// <param name="BoundsHalfExtents">aabbBounds half-extents, actor-local.</param>
+public readonly record struct ActorDefinitionInfo(int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default);
 
 /// <summary>Reads (and caches per SNO) <see cref="ActorDefinitionInfo"/> from ActorDefinition meta records.</summary>
 public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
 {
     private const string ActorDefinition = "ActorDefinition";
+    private const string Aabb = "AABB";
 
     private readonly Dictionary<int, ActorDefinitionInfo?> _cache = [];
 
@@ -19,9 +23,12 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
     {
         if (_cache.TryGetValue(actorSno, out var cached)) return cached;
         var meta = store.Meta(schema.SnoGroup(ActorDefinition), actorSno);
+        int bounds = schema.Offset(ActorDefinition, "aabbBounds");
         ActorDefinitionInfo? info = meta is null || meta.Length < schema.Size(ActorDefinition) ? null : new ActorDefinitionInfo(
             meta.I32(schema.Offset(ActorDefinition, "eType")),
-            meta.I32(schema.Offset(ActorDefinition, "eActorGizmoType")));
+            meta.I32(schema.Offset(ActorDefinition, "eActorGizmoType")),
+            meta.Vec3(bounds + schema.Offset(Aabb, "wp")),
+            meta.Vec3(bounds + schema.Offset(Aabb, "wvExt")));
         _cache[actorSno] = info;
         return info;
     }

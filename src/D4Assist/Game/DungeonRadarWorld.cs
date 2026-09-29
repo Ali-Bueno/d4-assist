@@ -22,6 +22,7 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
     private int _minX, _minY, _width, _height;
     private RadarCell[] _cells = [];
     private int[] _rooms = [];
+    private IReadOnlySet<(int X, int Y)> _closedDoors = new HashSet<(int X, int Y)>();
 
     public double TypicalOpeningWidth { get; private set; }
 
@@ -31,7 +32,15 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
     /// <summary>Tiles whose cells read Unknown: no walk map, or a yaw off the 90-degree grid.</summary>
     public int TilesWithoutWalkability { get; private set; }
 
-    public RadarCell Cell(int x, int y) => TryIndex(x, y, out var i) ? _cells[i] : RadarCell.Unknown;
+    /// <summary>A closed door turns walkable floor into a Door cell; walls stay walls.</summary>
+    public RadarCell Cell(int x, int y)
+    {
+        var cell = TryIndex(x, y, out var i) ? _cells[i] : RadarCell.Unknown;
+        return cell == RadarCell.Open && _closedDoors.Contains((x, y)) ? RadarCell.Door : cell;
+    }
+
+    /// <summary>Replaces the closed-door cells (DoorObstacles), in radar cell coordinates.</summary>
+    public void SetClosedDoors(IReadOnlySet<(int X, int Y)> cells) => _closedDoors = cells;
 
     public int RoomAt(int x, int y) => TryIndex(x, y, out var i) ? _rooms[i] : -1;
 
@@ -48,6 +57,7 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
         _width = _height = 0;
         _cells = [];
         _rooms = [];
+        _closedDoors = new HashSet<(int X, int Y)>();
         TypicalOpeningWidth = 0;
         RoomCount = TilesWithoutWalkability = 0;
     }

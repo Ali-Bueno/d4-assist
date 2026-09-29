@@ -72,6 +72,14 @@ error. No key needs a machine-specific path.
 | `QuestRoutesEnabled` | `true` | Lead through the known campaign routes (see Quest routes). Needs `OutsideDungeonsEnabled`. Uses the exploration ping's volume. |
 | `ObjectiveSoundsEnabled` | `true` | Play quest loops at dungeon objectives (see Objective sounds). |
 | `ObjectiveVolume` | `1.0` | Objective loop volume, 0 to 1. |
+| `DoorSoundsEnabled` | `true` | Loop D2R's door sounds at the 2 nearest doors (see Doors, chests and readables). |
+| `ChestSoundsEnabled` | `true` | Loop D2R's chest sound at chests and other lootable containers. |
+| `ReadableSoundsEnabled` | `true` | Loop D2R's scroll sound at lore books, notes and notices. |
+| `InteractableVolume` | `1.0` | Door, chest and readable loop volume, 0 to 1. |
+| `PauseCuesInCutscenes` | `true` | Silence every cue while a cutscene plays (see Cutscenes). |
+| `PauseCuesInBackground` | `true` | Silence every cue while the game window is not in the foreground, like D2R. The sound examples still play. |
+| `PauseCuesInConversations` | `true` | Silence every cue while the dialogue menu is open and while the conversation picked from it plays. |
+| `RadarClosedDoorsEnabled` | `true` | A closed door sounds as a door in the radar (two knocks) instead of open floor. |
 | `BeaconActorNames` | `["X1_Undercity_WarpPad"]` | CoreTOC actor names that get a beacon; unknown names are logged once and ignored. |
 
 ## Beacons
@@ -92,7 +100,52 @@ free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch act
 [dungeon-objectives](../../research/dungeon-objectives.md). The exit pads keep the beacon profile and are the only loops that
 mute the exploration guide. A loop stops when its actor leaves the placed list; the "used" signal is unknown, so
 `ActorLoopBridge` takes a `isUsed` predicate (default never) for it. `--debug` logs one `LOOP started/stopped` line
-per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`).
+per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
+
+## Doors, chests and readables
+
+`Game/InteractableClassifier` gives every other gizmo a D2R loop by ActorDefinition gizmo type
+([dungeon-objectives](../../research/dungeon-objectives.md) §6):
+- doors (`DoorGizmoData`, not `*StartOpen*`) → wooden, metal or stone door, picked from the name;
+- chests (`ChestGizmoData`, reward and locked chests) → chest;
+- readables (`SignGizmoData`, `*Lorebook*` chests) → scroll;
+- a chest or readable named `*Corpse*`, `*Remains*` or `*Body*` → corpse, like the prisoners (user request: a body on the ground shouldn't sound like a chest).
+
+They use D2R's door/container profile: reach 18 units (30 subtiles), squared fade. `ActorLoopBridge` plays only the
+2 nearest doors and the 3 nearest chests/readables (D2R `MaxDoorVoices`/`MaxContainerVoices`). When the 8-loop
+budget is full, the order is beacon, objectives, doors, containers. Like objectives, they stop only when the actor
+leaves the list: the live open/used state is not known yet.
+
+Doorways are baked walkable in the scene data, so an open door already counts as an exit for the radar and the
+room announcements. A closed door does not register as an obstacle yet.
+
+## Cue pauses
+
+`Game/CueGate` is the one switch on `AudioMixer.Paused`. The cues are silent while any reason holds:
+- **cutscene** (below);
+- **game in background**: `Input/GameWindowFocus` checks at the player-poll rate whether the foreground window
+  belongs to the Diablo IV process;
+- **conversation**: `ConversationMute`, fed by `GameSession.ConversationRead`
+  ([client-memory](../../research/client-memory.md) §5), mutes while the dialogue menu is open and while a
+  conversation picked from it plays. Barks and taunts never mute.
+
+A sound example lifts the pause while it plays. Menus (inventory, map, skills) have no signal yet.
+
+## Closed doors in the radar
+
+`Game/DoorObstacles` lays every closed door on the radar grid. A door is closed when it is a door gizmo, not
+`*StartOpen*`, not used (`StateChanged`) and on the player's floor. The footprint is its `aabbBounds` box, turned by the
+RActor yaw, at least half a cell diagonal thick and one cell wider on each side. `DungeonRadarWorld` turns open floor
+under it into `RadarCell.Door`, so `PassageScanner` reads the ray as `Door` (D2R's two knocks) when the door stops it
+within the closing depth. `--debug` logs `RADAR door … ends=A/B` once per door; both ends should be `Blocked`, which
+means the yaw lays the door across its doorway.
+
+## Cutscenes
+
+`Game/CutscenePause` sets `AudioMixer.Paused` on the log's `ptCutscene->m_eCutsceneState: PLAYBACK` line. A paused
+mixer renders silence, drops radar cues and guide pings, and holds its loops. The game never logs a cutscene's end
+([runtime-signals](../../research/runtime-signals.md) §2), so the pause lifts on the next world change, or once the
+player has walked one map cell. `--debug` logs `CUTSCENE state …` and `CUES paused/resumed (cause)`.
 
 ## Exploration guide
 

@@ -107,3 +107,47 @@ gizmo type 57.
 - **Ziggurat_02 (live 2026-09-29):** all 14 tiles explored, no frontier, and the pad never appeared although the player passed 1.5-3.4 units from the pad spot in all three
   pad-capable dead ends; unknown whether it spawns later or the floor continued unseen. The guide now re-checks the exit-candidate tiles (20 scenes / 26 layers in this build) and `--debug` logs `ACTOR seen:` lines.
 - **Pit:** no static portal marker. Its portals and guardian are spawned by the server (L).
+
+## 6. Doors, chests and readables (offline census, build 3.2.1.73552, 2026-09-29)
+
+Census of all 62,490 `ActorDefinition` records. 1,087 are TACT-encrypted (unreleased content); `SnoStore` treats
+them as missing. Gizmos (`eType` 2): 22,725.
+
+| Gizmo type | Count | What it holds | Assist loop |
+|---|---|---|---|
+| 0 `DoorGizmoData` | 383 | 112 `DRLG_Blocker_*`, small doors, gates, portcullises, boss doors, cages. Also 13 `*StartOpen*` arena doors | door (wood / metal / stone by name), except `StartOpen` |
+| 1 `ChestGizmoData` | 954 | chests, weapon/armor racks, lootable corpses, clicky rocks, loose stones, harvest nodes, `Generic_Lorebook_Chest_01_Dyn` | chest; `*Lorebook*` → readable |
+| 19 (class unread) | 11 | `LE_`/`ZE_Chest_Reward*` event chests | chest |
+| 106 (class unread) | 88 | `*_Chest_Rare_Locked_*` key chests, `usz_rewardGizmo_*` | chest |
+| 98 `SignGizmoData` | 1,399 | lore books, notes, notices, `QST_*_Lore_*`, `X_Collectibles_*` | readable (scroll) |
+| 105 `QuestChestGizmoData` | 125 | quest chests, jugs, corpses, pages | objective (quest item), §3 |
+| 23 `BreakableContainerGizmoData` | 603 | baskets, jars, `*AnyLoot*` arrangements | none: broken, not opened |
+| 48 `DestroyableObjectGizmoData` | 14,616 | crates, barrels, urns, cabinet doors | none |
+| 110 (class unread) | 17 | boss chests mixed with summon altars | none yet |
+
+- **Bodies:** 170 chest and 94 readable gizmos are bodies, named `*Corpse*`, `*Remains*` or `*Body*`
+  (e.g. `corpse_knight_melee_frac`, `TWN_Frac_Margrave_Sign_MauledCorpse`). They loop the corpse sound.
+  `Dead` is not used as a token because it also names quests (`QST_Skov_DeadWeight_*`).
+- **Door material:** `DoorGizmoData` has no material field. The assist picks the sound from the name:
+  Gate/Portcullis/Cage/Bars/Grate/Iron → metal, Stone/Crypt/Tomb/Statue/Blocker → stone, else wood. D2R derives
+  it from the game's own open sound; the D4 equivalent (animation/sound data) is not traced.
+- **Other door fields** (`DoorGizmoData`, 280 B): `fGizmoStartsDisabled` +24, `flOperationRadius` +40,
+  `tLockData` +208, `fGizmoPlayerOperable` +244, `fPlayerCanCloseDoor` +252, `fMonsterCanOpenDoor` +256,
+  `flOpenDuration` +264. None gives the live open/closed state.
+- **Doorways are baked walkable.** For 202 door markers found in scene MarkerSets, the 1-unit walk map is walkable
+  at the door (140 cases). The 19 blocked cases are props offset in Z, and 43 fall outside the tile footprint.
+  The same holds under `DRLG_Blocker_*`. Example: `Mage_Halls_NSEW_01 (DGN_Frac_LostArchives_MainRoom)` has one
+  blocker per exit, 3.5 units in from each tile edge. So an **open door is already an exit** for the radar and
+  the room announcements, and a **closed door is invisible** to them. D2R instead reads the game's DOOR collision
+  bit. Matching it here needs the live open/closed state plus the door's footprint.
+- **Door footprint:** `ActorDefinition.aabbBounds` @220 (centre @220, half-extents @232, actor-local). The thin
+  axis is local X (the passage direction), the width is local Y. Examples:
+  - `ProtoDun_Door`: half-extents (0.25, 1.2, 1.4)
+  - `Prison_Prop_Portcullis_01_Dyn`: (0.5, 2.1, 3.75)
+  - `DRLG_Blocker_Mage_Halls_01`: (0.675, 2.0, 2.9)
+
+  Rotate by the placement quaternion (RActor +0x750, [client-memory](client-memory.md) §4).
+  `ActorCollisionData` holds the same default cylinder for every door, so it is useless here.
+- **Live "used" state:** unknown for every kind. Candidates to diff with `D4MemScan actors --watch`: the
+  quaternion (a door that swings), actor removal (blockers vanish about 10 s after opening), and the unmapped
+  RActor slot words. Gizmo state is probably an ACD attribute; the ACD attribute values are obfuscated.

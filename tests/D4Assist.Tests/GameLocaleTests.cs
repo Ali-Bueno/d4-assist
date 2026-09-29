@@ -21,6 +21,23 @@ public class GameLocaleTests
         Assert.Equal(expected, GameLocale.ToLanguage(parsed!));
     }
 
+    [Theory]
+    [InlineData("esES", "esES")]
+    [InlineData("enUS\r\n", "enUS")]
+    [InlineData("garbage", null)]
+    [InlineData("", null)]
+    public void Launcher_locale_is_read_from_the_install_folder(string content, string? expected)
+    {
+        string dir = Directory.CreateTempSubdirectory("d4locale").FullName;
+        File.WriteAllText(Path.Combine(dir, GameLocale.LauncherFileName), content);
+
+        Assert.Equal(expected, GameLocale.ReadLauncherLocale(dir));
+    }
+
+    [Fact]
+    public void Launcher_locale_is_null_without_the_file() =>
+        Assert.Null(GameLocale.ReadLauncherLocale(Directory.CreateTempSubdirectory("d4locale").FullName));
+
     [Fact]
     public void Lines_without_the_marker_give_null()
     {

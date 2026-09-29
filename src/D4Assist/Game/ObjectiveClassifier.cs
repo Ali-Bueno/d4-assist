@@ -33,6 +33,9 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
         return !traits.IsMonster && dpoActors.Contains(actorSno) ? ObjectiveReason.Dpo : null;
     }
 
+    /// <summary>True for monsters and NPCs, whose state changes as they animate: a gizmo-only "used" signal does not apply.</summary>
+    public bool IsMonster(int actorSno) => TraitsOf(actorSno)?.IsMonster == true;
+
     private Traits? TraitsOf(int actorSno)
     {
         if (_traits.TryGetValue(actorSno, out var cached)) return cached;

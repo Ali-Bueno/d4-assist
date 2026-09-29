@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using D4Data.Format;
+using WiseOwl.Casc;
 using WiseOwl.Casc.Diablo4;
 
 namespace D4Data.Casc;
@@ -45,12 +46,20 @@ public sealed class SnoStore : IDisposable
             .Where(e => e.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(e => (e.Id, e.Name));
 
+    /// <summary>Null when the SNO has no meta record or it is encrypted (content not yet released).</summary>
     public SnoBlob? Meta(int group, int id) =>
-        _storage.TryReadSno(group, id, SnoFolder.Meta, out var bytes) ? SnoBlob.FromMeta(bytes) : null;
+        TryRead(group, id, SnoFolder.Meta, out var bytes) ? SnoBlob.FromMeta(bytes) : null;
 
     public SnoBlob? Payload(int group, int id) =>
-        _storage.TryReadSno(group, id, SnoFolder.Payload, out var bytes) && bytes.Length > 0
+        TryRead(group, id, SnoFolder.Payload, out var bytes) && bytes.Length > 0
             ? SnoBlob.FromPayload(bytes) : null;
+
+    // 1087 of 62490 actor metas were TACT-encrypted in build 3.2.1.73552 (census 2026-09-29).
+    private bool TryRead(int group, int id, SnoFolder folder, out byte[] bytes)
+    {
+        try { return _storage.TryReadSno(group, id, folder, out bytes); }
+        catch (CascEncryptedContentException) { bytes = []; return false; }
+    }
 
     public void Dispose() => _storage.Dispose();
 }

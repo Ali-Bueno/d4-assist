@@ -65,6 +65,17 @@ from radar cues. Profiles: `Quest` (D2R values) and `Beacon` (user request: loud
 `Sounds/quest-item.wav` (embedded in the assembly, loaded by `SpatialLoopPlayer.LoadSounds`) is D2R's quest loop (Diablo IV audio, reuse approved), trimmed to 700 ms like D2R:
 `ffmpeg -i "quest item.ogg" -map_metadata -1 -vn -af "apad=whole_dur=0.7,atrim=duration=0.7,afade=t=in:d=0.005,afade=t=out:st=0.68:d=0.02" -ac 1 -ar 48000 -c:a pcm_s16le quest-item.wav`
 
+The other WAVs are D2R's loops converted by its own recipe (`d2r-access/cmake/GroundItems.cmake`):
+`ffmpeg -i <ogg> -map_metadata -1 -vn [filter] -ac 1 -ar 48000 -c:a pcm_s16le -fflags +bitexact -flags:a +bitexact <wav>`.
+- `corpse.wav`: filter `-af aformat=sample_fmts=flt,volume=42dB,alimiter=limit=0.9:level=false`.
+- `scroll.wav`: the same filter at `volume=24dB`.
+- `chest.wav`, `wooden-door.wav`, `metal-door.wav`, `stone-door.wav`: no filter.
+
+Sources: `loot/{corpse,scroll,chest}.ogg` and `exploration/{wooden,metal,stone} door.ogg`. The `Container` profile
+(doors, chests, readables) is D2R's `AudibleRadius` 30 subtiles with a squared fade (`ground_items.cpp:39`).
+`LoopSource.Priority` decides who gets the loop budget first. `AudioMixer.Paused` silences everything: it drops
+one-shot cues and holds loops, and is used during cutscenes.
+
 ## Guide ping
 
 The exploration guide's sound: D2R's target-beacon ping (`d2r-access/src/beacon_audio.cpp:105-141`, `docs/beacon.md`):

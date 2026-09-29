@@ -8,9 +8,10 @@ namespace D4Assist;
 /// (user request 2026-09-29): its name is spoken, then radar cues play once per direction, the quest loop twice,
 /// the guide ping three times, then the arrival chime. One example at a time; presses during one are ignored.
 /// </summary>
+/// <param name="unmute">Lifts the cue pause (game in the background, cutscene) while an example plays; null when none.</param>
 public sealed class SoundDemo(
     ISpeechSink speech, Func<int, string> nameOf, IRadarCuePlayer? radar, AudioMixer mixer, float[]? questLoop,
-    double questGain, GuidePingPlayer? guide)
+    double questGain, GuidePingPlayer? guide, Func<IDisposable>? unmute = null)
 {
     public const int ExampleCount = 8;
 
@@ -28,7 +29,7 @@ public sealed class SoundDemo(
         if (digit is < 1 or > ExampleCount || !_busy.Wait(0)) return;
         Task.Run(() =>
         {
-            try { Run(digit); }
+            try { using (unmute?.Invoke()) Run(digit); }
             finally { _busy.Release(); }
         });
     }

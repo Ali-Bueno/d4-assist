@@ -62,6 +62,30 @@ public class PassageClassificationTests
     }
 
     [Fact]
+    public void ClosedDoorAcrossTheCorridor_ReadsDoor_WhenOpenedReadsOpen()
+    {
+        static IRadarWorld Corridor(bool closed) => new FakeRadarWorld((x, y) =>
+            x >= 0 && x < 40 && y >= 1 && y <= 3 ? (closed && x == 27 ? RadarCell.Door : RadarCell.Open) : RadarCell.Blocked);
+
+        var shut = Baseline(Corridor(closed: true), 25);
+        var open = Baseline(Corridor(closed: false), 25);
+
+        Assert.Equal(RadarCueKind.Door, shut.State);
+        Assert.True(shut.Passage.Door);
+        Assert.Equal(RadarCueKind.Open, open.State);
+    }
+
+    [Fact]
+    public void FarDoor_DoesNotTurnACloseWallIntoADoor()
+    {
+        // The wall stops the route at depth 4; a door cell elsewhere, beyond the closing depth, is not what blocks it.
+        var sensor = Baseline(new FakeRadarWorld((x, y) =>
+            x >= 0 && x < 30 && y >= 1 && y <= 3 ? RadarCell.Open : x == 40 && y == 2 ? RadarCell.Door : RadarCell.Blocked), 25);
+
+        Assert.Equal(RadarCueKind.Blocked, sensor.State);
+    }
+
+    [Fact]
     public void UnknownPlayerCell_GivesNoReading()
     {
         var sensor = Baseline(new FakeRadarWorld((_, _) => RadarCell.Unknown), 2);

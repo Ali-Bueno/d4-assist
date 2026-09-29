@@ -2,8 +2,8 @@ using D4Assist.Audio;
 
 namespace D4Assist.Radar;
 
-/// <summary>One ray's scan: D2R's Radar::Passage (d2r-access src/radar.h:139-149) without the level-exit and
-/// door fields, plus where the route meets unloaded cells.</summary>
+/// <summary>One ray's scan: D2R's Radar::Passage (d2r-access src/radar.h:139-149) without the level-exit
+/// field, plus where the route meets unloaded cells.</summary>
 public sealed record Passage
 {
     /// <summary>Proved connected route along the ray, in cells (up to the scan window).</summary>
@@ -29,6 +29,9 @@ public sealed record Passage
 
     /// <summary>The unexplored qualifier of a passable reading (RadarEngine.Qualify).</summary>
     public bool Unexplored { get; init; }
+
+    /// <summary>A closed door blocks the route within the closing depth (radar_passage.cpp:53).</summary>
+    public bool Door { get; init; }
 
     public bool LeadsUnknown => UnknownDepth >= 0;
 }

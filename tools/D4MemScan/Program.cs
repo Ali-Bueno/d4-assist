@@ -16,7 +16,8 @@ internal static class Program
         "       D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]\n" +
         "       D4MemScan pose-snapshot --scenes <report.json> --defs <definitions.json> [--install <dir>] [--out <file.json>]\n" +
         "       D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.json>]\n" +
-        "       D4MemScan pose-context --in <file.json> [--out <file.focus.json>]";
+        "       D4MemScan pose-context --in <file.json> [--out <file.focus.json>]\n" +
+        "       D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]";
 
     private static int Main(string[] args)
     {
@@ -34,6 +35,7 @@ internal static class Program
                 "pose-snapshot" => PoseSnapshotCommand.Run(rest),
                 "pose-filter" => PoseFilterCommand.Run(rest),
                 "pose-context" => PoseContextCommand.Run(rest),
+                "peek" => PeekCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

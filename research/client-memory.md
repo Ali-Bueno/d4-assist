@@ -133,6 +133,7 @@ The evidence is the magic multiply for `P/0x2B8` and the same header reads.
 | +0x7A4 | world id (SNO or instance id: unknown) | H |
 | +0x7A8 | scene id (scene pool) | H |
 | +0x7AC | placement: 0 = in the world, −1 = not placed (UI copies) | H |
+| +0x140 / +0x148 | gizmo state id / the previous one: 0 at +0x148 until the gizmo is used once (live, below) | M |
 
 **ACD slot:** +0x08 ACD id, +0x14 RActor id, +0x48 actor definition pointer, +0x50 actor SNO, +0x6C/+0x7C/+0x88
 quaternion/position/scale, +0xC0 world id, +0xC4 scene id, +0xC8 placement (all H). The attribute
@@ -149,7 +150,54 @@ stash. The farthest was 65 units away, so the client only holds actors near the 
 instance id (0xFA66BCBF), not the World SNO. `+0x7A8` did **not** resolve in the scene pool with the
 `id & 0x7FFFF` rule, so its id space is still unknown.
 
-## 5. Consequences for the assist
+**Gizmo "used" signal (live 2026-09-29, prologue, `D4MemScan actors --watch`):** when the player used a
+chest-type gizmo, `+0x140` (and its copy `+0x144`) stepped from `0x61` to `0x62`, then `0x63` for a backpack. `+0x148` took the
+previous value (0 before any use). Across 8 nearby chest gizmos (hollow tree, backpack, snow piles), the 4 the player
+had used had `+0x148 != 0` and the 4 untouched ones had 0, and it stayed that way minutes later. The app treats
+`+0x148 != 0` as "used" for gizmos only (`ActorState.StateChanged`).
+- **Doors:** a village door (`FracturedPeaksHU_Town_Door_02_dyn`) starts with state `0x4046D66` and `+0x148` 0. Once
+  opened, it holds `+0x140 = 0x3EC7F2` and `+0x148 = 0x4046D66`; an identical closed door kept 0. The app's door loop
+  stopped with `cause=used` at 1.3 units. The player cannot close that door again.
+- Levers and switch prisoners are not checked yet.
+Noise when diffing a slot:
+- `+0x17C`/`+0x180` tick every frame, and `+0x234` is a timer.
+- While the player hovers or targets the gizmo, `+0x78` goes 0/−1, `+0xA0` bit 0x4 flips and `+0x230` goes 1.0/10.0.
+- `+0x720` looks like a distance.
+
+## 5. UI state: conversations found, menus not yet (live 2026-09-29, prologue)
+
+**Method.** `D4MemScan player --snapshot-pointers <file> [--snapshot-count N --snapshot-every-ms M]` writes a depth-1
+heap snapshot:
+- Every 8-byte word in the live module's writable data that points into readable memory (≈32,000 pointers).
+- The first 0x400 bytes at each target.
+- About 35 MB per snapshot, one every ~0.55 s.
+
+Snapshots taken in alternating states (closed/open/closed/open) are diffed per `[base+rva]+offset` word. That yields a
+static route directly. Diffing the module data alone found nothing: UI state lives on the heap. `D4MemScan peek --address`
+then watches the candidates live.
+
+**Conversations (build 3.2.1.73552), used by the app (`D4Memory.Ui.ConversationReader`):**
+- Dialogue menu: `u64[base+0x31326A0]` points to the option array, and `u32[base+0x31326A8]` is the option count, 0 while the
+  menu is closed. Options are 0x20 bytes each, with the ConversationDefinition SNO at +0x10. The prologue menu with Vani had
+  5 options: an empty one (SNO 0), `Frac_Prologue_Village_08`, then `Vani_OPT_03`, `_06` and `_05`. The array keeps
+  stale entries after the menu closes.
+- Playing conversations: a doubly linked list with its head at `base+0x30D28F8` (next, prev). The head points to itself
+  when the list is empty, and each node's SNO is at +0x28. It held `Frac_Prologue_Vani_OPT_03` for the ~5 s of the chosen
+  line and nothing before or after.
+- The app mutes while the menu is open, and while a playing conversation is one of the menu's options (`ConversationMute`),
+  so barks and taunts never mute. Live: "funcionó".
+
+**Menus (inventory, map, skills): not found.**
+- Two words count up while a menu is open: `[base+0x3046290]+0x358` (3 closed, 4 inventory, 7 skills) and
+  `[base+0x30434F0]+0x318` (7 closed, 9 inventory, 10-11 skills, 6 for the map). Both sit in allocator-like objects
+  (`0x600DF00D` markers). The second is the entry count of a hash cache that holds item-name strings. They follow what
+  the UI loads, not what is open.
+- Screen names (`screen_*` strings, 233 in the exe) are only referenced from static tables.
+- UI-group SNOs (group 46, e.g. `Inventory` 4007) never toggled.
+- Screens are addressed by name through behavior plugs and `UIControlHandle`, probably a hash of the control path. That
+  is the next lead.
+
+## 6. Consequences for the assist
 
 - The whole scene list is revealed at entry; positions exist only for loaded scenes. The layout is
   therefore accumulated by polling the loaded CScene window as the player explores. This naturally
@@ -158,7 +206,7 @@ instance id (0xFA66BCBF), not the World SNO. `+0x7A8` did **not** resolve in the
   matched the player's described route.
 - Where the minimap keeps positions of unloaded scenes is still unknown.
 
-## 6. Open questions
+## 7. Open questions
 
 - The tile-hash units for tiles larger than 32×32, and whether RVAs stay stable across restarts.
 - Validate the static CScene route (§1) live with a minimal probe.

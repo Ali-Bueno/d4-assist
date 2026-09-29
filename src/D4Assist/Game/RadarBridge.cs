@@ -21,9 +21,15 @@ internal sealed class RadarBridge
     // radar_synth.cpp:65-70); the player then queues them one after another (CueScheduler).
     private static readonly RadarRay[] CueOrder = [RadarRay.Up, RadarRay.Left, RadarRay.Right, RadarRay.Down];
     private readonly (RadarCueKind? State, bool Unexplored)[] _logged = new (RadarCueKind?, bool)[RadarRays.All.Count];
+    private readonly DoorObstacles? _doors;
+    private readonly HashSet<uint> _loggedDoors = [];
+    private float? _playerZ;
 
-    public RadarBridge(IDungeonFeed feed, DungeonRadarWorld world, IRadarCuePlayer player, RadarSettings settings, bool diagnostics)
+    /// <param name="doors">Closed doors to lay on the radar grid; null leaves doorways as open floor.</param>
+    public RadarBridge(
+        IDungeonFeed feed, DungeonRadarWorld world, IRadarCuePlayer player, RadarSettings settings, bool diagnostics, DoorObstacles? doors = null)
     {
+        _doors = doors;
         _engine = new RadarEngine(settings);
         _world = world;
         _player = player;
@@ -33,10 +39,31 @@ internal sealed class RadarBridge
         feed.TilesUpdated += tiles => { lock (_gate) { if (_world.UpdateTiles(tiles) && _diagnostics) LogMap(); } };
         // The overworld feeds positions for the beacons but has no tiles: the radar would read it as all unknown.
         feed.PlayerMoved += p => { if (feed.CurrentWorldKind == WorldKind.Overworld) return; lock (_gate) OnPlayer(p); };
+        feed.ActorsUpdated += actors => { if (feed.CurrentWorldKind == WorldKind.Overworld) return; lock (_gate) OnActors(actors); };
     }
+
+    private void OnActors(IReadOnlyList<ActorState> actors)
+    {
+        if (_doors is null || _playerZ is not { } z) return;
+        var closed = _doors.Closed(actors, z);
+        _world.SetClosedDoors(closed.SelectMany(d => d.Cells).ToHashSet());
+        if (_diagnostics) LogNewDoors(closed);
+    }
+
+    // Once per door: whether both ends of its width meet a wall, i.e. its yaw lays it across the doorway.
+    private void LogNewDoors(IReadOnlyList<DoorFootprint> closed)
+    {
+        foreach (var door in closed.Where(d => _loggedDoors.Add(d.Door.Id)))
+            Log($"RADAR door id={door.Door.Id} sno={door.Door.ActorSno} yaw={door.Door.Yaw * 180 / MathF.PI:F0} cells={door.Cells.Count} " +
+                $"ends={_world.Cell(CellOf(door.EndA.X), CellOf(door.EndA.Y))}/{_world.Cell(CellOf(door.EndB.X), CellOf(door.EndB.Y))}");
+    }
+
+    private static int CellOf(float coordinate) => (int)MathF.Floor(coordinate);
 
     private void Reset()
     {
+        _loggedDoors.Clear();
+        _playerZ = null;
         _world.Reset();
         _engine.Reset();
         Array.Clear(_logged);
@@ -44,6 +71,7 @@ internal sealed class RadarBridge
 
     private void OnPlayer(PlayerState p)
     {
+        _playerZ = p.Z;
         _world.MarkVisited(p.X, p.Y);
         var cues = _engine.Tick(_world, p.X, p.Y, _clock.ElapsedMilliseconds);
         foreach (var cue in cues.OrderBy(c => Array.IndexOf(CueOrder, c.Ray))) _player.Play(cue.Kind, cue.Ray, cue.Unexplored);

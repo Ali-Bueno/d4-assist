@@ -7,7 +7,9 @@ public sealed record TileState(
     int ExitMask, uint NodeId, uint GroupId, float YawDegrees = 0f);
 
 /// <summary>One placed RActor (world coordinates), as exposed to the app.</summary>
-public sealed record ActorState(uint Id, int ActorSno, float X, float Y, float Z);
+/// <param name="StateChanged">The actor's state moved at least once; for a gizmo, it was used (research/client-memory.md §4).</param>
+/// <param name="Yaw">Rotation about Z in radians, from +X towards +Y (the RActor quaternion).</param>
+public sealed record ActorState(uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

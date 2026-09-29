@@ -59,10 +59,27 @@ Qué hace
   suave espacio abierto (hacia arriba sube, hacia abajo baja).
 - Baliza de salida en Undercity: un sonido en bucle en la plataforma que lleva
   al siguiente piso. Se oye cuando estás a unos 20 o 30 metros.
-- Objetivos: un sonido de misión en bucle sobre prisioneros, palancas, objetos
-  que hay que llevar y sus pedestales, y cofres de misión, dentro y fuera de
-  las mazmorras. Todavía no se calla al usarlos: se calla cuando el juego los
-  retira.
+- Objetivos: un sonido de misión en bucle sobre palancas, objetos que hay que
+  llevar y sus pedestales, y cofres de misión, dentro y fuera de las
+  mazmorras. Los prisioneros suenan con el sonido de cadáver de D2R. Las
+  palancas y cofres se callan al usarlos; los prisioneros todavía no (se callan
+  cuando el juego los retira).
+- Puertas, cofres y lecturas (NUEVO): los sonidos de D2R en bucle.
+  Las puertas suenan a madera, metal (rejas, verjas, jaulas) o piedra; se oyen
+  las 2 más cercanas. Los cofres, armeros y piedras sueltas suenan a cofre; los
+  libros, notas y carteles que se leen suenan a pergamino; los cadáveres que se
+  registran o se examinan suenan a cadáver, como los prisioneros. Se oyen los 3
+  más cercanos. Se oyen a unos 18 metros. Se callan al abrirlos o usarlos.
+- Cinemáticas (NUEVO): al empezar una cinemática de vídeo se callan todos los
+  sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
+  hechas con el motor del juego todavía no se detectan.
+- Silencio en conversaciones (NUEVO): con el menú de opciones de un personaje
+  abierto, y mientras habla la conversación que elegiste, no suena nada. Los
+  comentarios sueltos de personajes o jefes no callan nada.
+- Silencio fuera del juego (NUEVO): si cambias a otra ventana se callan los
+  sonidos; vuelven al volver al juego. Los ejemplos de sonido sí suenan.
+- Puertas cerradas en el radar (NUEVO, sin probar): en las mazmorras, una
+  puerta cerrada suena con los dos golpes de puerta; al abrirla, como salida.
 - Guía de exploración: un pitido que te lleva a la zona sin explorar más
   cercana, siguiendo el camino. Suena más rápido cuanto más cerca estás y toca
   tres notas al llegar. Cuando aparece la salida de Undercity deja sonar la
@@ -97,12 +114,17 @@ juego:
 Ajustes (archivo d4assist.json, se abre con el Bloc de notas)
 --------------------------------------------------------------
 - "Language": "auto" sigue al juego; "es" o "en" fuerzan un idioma.
-- "RadarVolume", "BeaconVolume", "ObjectiveVolume", "ExplorationGuideVolume":
-  volumen de cada sonido, de 0 a 1. El pitido de la guía de refugios usa
-  "ExplorationGuideVolume".
+- "RadarVolume", "BeaconVolume", "ObjectiveVolume", "InteractableVolume",
+  "ExplorationGuideVolume": volumen de cada sonido, de 0 a 1.
+  "InteractableVolume" es el de puertas, cofres y lecturas. El pitido de la
+  guía de refugios usa "ExplorationGuideVolume".
 - "RadarEnabled", "BeaconSoundsEnabled", "ObjectiveSoundsEnabled",
-  "ExplorationGuideEnabled", "QuestRoutesEnabled": true activa y false
-  desactiva cada función ("QuestRoutesEnabled" es la guía de refugios).
+  "DoorSoundsEnabled", "ChestSoundsEnabled", "ReadableSoundsEnabled",
+  "ExplorationGuideEnabled", "QuestRoutesEnabled", "PauseCuesInCutscenes",
+  "PauseCuesInBackground", "PauseCuesInConversations",
+  "RadarClosedDoorsEnabled": true activa y false desactiva cada función
+  ("QuestRoutesEnabled" es la guía de refugios; los "PauseCues..." son los
+  silencios en cinemáticas, fuera del juego y en conversaciones).
 - "OutsideDungeonsEnabled": false hace que el programa no lea nada fuera de las
   mazmorras (sin objetivos ni guía de refugios fuera de ellas).
 - "ExplorationGuideInDungeons": true hace que la guía venga activada también en

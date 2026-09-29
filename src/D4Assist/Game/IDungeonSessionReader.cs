@@ -1,3 +1,5 @@
+using D4Memory.Ui;
+
 namespace D4Assist.Game;
 
 /// <summary>
@@ -17,4 +19,7 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The expensive full CScene heap scan; called at most once per entry, plus on demand.</summary>
     IReadOnlyList<TileState> ReadTilesViaFullScan();
+
+    /// <summary>The dialogue menu and the playing conversations; null when unknown for this build or unreadable.</summary>
+    ConversationSnapshot? ReadConversation() => null;
 }

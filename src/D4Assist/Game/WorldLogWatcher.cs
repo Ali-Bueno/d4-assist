@@ -12,6 +12,7 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
 {
     public const string LogFileName = "FenrisDebug.txt";
     private const string EnteredWorldMarker = "[Game] Client entered world | world: ";
+    private const string CutsceneStateMarker = "[Game] ptCutscene->m_eCutsceneState: ";
 
     // World transitions are infrequent (dungeon entry/exit); no need to react faster than this.
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
@@ -27,6 +28,9 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
 
     /// <summary>Raised once per "Current Text Locale" line seen after startup, with the locale (e.g. "enUS").</summary>
     public event Action<string>? TextLocaleChanged;
+
+    /// <summary>Raised once per cutscene state line seen after startup (PRELOADING, PLAYBACK; research/runtime-signals.md §2).</summary>
+    public event Action<string>? CutsceneStateChanged;
 
     public WorldLogWatcher(string installPath)
     {
@@ -83,15 +87,20 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
         {
             if (GameLocale.ExtractTextLocale(line) is { } locale) TextLocaleChanged?.Invoke(locale);
             if (ExtractWorldName(line) is { } name) WorldChanged?.Invoke(name);
+            if (ExtractCutsceneState(line) is { } state) CutsceneStateChanged?.Invoke(state);
         }
         return Encoding.UTF8.GetByteCount(complete);
     }
 
-    internal static string? ExtractWorldName(string line)
+    internal static string? ExtractWorldName(string line) => WordAfter(line, EnteredWorldMarker);
+
+    internal static string? ExtractCutsceneState(string line) => WordAfter(line, CutsceneStateMarker);
+
+    private static string? WordAfter(string line, string marker)
     {
-        int i = line.IndexOf(EnteredWorldMarker, StringComparison.Ordinal);
+        int i = line.IndexOf(marker, StringComparison.Ordinal);
         if (i < 0) return null;
-        var rest = line[(i + EnteredWorldMarker.Length)..];
+        var rest = line[(i + marker.Length)..];
         int end = rest.IndexOfAny([' ', '\t', '\r', '\n']);
         return (end < 0 ? rest : rest[..end]).Trim();
     }

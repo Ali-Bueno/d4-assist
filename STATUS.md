@@ -1,6 +1,6 @@
 # STATUS — Diablo IV Dungeon Assist
 
-**Last updated:** 2026-09-29 — memory reads outside dungeons (player + actors only) and the first campaign route (sandstorm shelters) built, not live-tested. Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
+**Last updated:** 2026-09-29 — live prologue session (new character): used-gizmo signal, conversation mute, D2R door/chest/scroll/corpse loops, closed doors in the radar (untested), cue pauses. Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
 
 ## Identity
 
@@ -29,6 +29,12 @@
 | Endgame (Undercity, Pit) | wip | All 71 `PIT_`/`X1_Undercity_` worlds are DRLG → app active. Undercity BugCave 1–3 live 2026-09-28: announcements + radar work; radar +12 dB after "drowned in fights" |
 | Exit beacon (Undercity) | wip | `BeaconBridge`: `quest-item` loop (D2R sound) at `X1_Undercity_WarpPad` from the live actor list; worked on all 3 floors, pad visible only within 22–34 units ([dungeon-objectives](research/dungeon-objectives.md) §5). Pit: no static exit, needs its actors |
 | P7 Objective / interactable cues (prisoners, levers, carryables) | wip | `ActorLoopBridge` + `ObjectiveClassifier`: `quest-item` loop on DPO-quest actors (world → `zone_progress` → DPO, `DungeonObjectiveReader`), carryables/receptacles/quest switches+chests, live prisoners. **Not live-tested.** "Used" signal unknown: seam `isUsed`; find it with `D4MemScan actors --watch 20 --match <name>` |
+| Doors, chests, readables (D2R loops) | wip | `InteractableClassifier`: door gizmos → wooden/metal/stone door by name, chest gizmos → chest, `SignGizmoData`/lorebooks → scroll, bodies (`*Corpse*`/`*Remains*`/`*Body*`) → corpse; D2R container profile and caps (2 doors, 3 containers). Prisoners now loop the corpse sound. Live 2026-09-29 (prologue): chest loops play; used gizmos now fall silent (see "Used" signal) |
+| Closed doors in radar | wip | `DoorObstacles`: each closed door's `aabbBounds` box, turned by its RActor yaw, overlays open floor as `RadarCell.Door` → D2R's two knocks; opening it (the used signal) makes it an exit again. `--debug` logs `RADAR door … ends=` (both ends should be walls). **Not live-tested** (no dungeon yet). Room announcements still treat a closed doorway as an exit |
+| Cue pause: conversations | done | Mutes while the dialogue menu is open and while the conversation picked from it plays; barks never mute. Live 2026-09-29 with Vani: works ([client-memory](research/client-memory.md) §5) |
+| Cue pause: game in background | wip | Foreground-window check, like D2R; the sound examples still play. Not confirmed by the user yet |
+| Cue pause: menus (inventory, map, skills) | todo | No clean signal yet; UI state is on the heap and screens are addressed by name hashes ([client-memory](research/client-memory.md) §5) |
+| Cue pause in cutscenes | wip | `CutscenePause` mutes the mixer on the log's `m_eCutsceneState: PLAYBACK`; the end is never logged, so it resumes on world change or one walked cell ([runtime-signals](research/runtime-signals.md) §2). **Not live-tested**; unknown whether story/scripted cutscenes log it |
 | Campaign & expansion dungeons | todo (live test) | The app keys on DRLG layout, not names: all 802 layout-2 worlds run it, incl. 130 `QST_`, 66 `CSD_`, Nahantu (`DGN_Naha_*`, `CSD_Naha_*`) and `X2_` ([dungeon-data](research/dungeon-data.md) §3 census). Campaign dungeons have no DPO quest → only generic objective loops. Never tried live in one |
 | Outside dungeons (`WorldKind.Overworld`) | wip | Every non-DRLG world except menus/loading/cinematics (`WorldClassifier.MenuWorldPrefixes`): player + actors polled, no tiles/radar/announcements. Config `OutsideDungeonsEnabled`. **Not live-tested**: player record in the overworld unverified |
 | Campaign routes (`QuestRouteBridge`) | wip | Guide ping, straight line, point to point; points from the quest's subzone MarkerSet ([campaign-routes](research/campaign-routes.md)). First route: sandstorm shelters with Meshif (`VGN_Kehj_EliasPalace_Sandstorm`, 3 safe zones). **Not live-tested** |
@@ -55,6 +61,7 @@
 | Live CScene record found | `snoScene` + transform @+80 + local AABB @+136 (== offline) + exit mask @−44; only ~2 tiles around the player loaded | [client-memory](research/client-memory.md) §1 |
 | Revealed list at entry | all scene ids + SNOs known at entry, no positions | [client-memory](research/client-memory.md) §2 |
 | Player position (static) | record in main-module `.data`: `p−16` scene SNO, `p−12` world SNO, `p−8` actor SNO, `p` vec3; 1 copy, stable RVA per build | [client-memory](research/client-memory.md) §3 |
+| Gizmo "used" signal | RActor `+0x148` (previous state id) is 0 until a gizmo is used; 4/4 used chests nonzero, 4/4 untouched 0. Applied to gizmo loops only (not NPC prisoners, not beacons) | live 2026-09-29, [client-memory](research/client-memory.md) §4 |
 | Live actor list | RActor pool `[G+0xB78]`, same pool template as scenes, seed RVA 0x37CC5A0, stride base 0xC27; slot +0x5B8 actor SNO, +0x760 position, +0x7AC placement | offline code RE, **validated live** 2026-09-28 (Undercity boss room; only actors within ~65 units), [client-memory](research/client-memory.md) §4 |
 | Dungeon objective actors | world → Global `zone_progress` (1004219) → `DPO_*` quest → callback `snoActor`; category from `ActorDefinition.eType` / `eActorGizmoType` | [dungeon-objectives](research/dungeon-objectives.md) |
 | Player heading | actor record (heap, stride 0x680) `+0x6C` quaternion, yaw from +X to +Y | [client-memory](research/client-memory.md) §3 |
@@ -66,8 +73,19 @@
 
 ## Next step
 
-0. **Live test outside dungeons (user, sandstorm quest with Meshif):** run with `--debug`. Check that the session opens in `Sanctuary_Eastern_Continent` (`World kind: Overworld`, player position moving), that a `ROUTE sandstorm-shelters started` line appears (which actor, or the quest marker), and that "Refugio N de 3." matches where the game considers you safe. Note which quest actors show up (`ACTOR seen`) and whether towns get noisy objective loops.
-1. **"Used" signal (user, 2026-09-29): objective loops must stop on interaction, not on proximity.** Next time the user stands at a prisoner/lever/barrier: `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while they use it, then plug the finding into `ActorLoopBridge`'s `isUsed` seam. Live case: the Yshari Sanctum boss barrier (`DRLG_Blocker_Mage_Halls_…`, DPO) kept sounding ~10 s after the key opened it, until the game removed it. The user rejected a proximity or button-press stand-in.
+**Now (user, 2026-09-29): mute the cues while a menu is open (inventory, map, character/skills), before testing doors and chests in dungeons.**
+Leads and dead ends are in [client-memory](research/client-memory.md) §5. Tools:
+- `D4MemScan player --snapshot-pointers` series plus `peek`.
+- The read-only Python helper pattern (OpenProcess with VM_READ only).
+
+Next leads:
+- Find how screens are addressed (a `UIControlHandle` hash, or the screen-visible check used by `IsScreenVisibleBehaviorNode`).
+- Go one level deeper than the depth-1 snapshot.
+- The accessibility screen reader's own focus text.
+
+0. **Live test with a new character (user, campaign from the prologue):** run with `--debug`. Read the `CUTSCENE state` / `CUES paused/resumed` lines: does each story cutscene log `PLAYBACK`, and do cues come back at the right moment? Listen to the door, chest, scroll and corpse loops. At a door, chest, lore book or prisoner, run `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while the user uses it; that gives both the "used" signal (step 1) and the open state for closed doors in the radar.
+0b. **Live test outside dungeons (user, sandstorm quest with Meshif):** run with `--debug`. Check that the session opens in `Sanctuary_Eastern_Continent` (`World kind: Overworld`, player position moving), that a `ROUTE sandstorm-shelters started` line appears (which actor, or the quest marker), and that "Refugio N de 3." matches where the game considers you safe. Note which quest actors show up (`ACTOR seen`) and whether towns get noisy objective loops.
+1. **"Used" signal — found for chest gizmos (RActor `+0x148 != 0`), still to confirm on a door, a lever and a switch prisoner; NPC prisoners need another signal.** Earlier note: Next time the user stands at a prisoner/lever/barrier: `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while they use it, then plug the finding into `ActorLoopBridge`'s `isUsed` seam. Live case: the Yshari Sanctum boss barrier (`DRLG_Blocker_Mage_Halls_…`, DPO) kept sounding ~10 s after the key opened it, until the game removed it. The user rejected a proximity or button-press stand-in.
 2. Exploration guide: lead to visible objectives first; detect barriers ("Paso bloqueado." / "Path blocked."). Not live-tested yet: the doorway-peek + commitment fix and the Undercity exit re-check (2026-09-29, `X1_Undercity_Ziggurat_02`: closed 14-tile map, no pad at any of its 3 candidate spots). `--debug` now logs `ACTOR seen` for gizmos/portals: read it the next time an exit is missing.
 3. Sound examples on Ctrl+Alt+Shift+1..8 (for the user's video), not yet tried by the user.
 4. Portable build for testers: `dotnet publish src/D4Assist -p:PublishProfile=Portable` → `artifacts/D4DungeonAssist/` (single-file exe with the sounds and `definitions.json` embedded, + config and `LEEME.txt`; root README). Test build 3 zipped to the user's desktop 2026-09-29 (`D4DungeonAssist.zip`, replaces build 2). Keep `src/D4Assist/Portable/LEEME.txt` in step with new features.
@@ -81,6 +99,7 @@
 - **Navigation audio = the user's D2R radar** (`D:\code\c++\diablo 2 access project\d2r-access`, read-only, never modify): same cues, 4-ray Cardinal frame, same anti-spam, cues one after another. Copy the D2R design first and deviate only when D4 forces it or the user asks. The one requested deviation: the open-floor breath must sound clearly different up vs down (the user fixes D2R themselves).
 - **Radar-only worlds (2026-09-28):** user-approved exception to "memory only in a dungeon", built for the Mercenary den (`Mercenary_Hideout`) for a video. Config `RadarOnlyWorlds` runs radar and actor loops there. **Default empty**: the den's scene has no detailed walkable grid (only 6 coarse boxes), so the radar can't work there yet. Do not widen the list without asking.
 - **Features (2026-09-28):** first = automatic spoken announcements (junctions, dead ends, big rooms) in stick directions, then the radar. Language: C# (.NET 10).
+- **Live sessions (2026-09-29):** after each new feature, stop the running app, rebuild and relaunch it with `--debug` without asking.
 - **Repository:** private GitHub `Ali-Bueno/d4-dungeon-assist`. Never make it public without asking (it reads game memory).
 - **Project knowledge lives in this repo only** (this file, `research/`, READMEs), never in assistant memory.
 

@@ -5,9 +5,15 @@ namespace D4Assist.Tests;
 
 internal static class LoopTestKit
 {
-    /// <summary>A loop player with a stub quest-item sound, so sources within reach start a loop.</summary>
+    private static readonly string[] SoundIds =
+    [
+        LoopTargetSelector.QuestItemSound, InteractableClassifier.CorpseSound, InteractableClassifier.ChestSound, InteractableClassifier.ScrollSound,
+        InteractableClassifier.WoodenDoorSound, InteractableClassifier.MetalDoorSound, InteractableClassifier.StoneDoorSound,
+    ];
+
+    /// <summary>A loop player with a stub for every loop sound, so sources within reach start a loop.</summary>
     public static SpatialLoopPlayer Player() =>
-        new(new AudioMixer(), new Dictionary<string, float[]> { [LoopTargetSelector.QuestItemSound] = Enumerable.Repeat(0.5f, 480).ToArray() });
+        new(new AudioMixer(), SoundIds.ToDictionary(id => id, _ => Enumerable.Repeat(0.5f, 480).ToArray()));
 }
 
 internal sealed class FakeFeed : IDungeonFeed

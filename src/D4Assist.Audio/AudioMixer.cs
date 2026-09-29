@@ -25,6 +25,10 @@ public sealed class AudioMixer
 
     public double MasterVolume { get; set; } = 1.0;
 
+    /// <summary>While true every cue is silent (e.g. a cutscene): one-shot cues are dropped, loops hold their place.</summary>
+    public bool Paused { get => _paused; set => _paused = value; }
+    private volatile bool _paused;
+
     /// <summary>Currently mixing voice count, for diagnostics/tests (never opens a device).</summary>
     public int ActiveVoiceCount { get { lock (_lock) return _voices.Count; } }
 
@@ -39,6 +43,7 @@ public sealed class AudioMixer
     /// and decides which voice is stolen first when the mixer is already at MaxVoices.</summary>
     public void Play(float[] samples, double gain, double pan, int priority = 0)
     {
+        if (_paused) return;
         var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority, _nextStartOrder++);
         lock (_lock)
         {
@@ -61,6 +66,7 @@ public sealed class AudioMixer
     /// <summary>Plays a guide ping on its own voice budget; when both slots are busy the older ping is replaced.</summary>
     public void PlayGuide(float[] samples, double gain, double pan)
     {
+        if (_paused) return;
         var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, _nextStartOrder++);
         lock (_lock)
         {
@@ -110,6 +116,12 @@ public sealed class AudioMixer
     public void Render(short[] buffer, int frameCount)
     {
         int sampleCount = frameCount * AudioFormat.Channels;
+        if (_paused)
+        {
+            Array.Clear(buffer, 0, sampleCount);
+            lock (_lock) { _voices.Clear(); _guideVoices.Clear(); _loops.RemoveAll(l => l.Stopping); }
+            return;
+        }
         var mix = new float[sampleCount];
 
         lock (_lock)

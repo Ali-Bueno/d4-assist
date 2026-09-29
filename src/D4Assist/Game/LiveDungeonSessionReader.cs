@@ -2,6 +2,7 @@ using D4Assist.Navigation;
 using D4Memory.Actors;
 using D4Memory.Safety;
 using D4Memory.Scan;
+using D4Memory.Ui;
 using D4Memory.SceneRoute;
 
 namespace D4Assist.Game;
@@ -86,6 +87,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (_offsets is not { } offsets) return null;
         return SceneRouteReader.TryRead(_process, _moduleBase, offsets, _candidates, out var hits) ? ToTileStates(hits) : null;
     }
+
+    public ConversationSnapshot? ReadConversation() =>
+        _offsets?.Conversation is { } conversation ? ConversationReader.TryRead(_process, _moduleBase, conversation) : null;
 
     public IReadOnlyList<ActorState>? ReadActors()
     {

@@ -1,8 +1,8 @@
 namespace D4Assist.Radar;
 
 /// <summary>What one radar cell holds. Unknown means no loaded data covers it, and is never a wall
-/// (d2r-access src/radar_passage.cpp:64-69).</summary>
-public enum RadarCell : byte { Unknown, Open, Blocked }
+/// (d2r-access src/radar_passage.cpp:64-69). Door is a closed door over walkable floor (D2R's DOOR collision bit).</summary>
+public enum RadarCell : byte { Unknown, Open, Blocked, Door }
 
 /// <summary>
 /// The radar's view of the world, one cell per world unit: D2R's Radar::World (d2r-access src/radar.h:113-132)

@@ -61,7 +61,9 @@
 ## Next step
 
 1. **"Used" signal (user, 2026-09-29): objective loops must stop on interaction, not on proximity.** Next time the user stands at a prisoner/lever/barrier: `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while they use it, then plug the finding into `ActorLoopBridge`'s `isUsed` seam. Live case: the Yshari Sanctum boss barrier (`DRLG_Blocker_Mage_Halls_…`, DPO) kept sounding ~10 s after the key opened it, until the game removed it. The user rejected a proximity or button-press stand-in.
-2. Exploration guide: lead to visible objectives first; detect barriers ("Paso bloqueado." / "Path blocked."). The doorway-peek + commitment fix (2026-09-29) is not yet live-tested.
+2. Exploration guide: lead to visible objectives first; detect barriers ("Paso bloqueado." / "Path blocked."). Not live-tested yet: the doorway-peek + commitment fix and the Undercity exit re-check (2026-09-29, `X1_Undercity_Ziggurat_02`: closed 14-tile map, no pad at any of its 3 candidate spots). `--debug` now logs `ACTOR seen` for gizmos/portals: read it the next time an exit is missing.
+3. Sound examples on Ctrl+Alt+Shift+1..8 (for the user's video), not yet tried by the user.
+4. Portable build for testers: `dotnet publish … --self-contained` (root README); zip with `LEEME.txt` (Spanish) on the user's desktop.
 
 ## User and decisions
 

@@ -41,11 +41,12 @@ public sealed class NavigationEngine
     /// <param name="walkability">Optional host-supplied tile walkability; null keeps the pre-fix
     /// side-midpoint/straight-line behaviour everywhere (e.g. tests with no grid data).</param>
     /// <param name="language">Language of the spoken announcements; null means Spanish.</param>
-    public NavigationEngine(ITileWalkability? walkability = null, LanguageSetting? language = null)
+    /// <param name="isExitCandidate">Scene SNOs that can host the floor exit, for the guide re-check mode; null for none.</param>
+    public NavigationEngine(ITileWalkability? walkability = null, LanguageSetting? language = null, Func<int, bool>? isExitCandidate = null)
     {
         _policy = new AnnouncementPolicy(language);
         _walkability = walkability;
-        Guide = new ExplorationGuide(_map, walkability);
+        Guide = new ExplorationGuide(_map, walkability, isExitCandidate);
     }
 
     /// <summary>Leads to the nearest unexplored part of the dungeon; "explored" means the player stood in the tile or saw it from a connected doorway.</summary>

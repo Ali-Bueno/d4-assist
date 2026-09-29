@@ -22,6 +22,9 @@ public sealed class GuideSwitch
 
     public bool InDungeon => _inDungeon;
 
+    /// <summary>True in an endgame dungeon (Undercity, Pit), whatever the guide toggle says.</summary>
+    public bool IsEndgame => _endgame;
+
     public bool IsOn => _inDungeon && (_endgame ? _endgameOverride ?? true : _otherOverride ?? _otherDungeonsDefault);
 
     public void WorldChanged(string worldName, bool isDungeon)

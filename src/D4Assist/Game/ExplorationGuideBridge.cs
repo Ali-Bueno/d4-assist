@@ -18,7 +18,7 @@ public sealed class ExplorationGuideBridge
     // CoreTOC scenes: Cave_Bug_, ZigIn_Kurast_ and ProtoDun_Flooded_FLEX_POI_BossRoom_Undercity (research/dungeon-objectives.md §5).
     public const string UndercityBossRoomSuffix = "_FLEX_POI_BossRoom_Undercity";
 
-    private readonly Func<PlayerInput, GuideStep> _step;
+    private readonly Func<PlayerInput, bool, GuideStep> _step;
     private readonly GuidePingPlayer _ping;
     private readonly ISpeechSink _speech;
     private readonly LanguageSetting _language;
@@ -31,18 +31,19 @@ public sealed class ExplorationGuideBridge
     private PlayerInput? _player;
     private string? _loggedTargetId;
     private bool _announcedAllExplored;
+    private int _announcedRound;
     private bool _inBossRoom;
     private bool _muted = true;
     private int _arrivals;
 
-    /// <param name="step">Asks the navigation engine for the next guide step (NavigationBridge.NextGuideStep).</param>
+    /// <param name="step">Asks the navigation engine for the next guide step; the flag asks it to re-check exit candidates when nothing is left to explore (NavigationBridge.NextGuideStep).</param>
     /// <param name="beaconActive">True while the beacon has a target (ActorLoopBridge.HasTarget(LoopKind.ExitBeacon)).</param>
     /// <param name="pad">D-pad left toggles the guide for the current kind of dungeon; null for no toggle.</param>
     /// <param name="guideInDungeons">Default outside the endgame worlds (config ExplorationGuideInDungeons).</param>
     /// <param name="language">Spoken language; null means Spanish.</param>
     /// <param name="log">Debug sink for target-change and toggle lines; null when not debugging.</param>
     public ExplorationGuideBridge(
-        IDungeonFeed feed, Func<PlayerInput, GuideStep> step, GuidePingPlayer ping, ISpeechSink speech,
+        IDungeonFeed feed, Func<PlayerInput, bool, GuideStep> step, GuidePingPlayer ping, ISpeechSink speech,
         Func<bool> beaconActive, Action<string>? log = null, IGuideTogglePad? pad = null, bool guideInDungeons = false,
         LanguageSetting? language = null)
     {
@@ -78,6 +79,7 @@ public sealed class ExplorationGuideBridge
         _player = null;
         _loggedTargetId = null;
         _announcedAllExplored = false;
+        _announcedRound = 0;
         _inBossRoom = false;
         _muted = true;
         _arrivals = 0;
@@ -95,13 +97,16 @@ public sealed class ExplorationGuideBridge
     {
         if (_player is null || !_switch.IsOn || _inBossRoom || _beaconActive()) { _ping.Silence(); _muted = true; return; }
 
-        var step = _step(_player);
+        var step = _step(_player, _switch.IsEndgame); // the beacon check above means no exit is known
         // Targets reached while muted (e.g. beside the exit pad) must not chime late when guiding resumes.
         if (step.Arrivals > _arrivals && !_muted) _ping.PlayArrived();
         _arrivals = Math.Max(_arrivals, step.Arrivals);
         _muted = false;
         switch (step.Status)
         {
+            case GuideStatus.Rechecking:
+                AnnounceRound(step);
+                goto case GuideStatus.Guiding;
             case GuideStatus.Guiding:
                 LogTargetChange(step);
                 var (right, up) = ScreenDirections.ToScreen(step.Waypoint.X - _player.X, step.Waypoint.Y - _player.Y);
@@ -118,6 +123,14 @@ public sealed class ExplorationGuideBridge
                 _ping.Silence(); // off the known grid: nothing to lead by
                 break;
         }
+    }
+
+    private void AnnounceRound(GuideStep step)
+    {
+        if (step.Round == _announcedRound) return;
+        _announcedRound = step.Round;
+        _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE recheck round {step.Round}");
+        _speech.Speak(NavigationPhrases.For(_language.Current).Rechecking, interrupt: false);
     }
 
     private void LogTargetChange(GuideStep step)

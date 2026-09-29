@@ -75,6 +75,8 @@ is `SwitchMarginUnits` (one tile) shorter, and is never dropped while its route 
 `FrontierArrivalUnits` is a dead exit and is dropped. Nothing left reachable gives `AllExplored`; off the
 known grid gives `Unknown`. Guess: exit bits are symmetric (only the side carrying the bit gets an edge).
 Touching tiles of one room are linked even without exit bits (preset rooms' live masks omit internal sides).
+Re-check mode: `Step(player, exitMissing: true)` with nothing left to explore returns `Rechecking` (`GuideStep.Round`) toward the known tiles whose scene `isExitCandidate` accepts, nearest first with the same commitment rules;
+a candidate is re-checked once the player is within `SeenRadiusUnits` of its centre (an arrival), and after all are done a new round starts (the one under the player re-arms only after leaving). No known candidate keeps `AllExplored`.
 `Arrivals` counts targets reached (explored, or a dead exit stood at), not targets that merely loaded.
 
 ## D2R correspondence

@@ -25,6 +25,7 @@ internal static class Program
     // The Actor SNO group (CoreTOC group 1) is keyed by its definition type.
     private const string ActorDefinitionType = "ActorDefinition";
     private const string WorldDefinitionType = "WorldDefinition";
+    private const string MarkerSetType = "MarkerSetDefinition";
 
     private static int Main(string[] args)
     {
@@ -81,7 +82,10 @@ internal static class Program
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
-        var navigation = new NavigationBridge(session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language);
+        var exitScenes = LoadExitCandidateScenes(store, schema, cascGate);
+        if (debug) Console.WriteLine($"Exit candidate scenes: {exitScenes.Count}.");
+        var navigation = new NavigationBridge(
+            session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains);
 
         // One mixer and one output for the radar cues and the beacon loops.
         var mixer = new AudioMixer();
@@ -110,6 +114,14 @@ internal static class Program
                 pad, config.ExplorationGuideInDungeons, language);
         pad?.Start();
 
+        // Sound examples on Ctrl+Alt+Shift+1..8, to show the cues without a fight's noise.
+        var demo = new SoundDemo(
+            speech, digit => AppStrings.For(language.Current).SoundExamples[digit - 1], radarPlayer, mixer,
+            LoadLoopSounds()?.GetValueOrDefault(LoopTargetSelector.QuestItemSound), LoopProfiles.Quest.NearGain * config.ObjectiveVolume, guidePing);
+        using var hotkeys = new DemoHotkeys(SoundDemo.ExampleCount);
+        hotkeys.DigitPressed += demo.Play;
+        hotkeys.Start();
+
         session.WorldChanged += (sno, name, isDungeon) =>
         {
             Console.WriteLine($"World: {name} (SNO {sno}), dungeon={isDungeon}, state={session.State}.");
@@ -134,12 +146,16 @@ internal static class Program
         return 0;
     }
 
+    private static Dictionary<string, float[]>? LoadLoopSounds()
+    {
+        try { return SpatialLoopPlayer.LoadSounds(Path.Combine(AppContext.BaseDirectory, "Sounds")); }
+        catch (IOException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
+    }
+
     private static ActorLoopBridge? StartLoops(
         GameSession session, AudioMixer mixer, AppConfig config, SnoStore store, TypeSchema schema, object cascGate, bool debug)
     {
-        Dictionary<string, float[]> sounds;
-        try { sounds = SpatialLoopPlayer.LoadSounds(Path.Combine(AppContext.BaseDirectory, "Sounds")); }
-        catch (IOException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
+        if (LoadLoopSounds() is not { } sounds) return null;
 
         int actorGroup = schema.SnoGroup(ActorDefinitionType);
         var beaconSnos = config.BeaconSoundsEnabled
@@ -158,7 +174,17 @@ internal static class Program
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name)); // app started mid-dungeon
 
         var player = new SpatialLoopPlayer(mixer, sounds);
-        return new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null);
+        var sightings = debug
+            ? new ActorSightingLog(sno => { lock (cascGate) return actorDefinitions.Read(sno); }, store.Name, Console.WriteLine)
+            : null;
+        return new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings);
+    }
+
+    private static IReadOnlySet<int> LoadExitCandidateScenes(SnoStore store, TypeSchema schema, object cascGate)
+    {
+        int sceneGroup = schema.SnoGroup(SceneDefinitionType);
+        lock (cascGate)
+            return ExitCandidateScenes.Build(store.AllEntries(schema.SnoGroup(MarkerSetType)).Select(e => e.Name), name => store.Resolve(sceneGroup, name));
     }
 
     private static int WorldSnoOrNone(SnoStore store, TypeSchema schema, string worldName)

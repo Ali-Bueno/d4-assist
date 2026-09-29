@@ -95,6 +95,9 @@ takes over), stops on a world change, and when every reachable part is visited s
 Each target reached plays the arrival chime (a target reached while the beacon leads never chimes late). Once a
 Undercity boss-room tile (`*_FLEX_POI_BossRoom_Undercity`) loads, the guide stays off until the world changes:
 the last warp lands there and the run timer no longer matters (user request, 2026-09-28).
+In endgame worlds, when no exit beacon target exists and nothing is left to explore, the guide re-checks the dead ends that can host the exit pad
+(`Game/ExitCandidateScenes`: scenes named by MarkerSet layers `<scene> (X1_Undercity_AreaExits|BossExits)`), speaking "Salida no encontrada. Revisando los callejones." once per round; it stops when the beacon appears.
+`--debug` also logs the candidate count at startup, each round, and once per dungeon visit and actor SNO every gizmo or Portal/Warp/Exit/Beacon actor (`ACTOR seen:`, `Game/ActorSightingLog`).
 
 ## Controls
 
@@ -102,6 +105,10 @@ the last warp lands there and the run timer no longer matters (user request, 202
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". It does nothing
   outside a dungeon. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
   D2R mod's `input_direction.cpp`); the game still receives every press. Not saved to `d4assist.json`.
+- **Ctrl+Alt+Shift+1..8** (keyboard, anywhere) — sound examples, e.g. for a video without a fight's noise (user request
+  2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per
+  direction up/right/down/left), 6 the quest loop twice, 7 the guide ping three times, 8 the arrival chime. One example
+  at a time. `Input/DemoHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
 
 ## Command-line flags
 

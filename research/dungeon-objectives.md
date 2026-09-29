@@ -104,4 +104,6 @@ gizmo type 57.
   props were visible up to ~70. Quest `X1_Undercity_WarpPad` (31/2053962) has a player-in-range trigger
   (`ScriptEventParamFloatRangeInside`), so the pad is probably activated on approach. Sighted players
   therefore also find it by exploring.
+- **Ziggurat_02 (live 2026-09-29):** all 14 tiles explored, no frontier, and the pad never appeared although the player passed 1.5-3.4 units from the pad spot in all three
+  pad-capable dead ends; unknown whether it spawns later or the floor continued unseen. The guide now re-checks the exit-candidate tiles (20 scenes / 26 layers in this build) and `--debug` logs `ACTOR seen:` lines.
 - **Pit:** no static portal marker. Its portals and guardian are spawned by the server (L).

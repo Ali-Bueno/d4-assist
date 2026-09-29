@@ -110,6 +110,8 @@ public class EnglishPhrasesTests
         Assert.Equal("Corridor. No other exits.", En.Announcement(RoomKind.Corridor, []));
         Assert.Equal("Entrance. Exit: up.", En.Announcement(RoomKind.DeadEnd, ["up"], isEntrance: true));
         Assert.Equal("All explored.", En.AllExplored);
+        Assert.Equal("Exit not found. Rechecking dead ends.", En.Rechecking);
+        Assert.Equal("Salida no encontrada. Revisando los callejones.", NavigationPhrases.Spanish.Rechecking);
     }
 
     [Fact]

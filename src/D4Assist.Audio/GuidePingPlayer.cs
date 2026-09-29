@@ -63,6 +63,9 @@ public sealed class GuidePingPlayer : IDisposable
         _mixer.PlayGuide(samples, Volume * RadarCuePlayer.LoudnessBoost, pan: 0);
     }
 
+    /// <summary>Plays one centred ping right away, outside the schedule (the sound examples, Ctrl+Alt+Shift+7).</summary>
+    public void PingOnce() => _mixer.PlayGuide(GuidePingSynth.Synthesize(1.0), Volume * RadarCuePlayer.LoudnessBoost, pan: 0);
+
     /// <summary>Plays the ping when due; the timer calls this, tests call it directly.</summary>
     public void Tick()
     {

@@ -15,10 +15,11 @@ public sealed class NavigationBridge
     private string _lastTileSignature = "";
     private PlayerInput? _lastPlayer;
 
-    public NavigationBridge(IDungeonFeed feed, ISpeechSink speech, bool announcementsEnabled, bool diagnostics, ITileWalkability? walkability = null, LanguageSetting? language = null)
+    public NavigationBridge(IDungeonFeed feed, ISpeechSink speech, bool announcementsEnabled, bool diagnostics, ITileWalkability? walkability = null, LanguageSetting? language = null,
+        Func<int, bool>? isExitCandidate = null)
     {
         _diagnostics = diagnostics;
-        _engine = new NavigationEngine(walkability, language);
+        _engine = new NavigationEngine(walkability, language, isExitCandidate);
         _engine.Settings.Enabled = announcementsEnabled;
         _engine.Announce += (text, interrupt) =>
         {
@@ -40,9 +41,9 @@ public sealed class NavigationBridge
     }
 
     /// <summary>The exploration guide's next step for a live player position (serialized with the feed handlers).</summary>
-    public GuideStep NextGuideStep(PlayerInput player)
+    public GuideStep NextGuideStep(PlayerInput player, bool exitMissing = false)
     {
-        lock (_gate) return _engine.Guide.Step(player);
+        lock (_gate) return _engine.Guide.Step(player, exitMissing);
     }
 
     private void LogTilesIfChanged(IReadOnlyList<TileState> tiles)

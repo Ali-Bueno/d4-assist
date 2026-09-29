@@ -15,6 +15,7 @@ public sealed class ActorLoopBridge
     private readonly Func<ActorState, bool> _isUsed;
     private readonly Func<int, string?> _nameOf;
     private readonly Action<string>? _log;
+    private readonly ActorSightingLog? _sightings;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
@@ -23,15 +24,17 @@ public sealed class ActorLoopBridge
 
     /// <param name="isUsed">True once an actor was used (prisoner freed, lever pulled): its loop stops. Default: never.</param>
     /// <param name="log">Debug sink for loop start/stop lines; null when not debugging.</param>
+    /// <param name="sightings">Debug log of gizmo and portal-like actors; null when not debugging.</param>
     public ActorLoopBridge(
         IDungeonFeed feed, SpatialLoopPlayer player, LoopTargetSelector selector, Func<int, string?> nameOf,
-        Func<ActorState, bool>? isUsed = null, Action<string>? log = null)
+        Func<ActorState, bool>? isUsed = null, Action<string>? log = null, ActorSightingLog? sightings = null)
     {
         _player = player;
         _selector = selector;
         _nameOf = nameOf;
         _isUsed = isUsed ?? (_ => false);
         _log = log;
+        _sightings = sightings;
 
         feed.WorldChanged += (sno, _, _) => { lock (_gate) Reset(sno); };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
@@ -45,12 +48,14 @@ public sealed class ActorLoopBridge
     {
         _targets = [];
         _lastPlayer = null;
+        _sightings?.Reset();
         _player.StopAll();
         _selector.SetWorld(worldSno);
     }
 
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
+        _sightings?.Note(actors, _lastPlayer);
         var selected = actors
             .Select(a => (Actor: a, Target: _selector.Select(a)))
             .Where(x => x.Target is not null)

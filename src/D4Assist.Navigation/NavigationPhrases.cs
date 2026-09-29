@@ -19,6 +19,7 @@ public sealed class NavigationPhrases
         Entrance = "Entrada.",
         NoOtherExits = "Sin otras salidas.",
         AllExplored = "Todo explorado.",
+        Rechecking = "Salida no encontrada. Revisando los callejones.",
         Directions = Map("arriba", "arriba a la derecha", "derecha", "abajo a la derecha", "abajo", "abajo a la izquierda", "izquierda", "arriba a la izquierda"),
         Labels = new() { [RoomKind.Junction] = "Cruce.", [RoomKind.BigRoom] = "Sala grande.", [RoomKind.Corridor] = "Pasillo." },
     };
@@ -34,6 +35,7 @@ public sealed class NavigationPhrases
         Entrance = "Entrance.",
         NoOtherExits = "No other exits.",
         AllExplored = "All explored.",
+        Rechecking = "Exit not found. Rechecking dead ends.",
         Directions = Map("up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"),
         Labels = new() { [RoomKind.Junction] = "Junction.", [RoomKind.BigRoom] = "Big room.", [RoomKind.Corridor] = "Corridor." },
     };
@@ -44,6 +46,9 @@ public sealed class NavigationPhrases
 
     /// <summary>Spoken once when the exploration guide has no unvisited part left to lead to.</summary>
     public string AllExplored { get; private init; } = "";
+
+    /// <summary>Spoken once per round when the guide walks back to the dead ends that could hold the missing exit.</summary>
+    public string Rechecking { get; private init; } = "";
 
     private string SingularHeader { get; init; } = "";
     private string PluralHeader { get; init; } = "";

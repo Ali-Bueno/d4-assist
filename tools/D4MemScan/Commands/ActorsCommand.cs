@@ -4,6 +4,7 @@ using D4Data.Readers;
 using D4Memory.Actors;
 using D4Memory.Pools;
 using D4Memory.Safety;
+using D4Memory.Scan;
 using D4Memory.SceneRoute;
 using D4MemScan.Scan;
 
@@ -49,11 +50,12 @@ internal static class ActorsCommand
             var (worldSno, worldName) = WorldResolver.Resolve(store, schema, install);
             Console.WriteLine($"World: {worldName} -> SNO {worldSno}.");
             var sceneSnos = PlayerRecordLocator.SceneSnos(store, schema);
+            var playerActorSnos = PlayerRecordLocator.PlayerActorSnos(store, schema);
 
             using var process = ProcessReader.OpenDiabloIv();
             var (regions, modules) = PlayerRecordLocator.LocateModules(process, exePath);
-            var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, worldSno, sceneSnos);
-            if (liveModule is not { } module || hits.FirstOrDefault(PlayerRecordLocator.IsLive) is not { PositionAddress: not 0 } player)
+            var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, playerActorSnos, worldSno, sceneSnos);
+            if (liveModule is not { } module || hits.FirstOrDefault(PlayerRecordMatcher.IsLive) is not { PositionAddress: not 0 } player)
             {
                 Console.Error.WriteLine("No live player record found.");
                 return 1;

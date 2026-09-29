@@ -70,7 +70,11 @@ Recovered by position narrowing (`pose-snapshot`/`pose-filter`), then offline an
   - `p−8` = player actor SNO.
   - `p−4` = 0.
   - `p` = vec3 position.
-  - `p+12` = 1.
+  - `p+12` = the player's number in the game: 1 alone or as party host, 2 after joining a party (live
+    2026-09-29, 3-player party: the joiner read 2, then 1 once alone in the Mercenary den). The stale copy
+    below holds 0, so "live" means nonzero (`PlayerRecordMatcher.IsLive`). Requiring 1 broke every joiner.
+  - `p−8` holds the class actor (`<class>M` / `<class>F`), the same for every character of that class and
+    sex. The app derives the 16 player actors from `ActorDefinition.eType == 7` at startup (warlock included).
 
   This record has one copy in the whole process. It sits at a fixed offset inside the module, so it
   lies at a stable RVA per build. Finding it needs only a scan of the module's writable pages (~8.6 MB),
@@ -94,6 +98,9 @@ Recovered by position narrowing (`pose-snapshot`/`pose-filter`), then offline an
   - The live view is at `0x7FF798D80000` (same base across restarts). The record there has `p+12 == 1`.
   - A stale view holds the same record with position (0,0,0) and `p+12 == 0`.
 - To find the module, match the in-memory PE header (TimeDateStamp + SizeOfImage) against the exe on disk.
+- `Client entered world` is logged before the player is placed in the new world (`Warped into destination`
+  0.3 s later, `Portal completed` 1.3 s later on the user's PC), so the record can still hold the previous
+  world when the log line is read. The app retries the search every second until it matches.
 
 **Screen ↔ world** (fixed camera, measured from four live stick moves):
 

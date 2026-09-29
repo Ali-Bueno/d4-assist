@@ -16,6 +16,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public const int DefaultTilePollIntervalMs = 1000;
     // D2R refreshes its object lists every 500 ms (d2r-access docs/ground-items.md).
     public const int DefaultActorPollIntervalMs = 500;
+    // The log names the new world before the game places the player in it (slow PCs take longer), so a failed open is retried.
+    public const int DefaultOpenRetryIntervalMs = 1000;
 
     /// <summary>WorldChanged's world SNO when the game process is gone (no world at all), so every bridge silences.</summary>
     public const int NoWorldSno = -1;
@@ -28,11 +30,15 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private readonly int _playerPollIntervalMs;
     private readonly int _tilePollIntervalMs;
     private readonly int _actorPollIntervalMs;
+    private readonly int _openRetryIntervalMs;
     private readonly object _gate = new();
 
     private Timer? _playerTimer;
     private Timer? _tileTimer;
     private Timer? _actorTimer;
+    private Timer? _openRetryTimer;
+    private WorldKind? _pendingOpenKind;
+    private string? _lastOpenFailure;
     private IDungeonSessionReader? _session;
     private int _currentWorldSno = -1;
     private readonly HashSet<string> _reportedPollFailures = [];
@@ -62,7 +68,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         IWorldNameSource feed, IWorldClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?> openSession, IReadOnlySet<int> sceneSnos,
         int playerPollIntervalMs = DefaultPlayerPollIntervalMs, int tilePollIntervalMs = DefaultTilePollIntervalMs,
-        int actorPollIntervalMs = DefaultActorPollIntervalMs, Func<int, IReadOnlyList<TileState>>? staticTiles = null)
+        int actorPollIntervalMs = DefaultActorPollIntervalMs, Func<int, IReadOnlyList<TileState>>? staticTiles = null,
+        int openRetryIntervalMs = DefaultOpenRetryIntervalMs)
     {
         _staticTiles = staticTiles;
         _classifier = classifier;
@@ -71,6 +78,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         _playerPollIntervalMs = playerPollIntervalMs;
         _tilePollIntervalMs = tilePollIntervalMs;
         _actorPollIntervalMs = actorPollIntervalMs;
+        _openRetryIntervalMs = openRetryIntervalMs;
 
         feed.WorldChanged += OnWorldChanged;
         if (feed.ReadLastWorldNameAtStartup() is { } lastWorld) OnWorldChanged(lastWorld);
@@ -103,12 +111,48 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     private void EnterDungeonLocked(WorldKind kind)
     {
+        _lastOpenFailure = null;
+        if (TryOpenSessionLocked()) { StartPollingLocked(kind); return; }
+
+        State = SessionState.Idle; CurrentWorldRadarOnly = false; // stay accessible-but-idle, no reads
+        _pendingOpenKind = kind;
+        if (_openRetryIntervalMs != Timeout.Infinite)
+            _openRetryTimer = new Timer(_ => RetryOpenOnce(), null, _openRetryIntervalMs, _openRetryIntervalMs);
+    }
+
+    /// <summary>Retries a failed open until it succeeds or the world changes. Public so tests can drive it deterministically.</summary>
+    public void RetryOpenOnce()
+    {
+        lock (_gate)
+        {
+            if (_pendingOpenKind is not { } kind || !TryOpenSessionLocked()) return;
+            Console.WriteLine("Memory: reading the game now.");
+            StartPollingLocked(kind);
+        }
+    }
+
+    private bool TryOpenSessionLocked()
+    {
+        string failure;
+        try
+        {
+            _session = _openSession(_currentWorldSno, _sceneSnos);
+            if (_session is not null) return true;
+            failure = "no memory session";
+        }
+        catch (InvalidOperationException e) { _session = null; failure = e.Message; } // not running, access denied, player not placed yet
+
+        if (failure != _lastOpenFailure) Console.WriteLine($"Memory: cannot read the game yet, retrying: {failure}");
+        _lastOpenFailure = failure;
+        return false;
+    }
+
+    private void StartPollingLocked(WorldKind kind)
+    {
         bool radarOnly = kind == WorldKind.RadarOnly;
-        try { _session = _openSession(_currentWorldSno, _sceneSnos); }
-        catch (InvalidOperationException) { _session = null; } // game process not running
-
-        if (_session is null) { State = SessionState.Idle; CurrentWorldRadarOnly = false; return; } // stay accessible-but-idle, no reads
-
+        StopOpenRetryLocked();
+        State = SessionState.InDungeon;
+        CurrentWorldRadarOnly = radarOnly;
         _fallbackScanTriggered = false;
         _playerTimer = new Timer(_ => PollPlayerOnce(), null, _playerPollIntervalMs, _playerPollIntervalMs);
         // Static grid: the tiles come from offline data (the live CScene route cannot match them), re-raised on
@@ -133,10 +177,17 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     private void LeaveDungeonLocked()
     {
+        StopOpenRetryLocked();
         _playerTimer?.Dispose(); _playerTimer = null;
         _tileTimer?.Dispose(); _tileTimer = null;
         _actorTimer?.Dispose(); _actorTimer = null;
         _session?.Dispose(); _session = null;
+    }
+
+    private void StopOpenRetryLocked()
+    {
+        _openRetryTimer?.Dispose(); _openRetryTimer = null;
+        _pendingOpenKind = null;
     }
 
     /// <summary>Runs one player-position read. Public so tests can drive it deterministically instead of waiting on the timer.</summary>

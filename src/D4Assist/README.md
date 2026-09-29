@@ -21,6 +21,11 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   the game's language (`Strings/AppStrings`, Spanish or English; see `Language` below). The NVDA voice itself is your choice.
 - `--debug` logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
   swaps PRISM for a console sink so you can run it without a screen reader.
+- Everything printed also goes to `d4assist-log.txt` next to the exe, timestamped (`Logging/LogFile`; the previous
+  run's log becomes `d4assist-log.old.txt`). Always logged, even without `--debug`: why memory can't be read
+  (`Memory: cannot read the game yet, retrying: …`, once per reason; the open is retried every second, since the
+  log names a world before the player is placed in it), the player actor and game build once reading, and every
+  `CUES muted/unmuted` reason.
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
 - Loops positional beacons at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).
@@ -183,10 +188,13 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
 
 ## Controls
 
-- **D-pad left** (any XInput controller) — toggles the exploration guide for the current kind of world (Undercity and
+- **D-pad left** (any XInput controller, or a DualSense / DualShock 4 over USB or Bluetooth) — toggles the exploration guide for the current kind of world (Undercity and
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
   it mutes and unmutes a leading quest route the same way, and otherwise does nothing. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
-  D2R mod's `input_direction.cpp`); the game still receives every press. Not saved to `d4assist.json`.
+  D2R mod's `input_direction.cpp`); the game still receives every press. PlayStation pads never reach XInput, so
+  `Input/SonyHidPad` reads their HID input reports (shared, read-only handle; rescans every 3 s for pads plugged in
+  later; logs `Pad: … connected` or why it can't open one) and `Input/CombinedPad` drops a second copy of the same
+  press within 200 ms (Steam Input / DS4Windows also expose the pad as a virtual Xbox pad). Not saved to `d4assist.json`.
 - **Ctrl+Alt+Shift+1..8** (keyboard, anywhere) — sound examples, e.g. for a video without a fight's noise (user request
   2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per
   direction up/right/down/left), 6 the quest loop twice, 7 the guide ping three times, 8 the arrival chime. One example

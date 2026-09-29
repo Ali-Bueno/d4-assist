@@ -64,6 +64,27 @@ public class PlayerRecordMatcherTests
     }
 
     [Fact]
+    public void LooseHits_ReportARecordOfAnotherWorldAndUnknownScene()
+    {
+        var buffer = MakeRecord(200, 100, worldSno: WorldSno + 1, sceneSno: -1, trailingWord: 0);
+
+        var hit = Assert.Single(PlayerRecordMatcher.FindLooseHits(buffer, 0, ActorSnos));
+
+        Assert.Equal((WorldSno + 1, -1, 0u), (hit.WorldSno, hit.SceneSno, hit.TrailingWord));
+    }
+
+    [Theory]
+    [InlineData(0u, false)] // the stale copy in the game's second image view
+    [InlineData(1u, true)]  // alone or party host
+    [InlineData(2u, true)]  // joined a party (live 2026-09-29)
+    public void IsLive_RejectsOnlyTheStaleCopy(uint playerNumber, bool live)
+    {
+        var hit = Assert.Single(PlayerRecordMatcher.FindHits(MakeRecord(200, 100, trailingWord: playerNumber), 0, ActorSnos, WorldSno, SceneSnos));
+
+        Assert.Equal(live, PlayerRecordMatcher.IsLive(hit));
+    }
+
+    [Fact]
     public void RejectsWrongWorldSno()
     {
         var buffer = MakeRecord(200, 100, worldSno: WorldSno + 1);

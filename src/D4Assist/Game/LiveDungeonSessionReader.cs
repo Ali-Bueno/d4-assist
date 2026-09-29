@@ -34,40 +34,74 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _positionAddress = positionAddress;
     }
 
-    /// <summary>Null when the process isn't running, the module can't be located, or no live player record is found.</summary>
+    /// <summary>Throws InvalidOperationException with the reason when the process isn't running or can't be read, the
+    /// module can't be located, or no live player record is in this world yet.</summary>
     public static LiveDungeonSessionReader? TryOpen(
-        string installPath, CandidateIndex candidates, int worldSno, IReadOnlySet<int> sceneSnos)
+        string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
         string exePath = Path.Combine(installPath, ExecutableFileName);
         var regions = process.ImageRegions();
         var modules = ModuleLocator.LocateAll(regions, process, exePath);
-        if (modules.Count == 0) { process.Dispose(); return null; }
+        uint build = PeHeaderReader.ReadFromFile(exePath).TimeDateStamp;
+        if (modules.Count == 0)
+        {
+            process.Dispose();
+            throw new InvalidOperationException($"game module not found in the process (installed exe build 0x{build:X8}).");
+        }
 
-        long? liveModuleBase = null;
-        long positionAddress = 0;
+        PlayerRecordHit? player = null;
+        long moduleBase = 0;
         foreach (var module in modules)
         {
-            var hit = FindLivePlayerRecord(process, ModuleLocator.WritableRegionsAt(regions, module.Base), worldSno, sceneSnos);
+            var hit = FindLivePlayerRecord(
+                process, ModuleLocator.WritableRegionsAt(regions, module.Base), playerActorSnos, worldSno, sceneSnos);
             if (hit is null) continue;
-            liveModuleBase = module.Base;
-            positionAddress = hit.Value.PositionAddress;
+            (player, moduleBase) = (hit, module.Base);
             break;
         }
-        if (liveModuleBase is not { } moduleBase) { process.Dispose(); return null; }
+        if (player is not { } found)
+        {
+            string records = DescribePlayerRecords(process, regions, modules, playerActorSnos, worldSno, sceneSnos);
+            process.Dispose();
+            throw new InvalidOperationException($"player not found in world {worldSno}; {records}");
+        }
 
-        GameBuildOffsets? offsets = GameBuildOffsetsTable.TryGet(PeHeaderReader.ReadFromFile(exePath).TimeDateStamp, out var found) ? found : null;
-        return new LiveDungeonSessionReader(process, candidates, offsets, moduleBase, positionAddress);
+        GameBuildOffsets? offsets = GameBuildOffsetsTable.TryGet(build, out var known) ? known : null;
+        Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}" +
+            (offsets is null ? " (unknown build: no rooms, radar or actor sounds)." : "."));
+        return new LiveDungeonSessionReader(process, candidates, offsets, moduleBase, found.PositionAddress);
+    }
+
+    // Which field stops the match: the log line stays the same while walking unless that changes.
+    private static string DescribePlayerRecords(
+        IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, List<MainModule> modules, IReadOnlySet<int> playerActorSnos,
+        int worldSno, IReadOnlySet<int> sceneSnos)
+    {
+        var buffer = new byte[RegionWindows.DefaultWindowBytes];
+        var hits = new List<PlayerRecordHit>();
+        foreach (var module in modules)
+            foreach (var region in ModuleLocator.WritableRegionsAt(regions, module.Base))
+                foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
+                    hits.AddRange(PlayerRecordMatcher.FindLooseHits(data.Span, address, playerActorSnos));
+        if (hits.Count == 0) return $"no record holds a player actor ({playerActorSnos.Count} known).";
+
+        var described = hits.OrderByDescending(PlayerRecordMatcher.IsLive).Take(3).Select(h =>
+            $"world {h.WorldSno}{(h.WorldSno == worldSno ? "" : " (differs)")}, " +
+            (sceneSnos.Contains(h.SceneSno) ? "scene known" : $"scene {h.SceneSno} unknown") +
+            $", actor {h.ActorSno}, flag {h.TrailingWord}");
+        return $"{hits.Count} candidate record(s): " + string.Join("; ", described) + ".";
     }
 
     private static PlayerRecordHit? FindLivePlayerRecord(
-        IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, int worldSno, IReadOnlySet<int> sceneSnos)
+        IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, IReadOnlySet<int> playerActorSnos, int worldSno,
+        IReadOnlySet<int> sceneSnos)
     {
         var buffer = new byte[RegionWindows.DefaultWindowBytes];
         foreach (var region in regions)
             foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
-                foreach (var hit in PlayerRecordMatcher.FindHits(data.Span, address, PlayerActorSnos.Known, worldSno, sceneSnos))
-                    if (hit.TrailingWord == PlayerRecordMatcher.LiveRecordFlag)
+                foreach (var hit in PlayerRecordMatcher.FindHits(data.Span, address, playerActorSnos, worldSno, sceneSnos))
+                    if (PlayerRecordMatcher.IsLive(hit))
                         return hit;
         return null;
     }

@@ -28,6 +28,7 @@ public static class Conventions
 
     // ActorDefinition.eType (+8): 1 = monster/NPC (has ptMonsterData / ptNPCData), 2 = gizmo. research/dungeon-objectives.md §3.
     public const int ActorTypeMonster = 1;
+    public const int ActorTypePlayer = 7;           // only the player-class actors (<class>M / <class>F)
 
     // ActorDefinition.eActorGizmoType (+392); each value is named after the data class at ptGizmoData
     // (definitions.json has no enum strings). research/dungeon-objectives.md §3.

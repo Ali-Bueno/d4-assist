@@ -2,6 +2,7 @@ using D4Assist.Audio;
 using D4Assist.Config;
 using D4Assist.Game;
 using D4Assist.Input;
+using D4Assist.Logging;
 using D4Assist.Navigation;
 using D4Assist.Radar;
 using D4Assist.Speech;
@@ -32,6 +33,7 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        using var log = LogFile.Start(AppContext.BaseDirectory);
         if (args.Contains("--sound-test"))
             return SoundTestMode.Run(args.Contains("--no-speech"));
 
@@ -72,6 +74,9 @@ internal static class Program
         var sceneReader = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: true);
         var candidates = new CandidateIndex(CandidateSceneBuilder.Build(store, sceneReader, sceneReader.Group, tilesOnly: false));
         var sceneSnos = store.AllEntries(schema.SnoGroup(SceneDefinitionType)).Select(e => e.Id).ToHashSet();
+        var actorDefinitions = new ActorDefinitionReader(store, schema);
+        var playerActorSnos = actorDefinitions.PlayerActorSnos();
+        if (debug) Console.WriteLine($"Player actors: {playerActorSnos.Count}.");
 
         // CASC reads happen on several poll threads (walkability, actor classes, DPO quests) and the store isn't thread-safe.
         var cascGate = new object();
@@ -83,7 +88,7 @@ internal static class Program
 
         using var session = new GameSession(
             logWatcher, classifier,
-            (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(installPath, candidates, worldSno, knownSceneSnos),
+            (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(installPath, candidates, playerActorSnos, worldSno, knownSceneSnos),
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -93,7 +98,6 @@ internal static class Program
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains);
 
         // One mixer and one output for the radar cues and the beacon loops.
-        var actorDefinitions = new ActorDefinitionReader(store, schema);
         Func<int, ActorDefinitionInfo?> definitionOf = sno => { lock (cascGate) return actorDefinitions.Read(sno); };
         var interactables = new InteractableClassifier(definitionOf, store.Name);
 
@@ -114,7 +118,7 @@ internal static class Program
         using IAudioOut? beaconOut = needsOwnOutput ? new WaveOutAudioOut() : null;
         beaconOut?.Start(mixer.Render);
         var loops = actorLoops ? StartLoops(session, mixer, config, store, schema, cascGate, debug, definitionOf, interactables) : null;
-        var cueGate = new CueGate(paused => mixer.Paused = paused, debug ? Console.WriteLine : null);
+        var cueGate = new CueGate(paused => mixer.Paused = paused, Console.WriteLine); // mute reasons always logged: testers' "no sound" reports
         if (config.PauseCuesInCutscenes) WatchCutscenes(logWatcher, session, cueGate, debug);
         using var focus = config.PauseCuesInBackground ? new GameWindowFocus(cueGate) : null;
         if (config.PauseCuesInConversations)
@@ -129,7 +133,10 @@ internal static class Program
         using var guidePing = config.ExplorationGuideEnabled || routesEnabled
             ? new GuidePingPlayer(mixer) { Volume = config.ExplorationGuideVolume }
             : null;
-        using var pad = guidePing is not null ? new XInputPad() : null;
+        // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
+        using var xboxPad = guidePing is not null ? new XInputPad() : null;
+        using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
+        var pad = xboxPad is not null && sonyPad is not null ? new CombinedPad([xboxPad, sonyPad]) : null;
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => loops?.HasTarget(LoopKind.ExitBeacon) ?? false, debug ? Console.WriteLine : null,
@@ -137,7 +144,8 @@ internal static class Program
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
-        pad?.Start();
+        xboxPad?.Start();
+        sonyPad?.Start();
 
         // Sound examples on Ctrl+Alt+Shift+1..8, to show the cues without a fight's noise.
         var demo = new SoundDemo(

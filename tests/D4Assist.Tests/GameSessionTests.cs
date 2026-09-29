@@ -48,6 +48,43 @@ public class GameSessionTests
     }
 
     [Fact]
+    public void OpenFailingWhileThePlayerIsStillLoading_IsRetriedUntilItReads()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        int openCount = 0;
+        var session = NewSession(feed, classifier, (_, _) => ++openCount < 3
+            ? throw new InvalidOperationException("player not found")
+            : new FakeDungeonSessionReader());
+
+        feed.Raise(DungeonName);
+        session.RetryOpenOnce();
+        Assert.Equal(SessionState.Idle, session.State);
+        session.RetryOpenOnce();
+
+        Assert.Equal(SessionState.InDungeon, session.State);
+        session.RetryOpenOnce();
+        Assert.Equal(3, openCount);
+    }
+
+    [Fact]
+    public void FailedOpen_IsNotRetriedAfterLeavingForAWorldWithoutReads()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier()
+            .Map(DungeonName, DungeonSno, isDungeon: true)
+            .Map(OverworldName, OverworldSno, isDungeon: false);
+        int openCount = 0;
+        var session = NewSession(feed, classifier, (_, _) => { openCount++; return null; });
+
+        feed.Raise(DungeonName);
+        feed.Raise(OverworldName);
+        session.RetryOpenOnce();
+
+        Assert.Equal(1, openCount);
+    }
+
+    [Fact]
     public void RepeatedSameWorld_IsDiffGatedAndDoesNotReopenTheSession()
     {
         var feed = new FakeWorldNameSource();
@@ -311,7 +348,7 @@ public class GameSessionTests
         Func<int, IReadOnlyList<TileState>>? staticTiles = null) =>
         new(feed, classifier, openSession ?? ((_, _) => new FakeDungeonSessionReader()), SceneSnos,
             playerPollIntervalMs: Timeout.Infinite, tilePollIntervalMs: Timeout.Infinite, actorPollIntervalMs: Timeout.Infinite,
-            staticTiles: staticTiles);
+            staticTiles: staticTiles, openRetryIntervalMs: Timeout.Infinite);
 
     private sealed class FakeWorldNameSource : IWorldNameSource
     {

@@ -31,10 +31,11 @@ internal static class PlayerCommand
         {
             var (worldSno, worldName) = WorldResolver.Resolve(store, schema, install);
             var sceneSnos = PlayerRecordLocator.SceneSnos(store, schema);
+            var playerActorSnos = PlayerRecordLocator.PlayerActorSnos(store, schema);
             Console.WriteLine($"World: {worldName} -> SNO {worldSno}; {sceneSnos.Count} scene SNOs known.");
 
             if (replayModulePath is not null)
-                return RunAgainstCapture(replayModulePath, store, worldSno, sceneSnos, samples, intervalMs);
+                return RunAgainstCapture(replayModulePath, store, playerActorSnos, worldSno, sceneSnos, samples, intervalMs);
 
             string exePath = Path.Combine(install, GameData.MainModuleFileName);
             using var process = ProcessReader.OpenDiabloIv();
@@ -46,7 +47,7 @@ internal static class PlayerCommand
                 Console.WriteLine($"Module dump: base 0x{dumpedBase:X}, {regionCount} writable regions -> {dumpModulePath}");
             }
 
-            var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, worldSno, sceneSnos);
+            var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, playerActorSnos, worldSno, sceneSnos);
             long reportBase = (liveModule ?? modules[0]).Base;
             if (pointerSnapshotPath is not null && liveModule is { } live)
             {
@@ -66,7 +67,7 @@ internal static class PlayerCommand
     }
 
     private static int RunAgainstCapture(
-        string path, SnoStore store, int worldSno, HashSet<int> sceneSnos, int samples, int intervalMs)
+        string path, SnoStore store, HashSet<int> playerActorSnos, int worldSno, HashSet<int> sceneSnos, int samples, int intervalMs)
     {
         var occurrences = CaptureMemoryReader.LoadOccurrences(path);
         var baseEntry = occurrences.FirstOrDefault(o => o.Name == ModuleDumpWriter.ModuleBaseEntryName);
@@ -76,14 +77,14 @@ internal static class PlayerCommand
             : "Module base: unknown (capture has no module-base entry).");
 
         var capture = new CaptureMemoryReader(occurrences.Where(o => o.Name == ModuleDumpWriter.ModuleRegionEntryName));
-        var hits = PlayerRecordLocator.Scan(capture, capture.Regions(), worldSno, sceneSnos);
+        var hits = PlayerRecordLocator.Scan(capture, capture.Regions(), playerActorSnos, worldSno, sceneSnos);
         return ReportAndSample(capture, store, moduleBase, hits, samples, intervalMs);
     }
 
     private static int ReportAndSample(
         IMemoryReader memory, SnoStore store, long moduleBase, List<PlayerRecordHit> hits, int samples, int intervalMs)
     {
-        Console.WriteLine($"Player record matches: {hits.Count} ({hits.Count(PlayerRecordLocator.IsLive)} live; sampling the first live one)");
+        Console.WriteLine($"Player record matches: {hits.Count} ({hits.Count(PlayerRecordMatcher.IsLive)} live; sampling the first live one)");
         foreach (var hit in hits)
         {
             string rva = moduleBase == 0 ? "n/a" : $"0x{hit.PositionAddress - moduleBase:X}";

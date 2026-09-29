@@ -1,5 +1,6 @@
 using System.Numerics;
 using D4Data.Casc;
+using D4Data.Format;
 using D4Data.Schema;
 
 namespace D4Data.Readers;
@@ -31,5 +32,17 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
             meta.Vec3(bounds + schema.Offset(Aabb, "wvExt")));
         _cache[actorSno] = info;
         return info;
+    }
+
+    /// <summary>Every player-class actor SNO (one per class and sex), read from the data so a new class needs no code change.</summary>
+    public HashSet<int> PlayerActorSnos()
+    {
+        int group = schema.SnoGroup(ActorDefinition);
+        int eType = schema.Offset(ActorDefinition, "eType");
+        return store.AllEntries(group)
+            .Where(entry => store.Meta(group, entry.Id) is { } meta && meta.Length >= schema.Size(ActorDefinition)
+                && meta.I32(eType) == Conventions.ActorTypePlayer)
+            .Select(entry => entry.Id)
+            .ToHashSet();
     }
 }

@@ -40,6 +40,20 @@ public class DungeonObjectiveReaderRealDataTests
     }
 
     [Fact]
+    public void ActorDefinitionReader_PlayerActorSnosCoverEveryClassAndSexOnly()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+
+        var players = new ActorDefinitionReader(store, schema).PlayerActorSnos();
+
+        // barbarianM, sorcererF, paladinF, warlockM, warlockF (build 3.2.1.73552: 8 classes x 2 sexes, nothing else).
+        Assert.Superset(new HashSet<int> { 176832, 72908, 2131351, 2212714, 2257570 }, players);
+        Assert.InRange(players.Count, 16, 30);
+    }
+
+    [Fact]
     public void WorldWithoutADpoQuest_HasNoObjectiveActors()
     {
         if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;

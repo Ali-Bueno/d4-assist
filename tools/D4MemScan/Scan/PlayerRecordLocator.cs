@@ -1,4 +1,5 @@
 using D4Data.Casc;
+using D4Data.Readers;
 using D4Data.Schema;
 using D4Memory.Safety;
 using D4Memory.Scan;
@@ -10,10 +11,11 @@ internal static class PlayerRecordLocator
 {
     private const string SceneRootType = "SceneDefinition";
 
-    public static bool IsLive(PlayerRecordHit hit) => hit.TrailingWord == PlayerRecordMatcher.LiveRecordFlag;
-
     public static HashSet<int> SceneSnos(SnoStore store, TypeSchema schema) =>
         store.AllEntries(schema.SnoGroup(SceneRootType)).Select(e => e.Id).ToHashSet();
+
+    public static HashSet<int> PlayerActorSnos(SnoStore store, TypeSchema schema) =>
+        new ActorDefinitionReader(store, schema).PlayerActorSnos();
 
     /// <summary>Every module view of the exe in the process; throws when none matches.</summary>
     public static (IReadOnlyList<MemoryRegion> Regions, List<MainModule> Modules) LocateModules(ProcessReader process, string exePath)
@@ -28,28 +30,29 @@ internal static class PlayerRecordLocator
     /// <summary>The live record lives in exactly one view: scans them all and returns the view holding a live hit.</summary>
     public static (MainModule? LiveModule, List<PlayerRecordHit> Hits) ScanModules(
         ProcessReader process, IReadOnlyList<MemoryRegion> regions, IEnumerable<MainModule> modules,
-        int worldSno, IReadOnlySet<int> sceneSnos)
+        IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos)
     {
         MainModule? liveModule = null;
         var hits = new List<PlayerRecordHit>();
         foreach (var module in modules)
         {
-            var found = Scan(process, ModuleLocator.WritableRegionsAt(regions, module.Base), worldSno, sceneSnos);
-            Console.WriteLine($"Module view 0x{module.Base:X}: {found.Count} record(s), {found.Count(IsLive)} live");
-            if (liveModule is null && found.Any(IsLive)) liveModule = module;
+            var found = Scan(process, ModuleLocator.WritableRegionsAt(regions, module.Base), playerActorSnos, worldSno, sceneSnos);
+            Console.WriteLine($"Module view 0x{module.Base:X}: {found.Count} record(s), {found.Count(PlayerRecordMatcher.IsLive)} live");
+            if (liveModule is null && found.Any(PlayerRecordMatcher.IsLive)) liveModule = module;
             hits.AddRange(found);
         }
-        return (liveModule, [.. hits.OrderByDescending(IsLive)]);
+        return (liveModule, [.. hits.OrderByDescending(PlayerRecordMatcher.IsLive)]);
     }
 
     public static List<PlayerRecordHit> Scan(
-        IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, int worldSno, IReadOnlySet<int> sceneSnos)
+        IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, IReadOnlySet<int> playerActorSnos, int worldSno,
+        IReadOnlySet<int> sceneSnos)
     {
         var hits = new List<PlayerRecordHit>();
         var buffer = new byte[RegionWindows.DefaultWindowBytes];
         foreach (var region in regions)
             foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
-                hits.AddRange(PlayerRecordMatcher.FindHits(data.Span, address, PlayerActorSnos.Known, worldSno, sceneSnos));
+                hits.AddRange(PlayerRecordMatcher.FindHits(data.Span, address, playerActorSnos, worldSno, sceneSnos));
         return hits;
     }
 }

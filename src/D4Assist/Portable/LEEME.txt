@@ -1,4 +1,4 @@
-D4 Dungeon Assist - versión de prueba 3 (29 de septiembre de 2026)
+D4 Dungeon Assist - versión de prueba 6 (29 de septiembre de 2026)
 ==================================================================
 
 Programa de accesibilidad para jugar las mazmorras de Diablo IV sin ver la
@@ -22,6 +22,8 @@ Requisitos
   dentro de D4Assist.exe.
 - Diablo IV instalado con Battle.net. El programa encuentra el juego solo.
 - NVDA o JAWS en marcha.
+- Mando de Xbox, DualSense o DualShock 4, por cable o Bluetooth (para la
+  cruceta izquierda; el resto funciona sin mando).
 - Hecho para la versión 3.2.1 del juego. Si Blizzard actualiza el juego,
   algunas funciones pueden dejar de funcionar hasta que se actualice el programa.
 
@@ -31,6 +33,8 @@ Contenido de la carpeta
 - D4Assist.exe: el programa.
 - d4assist.json: los ajustes (ver abajo).
 - LEEME.txt: este archivo.
+- d4assist-log.txt: el registro, se crea solo al abrir el programa (ver
+  "Si algo no funciona").
 Los sonidos y los datos del programa van dentro de D4Assist.exe.
 
 
@@ -132,3 +136,10 @@ Ajustes (archivo d4assist.json, se abre con el Bloc de notas)
 - "AutoAnnouncementsEnabled": false apaga los anuncios de salas.
 Si el programa no encuentra el juego, añade una línea como esta, con tu carpeta:
   "InstallPath": "C:\\Program Files (x86)\\Diablo IV",
+
+Si algo no funciona
+-------------------
+Cada vez que abres el programa escribe lo que pasa en d4assist-log.txt, en esta
+misma carpeta (el de la vez anterior queda como d4assist-log.old.txt). Si no
+suena nada o algo falla, cierra el programa y manda los dos archivos a quien te
+pasó el programa. No hace falta abrirlo con ninguna opción especial.

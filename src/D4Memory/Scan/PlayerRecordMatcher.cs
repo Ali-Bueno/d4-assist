@@ -16,8 +16,9 @@ public readonly record struct PlayerRecordHit(
 /// </summary>
 public static class PlayerRecordMatcher
 {
-    /// <summary>u32 at p+12 in the live record; a stale copy in the game's second image view holds 0 (live run 2026-09-28).</summary>
-    public const uint LiveRecordFlag = 1;
+    // u32 at p+12: the player's number in the game (1 alone or as host, 2 after joining a party; live 2026-09-29).
+    // The stale copy in the game's second image view holds 0 (live run 2026-09-28).
+    private const uint StaleRecordNumber = 0;
 
     public const int Alignment = 4;
 
@@ -28,7 +29,7 @@ public static class PlayerRecordMatcher
     private const int OffsetActorSno = -8;
     private const int OffsetZeroMarker = -4;
     private const int OffsetPosition = 0;
-    private const int OffsetTrailingWord = 12; // observed == 1; reported only, task spec says don't require it
+    private const int OffsetTrailingWord = 12; // player number; 0 in the stale copy (see IsLive)
 
     /// <summary>Bytes the record needs before `p` (earliest field checked is p-20, reported not validated).</summary>
     public const int RecordBytesBefore = -OffsetLeadingWord;
@@ -40,8 +41,19 @@ public static class PlayerRecordMatcher
     /// (research/dungeon-data.md tile/world AABB observations), so it only rejects garbage/uninitialized floats.</summary>
     public const float PositionBoundUnits = 1_000_000f;
 
+    /// <summary>True for the live record, false for the stale copy in the game's second image view.</summary>
+    public static bool IsLive(PlayerRecordHit hit) => hit.TrailingWord != StaleRecordNumber;
+
     public static List<PlayerRecordHit> FindHits(
-        ReadOnlySpan<byte> buffer, long baseAddress, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos)
+        ReadOnlySpan<byte> buffer, long baseAddress, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos) =>
+        Find(buffer, baseAddress, playerActorSnos, worldSno, sceneSnos);
+
+    /// <summary>Diagnostics only: records with a player actor, the zero marker and a sane position, whatever their world and scene.</summary>
+    public static List<PlayerRecordHit> FindLooseHits(ReadOnlySpan<byte> buffer, long baseAddress, IReadOnlySet<int> playerActorSnos) =>
+        Find(buffer, baseAddress, playerActorSnos, worldSno: null, sceneSnos: null);
+
+    private static List<PlayerRecordHit> Find(
+        ReadOnlySpan<byte> buffer, long baseAddress, IReadOnlySet<int> playerActorSnos, int? worldSno, IReadOnlySet<int>? sceneSnos)
     {
         var hits = new List<PlayerRecordHit>();
         for (int off = 0; off + sizeof(int) <= buffer.Length; off += Alignment)
@@ -49,21 +61,22 @@ public static class PlayerRecordMatcher
             if (off - RecordBytesBefore < 0 || off + RecordBytesAfter > buffer.Length) continue; // window edge
 
             // Cheapest, most selective field first: the current World SNO is a single known value.
-            if (ReadI32(buffer, off + OffsetWorldSno) != worldSno) continue;
+            int recordWorldSno = ReadI32(buffer, off + OffsetWorldSno);
+            if (worldSno is { } world && recordWorldSno != world) continue;
             if (ReadU32(buffer, off + OffsetZeroMarker) != 0) continue;
 
             int actorSno = ReadI32(buffer, off + OffsetActorSno);
             if (!playerActorSnos.Contains(actorSno)) continue;
 
             int sceneSno = ReadI32(buffer, off + OffsetSceneSno);
-            if (!sceneSnos.Contains(sceneSno)) continue;
+            if (sceneSnos is not null && !sceneSnos.Contains(sceneSno)) continue;
 
             var position = ReadVector3(buffer, off + OffsetPosition);
             if (!IsSanePosition(position)) continue;
 
             uint leadingWord = ReadU32(buffer, off + OffsetLeadingWord);
             uint trailingWord = ReadU32(buffer, off + OffsetTrailingWord);
-            hits.Add(new PlayerRecordHit(baseAddress + off, sceneSno, worldSno, actorSno, position, leadingWord, trailingWord));
+            hits.Add(new PlayerRecordHit(baseAddress + off, sceneSno, recordWorldSno, actorSno, position, leadingWord, trailingWord));
         }
         return hits;
     }

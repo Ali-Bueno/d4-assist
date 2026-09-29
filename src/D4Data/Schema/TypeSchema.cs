@@ -20,7 +20,14 @@ public sealed class TypeSchema
 
     public static TypeSchema Load(string definitionsPath)
     {
-        using var doc = JsonDocument.Parse(File.ReadAllBytes(definitionsPath));
+        using var file = File.OpenRead(definitionsPath);
+        return Load(file);
+    }
+
+    /// <summary>Parses a d4data definitions.json from a stream, e.g. a copy embedded in an assembly.</summary>
+    public static TypeSchema Load(Stream definitions)
+    {
+        using var doc = JsonDocument.Parse(definitions);
         var types = new Dictionary<string, TypeDef>(StringComparer.Ordinal);
         long polymorphicArrayHash = doc.RootElement.EnumerateObject()
             .Where(e => e.Value.GetProperty("name").GetString() == PolymorphicArrayType).Select(e => long.Parse(e.Name)).FirstOrDefault(-1);

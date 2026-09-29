@@ -32,12 +32,16 @@ public interface IDungeonFeed
     /// CurrentWorld/WorldChanged report IsDungeon=false there.</summary>
     bool CurrentWorldRadarOnly => false;
 
-    /// <summary>Fires only while inside a dungeon, at the tile-poll interval or after an on-demand rescan.</summary>
+    /// <summary>What the current world is; the overworld feeds player and actors only, and the radar and announcements stay silent there.</summary>
+    WorldKind CurrentWorldKind =>
+        CurrentWorldRadarOnly ? WorldKind.RadarOnly : CurrentWorld?.IsDungeon == true ? WorldKind.Dungeon : WorldKind.Other;
+
+    /// <summary>Fires only while inside a dungeon or radar-only world, at the tile-poll interval or after an on-demand rescan.</summary>
     event Action<IReadOnlyList<TileState>>? TilesUpdated;
 
-    /// <summary>Fires only while inside a dungeon, at the player-poll interval.</summary>
+    /// <summary>Fires only while a memory session is open (dungeon, radar-only world or overworld), at the player-poll interval.</summary>
     event Action<PlayerState>? PlayerMoved;
 
-    /// <summary>Fires only while inside a dungeon, at the actor-poll interval, with every placed actor.</summary>
+    /// <summary>Fires only while a memory session is open (dungeon, radar-only world or overworld), at the actor-poll interval, with every placed actor.</summary>
     event Action<IReadOnlyList<ActorState>>? ActorsUpdated;
 }

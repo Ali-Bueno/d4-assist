@@ -9,7 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Sounds\*.wav" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Inside the assembly, so the portable folder carries no loose sound files (SpatialLoopPlayer.LoadSounds). -->
+    <EmbeddedResource Include="Sounds\*.wav" LogicalName="Sounds/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- Radar cue audio: BCL only, WinMM waveOut* via P/Invoke (see README.md). No game or process access. -->

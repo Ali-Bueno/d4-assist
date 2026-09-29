@@ -21,9 +21,10 @@ public class AppConfigPathTests
     }
 
     [Fact]
-    public void Definitions_path_defaults_next_to_the_exe_and_keeps_absolute_paths()
+    public void Definitions_path_defaults_to_the_embedded_copy_resolves_relative_paths_and_keeps_absolute_ones()
     {
-        Assert.Equal(Path.Combine(@"C:\app", "definitions.json"), new AppConfig().ResolveDefinitionsPath(@"C:\app"));
+        Assert.Null(new AppConfig().ResolveDefinitionsPath(@"C:\app"));
+        Assert.Equal(Path.Combine(@"C:\app", "defs.json"), new AppConfig { DefinitionsPath = "defs.json" }.ResolveDefinitionsPath(@"C:\app"));
         Assert.Equal(@"D:\data\defs.json", new AppConfig { DefinitionsPath = @"D:\data\defs.json" }.ResolveDefinitionsPath(@"C:\app"));
     }
 }

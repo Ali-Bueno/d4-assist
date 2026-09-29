@@ -1,6 +1,6 @@
 # STATUS — Diablo IV Dungeon Assist
 
-**Last updated:** 2026-09-28 — Undercity: exit beacon works live; exploration guide built, awaiting live test; radar +12 dB. Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
+**Last updated:** 2026-09-29 — memory reads outside dungeons (player + actors only) and the first campaign route (sandstorm shelters) built, not live-tested. Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
 
 ## Identity
 
@@ -8,7 +8,7 @@
 - **Screen-reader transport:** .NET 10 companion app → PRISM via the Prismatoid 0.3.0 NuGet package (backend NVDA live).
 - **Build command:** `dotnet build`
 - **Game install:** `D:\games\battlenet\Diablo IV` (build 3.2.1.73552 on 2026-09-16)
-- **Run / test:** `dotnet build D4DungeonAssist.sln`, `dotnet test D4DungeonAssist.sln` (~250 tests). Run `src/D4Assist/bin/Debug/net10.0-windows/win-x64/D4Assist.exe --debug > log.txt`, then play; it idles until `FenrisDebug.txt` shows a dungeon world. Flags and config (`d4assist.json`): [src/D4Assist/README](src/D4Assist/README.md). The exe must be stopped before rebuilding (file lock).
+- **Run / test:** `dotnet build D4DungeonAssist.sln`, `dotnet test D4DungeonAssist.sln` (~460 tests). Run `src/D4Assist/bin/Debug/net10.0-windows/win-x64/D4Assist.exe --debug > log.txt`, then play; it idles in menus and loading screens, reads position + actors in the overworld and everything in dungeons (world from `FenrisDebug.txt`). Flags and config (`d4assist.json`): [src/D4Assist/README](src/D4Assist/README.md). The exe must be stopped before rebuilding (file lock).
 - **Code map:** `src/D4Data` (offline CASC), `src/D4Memory` (read-only process access, scene route, player record), `src/D4Assist.Navigation` (rooms, openings, spoken announcements), `src/D4Assist.Radar` (D2R radar port), `src/D4Assist.Audio` (cue synth + WinMM mixer), `src/D4Assist` (app: `Game/GameSession`, `NavigationBridge`, `RadarBridge`); `tools/D4MemScan` (live RE diagnostics, e.g. `scene-route --diagnose --slots`), `tools/D4DungeonDump` (offline dumps). Each has a README.
 - **Brief:** [`diablo4-dungeon-assist-research-for-claude.md`](diablo4-dungeon-assist-research-for-claude.md)
 
@@ -29,6 +29,10 @@
 | Endgame (Undercity, Pit) | wip | All 71 `PIT_`/`X1_Undercity_` worlds are DRLG → app active. Undercity BugCave 1–3 live 2026-09-28: announcements + radar work; radar +12 dB after "drowned in fights" |
 | Exit beacon (Undercity) | wip | `BeaconBridge`: `quest-item` loop (D2R sound) at `X1_Undercity_WarpPad` from the live actor list; worked on all 3 floors, pad visible only within 22–34 units ([dungeon-objectives](research/dungeon-objectives.md) §5). Pit: no static exit, needs its actors |
 | P7 Objective / interactable cues (prisoners, levers, carryables) | wip | `ActorLoopBridge` + `ObjectiveClassifier`: `quest-item` loop on DPO-quest actors (world → `zone_progress` → DPO, `DungeonObjectiveReader`), carryables/receptacles/quest switches+chests, live prisoners. **Not live-tested.** "Used" signal unknown: seam `isUsed`; find it with `D4MemScan actors --watch 20 --match <name>` |
+| Campaign & expansion dungeons | todo (live test) | The app keys on DRLG layout, not names: all 802 layout-2 worlds run it, incl. 130 `QST_`, 66 `CSD_`, Nahantu (`DGN_Naha_*`, `CSD_Naha_*`) and `X2_` ([dungeon-data](research/dungeon-data.md) §3 census). Campaign dungeons have no DPO quest → only generic objective loops. Never tried live in one |
+| Outside dungeons (`WorldKind.Overworld`) | wip | Every non-DRLG world except menus/loading/cinematics (`WorldClassifier.MenuWorldPrefixes`): player + actors polled, no tiles/radar/announcements. Config `OutsideDungeonsEnabled`. **Not live-tested**: player record in the overworld unverified |
+| Campaign routes (`QuestRouteBridge`) | wip | Guide ping, straight line, point to point; points from the quest's subzone MarkerSet ([campaign-routes](research/campaign-routes.md)). First route: sandstorm shelters with Meshif (`VGN_Kehj_EliasPalace_Sandstorm`, 3 safe zones). **Not live-tested** |
+| Map points (waypoints, dungeon entrances) | todo | Offline positions available the same way (overworld MarkerSets); needs a selection UX with few buttons — ask the user |
 | Adapter + Speech (`Speak("test")` via PRISM) | done | Prismatoid 0.3.0, backend NVDA; `src/D4Assist` companion app |
 
 ## Derived facts
@@ -56,19 +60,23 @@
 | Player heading | actor record (heap, stride 0x680) `+0x6C` quaternion, yaw from +X to +Y | [client-memory](research/client-memory.md) §3 |
 | Screen ↔ world (camera) | stick up = −X−Y, right = −X+Y, down = +X+Y, left = +X−Y (tile exit N = screen up-right) | 4 live moves 2026-09-28, [client-memory](research/client-memory.md) §3 |
 | Scene record signature | `RevealSceneMessage`: `snoScene` @344, `transform` PRTransform (quat + vec3) @356 | d4data `definitions.json` (build 3.2.1.73552) |
+| Quest props in world space | a quest's subzone MarkerSet `<region> (<region>_Subzone_<area>)` holds its actors + one marker for the Quest SNO (the start), world coordinates | [campaign-routes](research/campaign-routes.md) §1 |
+| Overworld walkability | coarse nav boxes only (8–14 per scene), no detailed grid → no radar or pathing there | [campaign-routes](research/campaign-routes.md) §1 |
 | No verbose/debug log switch for players | `DebugLoggingTypesEnabled` is a server/debug attribute, not a pref | exe strings + `LocalPrefs.txt` |
 
 ## Next step
 
+0. **Live test outside dungeons (user, sandstorm quest with Meshif):** run with `--debug`. Check that the session opens in `Sanctuary_Eastern_Continent` (`World kind: Overworld`, player position moving), that a `ROUTE sandstorm-shelters started` line appears (which actor, or the quest marker), and that "Refugio N de 3." matches where the game considers you safe. Note which quest actors show up (`ACTOR seen`) and whether towns get noisy objective loops.
 1. **"Used" signal (user, 2026-09-29): objective loops must stop on interaction, not on proximity.** Next time the user stands at a prisoner/lever/barrier: `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while they use it, then plug the finding into `ActorLoopBridge`'s `isUsed` seam. Live case: the Yshari Sanctum boss barrier (`DRLG_Blocker_Mage_Halls_…`, DPO) kept sounding ~10 s after the key opened it, until the game removed it. The user rejected a proximity or button-press stand-in.
 2. Exploration guide: lead to visible objectives first; detect barriers ("Paso bloqueado." / "Path blocked."). Not live-tested yet: the doorway-peek + commitment fix and the Undercity exit re-check (2026-09-29, `X1_Undercity_Ziggurat_02`: closed 14-tile map, no pad at any of its 3 candidate spots). `--debug` now logs `ACTOR seen` for gizmos/portals: read it the next time an exit is missing.
 3. Sound examples on Ctrl+Alt+Shift+1..8 (for the user's video), not yet tried by the user.
-4. Portable build for testers: `dotnet publish … --self-contained` (root README); zip with `LEEME.txt` (Spanish) on the user's desktop.
+4. Portable build for testers: `dotnet publish src/D4Assist -p:PublishProfile=Portable` → `artifacts/D4DungeonAssist/` (single-file exe with the sounds and `definitions.json` embedded, + config and `LEEME.txt`; root README). Test build 3 zipped to the user's desktop 2026-09-29 (`D4DungeonAssist.zip`, replaces build 2). Keep `src/D4Assist/Portable/LEEME.txt` in step with new features.
 
 ## User and decisions
 
 - **Player:** blind; plays with a **controller** and NVDA through D4's third-party screen-reader option. Talk to them in Spanish; speech output is Spanish. Design around screen-relative stick directions and few extra buttons. Any TTS capture must keep NVDA speaking the game's text.
-- **Risk (2026-09-26):** the user accepted the ban risk of **read-only** memory reading on their main account (no second account). Don't re-litigate it. Don't suggest asking Blizzard: promised for 3 years, nothing delivered, Diablo 5 announced. Never write to or inject into the game, never implement anti-cheat evasion or stealth, read memory only while in a dungeon, and keep live RE sessions short.
+- **Risk (2026-09-26):** the user accepted the ban risk of **read-only** memory reading on their main account (no second account). Don't re-litigate it. Don't suggest asking Blizzard: promised for 3 years, nothing delivered, Diablo 5 announced. Never write to or inject into the game, never implement anti-cheat evasion or stealth, and keep live RE sessions short. **2026-09-29: the user approved reading memory outside dungeons too** (overworld, story areas) for beacons to map points and quest objectives ("no estamos haciendo nada que haga cheating").
+- **Guidance to story points (2026-09-29):** the user asked for beacons to map points and to campaign story points (example: shelters from the act 3 desert storms). Built as data-driven campaign routes; map points and "follow the active quest" come later (the active quest isn't found in memory, and the log has no quest lines).
 - **Minimap computer vision:** rejected by the user as imprecise and needing per-resolution/per-PC setup. Don't propose it without new evidence.
 - **Navigation audio = the user's D2R radar** (`D:\code\c++\diablo 2 access project\d2r-access`, read-only, never modify): same cues, 4-ray Cardinal frame, same anti-spam, cues one after another. Copy the D2R design first and deviate only when D4 forces it or the user asks. The one requested deviation: the open-floor breath must sound clearly different up vs down (the user fixes D2R themselves).
 - **Radar-only worlds (2026-09-28):** user-approved exception to "memory only in a dungeon", built for the Mercenary den (`Mercenary_Hideout`) for a video. Config `RadarOnlyWorlds` runs radar and actor loops there. **Default empty**: the den's scene has no detailed walkable grid (only 6 coarse boxes), so the radar can't work there yet. Do not widen the list without asking.

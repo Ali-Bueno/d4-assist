@@ -1,0 +1,7 @@
+<Project>
+  <!-- Release builds are only made for the portable exe (D4Assist/Properties/PublishProfiles/Portable.pubxml): symbols
+       go inside each assembly, so crash stack traces keep their line numbers and no .pdb files are shipped. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>

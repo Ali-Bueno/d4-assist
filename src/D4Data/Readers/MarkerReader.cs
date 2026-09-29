@@ -6,6 +6,9 @@ using D4Data.Schema;
 
 namespace D4Data.Readers;
 
+/// <summary>A marker naming any SNO (group + id), positioned in its marker set's frame.</summary>
+public sealed record PlacedMarker(int Group, int Sno, Vector3 Position);
+
 /// <summary>Reads actor markers from MarkerSetDefinition records, expanding nested prefab marker sets.</summary>
 public sealed class MarkerReader(SnoStore store, TypeSchema schema)
 {
@@ -16,7 +19,25 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
     private int ActorGroup => schema.SnoGroup("ActorDefinition");
 
     /// <summary>Appends the actor markers of <paramref name="markerSetSno"/> in scene-local coordinates.</summary>
-    public void ReadLayer(int markerSetSno, string layer, Matrix4x4 toScene, int depth, List<MarkerInfo> sink)
+    public void ReadLayer(int markerSetSno, string layer, Matrix4x4 toScene, int depth, List<MarkerInfo> sink) =>
+        Walk(markerSetSno, toScene, depth, (group, sno, type, local) =>
+        {
+            if (group != ActorGroup) return;
+            var p = local.Translation;
+            sink.Add(new MarkerInfo(layer, type, new SnoRef(sno, store.Name(sno)), [p.X, p.Y, p.Z], null));
+        });
+
+    /// <summary>Every marker of <paramref name="markerSetSno"/> and its nested prefabs, whatever SNO group it names
+    /// (actors, quests, ...), in the set's own frame: world space for a subzone's marker set.</summary>
+    public IReadOnlyList<PlacedMarker> ReadAll(int markerSetSno)
+    {
+        var sink = new List<PlacedMarker>();
+        Walk(markerSetSno, Matrix4x4.Identity, 0, (group, sno, _, local) => sink.Add(new PlacedMarker(group, sno, local.Translation)));
+        return sink;
+    }
+
+    // Visits every non-prefab marker with its composed transform, expanding nested prefab marker sets.
+    private void Walk(int markerSetSno, Matrix4x4 parent, int depth, Action<int, int, int, Matrix4x4> visit)
     {
         var meta = store.Meta(MarkerSetGroup, markerSetSno);
         if (meta is null) return;
@@ -29,16 +50,14 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
             // DT_SNO_NAME = { i32 group; i32 id } (d4data parse.js).
             int group = blob.I32(m + nameField), sno = blob.I32(m + nameField + sizeof(int));
             if (sno <= 0) continue;
-            var local = LocalMatrix(blob, m) * toScene;
-            if (group == ActorGroup)
+            var local = LocalMatrix(blob, m) * parent;
+            if (group == MarkerSetGroup)
             {
-                var p = local.Translation;
-                sink.Add(new MarkerInfo(layer, blob.I32(m + schema.Offset(Marker, "eType")),
-                    new SnoRef(sno, store.Name(sno)), [p.X, p.Y, p.Z], null));
+                if (depth < Conventions.MaxPrefabDepth) Walk(sno, local, depth + 1, visit);
             }
-            else if (group == MarkerSetGroup && depth < Conventions.MaxPrefabDepth)
+            else
             {
-                ReadLayer(sno, layer, local, depth + 1, sink);
+                visit(group, sno, blob.I32(m + schema.Offset(Marker, "eType")), local);
             }
         }
     }

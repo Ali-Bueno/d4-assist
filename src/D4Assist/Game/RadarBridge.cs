@@ -5,8 +5,8 @@ using D4Assist.Radar;
 namespace D4Assist.Game;
 
 /// <summary>
-/// Feeds live dungeon snapshots into the radar engine (src/D4Assist.Radar) and plays its confirmed cues. The feed
-/// fires only inside a dungeon, so cues do too; they keep running in menus because D4 never pauses.
+/// Feeds live dungeon snapshots into the radar engine (src/D4Assist.Radar) and plays its confirmed cues. Cues play
+/// only in dungeons and radar-only worlds, never in the overworld; they keep running in menus because D4 never pauses.
 /// </summary>
 internal sealed class RadarBridge
 {
@@ -31,7 +31,8 @@ internal sealed class RadarBridge
 
         feed.WorldChanged += (_, _, _) => { lock (_gate) Reset(); };
         feed.TilesUpdated += tiles => { lock (_gate) { if (_world.UpdateTiles(tiles) && _diagnostics) LogMap(); } };
-        feed.PlayerMoved += p => { lock (_gate) OnPlayer(p); };
+        // The overworld feeds positions for the beacons but has no tiles: the radar would read it as all unknown.
+        feed.PlayerMoved += p => { if (feed.CurrentWorldKind == WorldKind.Overworld) return; lock (_gate) OnPlayer(p); };
     }
 
     private void Reset()

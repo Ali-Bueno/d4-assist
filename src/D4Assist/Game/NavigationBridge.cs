@@ -33,7 +33,7 @@ public sealed class NavigationBridge
         {
             lock (_gate)
             {
-                if (feed.CurrentWorldRadarOnly) return; // radar-only world: no announcements
+                if (feed.CurrentWorldKind is WorldKind.RadarOnly or WorldKind.Overworld) return; // no rooms to announce there
                 _lastPlayer = new PlayerInput(p.X, p.Y, p.Z);
                 _engine.OnPlayer(_lastPlayer, _clock.Elapsed);
             }

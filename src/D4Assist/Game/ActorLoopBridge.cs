@@ -6,7 +6,7 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Turns live actor and player snapshots into positional loops (SpatialLoopPlayer) at the actors the
-/// <see cref="LoopTargetSelector"/> picks. The feed fires only inside a dungeon; leaving it stops every loop.
+/// <see cref="LoopTargetSelector"/> picks. The feed fires only while a memory session is open (dungeon, radar-only world, overworld); every world change stops every loop.
 /// </summary>
 public sealed class ActorLoopBridge
 {

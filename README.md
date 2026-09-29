@@ -13,9 +13,12 @@ next to the game (controller + NVDA through D4's third-party screen-reader optio
   (prisoners, switches, carryables and receptacles, quest chests, the actors the dungeon's objective quest names).
 - **An exploration guide**: an automatic ping along the path to the nearest unexplored part (on by default in
   the Undercity and the Pit, D-pad left toggles it), with an arrival chime.
+- **Campaign routes** outside dungeons: the same ping leads point by point through known story stretches, such as
+  the shelters from the desert sandstorms on the way to Elias's palace with Meshif ("Refugio 1 de 3.").
 
-Works in every DRLG dungeon: normal, campaign and Nightmare dungeons, the Undercity and the Pit. It never moves
-the character and never reveals enemies or loot.
+Works in every DRLG dungeon: normal, campaign, expansion and Nightmare dungeons, the Undercity and the Pit.
+Outside dungeons only the quest loops and the campaign routes run (no radar or announcements there). It never
+moves the character and never reveals enemies or loot.
 
 ## How it works
 
@@ -24,15 +27,16 @@ never writes to the game, injects code or hooks it.
 
 - **Offline data:** the scene library comes from the local game install (CASC): tile exits and walkability.
 - **World identity:** read from the game's own log (`FenrisDebug.txt`).
-- **Live data:** the placed tiles and the player position are read from process memory, and only while in a
-  dungeon.
+- **Live data:** the placed tiles, the player position and nearby actors are read from process memory. Tiles
+  are read only in dungeons; the position and actors also outside them (`OutsideDungeonsEnabled`), never in
+  menus or loading screens.
 
 ## Requirements
 
 - Windows, the .NET 10 SDK, and Diablo IV installed (build 3.2.1.73552; memory offsets are per build). The
   install is found through Battle.net.
 - A screen reader (NVDA tested), reached through PRISM (Prismatoid NuGet package).
-- `data/definitions.json` from d4data for the same build (not committed); the build copies it next to the exe.
+- `data/definitions.json` from d4data for the same build (not committed); the build embeds it in the exe.
 
 ## Build and run
 
@@ -44,11 +48,16 @@ src\D4Assist\bin\Debug\net10.0-windows\win-x64\D4Assist.exe [--debug] [--no-spee
 
 Configuration lives in `d4assist.json` next to the exe; see [src/D4Assist/README.md](src/D4Assist/README.md).
 
-Portable build for testers (no .NET install needed; ship without `tolk.dll` and `*.pdb`):
+Portable build for testers (no .NET install needed):
 
 ```
-dotnet publish src/D4Assist/D4Assist.csproj -c Release -r win-x64 --self-contained true -o <folder>
+dotnet publish src/D4Assist -p:PublishProfile=Portable
 ```
+
+It lands in `artifacts/D4DungeonAssist/` (git-ignored) with three files: a single self-contained `D4Assist.exe`
+(the .NET runtime, every assembly with embedded symbols, and `prism.dll`, which is extracted to
+`%TEMP%\.net\D4Assist\` on first run), `d4assist.json` and the Spanish `LEEME.txt` (`src/D4Assist/Portable/`).
+The sounds and `definitions.json` are embedded in the exe too. `tolk.dll` is left out. Zip that folder for testers.
 
 ## Where to start reading
 

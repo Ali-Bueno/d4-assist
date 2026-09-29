@@ -12,5 +12,7 @@
   "ObjectiveVolume": 1.0,
   "ExplorationGuideEnabled": true,
   "ExplorationGuideInDungeons": false,
-  "ExplorationGuideVolume": 1.0
+  "ExplorationGuideVolume": 1.0,
+  "OutsideDungeonsEnabled": true,
+  "QuestRoutesEnabled": true
 }

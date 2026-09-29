@@ -272,6 +272,39 @@ public class GameSessionTests
         Assert.Equal(1, reader.DisposeCount);
     }
 
+    [Fact]
+    public void Overworld_OpensASession_FeedsPlayerAndActors_ButNeverReadsTiles()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().MapOverworld(OverworldName, OverworldSno);
+        var reader = new FakeDungeonSessionReader
+        {
+            NextPlayer = new PlayerState(-491, 45, 39, 69123), NextRouteTiles = null, NextActors = [new ActorState(7, 972175, -573, 40, 47)],
+        };
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        var players = new List<PlayerState>();
+        var actors = new List<IReadOnlyList<ActorState>>();
+        var tiles = new List<IReadOnlyList<TileState>>();
+        session.PlayerMoved += players.Add;
+        session.ActorsUpdated += actors.Add;
+        session.TilesUpdated += tiles.Add;
+
+        feed.Raise(OverworldName);
+        session.PollPlayerOnce();
+        session.PollActorsOnce();
+        session.PollTilesOnce(); // a null route would start the full scan in a dungeon
+        session.RescanTiles();
+
+        Assert.Equal(SessionState.InDungeon, session.State);
+        Assert.Equal(WorldKind.Overworld, session.CurrentWorldKind);
+        Assert.Equal((OverworldName, false), session.CurrentWorld);
+        Assert.Single(players);
+        Assert.Single(actors);
+        Assert.Empty(tiles);
+        Assert.Equal(0, reader.RouteReads);
+        Assert.Equal(0, reader.FullScanCount);
+    }
+
     private static GameSession NewSession(
         FakeWorldNameSource feed, FakeClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?>? openSession = null,
@@ -301,6 +334,12 @@ public class GameSessionTests
         public FakeClassifier MapRadarOnly(string worldName, int sno)
         {
             _map[worldName] = (sno, WorldKind.RadarOnly);
+            return this;
+        }
+
+        public FakeClassifier MapOverworld(string worldName, int sno)
+        {
+            _map[worldName] = (sno, WorldKind.Overworld);
             return this;
         }
 

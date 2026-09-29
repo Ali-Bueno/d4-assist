@@ -28,8 +28,21 @@
   <ItemGroup>
     <!-- Ships next to the exe so a fresh checkout has a starting config; see Config/AppConfig.cs. -->
     <None Update="d4assist.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- d4data type registry (data/ is not in git: see README "Setup"); shipped next to the exe as the default DefinitionsPath. -->
-    <None Include="..\..\data\definitions.json" Link="definitions.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\data\definitions.json')" />
+    <!-- d4data type registry (data/ is not in git: see README "Setup"), embedded in the exe: the default when DefinitionsPath is empty. -->
+    <EmbeddedResource Include="..\..\data\definitions.json" LogicalName="definitions.json" Condition="Exists('..\..\data\definitions.json')" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The testers' Spanish readme: in the portable build only (Properties/PublishProfiles/Portable.pubxml). -->
+    <None Include="Portable\LEEME.txt" Link="LEEME.txt" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Prismatoid also ships tolk.dll, an optional Tolk-compat backend: NVDA, JAWS and SAPI are built into prism.dll
+       (CLAUDE.md §4), so the portable build leaves it out. -->
+  <Target Name="DropTolkFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'tolk.dll'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

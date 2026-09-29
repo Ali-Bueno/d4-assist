@@ -16,14 +16,13 @@ public sealed class AppConfig
     private const string SpanishCode = "es";
     private const string EnglishCode = "en";
 
-    /// <summary>Default definitions file: the build copies data/definitions.json next to the exe.</summary>
-    public const string DefaultDefinitionsFile = "definitions.json";
 
     /// <summary>Empty = find the Diablo IV install through Battle.net (SnoStore.TryLocateInstall).</summary>
     public string InstallPath { get; set; } = "";
 
-    /// <summary>A relative path is resolved against the exe's folder.</summary>
-    public string DefinitionsPath { get; set; } = DefaultDefinitionsFile;
+    /// <summary>Empty = the definitions.json embedded in the exe (data/definitions.json at build time). A relative path is
+    /// resolved against the exe's folder.</summary>
+    public string DefinitionsPath { get; set; } = "";
     public bool SpeechEnabled { get; set; } = true;
     public bool AutoAnnouncementsEnabled { get; set; } = true;
     public bool InterruptOnContextChange { get; set; } = true;
@@ -57,6 +56,14 @@ public sealed class AppConfig
     // Empty by default: the one candidate, the Mercenary den, ships no detailed walkable grid (README "RadarOnlyWorlds").
     public string[] RadarOnlyWorlds { get; set; } = [];
 
+    /// <summary>Read the player and nearby actors outside dungeons too (overworld, towns, story areas), for the beacons and
+    /// objective loops there; no radar or announcements outside dungeons. User-approved 2026-09-29.</summary>
+    public bool OutsideDungeonsEnabled { get; set; } = true;
+
+    /// <summary>Lead through known campaign routes with the guide ping, e.g. from shelter to shelter in the desert sandstorm
+    /// quest with Meshif (Game/QuestRoute.cs); D-pad left mutes it while it leads. Needs OutsideDungeonsEnabled.</summary>
+    public bool QuestRoutesEnabled { get; set; } = true;
+
     /// <summary>Play the automatic exploration ping that leads to the nearest unexplored part of the dungeon.</summary>
     public bool ExplorationGuideEnabled { get; set; } = true;
 
@@ -76,9 +83,11 @@ public sealed class AppConfig
     public string? ResolveInstallPath(Func<string, bool> directoryExists, Func<string?> locate) =>
         !string.IsNullOrWhiteSpace(InstallPath) && directoryExists(InstallPath) ? InstallPath : locate();
 
-    /// <summary>DefinitionsPath, made absolute against <paramref name="baseDirectory"/> when relative.</summary>
-    public string ResolveDefinitionsPath(string baseDirectory) =>
-        Path.IsPathRooted(DefinitionsPath) ? DefinitionsPath : Path.Combine(baseDirectory, DefinitionsPath);
+    /// <summary>DefinitionsPath, made absolute against <paramref name="baseDirectory"/> when relative; null (use the
+    /// embedded copy) when empty.</summary>
+    public string? ResolveDefinitionsPath(string baseDirectory) =>
+        string.IsNullOrWhiteSpace(DefinitionsPath) ? null
+        : Path.IsPathRooted(DefinitionsPath) ? DefinitionsPath : Path.Combine(baseDirectory, DefinitionsPath);
 
     /// <summary>Defaults only when the file doesn't exist; a present-but-malformed file is a hard error.</summary>
     public static AppConfig Load(string path)

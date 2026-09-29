@@ -26,6 +26,9 @@ internal static class Program
     private const string ActorDefinitionType = "ActorDefinition";
     private const string WorldDefinitionType = "WorldDefinition";
     private const string MarkerSetType = "MarkerSetDefinition";
+    private const string QuestDefinitionType = "QuestDefinition";
+    // data/definitions.json, embedded by D4Assist.csproj when it existed at build time; the default DefinitionsPath.
+    private const string EmbeddedDefinitions = "definitions.json";
 
     private static int Main(string[] args)
     {
@@ -43,9 +46,11 @@ internal static class Program
             return 1;
         }
         var definitionsPath = config.ResolveDefinitionsPath(AppContext.BaseDirectory);
-        if (!File.Exists(definitionsPath))
+        if (definitionsPath is null ? !HasEmbeddedDefinitions() : !File.Exists(definitionsPath))
         {
-            Console.Error.WriteLine($"{definitionsPath} not found. Set DefinitionsPath in {AppConfig.FileName}. See README.md.");
+            Console.Error.WriteLine(definitionsPath is null
+                ? $"This build has no embedded definitions.json (data/definitions.json was missing). Set DefinitionsPath in {AppConfig.FileName}. See README.md."
+                : $"{definitionsPath} not found. Set DefinitionsPath in {AppConfig.FileName}. See README.md.");
             return 1;
         }
 
@@ -60,9 +65,9 @@ internal static class Program
         speech.Speak(AppStrings.For(language.Current).AssistantActive, interrupt: true);
 
         using var store = new SnoStore(installPath);
-        var schema = TypeSchema.Load(definitionsPath);
+        var schema = definitionsPath is null ? LoadEmbeddedDefinitions() : TypeSchema.Load(definitionsPath);
         var worldReader = new WorldReader(store, schema);
-        var classifier = new WorldClassifier(store, worldReader, config.RadarOnlyWorlds);
+        var classifier = new WorldClassifier(store, worldReader, config.RadarOnlyWorlds, config.OutsideDungeonsEnabled);
 
         var sceneReader = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: true);
         var candidates = new CandidateIndex(CandidateSceneBuilder.Build(store, sceneReader, sceneReader.Group, tilesOnly: false));
@@ -98,20 +103,26 @@ internal static class Program
             _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug);
         }
 
-        bool needsOwnOutput = (config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.ExplorationGuideEnabled) && radarPlayer is null;
+        bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
+        bool needsOwnOutput = (config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.ExplorationGuideEnabled || routesEnabled)
+            && radarPlayer is null;
         using IAudioOut? beaconOut = needsOwnOutput ? new WaveOutAudioOut() : null;
         beaconOut?.Start(mixer.Render);
         var loops = config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled ? StartLoops(session, mixer, config, store, schema, cascGate, debug) : null;
 
         // Created after the NavigationBridge so each poll marks the tile visited before the guide reads it.
-        using var guidePing = config.ExplorationGuideEnabled
+        // The exploration guide (dungeons) and the quest routes (overworld) share one ping and D-pad left.
+        using var guidePing = config.ExplorationGuideEnabled || routesEnabled
             ? new GuidePingPlayer(mixer) { Volume = config.ExplorationGuideVolume }
             : null;
         using var pad = guidePing is not null ? new XInputPad() : null;
-        if (guidePing is not null)
+        if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => loops?.HasTarget(LoopKind.ExitBeacon) ?? false, debug ? Console.WriteLine : null,
                 pad, config.ExplorationGuideInDungeons, language);
+        var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
+        if (guidePing is not null && routes.Count > 0)
+            _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
         pad?.Start();
 
         // Sound examples on Ctrl+Alt+Shift+1..8, to show the cues without a fight's noise.
@@ -146,10 +157,18 @@ internal static class Program
         return 0;
     }
 
+    private static bool HasEmbeddedDefinitions() => typeof(Program).Assembly.GetManifestResourceInfo(EmbeddedDefinitions) is not null;
+
+    private static TypeSchema LoadEmbeddedDefinitions()
+    {
+        using var stream = typeof(Program).Assembly.GetManifestResourceStream(EmbeddedDefinitions)!;
+        return TypeSchema.Load(stream);
+    }
+
     private static Dictionary<string, float[]>? LoadLoopSounds()
     {
-        try { return SpatialLoopPlayer.LoadSounds(Path.Combine(AppContext.BaseDirectory, "Sounds")); }
-        catch (IOException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
+        try { return SpatialLoopPlayer.LoadSounds(); }
+        catch (InvalidDataException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
     }
 
     private static ActorLoopBridge? StartLoops(
@@ -185,6 +204,28 @@ internal static class Program
         int sceneGroup = schema.SnoGroup(SceneDefinitionType);
         lock (cascGate)
             return ExitCandidateScenes.Build(store.AllEntries(schema.SnoGroup(MarkerSetType)).Select(e => e.Name), name => store.Resolve(sceneGroup, name));
+    }
+
+    private static IReadOnlyList<LoadedQuestRoute> LoadQuestRoutes(SnoStore store, TypeSchema schema, object cascGate, bool debug)
+    {
+        var markers = new MarkerReader(store, schema);
+        var groups = new QuestRouteGroups(schema.SnoGroup(MarkerSetType), schema.SnoGroup(QuestDefinitionType), schema.SnoGroup(ActorDefinitionType));
+        List<LoadedQuestRoute> routes;
+        lock (cascGate)
+            routes = [.. QuestRouteCatalog.All
+                .Select(route => QuestRouteLoader.Load(route, groups, (group, name) => SnoOrNull(store, group, name), markers.ReadAll, Console.WriteLine))
+                .OfType<LoadedQuestRoute>()];
+        if (debug)
+            foreach (var r in routes)
+                Console.WriteLine($"Quest route {r.Route.Name}: start ({r.Start.X:F1},{r.Start.Y:F1}), points " +
+                    string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) + $", {r.ActivationSnos.Count} activation actors.");
+        return routes;
+    }
+
+    private static int? SnoOrNull(SnoStore store, int group, string name)
+    {
+        try { return store.Resolve(group, name); }
+        catch (ArgumentException) { return null; }
     }
 
     private static int WorldSnoOrNone(SnoStore store, TypeSchema schema, string worldName)

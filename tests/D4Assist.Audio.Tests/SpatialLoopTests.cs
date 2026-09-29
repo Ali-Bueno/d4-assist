@@ -54,9 +54,9 @@ public class SpatialLoopTests
         Assert.Throws<InvalidDataException>(() => WavLoader.Parse(new byte[40]));
 
     [Fact]
-    public void ShippedQuestSound_IsTrimmedToSevenHundredMilliseconds()
+    public void EmbeddedQuestSound_IsTrimmedToSevenHundredMilliseconds()
     {
-        var samples = WavLoader.Load(Path.Combine(AppContext.BaseDirectory, "Sounds", "quest-item.wav"));
+        var samples = SpatialLoopPlayer.LoadSounds()["quest-item"];
         Assert.Equal(AudioFormat.SampleRate * 7 / 10, samples.Length);
     }
 

@@ -44,6 +44,14 @@ Census over all 880 World SNOs (H):
 | 1 | 36 | filled, grid-aligned | Sanctuary_Eastern_Continent (1220 chunks, 96-unit grid, identity rotations), S15_Tristram (9), Mercenary_Hideout (1) |
 | 2 | 802 | **always empty**, `nSeed` 0, bounds 0 | every DGN_/CSD_/QST_/PIT_/TWR_ world; 86 of them have `bRandomDungeonWorld=1` (PIT/TWR, no floors) |
 
+Coverage census (local install, 2026-09-29, H): expansion dungeons are layout 2 like the base game's.
+Layout-2 prefixes also include `OWC_` 175, `S<nn>_` seasonal, `MJD_` 16, `X1_` 13, `Boss_` 10, `X2_` 6,
+`X1R_` 3 and `CMP_` 3. Nahantu content is in there too (`DGN_Naha_*`, `CSD_Naha_*`, `X1R_Naha_*Wing`).
+Gameplay worlds that are **not** layout 2, so the app stays off in them: layout 1 `Sanctuary_Eastern_Continent`
+(the overworld), `Frac_Underworld`, `Kehj_Hell`, `Kehj_Hell_Sightless_Eye`, `BSK_Hell`, `S03_Hub_TWN`,
+`X1R_Khazra_Hub_KeyRoom`, `X2_Eclipse_Bookend03`, `S11_Heavenly_Forge_Grid`, `S15_Tristram`, `Mercenary_Hideout`;
+layout 0 `Hellgate`, `Rivergate`, `Tejal_Scene`, `Looping_QST_Skov_Temis_Bookend1`.
+
 Chosen samples:
 - **DGN_Hawe_HeathensKeep (843152)**: eLayoutType 2, gridSize 96, subzone 843153, `arDRLGLevelAreas`
   [843154 `DGN_Hawe_HeathensKeep`, 854917 `_2`], `arDRLGFloors` [843152], random 0, `ptSceneChunks` empty.

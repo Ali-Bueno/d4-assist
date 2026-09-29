@@ -62,7 +62,7 @@ offset in screen right/up, `LoopProfile`) and starts/retargets/stops `AudioMixer
 `NearGain * (1 - d/Reach)^Falloff` (silent at reach), flat equal-power pan from the screen-right component, 0.94
 pitch when the source is screen-down, 80 ms smoothing. Loops have their own `MaxLoopVoices` = 8 budget, separate
 from radar cues. Profiles: `Quest` (D2R values) and `Beacon` (user request: louder, reach 60 vs 27).
-`Sounds/quest-item.wav` is D2R's quest loop (Diablo IV audio, reuse approved), trimmed to 700 ms like D2R:
+`Sounds/quest-item.wav` (embedded in the assembly, loaded by `SpatialLoopPlayer.LoadSounds`) is D2R's quest loop (Diablo IV audio, reuse approved), trimmed to 700 ms like D2R:
 `ffmpeg -i "quest item.ogg" -map_metadata -1 -vn -af "apad=whole_dur=0.7,atrim=duration=0.7,afade=t=in:d=0.005,afade=t=out:st=0.68:d=0.02" -ac 1 -ar 48000 -c:a pcm_s16le quest-item.wav`
 
 ## Guide ping

@@ -1,0 +1,112 @@
+D4 Dungeon Assist - versión de prueba 3 (29 de septiembre de 2026)
+==================================================================
+
+Programa de accesibilidad para jugar las mazmorras de Diablo IV sin ver la
+pantalla. Funciona al lado del juego: no modifica el juego ni sus archivos.
+Habla a través de tu lector de pantalla (NVDA o JAWS) y añade sonidos de
+orientación.
+
+
+AVISO IMPORTANTE: RIESGO
+------------------------
+El programa lee la memoria del juego mientras juegas, dentro y fuera de las
+mazmorras (solo lectura: nunca escribe en el juego ni se inyecta en él; en los
+menús y pantallas de carga no lee nada). Aun así, Blizzard podría considerarlo
+contrario a sus normas y existe riesgo de sanción o de baneo de la cuenta.
+Úsalo bajo tu propia responsabilidad.
+
+
+Requisitos
+----------
+- Windows 10 u 11 de 64 bits. No hace falta instalar nada más: .NET va incluido
+  dentro de D4Assist.exe.
+- Diablo IV instalado con Battle.net. El programa encuentra el juego solo.
+- NVDA o JAWS en marcha.
+- Hecho para la versión 3.2.1 del juego. Si Blizzard actualiza el juego,
+  algunas funciones pueden dejar de funcionar hasta que se actualice el programa.
+
+
+Contenido de la carpeta
+-----------------------
+- D4Assist.exe: el programa.
+- d4assist.json: los ajustes (ver abajo).
+- LEEME.txt: este archivo.
+Los sonidos y los datos del programa van dentro de D4Assist.exe.
+
+
+Cómo usarlo
+-----------
+1. Descomprime la carpeta donde quieras.
+2. Abre D4Assist.exe, antes o después de abrir el juego. Dirá "Asistente de
+   mazmorras activo".
+3. Juega normal. En las mazmorras (normales, de campaña, de expansión y de
+   pesadilla, Undercity y el Foso) funciona todo. Fuera de ellas solo suenan
+   los objetivos cercanos y la guía de refugios (ver abajo): sin radar ni
+   anuncios.
+4. Para cerrarlo, cierra su ventana o pulsa Control+C en ella.
+
+Habla en el idioma de texto del juego: en español si el juego está en español
+(de España o latino) y en inglés con cualquier otro idioma.
+
+
+Qué hace
+--------
+- Anuncios de salas: al entrar en cruces, salas grandes y callejones sin salida
+  dice las salidas en direcciones del stick ("arriba a la izquierda"...). Añade
+  "sin explorar" a las salidas por las que aún no has pasado.
+- Radar: sonidos cortos hacia arriba, abajo, izquierda y derecha. Un tono agudo
+  indica una salida, un golpe grave una pared, dos golpes una puerta y un soplo
+  suave espacio abierto (hacia arriba sube, hacia abajo baja).
+- Baliza de salida en Undercity: un sonido en bucle en la plataforma que lleva
+  al siguiente piso. Se oye cuando estás a unos 20 o 30 metros.
+- Objetivos: un sonido de misión en bucle sobre prisioneros, palancas, objetos
+  que hay que llevar y sus pedestales, y cofres de misión, dentro y fuera de
+  las mazmorras. Todavía no se calla al usarlos: se calla cuando el juego los
+  retira.
+- Guía de exploración: un pitido que te lleva a la zona sin explorar más
+  cercana, siguiendo el camino. Suena más rápido cuanto más cerca estás y toca
+  tres notas al llegar. Cuando aparece la salida de Undercity deja sonar la
+  baliza. Si ya no queda nada por explorar dice "Todo explorado".
+    - Viene activada en Undercity y en el Foso y desactivada en las demás
+      mazmorras.
+    - Cruceta hacia la IZQUIERDA la activa o la desactiva (dice "Guía activada"
+      o "Guía desactivada"). En el juego ese botón no hace nada.
+    - En la sala del jefe de Undercity se apaga sola.
+    - En Undercity, si ya no queda nada por explorar y la salida no ha
+      aparecido, dice "Salida no encontrada. Revisando los callejones" y te
+      lleva otra vez por los callejones donde puede estar la plataforma.
+- Guía de refugios (NUEVO, todavía sin probar): en la misión de campaña en la
+  que cruzas el desierto con Mesif y hay que protegerse de las tormentas de
+  arena. Al empezar esa parte dice "Guía de refugios" y el mismo pitido de la
+  guía te lleva en línea recta al siguiente refugio. Al llegar toca tres notas
+  y dice "Refugio 1 de 3". Mientras sigas dentro del refugio el pitido calla
+  (espera a que pase la tormenta); cuando sales, te lleva al siguiente. La
+  cruceta hacia la IZQUIERDA la calla o la vuelve a activar.
+
+
+Atajos de teclado: ejemplos de sonidos
+--------------------------------------
+Control+Alt+Shift más un número dice el nombre de un sonido y lo toca, para
+aprenderlos sin el ruido de una pelea. Funcionan siempre, dentro o fuera del
+juego:
+  1 Salida, 2 Paso abierto, 3 Pared, 4 Puerta, 5 Salida sin explorar
+  (del 1 al 5 suena arriba, derecha, abajo e izquierda),
+  6 Sonido de misión, 7 Pitido de la guía, 8 Llegada.
+
+
+Ajustes (archivo d4assist.json, se abre con el Bloc de notas)
+--------------------------------------------------------------
+- "Language": "auto" sigue al juego; "es" o "en" fuerzan un idioma.
+- "RadarVolume", "BeaconVolume", "ObjectiveVolume", "ExplorationGuideVolume":
+  volumen de cada sonido, de 0 a 1. El pitido de la guía de refugios usa
+  "ExplorationGuideVolume".
+- "RadarEnabled", "BeaconSoundsEnabled", "ObjectiveSoundsEnabled",
+  "ExplorationGuideEnabled", "QuestRoutesEnabled": true activa y false
+  desactiva cada función ("QuestRoutesEnabled" es la guía de refugios).
+- "OutsideDungeonsEnabled": false hace que el programa no lea nada fuera de las
+  mazmorras (sin objetivos ni guía de refugios fuera de ellas).
+- "ExplorationGuideInDungeons": true hace que la guía venga activada también en
+  las mazmorras normales.
+- "AutoAnnouncementsEnabled": false apaga los anuncios de salas.
+Si el programa no encuentra el juego, añade una línea como esta, con tu carpeta:
+  "InstallPath": "C:\\Program Files (x86)\\Diablo IV",

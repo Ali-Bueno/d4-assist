@@ -58,15 +58,23 @@ public sealed class SpatialLoopPlayer
         _sounds = sounds;
     }
 
-    /// <summary>Loads every WAV in <paramref name="directory"/> by file name (no extension), peak-normalized like D2R's loops.</summary>
-    public static Dictionary<string, float[]> LoadSounds(string directory)
+    /// <summary>Resource-name prefix of the loop WAVs embedded in this assembly (D4Assist.Audio.csproj).</summary>
+    public const string SoundResourcePrefix = "Sounds/";
+
+    /// <summary>Loads every embedded Sounds/*.wav by file name (no extension), peak-normalized like D2R's loops.</summary>
+    public static Dictionary<string, float[]> LoadSounds()
     {
+        var assembly = typeof(SpatialLoopPlayer).Assembly;
         var sounds = new Dictionary<string, float[]>();
-        foreach (var path in Directory.EnumerateFiles(directory, "*.wav"))
+        foreach (var resource in assembly.GetManifestResourceNames()
+                     .Where(n => n.StartsWith(SoundResourcePrefix, StringComparison.Ordinal) && n.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)))
         {
-            var samples = WavLoader.Load(path);
+            using var stream = assembly.GetManifestResourceStream(resource)!;
+            using var bytes = new MemoryStream();
+            stream.CopyTo(bytes);
+            var samples = WavLoader.Parse(bytes.ToArray(), resource);
             WavLoader.Normalize(samples, LoopPeak);
-            sounds[Path.GetFileNameWithoutExtension(path)] = samples;
+            sounds[Path.GetFileNameWithoutExtension(resource)] = samples;
         }
         return sounds;
     }

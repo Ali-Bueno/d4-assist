@@ -95,6 +95,7 @@ public sealed class ExplorationGuideBridge
 
     private void Update()
     {
+        if (!_switch.InDungeon) return; // outside dungeons the shared ping belongs to the quest routes (QuestRouteBridge)
         if (_player is null || !_switch.IsOn || _inBossRoom || _beaconActive()) { _ping.Silence(); _muted = true; return; }
 
         var step = _step(_player, _switch.IsEndgame); // the beacon check above means no exit is known

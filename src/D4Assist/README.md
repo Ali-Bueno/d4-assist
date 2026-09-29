@@ -7,7 +7,8 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
 ## What it does today
 
 - Tails `<install>\FenrisDebug.txt` for world-transition lines (`WorldLogWatcher`) — no memory access at all
-  while not in a dungeon.
+  in menus and loading screens (`WorldClassifier.MenuWorldPrefixes`), nor anywhere outside dungeons when
+  `OutsideDungeonsEnabled` is off.
 - Classifies the current world offline against the CASC `definitions.json` dump (`WorldClassifier`): is it a
   DRLG dungeon (`research/dungeon-data.md` §3), and what's its World SNO.
 - On entering a dungeon, opens the game process read-only, locates the static player-position record and the
@@ -23,6 +24,11 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
 - Loops positional beacons at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).
+- Outside dungeons (overworld, towns, story areas; user-approved 2026-09-29) opens the same read-only session for the
+  player position and the actor list only: no tiles, radar or announcements there (`WorldKind.Overworld`). Beacons,
+  objective sounds and the quest routes run there.
+- Leads through known campaign routes with the guide ping, e.g. shelter to shelter in the desert sandstorm quest with
+  Meshif (`Game/QuestRouteBridge`, see Quest routes).
 
 Controller input and the rest of the announcement content are future work — see `STATUS.md` P4-P6.
 
@@ -48,7 +54,7 @@ error. No key needs a machine-specific path.
 | Field | Default | Meaning |
 |---|---|---|
 | `InstallPath` | *(empty: found through Battle.net)* | Game install dir (`FenrisDebug.txt`, the exe for module identification). Set it only if detection fails. |
-| `DefinitionsPath` | `definitions.json` | d4data `definitions.json`; relative paths resolve against the exe's folder. The build copies `data/definitions.json` there when it exists. |
+| `DefinitionsPath` | *(empty: the copy embedded in the exe)* | d4data `definitions.json`. The build embeds `data/definitions.json` in the exe when it exists; set a path only to use another file (relative paths resolve against the exe's folder). |
 | `SpeechEnabled` | `true` | `false` behaves like `--no-speech` (console sink instead of PRISM). |
 | `AutoAnnouncementsEnabled` | `true` | Speak the dungeon enter/leave lines automatically. |
 | `Language` | `"auto"` | `"auto"` follows the game's text locale (`Current Text Locale` in FenrisDebug.txt: `es*` = Spanish, anything else = English; Spanish until a locale is seen); `"es"` / `"en"` force one. Anything else is a startup error. `--debug` logs the choice and changes. |
@@ -62,6 +68,8 @@ error. No key needs a machine-specific path.
 | `ExplorationGuideInDungeons` | `false` | Guide default in dungeons other than the Undercity and the Pit (`X1_Undercity_*`, `PIT_*` always start on). `ExplorationGuideEnabled=false` removes the guide and the toggle entirely. |
 | `ExplorationGuideVolume` | `1.0` | Exploration ping volume, 0 to 1. |
 | `RadarOnlyWorlds` | `[]` | Exact (case-sensitive) CoreTOC names of non-DRLG worlds where the assistant also runs, **radar and actor loops only**: no room announcements, no exploration guide, no enter/leave speech. Their tiles come offline from the world's placed scenes (`Game/StaticWorldTiles`), not the live scene route. Explicit, user-approved exception to "read memory only in a dungeon" (STATUS); opt-in by this list, so a world not listed is never read. `--debug` logs the world kind. Empty by default: the Mercenary den (`Mercenary_Hideout`) was tried live 2026-09-28, but its scene ships only 6 coarse 32-unit walkable boxes, no detailed grid, so the radar has nothing to scan (`RADAR map: ... 1 without walkability`). |
+| `OutsideDungeonsEnabled` | `true` | Read the player and nearby actors outside dungeons too (every non-DRLG world except menus, loading screens, cinematics and test maps), for the beacons, objective sounds and quest routes there. No radar or announcements outside dungeons. `false` restores "memory only in a dungeon". |
+| `QuestRoutesEnabled` | `true` | Lead through the known campaign routes (see Quest routes). Needs `OutsideDungeonsEnabled`. Uses the exploration ping's volume. |
 | `ObjectiveSoundsEnabled` | `true` | Play quest loops at dungeon objectives (see Objective sounds). |
 | `ObjectiveVolume` | `1.0` | Objective loop volume, 0 to 1. |
 | `BeaconActorNames` | `["X1_Undercity_WarpPad"]` | CoreTOC actor names that get a beacon; unknown names are logged once and ignored. |
@@ -70,7 +78,7 @@ error. No key needs a machine-specific path.
 
 While in a dungeon the RActor pool (`D4Memory.Actors`) is read every 500 ms (`GameSession.PollActorsOnce`);
 `ActorLoopBridge` (with `LoopTargetSelector`) picks the actors named in `BeaconActorNames` (resolved to SNOs through CoreTOC at startup) and,
-on every player update, loops `Sounds/quest-item.wav` at each one, panned and faded by its offset in screen axes
+on every player update, loops the quest-item sound (embedded in `D4Assist.Audio`) at each one, panned and faded by its offset in screen axes
 (`ScreenDirections.ToScreen`). The loops share the radar's mixer/output and stop on any world change. If the
 actor pool is unavailable the app logs it once and the beacons stay silent. `--debug` logs a `BEACON` line when
 a target appears or disappears (`LOOP started/stopped`).
@@ -99,11 +107,32 @@ In endgame worlds, when no exit beacon target exists and nothing is left to expl
 (`Game/ExitCandidateScenes`: scenes named by MarkerSet layers `<scene> (X1_Undercity_AreaExits|BossExits)`), speaking "Salida no encontrada. Revisando los callejones." once per round; it stops when the beacon appears.
 `--debug` also logs the candidate count at startup, each round, and once per dungeon visit and actor SNO every gizmo or Portal/Warp/Exit/Beacon actor (`ACTOR seen:`, `Game/ActorSightingLog`).
 
+## Quest routes
+
+`Game/QuestRouteBridge` leads through the campaign stretches listed in `Game/QuestRoute.cs` (`QuestRouteCatalog`). It uses
+the exploration guide's ping, aimed straight at the next point: overworld scenes have no detailed walkable grid, so there
+is no path to follow. Each route is resolved offline at startup (`QuestRouteLoader`). Its points are the target actor's
+markers in the quest's subzone MarkerSet, and its start is the marker that set holds for the quest itself. The points
+are visited in the shortest walk from that start (`RouteOrder`). Data and reasoning:
+[campaign-routes](../../research/campaign-routes.md).
+
+- A route starts when one of its quest actors appears in the live actor list, or when the player stands within
+  15 units of the quest marker. It speaks "Guía de refugios." and joins at the end of the nearest leg (`RouteGuide`).
+- Within 4 units of a point it chimes and speaks "Refugio 1 de 3."; reaching a later point passes the earlier ones.
+  The ping then holds while the player stays within 10 units of that point (a shelter is where they wait out the
+  storm; the game's own audio says when it ends), and leads on to the next point once they step out. After the last
+  point it stops and doesn't restart until the world changes.
+- It stops when the player is more than 150 units from the start and from every point, and on any world change.
+- `--debug` logs the loaded routes at startup and one `ROUTE` line per start, point, stop and mute.
+
+The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalace_SafeZone` safe zones of
+`VGN_Kehj_EliasPalace_Sandstorm`. **Not live-tested yet.**
+
 ## Controls
 
 - **D-pad left** (any XInput controller) — toggles the exploration guide for the current kind of world (Undercity and
-  Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". It does nothing
-  outside a dungeon. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
+  Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
+  it mutes and unmutes a leading quest route the same way, and otherwise does nothing. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
   D2R mod's `input_direction.cpp`); the game still receives every press. Not saved to `d4assist.json`.
 - **Ctrl+Alt+Shift+1..8** (keyboard, anywhere) — sound examples, e.g. for a video without a fight's noise (user request
   2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per
@@ -128,6 +157,8 @@ In endgame worlds, when no exit beacon target exists and nothing is left to expl
   `LiveDungeonSessionReader` (the production `IDungeonSessionReader`, built on `D4Memory`), the radar's
   `DungeonRadarWorld`/`RadarBridge`, and `LockedTileWalkability` (one walk-map lookup shared across poll threads).
 - `Program.cs` — wiring and the run loop.
+- `Portable/LEEME.txt` — the testers' Spanish readme, published next to the exe by `Properties/PublishProfiles/Portable.pubxml`
+  (single-file, self-contained; see the root README).
 
 ## Tests
 

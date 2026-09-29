@@ -3,9 +3,9 @@ namespace D4Assist.Game;
 public enum SessionState { WaitingForGame, Idle, InDungeon }
 
 /// <summary>
-/// Central accessible-state machine (CLAUDE.md §9): WaitingForGame -> Idle (not in a dungeon: no memory
-/// reads at all) -> InDungeon (open the process, poll position/tiles). Diff-gates on world identity so a
-/// repeated log line never re-opens a session or re-announces the same world.
+/// Central accessible-state machine (CLAUDE.md §9): WaitingForGame -> Idle (a menu or loading world: no memory
+/// reads at all) -> InDungeon (a memory session is open: position, actors and, except in the overworld, tiles).
+/// Diff-gates on world identity so a repeated log line never re-opens a session or re-announces the same world.
 /// </summary>
 public sealed class GameSession : IDungeonFeed, IDisposable
 {
@@ -86,17 +86,19 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             LeaveDungeonLocked();
             bool isDungeon = classified.Kind == WorldKind.Dungeon;
             bool radarOnly = classified.Kind == WorldKind.RadarOnly;
-            State = isDungeon || radarOnly ? SessionState.InDungeon : SessionState.Idle; // InDungeon = a memory session is open
+            bool reads = classified.Kind != WorldKind.Other;
+            State = reads ? SessionState.InDungeon : SessionState.Idle; // InDungeon = a memory session is open
             CurrentWorld = (worldName, isDungeon);
             CurrentWorldKind = classified.Kind;
             CurrentWorldRadarOnly = radarOnly;
             Raise("world", WorldChanged, h => h(classified.WorldSno, worldName, isDungeon));
-            if (isDungeon || radarOnly) EnterDungeonLocked(radarOnly);
+            if (reads) EnterDungeonLocked(classified.Kind);
         }
     }
 
-    private void EnterDungeonLocked(bool radarOnly)
+    private void EnterDungeonLocked(WorldKind kind)
     {
+        bool radarOnly = kind == WorldKind.RadarOnly;
         try { _session = _openSession(_currentWorldSno, _sceneSnos); }
         catch (InvalidOperationException) { _session = null; } // game process not running
 
@@ -107,7 +109,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         // Static grid: the tiles come from offline data (the live CScene route cannot match them), re-raised on
         // every tile poll so listeners created after entry — e.g. when the app starts in the den — still get them.
         if (radarOnly) RaiseStaticTiles();
-        _tileTimer = new Timer(_ => PollTilesOnce(), null, _tilePollIntervalMs, _tilePollIntervalMs);
+        // The overworld has no tiles to poll: its scenes aren't DRLG, and a failed route must not start the 16 GB fallback scan.
+        if (kind != WorldKind.Overworld) _tileTimer = new Timer(_ => PollTilesOnce(), null, _tilePollIntervalMs, _tilePollIntervalMs);
         _actorTimer = new Timer(_ => PollActorsOnce(), null, _actorPollIntervalMs, _actorPollIntervalMs);
     }
 
@@ -175,7 +178,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     {
         IDungeonSessionReader? session;
         bool radarOnly;
-        lock (_gate) (session, radarOnly) = (_session, CurrentWorldRadarOnly);
+        lock (_gate) (session, radarOnly) = (CurrentWorldKind == WorldKind.Overworld ? null : _session, CurrentWorldRadarOnly);
         if (session is null) return;
         if (radarOnly) { RaiseStaticTiles(); return; } // static worlds keep their offline tiles
 
@@ -194,7 +197,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public void RescanTiles()
     {
         IDungeonSessionReader? session;
-        lock (_gate) session = CurrentWorldRadarOnly ? null : _session;
+        lock (_gate) session = CurrentWorldKind is WorldKind.RadarOnly or WorldKind.Overworld ? null : _session;
         if (session is not null) RunFullScanInBackground(session);
     }
 

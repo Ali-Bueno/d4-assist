@@ -13,6 +13,7 @@ internal static class Program
         "       D4MemScan scenes --defs <definitions.json> [--install <dir>] [--tiles-only] [--focus <name-regex>] [--replay <capture.focus.json>] [--dump-module <file.focus.json>] [--out <file.json>]\n" +
         "       D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]\n" +
         "       D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>]\n" +
+        "       D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]\n" +
         "       D4MemScan pose-snapshot --scenes <report.json> --defs <definitions.json> [--install <dir>] [--out <file.json>]\n" +
         "       D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.json>]\n" +
         "       D4MemScan pose-context --in <file.json> [--out <file.focus.json>]";
@@ -29,6 +30,7 @@ internal static class Program
                 "scenes" => ScenesCommand.Run(rest),
                 "scene-route" => SceneRouteCommand.Run(rest),
                 "player" => PlayerCommand.Run(rest),
+                "actors" => ActorsCommand.Run(rest),
                 "pose-snapshot" => PoseSnapshotCommand.Run(rest),
                 "pose-filter" => PoseFilterCommand.Run(rest),
                 "pose-context" => PoseContextCommand.Run(rest),

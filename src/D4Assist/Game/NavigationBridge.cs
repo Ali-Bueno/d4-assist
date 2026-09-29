@@ -5,7 +5,7 @@ using D4Assist.Speech;
 namespace D4Assist.Game;
 
 /// <summary>Feeds live dungeon snapshots into the NavigationEngine and routes its announcements to speech.</summary>
-internal sealed class NavigationBridge
+public sealed class NavigationBridge
 {
     private readonly NavigationEngine _engine;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -15,10 +15,10 @@ internal sealed class NavigationBridge
     private string _lastTileSignature = "";
     private PlayerInput? _lastPlayer;
 
-    public NavigationBridge(IDungeonFeed feed, ISpeechSink speech, bool announcementsEnabled, bool diagnostics, ITileWalkability? walkability = null)
+    public NavigationBridge(IDungeonFeed feed, ISpeechSink speech, bool announcementsEnabled, bool diagnostics, ITileWalkability? walkability = null, LanguageSetting? language = null)
     {
         _diagnostics = diagnostics;
-        _engine = new NavigationEngine(walkability);
+        _engine = new NavigationEngine(walkability, language);
         _engine.Settings.Enabled = announcementsEnabled;
         _engine.Announce += (text, interrupt) =>
         {
@@ -27,15 +27,22 @@ internal sealed class NavigationBridge
         };
 
         feed.WorldChanged += (_, _, _) => { lock (_gate) _engine.Reset(); };
-        feed.TilesUpdated += tiles => { lock (_gate) { LogTilesIfChanged(tiles); _engine.OnTiles([.. tiles.Select(ToInput)]); } };
+        feed.TilesUpdated += tiles => { lock (_gate) { if (feed.CurrentWorldRadarOnly) return; LogTilesIfChanged(tiles); _engine.OnTiles([.. tiles.Select(ToInput)]); } };
         feed.PlayerMoved += p =>
         {
             lock (_gate)
             {
+                if (feed.CurrentWorldRadarOnly) return; // radar-only world: no announcements
                 _lastPlayer = new PlayerInput(p.X, p.Y, p.Z);
                 _engine.OnPlayer(_lastPlayer, _clock.Elapsed);
             }
         };
+    }
+
+    /// <summary>The exploration guide's next step for a live player position (serialized with the feed handlers).</summary>
+    public GuideStep NextGuideStep(PlayerInput player)
+    {
+        lock (_gate) return _engine.Guide.Step(player);
     }
 
     private void LogTilesIfChanged(IReadOnlyList<TileState> tiles)

@@ -3,13 +3,19 @@
 An external companion app that makes Diablo IV's procedural dungeons navigable for blind players. It runs
 next to the game (controller + NVDA through D4's third-party screen-reader option) and adds:
 
-- **Spoken room announcements** in Spanish through PRISM: junctions, dead ends, big rooms and the dungeon
-  entrance, with their exits as controller-stick directions ("Cruce. Salidas: arriba, derecha sin explorar.").
+- **Spoken room announcements** through PRISM, in Spanish or English following the game's text language:
+  junctions, dead ends, big rooms and the dungeon entrance, with their exits as controller-stick directions
+  ("Cruce. Salidas: arriba, derecha sin explorar." / "Junction. Exits: up, right unexplored.").
 - **A reactive audio radar**, a port of the author's Diablo II Resurrected radar: four screen directions,
   a bright tin for a passage into another room or unexplored area, a breath for open floor and a dull tock
   for a nearby wall.
+- **Positional quest loops** (the D2R quest sound): the Undercity next-floor pad, and dungeon objectives
+  (prisoners, switches, carryables and receptacles, quest chests, the actors the dungeon's objective quest names).
+- **An exploration guide**: an automatic ping along the path to the nearest unexplored part (on by default in
+  the Undercity and the Pit, D-pad left toggles it), with an arrival chime.
 
-It never moves the character and never reveals enemies or loot.
+Works in every DRLG dungeon: normal, campaign and Nightmare dungeons, the Undercity and the Pit. It never moves
+the character and never reveals enemies or loot.
 
 ## How it works
 
@@ -23,9 +29,10 @@ never writes to the game, injects code or hooks it.
 
 ## Requirements
 
-- Windows, the .NET 10 SDK, and Diablo IV installed (build 3.2.1.73552; memory offsets are per build).
+- Windows, the .NET 10 SDK, and Diablo IV installed (build 3.2.1.73552; memory offsets are per build). The
+  install is found through Battle.net.
 - A screen reader (NVDA tested), reached through PRISM (Prismatoid NuGet package).
-- `data/definitions.json` from d4data for the same build (not committed).
+- `data/definitions.json` from d4data for the same build (not committed); the build copies it next to the exe.
 
 ## Build and run
 
@@ -36,6 +43,12 @@ src\D4Assist\bin\Debug\net10.0-windows\win-x64\D4Assist.exe [--debug] [--no-spee
 ```
 
 Configuration lives in `d4assist.json` next to the exe; see [src/D4Assist/README.md](src/D4Assist/README.md).
+
+Portable build for testers (no .NET install needed; ship without `tolk.dll` and `*.pdb`):
+
+```
+dotnet publish src/D4Assist/D4Assist.csproj -c Release -r win-x64 --self-contained true -o <folder>
+```
 
 ## Where to start reading
 

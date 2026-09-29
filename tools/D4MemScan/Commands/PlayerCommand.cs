@@ -12,7 +12,6 @@ internal static class PlayerCommand
 {
     private const int DefaultSamples = 10;
     private const int DefaultIntervalMs = 250;
-    private const string SceneRootType = "SceneDefinition";
 
     public static int Run(string[] args)
     {
@@ -26,7 +25,7 @@ internal static class PlayerCommand
         using (store)
         {
             var (worldSno, worldName) = WorldResolver.Resolve(store, schema, install);
-            var sceneSnos = store.AllEntries(schema.SnoGroup(SceneRootType)).Select(e => e.Id).ToHashSet();
+            var sceneSnos = PlayerRecordLocator.SceneSnos(store, schema);
             Console.WriteLine($"World: {worldName} -> SNO {worldSno}; {sceneSnos.Count} scene SNOs known.");
 
             if (replayModulePath is not null)
@@ -34,10 +33,7 @@ internal static class PlayerCommand
 
             string exePath = Path.Combine(install, GameData.MainModuleFileName);
             using var process = ProcessReader.OpenDiabloIv();
-            var regions = process.ImageRegions();
-            var modules = ModuleLocator.LocateAll(regions, process, exePath);
-            if (modules.Count == 0)
-                throw new InvalidOperationException($"Main module not found among the process's image regions ({exePath}).");
+            var (regions, modules) = PlayerRecordLocator.LocateModules(process, exePath);
 
             if (dumpModulePath is not null)
             {
@@ -45,18 +41,9 @@ internal static class PlayerCommand
                 Console.WriteLine($"Module dump: base 0x{dumpedBase:X}, {regionCount} writable regions -> {dumpModulePath}");
             }
 
-            // The live record is in exactly one image view; scan them all and keep the one flagged live.
-            MainModule? liveModule = null;
-            var hits = new List<PlayerRecordHit>();
-            foreach (var module in modules)
-            {
-                var found = ScanForPlayerRecord(process, ModuleLocator.WritableRegionsAt(regions, module.Base), worldSno, sceneSnos);
-                Console.WriteLine($"Module view 0x{module.Base:X}: {found.Count} record(s), {found.Count(IsLive)} live");
-                if (liveModule is null && found.Any(IsLive)) liveModule = module;
-                hits.AddRange(found);
-            }
+            var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, worldSno, sceneSnos);
             long reportBase = (liveModule ?? modules[0]).Base;
-            return ReportAndSample(process, store, reportBase, [.. hits.OrderByDescending(IsLive)], samples, intervalMs);
+            return ReportAndSample(process, store, reportBase, hits, samples, intervalMs);
         }
     }
 
@@ -71,27 +58,14 @@ internal static class PlayerCommand
             : "Module base: unknown (capture has no module-base entry).");
 
         var capture = new CaptureMemoryReader(occurrences.Where(o => o.Name == ModuleDumpWriter.ModuleRegionEntryName));
-        var hits = ScanForPlayerRecord(capture, capture.Regions(), worldSno, sceneSnos);
+        var hits = PlayerRecordLocator.Scan(capture, capture.Regions(), worldSno, sceneSnos);
         return ReportAndSample(capture, store, moduleBase, hits, samples, intervalMs);
-    }
-
-    private static bool IsLive(PlayerRecordHit hit) => hit.TrailingWord == PlayerRecordMatcher.LiveRecordFlag;
-
-    private static List<PlayerRecordHit> ScanForPlayerRecord(
-        IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, int worldSno, IReadOnlySet<int> sceneSnos)
-    {
-        var hits = new List<PlayerRecordHit>();
-        var buffer = new byte[RegionWindows.DefaultWindowBytes];
-        foreach (var region in regions)
-            foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
-                hits.AddRange(PlayerRecordMatcher.FindHits(data.Span, address, PlayerActorSnos.Known, worldSno, sceneSnos));
-        return hits;
     }
 
     private static int ReportAndSample(
         IMemoryReader memory, SnoStore store, long moduleBase, List<PlayerRecordHit> hits, int samples, int intervalMs)
     {
-        Console.WriteLine($"Player record matches: {hits.Count} ({hits.Count(IsLive)} live; sampling the first live one)");
+        Console.WriteLine($"Player record matches: {hits.Count} ({hits.Count(PlayerRecordLocator.IsLive)} live; sampling the first live one)");
         foreach (var hit in hits)
         {
             string rva = moduleBase == 0 ? "n/a" : $"0x{hit.PositionAddress - moduleBase:X}";

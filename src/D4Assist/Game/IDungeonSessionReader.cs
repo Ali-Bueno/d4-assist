@@ -12,6 +12,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>Null when the static scene route is unavailable for this build/session — caller falls back to a full scan.</summary>
     IReadOnlyList<TileState>? ReadTilesViaRoute();
 
+    /// <summary>Placed actors; null when the actor pool route is unavailable for this build/session.</summary>
+    IReadOnlyList<ActorState>? ReadActors();
+
     /// <summary>The expensive full CScene heap scan; called at most once per entry, plus on demand.</summary>
     IReadOnlyList<TileState> ReadTilesViaFullScan();
 }

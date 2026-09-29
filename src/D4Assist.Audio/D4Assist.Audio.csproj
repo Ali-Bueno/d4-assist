@@ -8,6 +8,10 @@
     <RootNamespace>D4Assist.Audio</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Content Include="Sounds\*.wav" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Radar cue audio: BCL only, WinMM waveOut* via P/Invoke (see README.md). No game or process access. -->
 
 </Project>

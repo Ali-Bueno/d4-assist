@@ -1,0 +1,117 @@
+using System.Numerics;
+using D4Assist.Navigation;
+using D4Data.Readers;
+using D4Memory.Actors;
+using D4Memory.Pools;
+using D4Memory.Safety;
+using D4Memory.SceneRoute;
+using D4MemScan.Scan;
+
+namespace D4MemScan.Commands;
+
+/// <summary>
+/// `actors`: reads the RActor pool via the static route (research/client-memory.md §4), validates it against
+/// the player's static record, lists nearby placed actors and optionally watches one slot for changes.
+/// </summary>
+internal static class ActorsCommand
+{
+    /// <summary>Default listing radius (world units); roughly two 32-unit tiles, the loaded window around the player.</summary>
+    private const float DefaultRangeUnits = 60f;
+    private const int DefaultIntervalMs = 250;
+    private const int MaxConsoleLines = 40;
+    private const string PrisonerNameFragment = "Prisoner";
+
+    private sealed record ActorLine(
+        float Distance, string Direction, int ActorSno, string? Name, int? EType, int? GizmoType,
+        uint Id, uint AcdId, long SlotAddress, float X, float Y, float Z);
+
+    public static int Run(string[] args)
+    {
+        var reader = new ArgReader(args);
+        float range = float.TryParse(reader.Get("--range"), System.Globalization.CultureInfo.InvariantCulture, out var r) ? r : DefaultRangeUnits;
+        int intervalMs = int.TryParse(reader.Get("--interval-ms"), out var i) ? i : DefaultIntervalMs;
+        int watchSeconds = int.TryParse(reader.Get("--watch"), out var w) ? w : 0;
+        var watchMatch = reader.Get("--match") is { } pattern ? new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase) : null;
+
+        var (store, schema, install) = GameData.Open(reader);
+        using (store)
+        {
+            string exePath = Path.Combine(install, GameData.MainModuleFileName);
+            if (!GameBuildOffsetsTable.TryGet(PeHeaderReader.ReadFromFile(exePath).TimeDateStamp, out var offsets))
+            {
+                Console.WriteLine("No offsets known for this build; the RActor route is unavailable.");
+                return 1;
+            }
+
+            var (worldSno, worldName) = WorldResolver.Resolve(store, schema, install);
+            Console.WriteLine($"World: {worldName} -> SNO {worldSno}.");
+            var sceneSnos = PlayerRecordLocator.SceneSnos(store, schema);
+
+            using var process = ProcessReader.OpenDiabloIv();
+            var (regions, modules) = PlayerRecordLocator.LocateModules(process, exePath);
+            var (liveModule, hits) = PlayerRecordLocator.ScanModules(process, regions, modules, worldSno, sceneSnos);
+            if (liveModule is not { } module || hits.FirstOrDefault(PlayerRecordLocator.IsLive) is not { PositionAddress: not 0 } player)
+            {
+                Console.Error.WriteLine("No live player record found.");
+                return 1;
+            }
+            if (!RActorReader.TryRead(process, module.Base, offsets, out var actors))
+            {
+                Console.Error.WriteLine("RActor route unavailable (container header unreadable or inconsistent).");
+                return 1;
+            }
+            Console.WriteLine($"RActor pool: {actors.Count} occupied slot(s), {actors.Count(a => a.IsPlaced)} placed.");
+
+            var playerActor = ActorsValidation.Run(process, module.Base, offsets, actors, player);
+            var defs = new ActorDefinitionReader(store, schema);
+            var lines = actors.Where(a => a.IsPlaced && a.Id != playerActor?.Id && IsFinite(a.Position))
+                .Select(a => ToLine(a, player.Position, store.Name(a.ActorSno), defs.Read(a.ActorSno)))
+                .Where(l => l.Distance <= range).OrderBy(l => l.Distance).ToList();
+            PrintAndSave(lines, range);
+
+            if (watchSeconds > 0) Watch(process, module.Base, offsets, actors, lines, watchSeconds, intervalMs, watchMatch);
+            return 0;
+        }
+    }
+
+    private static ActorLine ToLine(RActorRecord a, Vector3 player, string? name, ActorDefinitionInfo? def)
+    {
+        var delta = a.Position - player;
+        string direction = ScreenDirections.Bin(delta.X, delta.Y).ToString();
+        return new ActorLine(Vector3.Distance(a.Position, player), direction, a.ActorSno, name, def?.EType, def?.GizmoType,
+            a.Id, a.AcdId, a.SlotAddress, a.Position.X, a.Position.Y, a.Position.Z);
+    }
+
+    private static void PrintAndSave(List<ActorLine> lines, float range)
+    {
+        Console.WriteLine($"Placed actors within {range} units: {lines.Count}");
+        foreach (var l in lines.Take(MaxConsoleLines))
+            Console.WriteLine($"  {l.Distance,6:F1} {l.Direction,-9} sno {l.ActorSno} {l.Name ?? "?"} eType {l.EType?.ToString() ?? "?"} gizmo {l.GizmoType?.ToString() ?? "?"}");
+        if (lines.Count > MaxConsoleLines) Console.WriteLine($"  ... {lines.Count - MaxConsoleLines} more (see JSON)");
+
+        string path = Path.Combine(Path.GetTempPath(), $"d4memscan-actors-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+        JsonOutput.Write(lines, path);
+        Console.WriteLine($"Full list: {path}");
+    }
+
+    private static void Watch(
+        ProcessReader process, long moduleBase, GameBuildOffsets offsets, IReadOnlyList<RActorRecord> actors,
+        List<ActorLine> lines, int seconds, int intervalMs, System.Text.RegularExpressions.Regex? match)
+    {
+        // --match picks the nearest actor whose name matches; otherwise the nearest gizmo or prisoner.
+        bool IsCandidate(ActorLine l) => match is not null ? l.Name is { } n && match.IsMatch(n)
+            : l.GizmoType >= 0 || l.Name?.Contains(PrisonerNameFragment, StringComparison.OrdinalIgnoreCase) == true;
+        var pick = lines.FirstOrDefault(IsCandidate);
+        if (pick is null)
+        {
+            Console.WriteLine("Watch: no nearby gizmo or prisoner actor to watch.");
+            return;
+        }
+        if (!PoolContainer.TryOpen(process, moduleBase, offsets, offsets.Actor, out var pool)) return;
+
+        var target = actors.First(a => a.SlotAddress == pick.SlotAddress);
+        ActorsWatch.Run(process, target, $"{pick.Name ?? "?"}, {pick.Distance:F1} units {pick.Direction}", pool.Stride, seconds, intervalMs);
+    }
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+}

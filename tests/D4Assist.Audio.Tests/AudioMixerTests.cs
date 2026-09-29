@@ -59,6 +59,28 @@ public class AudioMixerTests
         Assert.True(buffer[0] > 0);
     }
 
+    [Theory]
+    [InlineData(0.0f)]
+    [InlineData(0.5f)]
+    [InlineData(-0.8f)]
+    public void SoftLimit_LeavesSamplesBelowTheKneeUntouched(float sample)
+    {
+        Assert.Equal(sample, AudioMixer.SoftLimit(sample));
+    }
+
+    [Fact]
+    public void SoftLimit_StaysWithinFullScaleAndKeepsOrderAndSign()
+    {
+        float previous = AudioMixer.SoftLimit(0.8f);
+        foreach (float input in new[] { 0.9f, 1.0f, 1.5f, 3.0f, 10.0f })
+        {
+            float limited = AudioMixer.SoftLimit(input);
+            Assert.InRange(limited, previous, 1.0f);
+            Assert.Equal(-limited, AudioMixer.SoftLimit(-input));
+            previous = limited;
+        }
+    }
+
     [Fact]
     public void MasterVolume_ScalesTheMix()
     {

@@ -68,7 +68,7 @@ public static class RoomModel
 
     // Two tiles are grid-adjacent when their footprints share an edge (touch on one
     // axis, overlap on the other) — axis-aligned rectangle adjacency.
-    private static bool Adjacent(MapTile a, MapTile b)
+    internal static bool Adjacent(MapTile a, MapTile b)
     {
         var aRight = a.CellX + a.SpanCellsX;
         var bRight = b.CellX + b.SpanCellsX;

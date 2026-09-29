@@ -1,4 +1,5 @@
 using D4Assist.Navigation;
+using D4Memory.Actors;
 using D4Memory.Safety;
 using D4Memory.Scan;
 using D4Memory.SceneRoute;
@@ -20,6 +21,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly GameBuildOffsets? _offsets;
     private readonly long _moduleBase;
     private readonly long _positionAddress;
+    private bool _actorFailureLogged;
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, long moduleBase, long positionAddress)
@@ -83,6 +85,19 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     {
         if (_offsets is not { } offsets) return null;
         return SceneRouteReader.TryRead(_process, _moduleBase, offsets, _candidates, out var hits) ? ToTileStates(hits) : null;
+    }
+
+    public IReadOnlyList<ActorState>? ReadActors()
+    {
+        if (_offsets is { } offsets && RActorReader.TryRead(_process, _moduleBase, offsets, out var records))
+            return ActorFilter.Placed(records);
+
+        if (!_actorFailureLogged) // once per session: the route is either unknown for this build or not yet populated
+        {
+            _actorFailureLogged = true;
+            Console.WriteLine("Actor pool unavailable; beacons wait for it.");
+        }
+        return null;
     }
 
     public IReadOnlyList<TileState> ReadTilesViaFullScan() =>

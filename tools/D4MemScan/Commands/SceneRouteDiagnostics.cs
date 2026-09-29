@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using D4Memory.Pools;
 using D4Memory.Scan;
 using D4Memory.SceneRoute;
 using D4MemScan.Scan;
@@ -18,9 +19,6 @@ internal static class SceneRouteDiagnostics
     private const int SceneIdOffsetInSlot = 0x8;
     private const int ChunkTableEntryCount = 16;
     private const int ChunkTableEntrySize = 0x18;
-    private const int StrideFormulaBase = 0x92F;
-    private const int StrideFormulaKMultiplier = 16;
-    private const int StrideRoundingUnit = 0x10;
     // Enough chunk pointers to cover any pool seen so far; only used for this diagnostic walk.
     private const int MaxChunksToInspect = 64;
 
@@ -37,21 +35,21 @@ internal static class SceneRouteDiagnostics
             Console.WriteLine($"Module view 0x{moduleBase:X}:");
             ulong expectedVtable = (ulong)moduleBase + (ulong)offsets.CSceneVtableRva;
             var g = U64(process, moduleBase + offsets.GameObjectPointerRva);
-            var p = g is { } gv and not 0 ? U64(process, (long)gv + offsets.SceneContainerOffset) : null;
-            var seed = U32(process, moduleBase + offsets.SeedRva);
+            var p = g is { } gv and not 0 ? U64(process, (long)gv + offsets.Scene.ContainerOffset) : null;
+            var seed = U32(process, moduleBase + offsets.Scene.SeedRva);
             Console.WriteLine($"  G=0x{g:X} P=0x{p:X} seed=0x{seed:X}");
             if (p is not { } pv || pv == 0 || seed is not { } sv) continue;
 
-            var capacity = U32(process, (long)pv + offsets.CapacityOffset);
-            var maxIndex = U32(process, (long)pv + offsets.MaxIndexOffset);
-            var shift = U32(process, (long)pv + offsets.ShiftOffset);
-            var mask = U32(process, (long)pv + offsets.MaskOffset);
-            uint k = (uint)((long)(pv / (ulong)offsets.SceneContainerSize) + sv) & 0xF;
-            Console.WriteLine($"  capacity={capacity} maxIndex={maxIndex} shift={shift} mask=0x{mask:X} k={k} stride=0x{Stride(k):X}");
+            var capacity = U32(process, (long)pv + offsets.Pool.CapacityOffset);
+            var maxIndex = U32(process, (long)pv + offsets.Pool.MaxIndexOffset);
+            var shift = U32(process, (long)pv + offsets.Pool.ShiftOffset);
+            var mask = U32(process, (long)pv + offsets.Pool.MaskOffset);
+            uint k = (uint)((long)(pv / (ulong)offsets.Pool.ContainerSize) + sv) & 0xF;
+            Console.WriteLine($"  capacity={capacity} maxIndex={maxIndex} shift={shift} mask=0x{mask:X} k={k} stride=0x{Stride(k, offsets):X}");
 
             for (int e = 0; e < ChunkTableEntryCount; e++)
             {
-                long entry = (long)pv + offsets.ChunkTableOffset + ChunkTableEntrySize * e;
+                long entry = (long)pv + offsets.Pool.ChunkTableOffset + ChunkTableEntrySize * e;
                 Console.WriteLine($"  chunkTable[{e,2}] = 0x{U64(process, entry):X} 0x{U64(process, entry + 8):X} 0x{U64(process, entry + 16):X}");
             }
 
@@ -72,7 +70,7 @@ internal static class SceneRouteDiagnostics
         var found = new List<string>();
         for (int e = 0; e < ChunkTableEntryCount; e++)
         {
-            var chunks = U64(process, (long)p + offsets.ChunkTableOffset + ChunkTableEntrySize * e);
+            var chunks = U64(process, (long)p + offsets.Pool.ChunkTableOffset + ChunkTableEntrySize * e);
             if (chunks is not { } cv || cv == 0) continue;
             for (int c = 0; c < MaxChunksToInspect; c++)
             {
@@ -81,8 +79,8 @@ internal static class SceneRouteDiagnostics
                 long offset = slot - (long)bv;
                 if (offset < 0) continue;
                 for (uint kk = 0; kk < ChunkTableEntryCount; kk++)
-                    if (offset % Stride(kk) == 0 && offset / Stride(kk) < 4096)
-                        found.Add($"entry {e} chunk {c} index {offset / Stride(kk)} stride 0x{Stride(kk):X}");
+                    if (offset % Stride(kk, offsets) == 0 && offset / Stride(kk, offsets) < 4096)
+                        found.Add($"entry {e} chunk {c} index {offset / Stride(kk, offsets)} stride 0x{Stride(kk, offsets):X}");
             }
         }
         return found.Count == 0 ? "not in any chunk of this container" : string.Join("; ", found.Take(6));
@@ -94,20 +92,20 @@ internal static class SceneRouteDiagnostics
     {
         var g = U64(process, moduleBase + offsets.GameObjectPointerRva);
         if (g is not { } gv || gv == 0) return;
-        var p = U64(process, (long)gv + offsets.SceneContainerOffset);
-        var seed = U32(process, moduleBase + offsets.SeedRva);
+        var p = U64(process, (long)gv + offsets.Scene.ContainerOffset);
+        var seed = U32(process, moduleBase + offsets.Scene.SeedRva);
         if (p is not { } pv || pv == 0 || seed is not { } sv) return;
-        int maxIndex = (int)(U32(process, (long)pv + offsets.MaxIndexOffset) ?? 0);
-        int shift = (int)(U32(process, (long)pv + offsets.ShiftOffset) ?? 0);
-        uint mask = U32(process, (long)pv + offsets.MaskOffset) ?? 0;
-        uint k = (uint)((long)(pv / (ulong)offsets.SceneContainerSize) + sv) & 0xF;
-        var chunks = U64(process, (long)pv + offsets.ChunkTableOffset + ChunkTableEntrySize * k) ?? 0;
+        int maxIndex = (int)(U32(process, (long)pv + offsets.Pool.MaxIndexOffset) ?? 0);
+        int shift = (int)(U32(process, (long)pv + offsets.Pool.ShiftOffset) ?? 0);
+        uint mask = U32(process, (long)pv + offsets.Pool.MaskOffset) ?? 0;
+        uint k = (uint)((long)(pv / (ulong)offsets.Pool.ContainerSize) + sv) & 0xF;
+        var chunks = U64(process, (long)pv + offsets.Pool.ChunkTableOffset + ChunkTableEntrySize * k) ?? 0;
         Console.WriteLine($"Module 0x{moduleBase:X}: maxIndex={maxIndex} k={k}");
         for (int idx = 0; idx <= maxIndex; idx++)
         {
             var chunkBase = U64(process, (long)chunks + 8L * (idx >> shift)) ?? 0;
             if (chunkBase == 0) continue;
-            long slot = (long)chunkBase + (idx & mask) * Stride(k);
+            long slot = (long)chunkBase + (idx & mask) * Stride(k, offsets);
             var id = U32(process, slot + SceneIdOffsetInSlot);
             long a = slot + SnoSceneOffsetInSlot;
             int sno = (int)(U32(process, a) ?? 0);
@@ -123,7 +121,7 @@ internal static class SceneRouteDiagnostics
         return reader.TryRead(address, buffer, 4) ? BinaryPrimitives.ReadSingleLittleEndian(buffer).ToString("F1", System.Globalization.CultureInfo.InvariantCulture) : "?";
     }
 
-    private static long Stride(uint k) => (StrideFormulaBase + StrideFormulaKMultiplier * k) & ~(long)(StrideRoundingUnit - 1);
+    private static long Stride(uint k, GameBuildOffsets offsets) => PoolContainer.StrideFor(offsets.Scene.StrideBase, k);
 
     private static ulong? U64(IMemoryReader reader, long address)
     {

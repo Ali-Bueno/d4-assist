@@ -18,14 +18,11 @@ public class SceneRouteTests
 
     private static GameBuildOffsets BuildOffsets() => new(
         GameObjectPointerRva: 0x8,
-        SceneContainerOffset: 0x8,
-        SceneContainerSize: 0x100,
-        SeedRva: 0x10,
-        CapacityOffset: 0x18,
-        MaxIndexOffset: 0x20,
-        ShiftOffset: 0x24,
-        MaskOffset: 0x28,
-        ChunkTableOffset: 0x40,
+        Pool: new PoolLayout(
+            ContainerSize: 0x100, CapacityOffset: 0x18, MaxIndexOffset: 0x20,
+            ShiftOffset: 0x24, MaskOffset: 0x28, ChunkTableOffset: 0x40),
+        Scene: new PoolParameters(ContainerOffset: 0x8, SeedRva: 0x10, StrideBase: 0x92F),
+        Actor: new PoolParameters(ContainerOffset: 0x8, SeedRva: 0x10, StrideBase: 0xC27),
         CSceneVtableRva: 0x500);
 
     [Fact]
@@ -36,18 +33,18 @@ public class SceneRouteTests
 
         const long g = 0x2000, p = 0x9000, chunks = 0xA000, chunkArrayBase = 0xB000;
         const uint seed = 3;
-        // k = ((p / SceneContainerSize) + seed) & 0xF = ((0x9000/0x100) + 3) & 0xF = (0x90 + 3) & 0xF = 3.
+        // k = ((p / Pool.ContainerSize) + seed) & 0xF = ((0x9000/0x100) + 3) & 0xF = (0x90 + 3) & 0xF = 3.
         const long k = 3;
         // stride = (0x92F + 16*k) & ~0xF, the same formula SceneRoute computes (client-memory.md §1 step 2).
         const long stride = 0x950;
 
         WriteU64(buffer, ModuleBase + offsets.GameObjectPointerRva, g);
-        WriteU64(buffer, g + offsets.SceneContainerOffset, p);
-        WriteU32(buffer, ModuleBase + offsets.SeedRva, seed);
-        WriteU32(buffer, p + offsets.MaxIndexOffset, 2); // idx 0..2 inclusive
-        WriteU32(buffer, p + offsets.ShiftOffset, 4);
-        WriteU32(buffer, p + offsets.MaskOffset, 0xF);
-        WriteU64(buffer, p + offsets.ChunkTableOffset + 0x18 * k, chunks);
+        WriteU64(buffer, g + offsets.Scene.ContainerOffset, p);
+        WriteU32(buffer, ModuleBase + offsets.Scene.SeedRva, seed);
+        WriteU32(buffer, p + offsets.Pool.MaxIndexOffset, 2); // idx 0..2 inclusive
+        WriteU32(buffer, p + offsets.Pool.ShiftOffset, 4);
+        WriteU32(buffer, p + offsets.Pool.MaskOffset, 0xF);
+        WriteU64(buffer, p + offsets.Pool.ChunkTableOffset + 0x18 * k, chunks);
         WriteU64(buffer, chunks, chunkArrayBase); // idx>>shift == 0 for every idx used here
 
         long slot0 = chunkArrayBase, slot1 = chunkArrayBase + stride, slot2 = chunkArrayBase + 2 * stride;
@@ -95,9 +92,9 @@ public class SceneRouteTests
         const long g = 0x2000, p = 0x9000;
 
         WriteU64(buffer, ModuleBase + offsets.GameObjectPointerRva, g);
-        WriteU64(buffer, g + offsets.SceneContainerOffset, p);
-        WriteU32(buffer, ModuleBase + offsets.SeedRva, 0);
-        WriteU32(buffer, p + offsets.MaxIndexOffset, uint.MaxValue); // corrupted/garbage field
+        WriteU64(buffer, g + offsets.Scene.ContainerOffset, p);
+        WriteU32(buffer, ModuleBase + offsets.Scene.SeedRva, 0);
+        WriteU32(buffer, p + offsets.Pool.MaxIndexOffset, uint.MaxValue); // corrupted/garbage field
 
         var reader = new FakeMemoryReader();
         reader.AddRegion(0, buffer);

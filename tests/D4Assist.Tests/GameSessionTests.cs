@@ -120,6 +120,41 @@ public class GameSessionTests
     }
 
     [Fact]
+    public void PollPlayerOnce_WorldUnloadingZeroPosition_IsSkippedWithoutLeaving()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        var reader = new FakeDungeonSessionReader { NextPlayer = new PlayerState(0f, 0f, 0f, 0) };
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        int moves = 0;
+        session.PlayerMoved += _ => moves++;
+
+        session.PollPlayerOnce();
+
+        Assert.Equal(0, moves);
+        Assert.Equal(SessionState.InDungeon, session.State);
+    }
+
+    [Fact]
+    public void PollPlayerOnce_AFailingListener_NeitherThrowsNorStarvesTheOthers()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        var reader = new FakeDungeonSessionReader { NextPlayer = new PlayerState(1f, 2f, 3f, 1234) };
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        int reached = 0;
+        session.PlayerMoved += _ => throw new ArgumentOutOfRangeException();
+        session.PlayerMoved += _ => reached++;
+
+        session.PollPlayerOnce();
+        session.PollPlayerOnce();
+
+        Assert.Equal(2, reached);
+    }
+
+    [Fact]
     public void PollPlayerOnce_NullPlayer_LeavesTheDungeon()
     {
         var feed = new FakeWorldNameSource();
@@ -128,10 +163,14 @@ public class GameSessionTests
         var session = NewSession(feed, classifier, (_, _) => reader);
         feed.Raise(DungeonName);
 
+        var events = new List<(int Sno, string Name, bool Dungeon)>();
+        session.WorldChanged += (sno, name, dungeon) => events.Add((sno, name, dungeon));
+
         session.PollPlayerOnce();
 
         Assert.Equal(SessionState.Idle, session.State);
         Assert.Equal(1, reader.DisposeCount);
+        Assert.Equal([(GameSession.NoWorldSno, GameSession.GameLostWorldName, false)], events); // bridges silence on it
     }
 
     [Fact]
@@ -185,11 +224,61 @@ public class GameSessionTests
         Assert.True(SpinWait.SpinUntil(() => reader.FullScanCount >= 2, TimeSpan.FromSeconds(2)));
     }
 
+    private const string RadarOnlyName = "Mercenary_Hideout";
+    private const int RadarOnlySno = 1472231;
+
+    [Fact]
+    public void RadarOnlyWorld_OpensASession_ReportsNotADungeon_AndRaisesTheStaticTilesOnEveryPoll()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().MapRadarOnly(RadarOnlyName, RadarOnlySno);
+        var reader = new FakeDungeonSessionReader();
+        int opened = 0;
+        var tile = new TileState(1472246, "Mercenary_Hideout_N01_W01", -96, -96, 96, 96, 0, 1, 1);
+        var raised = new List<IReadOnlyList<TileState>>();
+        var events = new List<(int, string, bool)>();
+        var session = NewSession(feed, classifier, (_, _) => { opened++; return reader; }, staticTiles: sno => sno == RadarOnlySno ? [tile] : []);
+        session.TilesUpdated += raised.Add;
+        session.WorldChanged += (sno, name, dungeon) => events.Add((sno, name, dungeon));
+
+        feed.Raise(RadarOnlyName);
+        session.PollTilesOnce(); // re-raises the offline tiles for late listeners; never reads the live route here
+        session.PollPlayerOnce();
+
+        Assert.Equal(1, opened);
+        Assert.Equal(SessionState.InDungeon, session.State);
+        Assert.Equal(WorldKind.RadarOnly, session.CurrentWorldKind);
+        Assert.True(session.CurrentWorldRadarOnly);
+        Assert.Equal((RadarOnlyName, false), session.CurrentWorld);
+        Assert.Equal([(RadarOnlySno, RadarOnlyName, false)], events);
+        Assert.Equal(2, raised.Count); // on entry, then on the poll
+        Assert.All(raised, tiles => Assert.Equal([tile], tiles));
+        Assert.Equal(0, reader.RouteReads);
+    }
+
+    [Fact]
+    public void LeavingARadarOnlyWorld_ClearsTheFlag()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().MapRadarOnly(RadarOnlyName, RadarOnlySno).Map(OverworldName, OverworldSno, isDungeon: false);
+        var reader = new FakeDungeonSessionReader();
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(RadarOnlyName);
+
+        feed.Raise(OverworldName);
+
+        Assert.False(session.CurrentWorldRadarOnly);
+        Assert.Equal(SessionState.Idle, session.State);
+        Assert.Equal(1, reader.DisposeCount);
+    }
+
     private static GameSession NewSession(
         FakeWorldNameSource feed, FakeClassifier classifier,
-        Func<int, IReadOnlySet<int>, IDungeonSessionReader?>? openSession = null) =>
+        Func<int, IReadOnlySet<int>, IDungeonSessionReader?>? openSession = null,
+        Func<int, IReadOnlyList<TileState>>? staticTiles = null) =>
         new(feed, classifier, openSession ?? ((_, _) => new FakeDungeonSessionReader()), SceneSnos,
-            playerPollIntervalMs: Timeout.Infinite, tilePollIntervalMs: Timeout.Infinite);
+            playerPollIntervalMs: Timeout.Infinite, tilePollIntervalMs: Timeout.Infinite, actorPollIntervalMs: Timeout.Infinite,
+            staticTiles: staticTiles);
 
     private sealed class FakeWorldNameSource : IWorldNameSource
     {
@@ -201,15 +290,21 @@ public class GameSessionTests
 
     private sealed class FakeClassifier : IWorldClassifier
     {
-        private readonly Dictionary<string, (int Sno, bool IsDungeon)> _map = [];
+        private readonly Dictionary<string, (int Sno, WorldKind Kind)> _map = [];
 
         public FakeClassifier Map(string worldName, int sno, bool isDungeon)
         {
-            _map[worldName] = (sno, isDungeon);
+            _map[worldName] = (sno, isDungeon ? WorldKind.Dungeon : WorldKind.Other);
             return this;
         }
 
-        public (int WorldSno, bool IsDungeon) Classify(string worldName) =>
+        public FakeClassifier MapRadarOnly(string worldName, int sno)
+        {
+            _map[worldName] = (sno, WorldKind.RadarOnly);
+            return this;
+        }
+
+        public (int WorldSno, WorldKind Kind) Classify(string worldName) =>
             _map.TryGetValue(worldName, out var v) ? v : throw new ArgumentException($"Unknown world '{worldName}'.");
     }
 
@@ -219,9 +314,12 @@ public class GameSessionTests
         public int FullScanCount;
         public PlayerState? NextPlayer { get; set; } = new(0, 0, 0, 0);
         public IReadOnlyList<TileState>? NextRouteTiles { get; set; } = [];
+        public IReadOnlyList<ActorState>? NextActors { get; set; } = [];
 
         public PlayerState? ReadPlayer() => NextPlayer;
-        public IReadOnlyList<TileState>? ReadTilesViaRoute() => NextRouteTiles;
+        public int RouteReads { get; private set; }
+        public IReadOnlyList<TileState>? ReadTilesViaRoute() { RouteReads++; return NextRouteTiles; }
+        public IReadOnlyList<ActorState>? ReadActors() => NextActors;
 
         public IReadOnlyList<TileState> ReadTilesViaFullScan()
         {

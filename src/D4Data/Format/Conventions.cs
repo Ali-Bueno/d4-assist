@@ -26,6 +26,17 @@ public static class Conventions
         (int)(cellId & CellXYMask) - CellXYBias,
         (int)(cellId >> CellZShift & CellZMask) - CellZBias);
 
+    // ActorDefinition.eType (+8): 1 = monster/NPC (has ptMonsterData / ptNPCData), 2 = gizmo. research/dungeon-objectives.md §3.
+    public const int ActorTypeMonster = 1;
+
+    // ActorDefinition.eActorGizmoType (+392); each value is named after the data class at ptGizmoData
+    // (definitions.json has no enum strings). research/dungeon-objectives.md §3.
+    public const int GizmoSwitch = 57;              // SwitchGizmoData
+    public const int GizmoCarryable = 94;           // CarryableGizmoData
+    public const int GizmoCarryableReceptacle = 95; // CarryableReceptacleGizmoData
+    public const int GizmoQuestSwitch = 100;        // QuestSwitchGizmoData
+    public const int GizmoQuestChest = 105;         // QuestChestGizmoData
+
     // Recursion guard for marker sets nested as prefabs; observed data nests 1-2 levels.
     public const int MaxPrefabDepth = 4;
 

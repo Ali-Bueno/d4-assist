@@ -37,8 +37,8 @@ live view base:
    (base+0x2819030), and `X+0x168` = `snoScene` (the scanner's `a`). The game's iterator is at RVA 0xDA7C00.
 4. By id: `idx = id & 0x7FFFF`, and the slot is valid only if `u32[X+8] == id`.
 
-The player's scene id is at `ACD+0x7A8` (the ACD container is at `[G+0xB78]`). The static player record's
-`p−16` holds that scene's SNO.
+The player's scene id is at `RActor+0x7A8`, and the RActor container is at `[G+0xB78]` (§4; an earlier
+note called it the ACD container). The static player record's `p−16` holds that scene's SNO.
 
 **Only scenes near the player are loaded** (about two tiles around them); records are unloaded and their
 slots reused as the player moves.
@@ -75,7 +75,7 @@ Recovered by position narrowing (`pose-snapshot`/`pose-filter`), then offline an
   This record has one copy in the whole process. It sits at a fixed offset inside the module, so it
   lies at a stable RVA per build. Finding it needs only a scan of the module's writable pages (~8.6 MB),
   and after that each frame reads 32 bytes.
-- **Actor record** (heap pool, stride `0x680`; confidence medium-high), with base = `p − 0x7C`:
+- **Actor record** (heap pool, stride `0x680`; confidence medium-high; it is an **ACD** slot, see §4), with base = `p − 0x7C`:
   - `+0x50` = actor SNO.
   - `+0x6C` = quaternion `(0,0,sin(yaw/2),cos(yaw/2))`, i.e. **heading**: yaw measured from +X towards +Y.
   - `+0x7C` = position.
@@ -106,7 +106,50 @@ Recovered by position narrowing (`pose-snapshot`/`pose-filter`), then offline an
 
 A tile's exit therefore appears diagonal on screen: N = up-right, E = down-right, S = down-left, W = up-left.
 
-## 4. Consequences for the assist
+## 4. Actors: RActor and ACD pools (RActor validated live; ACD offline only)
+
+Derived 2026-09-28 from game code in the stale image view (same dump and method as §1). Confidence refers
+to the code semantics. None of this has been read live yet.
+
+**Both pools use the scene container's 0x2B8-byte template** (H): the same header offsets, 16 seeded chunk
+tables, stride `(base + 16k) & ~0xF`, free slot `u32[X+8] == 0xFFFFFFFF`, and lookup `idx = id & 0x7FFFF`.
+The evidence is the magic multiply for `P/0x2B8` and the same header reads.
+
+| Pool | Route | Seed RVA | Stride base | Evidence |
+|---|---|---|---|---|
+| Scene | `[G+0xC18]` | 0x37CC63C | 0x92F | §1 |
+| **RActor** (client actor) | `[G+0xB78]`, static | 0x37CC5A0 | 0xC27 | lookup 0x67CF70 ("RActor with ID %d was not found!"), iterator 0xD94C50 |
+| **ACD** | per-thread game context via TLS: `[[[[[TEB+0x58]]+0x1A0]]]+0x148`, then `[ ]`; no static pointer found | 0x37CC59C | 0x627 | lookup 0x67D0B0, TLS wrapper 0x67D140 ("Missing Player ACD"), iterator 0x15DDAB0 |
+
+**RActor slot** (X = slot start):
+
+| Offset | Meaning | Conf. |
+|---|---|---|
+| +0x08 | RActor id | H |
+| +0x0C | ACD id | H |
+| +0x54 | owner/source ACD id (−1 = none) | M |
+| +0x5B8 | actor SNO (group 1) | H |
+| +0x750 / +0x760 / +0x76C | quaternion / position / scale | H |
+| +0x7A4 | world id (SNO or instance id: unknown) | H |
+| +0x7A8 | scene id (scene pool) | H |
+| +0x7AC | placement: 0 = in the world, −1 = not placed (UI copies) | H |
+
+**ACD slot:** +0x08 ACD id, +0x14 RActor id, +0x48 actor definition pointer, +0x50 actor SNO, +0x6C/+0x7C/+0x88
+quaternion/position/scale, +0xC0 world id, +0xC4 scene id, +0xC8 placement (all H). The attribute
+container pointer is at +0x2A0 and its getter is at 0x15F27B0. Values are obfuscated with xor/ror and the
+decoding is not derived (M). The block at ACD +0x6C..+0xC8 mirrors RActor +0x750..+0x7AC.
+
+**Local player:** `GetLocalPlayer` (0x6E4020) scans `[G+0xC98]` with an obfuscated key and returns player
+data holding the ACD id (+0x28) and the RActor id (+0x2C). The static record (§3) is simpler.
+
+**Live validation (2026-09-28, `D4MemScan actors`, `X1_Undercity_BugCave_03` boss room):** the RActor route
+works. Exactly one placed RActor has the player SNO at the record's position. The list is real: 88 placed
+actors, including equipped items, pet, mercenary, the boss corpse, `X1_Undercity_Chest_Attunement2` and the
+stash. The farthest was 65 units away, so the client only holds actors near the player. `+0x7A4` is an
+instance id (0xFA66BCBF), not the World SNO. `+0x7A8` did **not** resolve in the scene pool with the
+`id & 0x7FFFF` rule, so its id space is still unknown.
+
+## 5. Consequences for the assist
 
 - The whole scene list is revealed at entry; positions exist only for loaded scenes. The layout is
   therefore accumulated by polling the loaded CScene window as the player explores. This naturally
@@ -115,7 +158,7 @@ A tile's exit therefore appears diagonal on screen: N = up-right, E = down-right
   matched the player's described route.
 - Where the minimap keeps positions of unloaded scenes is still unknown.
 
-## 5. Open questions
+## 6. Open questions
 
 - The tile-hash units for tiles larger than 32×32, and whether RVAs stay stable across restarts.
 - Validate the static CScene route (§1) live with a minimal probe.

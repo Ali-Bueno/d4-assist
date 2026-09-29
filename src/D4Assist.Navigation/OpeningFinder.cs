@@ -55,14 +55,19 @@ public static class OpeningFinder
         DungeonMap map, HashSet<MapTile> memberSet, List<((int, int) NeighbourCell, RoomOpening Opening)> candidates,
         ExitSide side, (float X, float Y) position, float width, bool usedFallback)
     {
-        var (nx, ny) = ExitMaskBits.Normal(side);
-        var probeX = position.X + nx * (GridMath.CellSize / 2f);
-        var probeY = position.Y + ny * (GridMath.CellSize / 2f);
+        var (probeX, probeY) = Probe(side, position);
         var neighbour = map.TileAt(probeX, probeY);
         if (neighbour is not null && memberSet.Contains(neighbour)) return; // internal edge, not an opening
 
         var neighbourCell = (GridMath.CellIndex(probeX), GridMath.CellIndex(probeY));
         candidates.Add((neighbourCell, new RoomOpening(side, position, neighbour is null, width, usedFallback)));
+    }
+
+    /// <summary>A point half a cell beyond an opening, inside whatever lies past it.</summary>
+    public static (float X, float Y) Probe(ExitSide side, (float X, float Y) position)
+    {
+        var (nx, ny) = ExitMaskBits.Normal(side);
+        return (position.X + nx * (GridMath.CellSize / 2f), position.Y + ny * (GridMath.CellSize / 2f));
     }
 
     /// <summary>Null when walkability is unavailable or the tile's yaw isn't axis-aligned (fall back).</summary>

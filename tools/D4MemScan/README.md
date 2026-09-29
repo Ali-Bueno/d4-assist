@@ -34,6 +34,7 @@ D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.jso
 D4MemScan pose-context --in <file.json> [--out <file.focus.json>]
 D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
+D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]
 ```
 
 `--install` defaults to `D:\games\battlenet\Diablo IV`. `--out`/default output paths land under `%TEMP%`, never
@@ -82,6 +83,17 @@ the repo.
    runs the full `scenes` heap scan and reports how many route tiles the scan confirms, and how many scan
    tiles the route missed — this is the live validation step STATUS.md calls out as pending.
 
+6. **`actors`** — reads the RActor pool via the static route (`research/client-memory.md` §4; offline RE, **not yet
+   validated live**; `D4Memory.Actors.RActorReader` over the shared `D4Memory.Pools.PoolContainer`). Finds the
+   player's static record like `player`, then prints PASS/FAIL checks: (a) exactly one placed RActor with the player
+   actor SNO within 1 unit of the record, (b) its scene id resolves in the scene pool to `snoScene == p-16`; and (c)
+   prints its world id next to `p-12` and the scene slot's u32 at +0x18. Then lists placed actors within `--range`
+   (default 60 units) by distance with the stick direction, actor SNO/name and ActorDefinition `eType`/`eActorGizmoType`
+   (read by field name from `definitions.json`); at most 40 lines on the console, the full list as JSON under `%TEMP%`.
+   `--watch N` picks the nearest gizmo/prisoner actor (or, with `--match`, the nearest actor whose name matches) and, every `--interval-ms` (default 250) for N seconds, prints the
+   4-byte words of its slot that changed (and slot free/reuse), to find the "used" signal while you free a prisoner or
+   pull a lever.
+
 ## Layout
 
 - `src/D4Memory/Safety/` — the process-access policy described above; nothing outside this folder touches
@@ -91,7 +103,8 @@ the repo.
   `SceneScanner`, `RevealedListMatcher`, `CandidateIndex`/`CandidateScene`/`CandidateSceneBuilder`,
   `PlayerActorSnos`, `PlayerSampleWindow`, `RegionWindows` and `IMemoryReader`/`MemoryRegion` — shared with
   `D4Assist`. Reads memory only through `IMemoryReader`, so tests use an in-memory fake.
-- `src/D4Memory/SceneRoute/` — the static route (`SceneRouteReader`, `GameBuildOffsets`/`GameBuildOffsetsTable`).
+- `src/D4Memory/SceneRoute/` — the static scene route (`SceneRouteReader`, `GameBuildOffsets`/`GameBuildOffsetsTable`).
+- `src/D4Memory/Pools/` — `PoolContainer`, the chunked pool walk shared by the scene and RActor routes; `src/D4Memory/Actors/` — `RActorReader`.
 - `Scan/` (this project) — diagnostics-only logic that doesn't belong in the shipped app: exit-consistency
   check, ASCII map, pose scan/filter/walkability, JSON report models, `CaptureMemoryReader` (`--replay`).
 - `Commands/` — CLI glue per subcommand.

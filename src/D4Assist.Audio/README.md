@@ -31,8 +31,12 @@ it instead of keeping a second one.
 ## Mixer
 
 `AudioMixer` sums concurrent mono voices into interleaved stereo PCM16: per-voice gain, the same
-equal-power pan law as D2R's cues (`radar_synth.cpp:73`), a master volume, and a hard clip
-(`radar_synth.cpp:100-101`). D2R itself plays one cue at a time through a priority queue
+equal-power pan law as D2R's cues (`radar_synth.cpp:73`), a master volume, and a soft limiter (linear up
+to 0.8, then easing to full scale) instead of D2R's hard clip (`radar_synth.cpp:100-101`).
+
+**Loudness (D4 change, 2026-09-28):** the user found the cues drowned out by D4 combat at D2R's level, so
+`RadarCuePlayer.LoudnessBoost` = 4 (+12 dB) scales every radar cue. `RadarVolume` 1 means that boosted level.
+A single cue still peaks below the limiter knee, so only overlapping cues are ever compressed. D2R itself plays one cue at a time through a priority queue
 (`radar_audio.cpp` `CueQueue`, urgency-ordered: obstacle > exit > floor); this mixer generalizes that to
 real polyphony (`MaxVoices` = 8) so overlapping directions are never dropped, but keeps the same
 urgency order for voice stealing once full.
@@ -49,3 +53,26 @@ if none is present (`radar_audio.cpp:30`) instead of throwing.
 `D4Assist --sound-test` (`src/D4Assist/SoundTestMode.cs`) speaks each cue's Spanish name, then plays it
 once per direction (direction announced first) through the app's own PRISM `ISpeechSink`, so a blind
 user can learn the sounds without the game running.
+
+## Beacon loops
+
+Looping positional sources, ported from D2R's ground-item loops (`ground_items.h:34,44,53`, `ground_items.cpp:38-41`,
+`item_audio.cpp:24`, `cmake/GroundItems.cmake:9-31`). `SpatialLoopPlayer.Update` takes `LoopSource`s (key, sound,
+offset in screen right/up, `LoopProfile`) and starts/retargets/stops `AudioMixer` loop voices by key. Gain =
+`NearGain * (1 - d/Reach)^Falloff` (silent at reach), flat equal-power pan from the screen-right component, 0.94
+pitch when the source is screen-down, 80 ms smoothing. Loops have their own `MaxLoopVoices` = 8 budget, separate
+from radar cues. Profiles: `Quest` (D2R values) and `Beacon` (user request: louder, reach 60 vs 27).
+`Sounds/quest-item.wav` is D2R's quest loop (Diablo IV audio, reuse approved), trimmed to 700 ms like D2R:
+`ffmpeg -i "quest item.ogg" -map_metadata -1 -vn -af "apad=whole_dur=0.7,atrim=duration=0.7,afade=t=in:d=0.005,afade=t=out:st=0.68:d=0.02" -ac 1 -ar 48000 -c:a pcm_s16le quest-item.wav`
+
+## Guide ping
+
+The exploration guide's sound: D2R's target-beacon ping (`d2r-access/src/beacon_audio.cpp:105-141`, `docs/beacon.md`):
+a 620 Hz, 80 ms blip (`GuidePingSynth`) repeating every 160 ms (route end) to 1200 ms (>= 40 subtiles left)
+linearly (`beacon.h:39-40`, `beacon.cpp:95-100`), panned and rear-pitched (0.94) from the waypoint's screen offset
+with `SpatialLoopPlayer.Pan/Pitch`. Subtiles convert to world units with `D2rScale.D4UnitsPerSubtile` (0.6, the
+same guess as the quest loop reach), so the slowest cadence starts at 24 units. `GuidePingPlayer` schedules it
+on a 25 ms tick and plays through `AudioMixer.PlayGuide`, a 2-slot budget separate from radar voices and loops
+(neither steals from the other). Level 0.15 like D2R, times `RadarCuePlayer.LoudnessBoost` (same reason as the radar).
+`PlayArrived` is D2R's arrival confirmation (`beacon_audio.cpp:117`): the ping rising a fifth then an octave,
+60 ms gaps, centred; the next ping waits until it ends.

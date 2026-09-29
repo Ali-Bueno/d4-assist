@@ -18,8 +18,11 @@ public sealed class AnnouncementPolicy
     public bool IncludeCorridors { get; set; } = false;
     public bool MentionUnexplored { get; set; } = true;
 
+    private readonly LanguageSetting _language;
     private readonly RoomRouteCache _routes = new();
     private string? _lastText;
+
+    public AnnouncementPolicy(LanguageSetting? language = null) => _language = language ?? new LanguageSetting();
 
     /// <summary>The text to announce for entering <paramref name="room"/> (or null to stay silent), plus
     /// each opening's resolved route for diagnostics. <paramref name="cameFrom"/> is the room the player
@@ -35,13 +38,14 @@ public sealed class AnnouncementPolicy
             .Select(r => r with { IsEntry = IsEntryRoute(r.Opening, cameFrom) })
             .ToList();
 
+        var words = NavigationPhrases.For(_language.Current);
         var phrases = routes
             .Where(r => !r.IsEntry) // don't list the exit the player just walked through as if new
             .OrderBy(r => (int)r.Direction) // clockwise from up
-            .Select(r => SpanishPhrases.DirectionPhrase(r.Direction, MentionUnexplored && r.Opening.Unexplored))
+            .Select(r => words.DirectionPhrase(r.Direction, MentionUnexplored && r.Opening.Unexplored))
             .ToList();
 
-        var text = SpanishPhrases.Announcement(kind, phrases, isEntrance);
+        var text = words.Announcement(kind, phrases, isEntrance);
         if (text == _lastText) return (null, routes);
         _lastText = text;
         return (text, routes);

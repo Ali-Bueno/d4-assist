@@ -110,8 +110,8 @@ public class AnnouncementPolicyTests
         var southRoute = routes.Single(r => r.Opening == southOpening);
         Assert.True(northRoute.IsEntry);
         Assert.False(southRoute.IsEntry);
-        Assert.DoesNotContain(SpanishPhrases.Direction(northRoute.Direction), text);
-        Assert.Contains(SpanishPhrases.Direction(southRoute.Direction), text);
+        Assert.DoesNotContain(NavigationPhrases.Spanish.Direction(northRoute.Direction), text);
+        Assert.Contains(NavigationPhrases.Spanish.Direction(southRoute.Direction), text);
     }
 
     [Fact]
@@ -140,6 +140,27 @@ public class AnnouncementPolicyTests
             Player, cameFrom: null, isEntrance: true).Text;
 
         var direction = ScreenDirections.Bin(opening.Position.X - Player.X, opening.Position.Y - Player.Y);
-        Assert.Equal($"Entrada. Salida: {SpanishPhrases.Direction(direction)}.", text);
+        Assert.Equal($"Entrada. Salida: {NavigationPhrases.Spanish.Direction(direction)}.", text);
+    }
+}
+
+public class AnnouncementPolicyLanguageTests
+{
+    [Fact]
+    public void Policy_follows_the_language_setting_without_restart()
+    {
+        var language = new LanguageSetting();
+        var policy = new AnnouncementPolicy(language);
+        var tile = new MapTile(new TileInput(1, "t", 0, 0, 32, 32, 0, 1, 1));
+        var room = new Room(new RoomKey(0, 0, true), [tile],
+            [new RoomOpening(ExitSide.North, (0f, 16f), false), new RoomOpening(ExitSide.South, (32f, 16f), false), new RoomOpening(ExitSide.East, (16f, 32f), false)]);
+        var player = new PlayerInput(16, 16, 0);
+
+        var spanish = policy.Describe(room, player).Text;
+        language.Set(SpeechLanguage.English);
+        var english = policy.Describe(room, player).Text;
+
+        Assert.StartsWith("Cruce.", spanish);
+        Assert.StartsWith("Junction. Exits:", english);
     }
 }

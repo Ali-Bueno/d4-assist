@@ -5,6 +5,10 @@ namespace D4Assist.Navigation;
 /// the opening the player just entered through (excluded from the spoken list — see AnnouncementPolicy).</summary>
 public sealed record OpeningRoute(RoomOpening Opening, StickDirection Direction, float PathLength, bool UsedPathFallback, bool IsEntry = false);
 
+/// <summary>A traced route to an opening: the look-ahead point to head for, the path length (0 on fallback),
+/// and whether BFS failed and the point is just the opening itself.</summary>
+public sealed record PathBearing((float X, float Y) Point, float Length, bool UsedFallback);
+
 /// <summary>
 /// Resolves each opening's spoken direction via a BFS path's farthest visible point (RoomPathfinder)
 /// instead of a straight line (crosses walls on an irregular room) or a fixed short look-ahead (reads
@@ -44,21 +48,24 @@ public sealed class RoomRouteCache
         return routes;
     }
 
+    /// <summary>BFS path from the player to <paramref name="goal"/> inside the room, and the farthest visible
+    /// point along it. Falls back to the opening's own position when the room has no grid or no path.</summary>
+    public static PathBearing Trace(Room room, (float X, float Y) player, RoomOpening goal)
+    {
+        if (room.NavGrid is { } grid &&
+            RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), out var path, out var length))
+        {
+            var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
+            return new PathBearing(Distance(player, farthest) < MinBearingDistanceUnits ? goal.Position : farthest, length, false);
+        }
+        return new PathBearing(goal.Position, 0f, true);
+    }
+
     private static OpeningRoute Resolve(Room room, (float X, float Y) player, RoomOpening opening)
     {
-        if (room.NavGrid is { } grid)
-        {
-            var targets = InwardTargets(grid, opening);
-            if (RoomPathfinder.TryFindPath(grid, player, targets, out var path, out var length))
-            {
-                var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
-                var bearing = Distance(player, farthest) < MinBearingDistanceUnits ? opening.Position : farthest;
-                var direction = ScreenDirections.Bin(bearing.X - player.X, bearing.Y - player.Y);
-                return new OpeningRoute(opening, direction, length, UsedPathFallback: false);
-            }
-        }
-        var straightLine = ScreenDirections.Bin(opening.Position.X - player.X, opening.Position.Y - player.Y);
-        return new OpeningRoute(opening, straightLine, 0f, UsedPathFallback: true);
+        var trace = Trace(room, player, opening);
+        var direction = ScreenDirections.Bin(trace.Point.X - player.X, trace.Point.Y - player.Y);
+        return new OpeningRoute(opening, direction, trace.Length, trace.UsedFallback);
     }
 
     private static List<(int Row, int Col)> InwardTargets(WalkGrid grid, RoomOpening opening)

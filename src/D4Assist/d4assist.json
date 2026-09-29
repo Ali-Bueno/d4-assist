@@ -1,10 +1,16 @@
 {
-  "InstallPath": "D:\\games\\battlenet\\Diablo IV",
-  "DefinitionsPath": "D:\\code\\d4 dungeon assist\\data\\definitions.json",
+  "Language": "auto",
   "SpeechEnabled": true,
   "AutoAnnouncementsEnabled": true,
   "InterruptOnContextChange": true,
-  "RadarVolume": 1.0,
   "RadarEnabled": true,
-  "RadarFrame": "Cardinal"
+  "RadarVolume": 1.0,
+  "RadarFrame": "Cardinal",
+  "BeaconSoundsEnabled": true,
+  "BeaconVolume": 1.0,
+  "ObjectiveSoundsEnabled": true,
+  "ObjectiveVolume": 1.0,
+  "ExplorationGuideEnabled": true,
+  "ExplorationGuideInDungeons": false,
+  "ExplorationGuideVolume": 1.0
 }

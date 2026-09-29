@@ -31,6 +31,7 @@ Line shape (regex from `DiabloDungeonTimer/LogEntry.cs:43`):
 | Dungeon portal | `[WarpManager] Intro portal to dungeon Subzone 'PIT_Subzone'` |
 | Overworld portal | `[WarpManager] Intro portal to exterior Subzone 'Kehj_Caldeum'` |
 | Waypoint | `[WarpManager] Intro waypoint to LevelArea 'Frac_Kyovashad'` |
+| Game language (each start) | `[Game] Current Speech Locale: enUS  Current Text Locale: enUS` |
 | Transition done | `[WarpManager] Portal completed` |
 
 `Limbo`, `FrontendStartup` and `Sanctuary_Eastern_Continent` are loading/overworld worlds, not dungeons.

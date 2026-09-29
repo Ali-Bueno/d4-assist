@@ -34,7 +34,7 @@ of `TileInput`/`PlayerInput` snapshots the host app feeds in.
    speak; corridors are silent unless `IncludeCorridors` is set. Diff-gated —
    identical text is never repeated. Also returns each opening's `OpeningRoute`
    (position, width, path length, fallback flags) for `--debug` diagnostics.
-8. `SpanishPhrases` holds every spoken string.
+8. `NavigationPhrases` holds every spoken string (`Spanish` / `English` instances; `LanguageSetting` is the live switch).
 9. `NavigationEngine` is the entry point: `OnTiles`, `OnPlayer`, `Reset`, and an
    `Announce(text, interrupt)` event. `Interrupt` defaults to `false` so automatic
    announcements never cut the game's own NVDA speech. Takes an optional
@@ -59,6 +59,23 @@ a correctly-placed opening can cross a wall on an irregular room. Fixed by:
 (CASC read, no live process access), cached per scene SNO. `WalkGrid`'s
 row=X/column=Y convention is pinned against real data in `WalkGridOrientationTests`
 (the exact tile from the 2026-09-28 bug report, `TT_Step_City_to_Protodun_Jail_NSEW_01`).
+
+## Exploration guide
+
+`DungeonMap` also records explored tiles: ones the player stood in (`MarkVisited`, fed by `NavigationEngine.OnPlayer`)
+or saw from a doorway (`MarkSeen`, see below); cleared with `Reset`. `ExplorationGuide` (`engine.Guide.Step(player)`) leads to the nearest unexplored part:
+a loaded tile never stood in, or a frontier (an exit opening whose far side never loaded). `TileGraph` links
+tiles through their real openings (`OpeningFinder`); `TileRoutes` runs Dijkstra from the player's tile with
+straight legs between crossings. The waypoint is `RoomRouteCache.Trace` (BFS path + farthest visible point)
+toward the first opening that leaves the player's room. Seen, not stood-in: a tile directly joined to the player's by a real opening (graph edge, never across a wall)
+is explored once the player is within `SeenRadiusUnits` (20) of its centre, so dead ends are learnt from
+their doorway (big tiles still need entering). Hysteresis: the current target stays unless another
+is `SwitchMarginUnits` (one tile) shorter, and is never dropped while its route is under `CommitDistanceUnits`
+(one tile) unless it stops being a candidate. A frontier that still hasn't loaded when the player stands within
+`FrontierArrivalUnits` is a dead exit and is dropped. Nothing left reachable gives `AllExplored`; off the
+known grid gives `Unknown`. Guess: exit bits are symmetric (only the side carrying the bit gets an edge).
+Touching tiles of one room are linked even without exit bits (preset rooms' live masks omit internal sides).
+`Arrivals` counts targets reached (explored, or a dead exit stood at), not targets that merely loaded.
 
 ## D2R correspondence
 

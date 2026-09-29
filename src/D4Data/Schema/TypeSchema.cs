@@ -11,6 +11,9 @@ public sealed class TypeSchema
     private const int ExternalPayloadFlagA = 0x200000;
     private const int ExternalPayloadFlagB = 0x400000;
 
+    // Type name whose hash (the key in definitions.json) marks a field as a polymorphic array.
+    private const string PolymorphicArrayType = "DT_POLYMORPHIC_VARIABLEARRAY";
+
     private readonly Dictionary<string, TypeDef> _types;
 
     private TypeSchema(Dictionary<string, TypeDef> types) => _types = types;
@@ -19,6 +22,8 @@ public sealed class TypeSchema
     {
         using var doc = JsonDocument.Parse(File.ReadAllBytes(definitionsPath));
         var types = new Dictionary<string, TypeDef>(StringComparer.Ordinal);
+        long polymorphicArrayHash = doc.RootElement.EnumerateObject()
+            .Where(e => e.Value.GetProperty("name").GetString() == PolymorphicArrayType).Select(e => long.Parse(e.Name)).FirstOrDefault(-1);
         foreach (var entry in doc.RootElement.EnumerateObject())
         {
             var t = entry.Value;
@@ -27,7 +32,8 @@ public sealed class TypeSchema
             if (t.TryGetProperty("fields", out var fs) && fs.ValueKind == JsonValueKind.Array)
                 foreach (var f in fs.EnumerateArray())
                     fields[f.GetProperty("name").GetString()!] = new FieldDef(
-                        f.GetProperty("offset").GetInt32(), f.GetProperty("flags").GetInt32());
+                        f.GetProperty("offset").GetInt32(), f.GetProperty("flags").GetInt32(),
+                        f.GetProperty("type")[0].GetInt64() == polymorphicArrayHash);
             var size = t.TryGetProperty("size", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : 0;
             var group = t.TryGetProperty("snoGroup", out var g) && g.ValueKind == JsonValueKind.Number ? g.GetInt32() : -1;
             types[name] = new TypeDef(size, group, fields);
@@ -46,6 +52,8 @@ public sealed class TypeSchema
     public bool IsInPayload(string type, string field) =>
         (Field(type, field).Flags & (ExternalPayloadFlagA | ExternalPayloadFlagB)) != 0;
 
+    public bool IsPolymorphicArray(string type, string field) => Field(type, field).IsPolymorphicArray;
+
     private TypeDef Type(string type) =>
         _types.TryGetValue(type, out var t) ? t : throw new InvalidDataException($"Type {type} missing from definitions.json");
 
@@ -55,5 +63,5 @@ public sealed class TypeSchema
 
     private sealed record TypeDef(int Size, int SnoGroup, Dictionary<string, FieldDef> Fields);
 
-    private readonly record struct FieldDef(int Offset, int Flags);
+    private readonly record struct FieldDef(int Offset, int Flags, bool IsPolymorphicArray);
 }

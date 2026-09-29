@@ -1,6 +1,6 @@
 # STATUS — Diablo IV Dungeon Assist
 
-**Last updated:** 2026-09-28 — live test 3 passed: spoken room announcements + D2R-ported radar work in real dungeons (incl. a preset throne room). Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
+**Last updated:** 2026-09-28 — Undercity: exit beacon works live; exploration guide built, awaiting live test; radar +12 dB. Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
 
 ## Identity
 
@@ -24,7 +24,11 @@
 | P4 Auto room announcements (D2R `Rooms::Describe` port) | wip | live test 2 (2026-09-28): user finished the dungeon faster but directions felt imprecise. Fixed: bearing to the farthest line-of-sight path point (was a 3-unit look-ahead → diagonal bias), widest run wins per neighbour (a 1-cell noise run hid the real 15-wide exit), start-cell snap, 4-unit doorway stickiness + silent rekey, entry opening not spoken ("Sin otras salidas."), first room = "Entrada.", repeated directions grouped. Live test 3: "funcionó"; direction accuracy not yet re-assessed in detail |
 | P5 Procedural dungeon / exploration tracking | todo | |
 | P5b D2R radar (port) | wip | `src/D4Assist.Radar` ([README](src/D4Assist.Radar/README.md)) + `DungeonRadarWorld`/`RadarBridge`; Cardinal frame; cues queued like D2R (`CueScheduler`). **Live test 3 (2026-09-28): works, user impressed**, incl. a preset throne room. Depths (10/7) not tuned yet. No beacon/XInput yet |
+| Exploration guide (auto ping to nearest unexplored part) | wip | Live 2026-09-28: "funcionó", cadence fine. D2R arrival chime per target; off in the Undercity boss room; on by default in Undercity + Pit, off elsewhere, D-pad left toggles (read-only XInput). Stops when the game closes. Next: lead to visible objectives first, detect barriers ("Paso bloqueado.") |
 | P6 UX (cues, TTS, anti-spam, controller) | todo | |
+| Endgame (Undercity, Pit) | wip | All 71 `PIT_`/`X1_Undercity_` worlds are DRLG → app active. Undercity BugCave 1–3 live 2026-09-28: announcements + radar work; radar +12 dB after "drowned in fights" |
+| Exit beacon (Undercity) | wip | `BeaconBridge`: `quest-item` loop (D2R sound) at `X1_Undercity_WarpPad` from the live actor list; worked on all 3 floors, pad visible only within 22–34 units ([dungeon-objectives](research/dungeon-objectives.md) §5). Pit: no static exit, needs its actors |
+| P7 Objective / interactable cues (prisoners, levers, carryables) | wip | `ActorLoopBridge` + `ObjectiveClassifier`: `quest-item` loop on DPO-quest actors (world → `zone_progress` → DPO, `DungeonObjectiveReader`), carryables/receptacles/quest switches+chests, live prisoners. **Not live-tested.** "Used" signal unknown: seam `isUsed`; find it with `D4MemScan actors --watch 20 --match <name>` |
 | Adapter + Speech (`Speak("test")` via PRISM) | done | Prismatoid 0.3.0, backend NVDA; `src/D4Assist` companion app |
 
 ## Derived facts
@@ -47,6 +51,8 @@
 | Live CScene record found | `snoScene` + transform @+80 + local AABB @+136 (== offline) + exit mask @−44; only ~2 tiles around the player loaded | [client-memory](research/client-memory.md) §1 |
 | Revealed list at entry | all scene ids + SNOs known at entry, no positions | [client-memory](research/client-memory.md) §2 |
 | Player position (static) | record in main-module `.data`: `p−16` scene SNO, `p−12` world SNO, `p−8` actor SNO, `p` vec3; 1 copy, stable RVA per build | [client-memory](research/client-memory.md) §3 |
+| Live actor list | RActor pool `[G+0xB78]`, same pool template as scenes, seed RVA 0x37CC5A0, stride base 0xC27; slot +0x5B8 actor SNO, +0x760 position, +0x7AC placement | offline code RE, **validated live** 2026-09-28 (Undercity boss room; only actors within ~65 units), [client-memory](research/client-memory.md) §4 |
+| Dungeon objective actors | world → Global `zone_progress` (1004219) → `DPO_*` quest → callback `snoActor`; category from `ActorDefinition.eType` / `eActorGizmoType` | [dungeon-objectives](research/dungeon-objectives.md) |
 | Player heading | actor record (heap, stride 0x680) `+0x6C` quaternion, yaw from +X to +Y | [client-memory](research/client-memory.md) §3 |
 | Screen ↔ world (camera) | stick up = −X−Y, right = −X+Y, down = +X+Y, left = +X−Y (tile exit N = screen up-right) | 4 live moves 2026-09-28, [client-memory](research/client-memory.md) §3 |
 | Scene record signature | `RevealSceneMessage`: `snoScene` @344, `transform` PRTransform (quat + vec3) @356 | d4data `definitions.json` (build 3.2.1.73552) |
@@ -54,7 +60,8 @@
 
 ## Next step
 
-User's next ask (2026-09-28): audio cues for quest objects and things to interact with to progress (e.g. prisoners). Needs a live actor/gizmo list (only the player record is known so far) — find it the same way as the scene pool (static route from `.data`). Then: L3 beacon via read-only XInput (D2R design).
+1. **"Used" signal (user, 2026-09-29): objective loops must stop on interaction, not on proximity.** Next time the user stands at a prisoner/lever/barrier: `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while they use it, then plug the finding into `ActorLoopBridge`'s `isUsed` seam. Live case: the Yshari Sanctum boss barrier (`DRLG_Blocker_Mage_Halls_…`, DPO) kept sounding ~10 s after the key opened it, until the game removed it. The user rejected a proximity or button-press stand-in.
+2. Exploration guide: lead to visible objectives first; detect barriers ("Paso bloqueado." / "Path blocked."). The doorway-peek + commitment fix (2026-09-29) is not yet live-tested.
 
 ## User and decisions
 
@@ -62,6 +69,7 @@ User's next ask (2026-09-28): audio cues for quest objects and things to interac
 - **Risk (2026-09-26):** the user accepted the ban risk of **read-only** memory reading on their main account (no second account). Don't re-litigate it. Don't suggest asking Blizzard: promised for 3 years, nothing delivered, Diablo 5 announced. Never write to or inject into the game, never implement anti-cheat evasion or stealth, read memory only while in a dungeon, and keep live RE sessions short.
 - **Minimap computer vision:** rejected by the user as imprecise and needing per-resolution/per-PC setup. Don't propose it without new evidence.
 - **Navigation audio = the user's D2R radar** (`D:\code\c++\diablo 2 access project\d2r-access`, read-only, never modify): same cues, 4-ray Cardinal frame, same anti-spam, cues one after another. Copy the D2R design first and deviate only when D4 forces it or the user asks. The one requested deviation: the open-floor breath must sound clearly different up vs down (the user fixes D2R themselves).
+- **Radar-only worlds (2026-09-28):** user-approved exception to "memory only in a dungeon", built for the Mercenary den (`Mercenary_Hideout`) for a video. Config `RadarOnlyWorlds` runs radar and actor loops there. **Default empty**: the den's scene has no detailed walkable grid (only 6 coarse boxes), so the radar can't work there yet. Do not widen the list without asking.
 - **Features (2026-09-28):** first = automatic spoken announcements (junctions, dead ends, big rooms) in stick directions, then the radar. Language: C# (.NET 10).
 - **Repository:** private GitHub `Ali-Bueno/d4-dungeon-assist`. Never make it public without asking (it reads game memory).
 - **Project knowledge lives in this repo only** (this file, `research/`, READMEs), never in assistant memory.

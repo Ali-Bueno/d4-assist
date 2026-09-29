@@ -25,6 +25,9 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
     /// <summary>Raised once per "Client entered world" line seen after startup, with the world's name.</summary>
     public event Action<string>? WorldChanged;
 
+    /// <summary>Raised once per "Current Text Locale" line seen after startup, with the locale (e.g. "enUS").</summary>
+    public event Action<string>? TextLocaleChanged;
+
     public WorldLogWatcher(string installPath)
     {
         _path = Path.Combine(installPath, LogFileName);
@@ -33,12 +36,17 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
     }
 
     /// <summary>The last "Client entered world" line already in the file — the world to assume at startup.</summary>
-    public string? ReadLastWorldNameAtStartup()
+    public string? ReadLastWorldNameAtStartup() => ReadLastMatch(ExtractWorldName);
+
+    /// <summary>The last "Current Text Locale" line already in the file — the game's language at startup.</summary>
+    public string? ReadLastTextLocaleAtStartup() => ReadLastMatch(GameLocale.ExtractTextLocale);
+
+    private string? ReadLastMatch(Func<string, string?> extract)
     {
         if (!File.Exists(_path)) return null;
         string? last = null;
         foreach (var line in File.ReadLines(_path))
-            if (ExtractWorldName(line) is { } name) last = name;
+            if (extract(line) is { } match) last = match;
         return last;
     }
 
@@ -72,8 +80,10 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
         if (lastNewline < 0) return 0;
         string complete = text[..(lastNewline + 1)];
         foreach (var line in complete.Split('\n'))
-            if (ExtractWorldName(line) is { } name)
-                WorldChanged?.Invoke(name);
+        {
+            if (GameLocale.ExtractTextLocale(line) is { } locale) TextLocaleChanged?.Invoke(locale);
+            if (ExtractWorldName(line) is { } name) WorldChanged?.Invoke(name);
+        }
         return Encoding.UTF8.GetByteCount(complete);
     }
 

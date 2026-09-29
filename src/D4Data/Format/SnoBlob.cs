@@ -16,6 +16,10 @@ public sealed class SnoBlob(byte[] bytes, int baseOffset = 0)
     // DT_VARIABLEARRAY = { i64 pad; i32 dataOffset; i32 dataSize } (d4data parse.js).
     private const int VarArrayDataOffset = 8;
     private const int VarArrayDataSize = 12;
+    // DT_POLYMORPHIC_VARIABLEARRAY adds the element count after the descriptor (d4data parse.js), and its data
+    // starts with one 8-byte type header per element, followed by the elements themselves.
+    private const int PolymorphicCount = 16;
+    private const int PolymorphicTypeHeaderSize = 8;
 
     /// <summary>A Meta file: validates and skips the SNO header.</summary>
     public static SnoBlob FromMeta(byte[] file)
@@ -52,6 +56,17 @@ public sealed class SnoBlob(byte[] bytes, int baseOffset = 0)
         var (data, size) = ArrayDescriptor(off);
         if (data <= 0 || size <= 0 || stride <= 0) yield break;
         for (int p = data; p + stride <= data + size; p += stride) yield return p;
+    }
+
+    /// <summary>Element offsets of a DT_POLYMORPHIC_VARIABLEARRAY whose elements are all <paramref name="stride"/> bytes
+    /// (base type only); empty when the data size does not match that, i.e. some element is a larger subtype.</summary>
+    public IEnumerable<int> PolymorphicArray(int off, int stride)
+    {
+        var (data, size) = ArrayDescriptor(off);
+        int count = I32(off + PolymorphicCount);
+        int start = data + count * PolymorphicTypeHeaderSize;
+        if (data <= 0 || count <= 0 || stride <= 0 || size != count * (PolymorphicTypeHeaderSize + stride)) yield break;
+        for (int i = 0; i < count; i++) yield return start + i * stride;
     }
 
     private ReadOnlySpan<byte> Span(int off, int len) => bytes.AsSpan(baseOffset + off, len);

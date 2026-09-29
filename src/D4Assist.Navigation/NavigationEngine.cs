@@ -15,7 +15,7 @@ public sealed class NavigationEngine
 
     private readonly DungeonMap _map = new();
     private readonly RoomHysteresis _hysteresis = new();
-    private readonly AnnouncementPolicy _policy = new();
+    private readonly AnnouncementPolicy _policy;
     private readonly ITileWalkability? _walkability;
 
     private Room? _current;
@@ -40,7 +40,16 @@ public sealed class NavigationEngine
 
     /// <param name="walkability">Optional host-supplied tile walkability; null keeps the pre-fix
     /// side-midpoint/straight-line behaviour everywhere (e.g. tests with no grid data).</param>
-    public NavigationEngine(ITileWalkability? walkability = null) => _walkability = walkability;
+    /// <param name="language">Language of the spoken announcements; null means Spanish.</param>
+    public NavigationEngine(ITileWalkability? walkability = null, LanguageSetting? language = null)
+    {
+        _policy = new AnnouncementPolicy(language);
+        _walkability = walkability;
+        Guide = new ExplorationGuide(_map, walkability);
+    }
+
+    /// <summary>Leads to the nearest unexplored part of the dungeon; "explored" means the player stood in the tile or saw it from a connected doorway.</summary>
+    public ExplorationGuide Guide { get; }
 
     /// <summary>Feed the current loaded-tile window.</summary>
     public void OnTiles(IReadOnlyList<TileInput> tiles) => _map.AddOrUpdate(tiles);
@@ -49,6 +58,7 @@ public sealed class NavigationEngine
     public void OnPlayer(PlayerInput player, TimeSpan now)
     {
         var nowMs = (long)now.TotalMilliseconds;
+        _map.MarkVisited(player.X, player.Y);
         if (!RoomModel.TryGetRoom(_map, player.X, player.Y, out var room, _walkability))
         {
             _hysteresis.Observe(RoomKey.Invalid, nowMs); // off-grid: not knowing is not leaving
@@ -96,6 +106,7 @@ public sealed class NavigationEngine
     public void Reset()
     {
         _map.Reset();
+        Guide.Reset();
         _hysteresis.Reset();
         _policy.Reset();
         _current = null;

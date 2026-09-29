@@ -28,6 +28,8 @@
   <ItemGroup>
     <!-- Ships next to the exe so a fresh checkout has a starting config; see Config/AppConfig.cs. -->
     <None Update="d4assist.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- d4data type registry (data/ is not in git: see README "Setup"); shipped next to the exe as the default DefinitionsPath. -->
+    <None Include="..\..\data\definitions.json" Link="definitions.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\data\definitions.json')" />
   </ItemGroup>
 
 </Project>

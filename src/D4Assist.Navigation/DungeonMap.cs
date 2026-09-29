@@ -9,6 +9,10 @@ public sealed class DungeonMap
 {
     private readonly Dictionary<(int X, int Y), MapTile> _tilesByOrigin = new();
     private readonly Dictionary<(int X, int Y), MapTile> _cellIndex = new();
+    private readonly HashSet<(int X, int Y)> _visited = new();
+
+    /// <summary>Bumps whenever a tile is new or changed, or a tile is first visited — lets consumers cache derived data.</summary>
+    public int Version { get; private set; }
 
     /// <summary>Add or replace tiles from the latest loaded-window snapshot.</summary>
     public void AddOrUpdate(IReadOnlyList<TileInput> tiles)
@@ -16,6 +20,7 @@ public sealed class DungeonMap
         foreach (var input in tiles)
         {
             var tile = new MapTile(input);
+            if (!_tilesByOrigin.TryGetValue((tile.CellX, tile.CellY), out var known) || known.Input != input) Version++;
             _tilesByOrigin[(tile.CellX, tile.CellY)] = tile;
             for (var dx = 0; dx < tile.SpanCellsX; dx++)
                 for (var dy = 0; dy < tile.SpanCellsY; dy++)
@@ -28,7 +33,28 @@ public sealed class DungeonMap
     {
         _tilesByOrigin.Clear();
         _cellIndex.Clear();
+        _visited.Clear();
+        Version++;
     }
+
+    /// <summary>Records that the player stood at a world position; returns true when that tile was not visited before.</summary>
+    public bool MarkVisited(float worldX, float worldY)
+    {
+        if (TileAt(worldX, worldY) is not { } tile || !_visited.Add((tile.CellX, tile.CellY))) return false;
+        Version++;
+        return true;
+    }
+
+    /// <summary>Records that the player saw <paramref name="tile"/> from a doorway (ExplorationGuide.SeenRadiusUnits); true when it was not explored before.</summary>
+    public bool MarkSeen(MapTile tile)
+    {
+        if (!_visited.Add((tile.CellX, tile.CellY))) return false;
+        Version++;
+        return true;
+    }
+
+    /// <summary>True when the tile counts as explored: the player stood in it or saw it from a connected doorway (a tile, not merely a loaded one).</summary>
+    public bool IsVisited(MapTile tile) => _visited.Contains((tile.CellX, tile.CellY));
 
     /// <summary>The tile covering a world position, or null when unseen/unloaded.</summary>
     public MapTile? TileAt(float worldX, float worldY) =>

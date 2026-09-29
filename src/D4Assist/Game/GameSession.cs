@@ -12,38 +12,60 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     // Poll intervals (task spec): position needs to feel responsive, tiles change far less often.
     public const int DefaultPlayerPollIntervalMs = 100;
     public const int DefaultTilePollIntervalMs = 1000;
+    // D2R refreshes its object lists every 500 ms (d2r-access docs/ground-items.md).
+    public const int DefaultActorPollIntervalMs = 500;
+
+    /// <summary>WorldChanged's world SNO when the game process is gone (no world at all), so every bridge silences.</summary>
+    public const int NoWorldSno = -1;
+    public const string GameLostWorldName = "(game closed)";
 
     private readonly IWorldClassifier _classifier;
     private readonly Func<int, IReadOnlySet<int>, IDungeonSessionReader?> _openSession;
     private readonly IReadOnlySet<int> _sceneSnos;
+    private readonly Func<int, IReadOnlyList<TileState>>? _staticTiles;
     private readonly int _playerPollIntervalMs;
     private readonly int _tilePollIntervalMs;
+    private readonly int _actorPollIntervalMs;
     private readonly object _gate = new();
 
     private Timer? _playerTimer;
     private Timer? _tileTimer;
+    private Timer? _actorTimer;
     private IDungeonSessionReader? _session;
     private int _currentWorldSno = -1;
+    private readonly HashSet<string> _reportedPollFailures = [];
     private bool _fallbackScanTriggered;
 
     public SessionState State { get; private set; } = SessionState.WaitingForGame;
 
+    /// <summary>IsDungeon is true only for DRLG dungeons; a radar-only world reports false here (bridges stay silent) and true in <see cref="CurrentWorldRadarOnly"/>.</summary>
+    public (string Name, bool IsDungeon)? CurrentWorld { get; private set; }
+
+    public bool CurrentWorldRadarOnly { get; private set; }
+
+    public WorldKind CurrentWorldKind { get; private set; }
+
     public event Action<int, string, bool>? WorldChanged;
     public event Action<IReadOnlyList<TileState>>? TilesUpdated;
     public event Action<PlayerState>? PlayerMoved;
+    public event Action<IReadOnlyList<ActorState>>? ActorsUpdated;
 
+    /// <param name="staticTiles">Offline tiles of a radar-only (static-grid) world, raised once on entry; null means none.</param>
     /// <param name="playerPollIntervalMs">Timer.Infinite disables the automatic timer entirely — tests then
     /// drive polling deterministically via PollPlayerOnce/PollTilesOnce instead of a background tick.</param>
     public GameSession(
         IWorldNameSource feed, IWorldClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?> openSession, IReadOnlySet<int> sceneSnos,
-        int playerPollIntervalMs = DefaultPlayerPollIntervalMs, int tilePollIntervalMs = DefaultTilePollIntervalMs)
+        int playerPollIntervalMs = DefaultPlayerPollIntervalMs, int tilePollIntervalMs = DefaultTilePollIntervalMs,
+        int actorPollIntervalMs = DefaultActorPollIntervalMs, Func<int, IReadOnlyList<TileState>>? staticTiles = null)
     {
+        _staticTiles = staticTiles;
         _classifier = classifier;
         _openSession = openSession;
         _sceneSnos = sceneSnos;
         _playerPollIntervalMs = playerPollIntervalMs;
         _tilePollIntervalMs = tilePollIntervalMs;
+        _actorPollIntervalMs = actorPollIntervalMs;
 
         feed.WorldChanged += OnWorldChanged;
         if (feed.ReadLastWorldNameAtStartup() is { } lastWorld) OnWorldChanged(lastWorld);
@@ -51,7 +73,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     private void OnWorldChanged(string worldName)
     {
-        (int WorldSno, bool IsDungeon) classified;
+        (int WorldSno, WorldKind Kind) classified;
         try { classified = _classifier.Classify(worldName); }
         catch (ArgumentException) { return; } // world name not in CoreTOC; ignore rather than crash the loop
 
@@ -62,28 +84,50 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             _currentWorldSno = classified.WorldSno;
 
             LeaveDungeonLocked();
-            State = classified.IsDungeon ? SessionState.InDungeon : SessionState.Idle;
-            WorldChanged?.Invoke(classified.WorldSno, worldName, classified.IsDungeon);
-            if (classified.IsDungeon) EnterDungeonLocked();
+            bool isDungeon = classified.Kind == WorldKind.Dungeon;
+            bool radarOnly = classified.Kind == WorldKind.RadarOnly;
+            State = isDungeon || radarOnly ? SessionState.InDungeon : SessionState.Idle; // InDungeon = a memory session is open
+            CurrentWorld = (worldName, isDungeon);
+            CurrentWorldKind = classified.Kind;
+            CurrentWorldRadarOnly = radarOnly;
+            Raise("world", WorldChanged, h => h(classified.WorldSno, worldName, isDungeon));
+            if (isDungeon || radarOnly) EnterDungeonLocked(radarOnly);
         }
     }
 
-    private void EnterDungeonLocked()
+    private void EnterDungeonLocked(bool radarOnly)
     {
         try { _session = _openSession(_currentWorldSno, _sceneSnos); }
         catch (InvalidOperationException) { _session = null; } // game process not running
 
-        if (_session is null) { State = SessionState.Idle; return; } // stay accessible-but-idle, no reads
+        if (_session is null) { State = SessionState.Idle; CurrentWorldRadarOnly = false; return; } // stay accessible-but-idle, no reads
 
         _fallbackScanTriggered = false;
         _playerTimer = new Timer(_ => PollPlayerOnce(), null, _playerPollIntervalMs, _playerPollIntervalMs);
+        // Static grid: the tiles come from offline data (the live CScene route cannot match them), re-raised on
+        // every tile poll so listeners created after entry — e.g. when the app starts in the den — still get them.
+        if (radarOnly) RaiseStaticTiles();
         _tileTimer = new Timer(_ => PollTilesOnce(), null, _tilePollIntervalMs, _tilePollIntervalMs);
+        _actorTimer = new Timer(_ => PollActorsOnce(), null, _actorPollIntervalMs, _actorPollIntervalMs);
+    }
+
+    private void RaiseStaticTiles()
+    {
+        IReadOnlyList<TileState> tiles;
+        try { tiles = _staticTiles?.Invoke(_currentWorldSno) ?? []; }
+        catch (Exception e) when (e is IOException or InvalidDataException or ArgumentException or KeyNotFoundException)
+        {
+            Console.Error.WriteLine($"Static tiles unavailable for world {_currentWorldSno}: {e.Message}");
+            return;
+        }
+        Raise("tiles", TilesUpdated, h => h(tiles));
     }
 
     private void LeaveDungeonLocked()
     {
         _playerTimer?.Dispose(); _playerTimer = null;
         _tileTimer?.Dispose(); _tileTimer = null;
+        _actorTimer?.Dispose(); _actorTimer = null;
         _session?.Dispose(); _session = null;
     }
 
@@ -96,7 +140,33 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
         var player = session.ReadPlayer();
         if (player is null) { HandleSessionLost(session); return; } // process likely exited
-        PlayerMoved?.Invoke(player);
+        if (player.IsWorldUnloaded) return;
+        Raise("player", PlayerMoved, h => h(player));
+    }
+
+    /// <summary>Runs one actor-pool read; an unavailable pool is skipped silently (the reader logs it once).</summary>
+    public void PollActorsOnce()
+    {
+        IDungeonSessionReader? session;
+        lock (_gate) session = _session;
+        if (session?.ReadActors() is { } actors) Raise("actors", ActorsUpdated, h => h(actors));
+    }
+
+    // A failing listener must never kill the app from a timer thread, nor starve the other listeners
+    // (live crash 2026-09-28): each one runs on its own, a failure is logged once per feed and polling goes on.
+    private void Raise<THandler>(string feed, THandler? handlers, Action<THandler> call) where THandler : Delegate
+    {
+        if (handlers is null) return;
+        foreach (var handler in handlers.GetInvocationList().Cast<THandler>())
+        {
+            try { call(handler); }
+            catch (Exception e)
+            {
+                bool first;
+                lock (_reportedPollFailures) first = _reportedPollFailures.Add(feed);
+                if (first) Console.Error.WriteLine($"A {feed} listener failed; the feed keeps running. {e}");
+            }
+        }
     }
 
     /// <summary>Runs one tile-route read, triggering the one-time fallback scan if the route is unavailable.
@@ -104,11 +174,13 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public void PollTilesOnce()
     {
         IDungeonSessionReader? session;
-        lock (_gate) session = _session;
+        bool radarOnly;
+        lock (_gate) (session, radarOnly) = (_session, CurrentWorldRadarOnly);
         if (session is null) return;
+        if (radarOnly) { RaiseStaticTiles(); return; } // static worlds keep their offline tiles
 
         var tiles = session.ReadTilesViaRoute();
-        if (tiles is not null) { TilesUpdated?.Invoke(tiles); return; }
+        if (tiles is not null) { Raise("tiles", TilesUpdated, h => h(tiles)); return; }
 
         lock (_gate)
         {
@@ -122,7 +194,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public void RescanTiles()
     {
         IDungeonSessionReader? session;
-        lock (_gate) session = _session;
+        lock (_gate) session = CurrentWorldRadarOnly ? null : _session;
         if (session is not null) RunFullScanInBackground(session);
     }
 
@@ -131,7 +203,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         {
             var tiles = session.ReadTilesViaFullScan();
             lock (_gate) { if (_session != session) return; }
-            TilesUpdated?.Invoke(tiles);
+            Raise("tiles", TilesUpdated, h => h(tiles));
         });
 
     private void HandleSessionLost(IDungeonSessionReader expectedSession)
@@ -141,6 +213,11 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             if (_session != expectedSession) return;
             LeaveDungeonLocked();
             State = SessionState.Idle;
+            _currentWorldSno = NoWorldSno;
+            CurrentWorld = (GameLostWorldName, false);
+            CurrentWorldRadarOnly = false;
+            CurrentWorldKind = WorldKind.Other;
+            Raise("world", WorldChanged, h => h(NoWorldSno, GameLostWorldName, false));
         }
     }
 

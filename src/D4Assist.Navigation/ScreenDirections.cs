@@ -23,6 +23,13 @@ public static class ScreenDirections
         (StickDirection.UpLeft, 0, -1),
     };
 
+    // Stick up (-1,-1) and right (-1,+1) are diagonals: their unit vectors carry 1/sqrt(2).
+    private static readonly double UnitDiagonal = 1 / Math.Sqrt(2);
+
+    /// <summary>Engine-space offset in screen axes: right of the player and above the player, same units and length.</summary>
+    public static (double Right, double Up) ToScreen(double engineDx, double engineDy) =>
+        ((engineDy - engineDx) * UnitDiagonal, (-engineDx - engineDy) * UnitDiagonal);
+
     /// <summary>
     /// Bins an engine-space (dx, dy) offset into the nearest of the 8 stick sectors.
     /// A zero vector (target at the player's own position) falls back to Up.

@@ -53,4 +53,25 @@ public class ScreenDirectionsTests
     {
         Assert.Equal(StickDirection.Up, ScreenDirections.Bin(0, 0));
     }
+
+    [Theory]
+    [InlineData(-1, -1, 0, 1)]   // stick up
+    [InlineData(-1, 1, 1, 0)]    // stick right
+    [InlineData(1, 1, 0, -1)]    // stick down
+    [InlineData(1, -1, -1, 0)]   // stick left
+    public void ToScreen_maps_the_calibration_vectors_to_unit_screen_axes(double dx, double dy, double right, double up)
+    {
+        var (r, u) = ScreenDirections.ToScreen(dx, dy);
+
+        Assert.Equal(right * Math.Sqrt(2), r, 9);
+        Assert.Equal(up * Math.Sqrt(2), u, 9);
+    }
+
+    [Fact]
+    public void ToScreen_preserves_distance()
+    {
+        var (r, u) = ScreenDirections.ToScreen(3, 4);
+
+        Assert.Equal(5, Math.Sqrt(r * r + u * u), 9);
+    }
 }

@@ -75,7 +75,8 @@ Qué hace
   unos 15 metros. Suena más rápido cuanto más cerca está, a la izquierda o a la
   derecha según dónde esté, y más grave si está abajo en la pantalla. Suena
   en los personajes con los que se habla, los vendedores y los que acompañan
-  en las misiones; no en los mercenarios.
+  en las misiones; no en los mercenarios. Un NPC que te sigue se calla; vuelve
+  a sonar cuando se aleja delante de ti, para que lo sigas.
 - Puertas, cofres y lecturas (NUEVO): los sonidos de D2R en bucle.
   Las puertas suenan a madera, metal (rejas, verjas, jaulas) o piedra; se oyen
   las 2 más cercanas. Los cofres, armeros y piedras sueltas suenan a cofre; los

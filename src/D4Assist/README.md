@@ -177,6 +177,9 @@ the nearest NPC within 15 units, on every player poll. It repeats faster as the 
 - **Which NPCs:** `Game/NpcClassifier` takes the fIsNPC monsters off the hostile team, including quest followers and
   escorts. It leaves out hired mercenaries, cinematic stand-ins and prisoners, which have their own loop
   ([dungeon-objectives](../../research/dungeon-objectives.md) §9).
+- **Followers go quiet:** an NPC seen walking toward the player (moved at least 1 unit in 1.5 s, within 60° of the
+  player's bearing) follows them and stays silent until it walks away from the player, leading (user, 2026-09-30).
+  `--debug` logs `NPC follows the player, silent` / `NPC leads, sounding`.
 - **No line of sight:** the overworld has no walk grid, so an NPC behind a wall taps too.
 - **Muting:** the cue gate mutes it like every cue.
 - **Log:** `--debug` logs `NPC tap: <name>` per target change.

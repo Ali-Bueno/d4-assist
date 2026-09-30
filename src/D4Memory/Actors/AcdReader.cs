@@ -23,9 +23,12 @@ public sealed class AcdReader
     private const int RecordBytes = AttributesPointerOffset + sizeof(long);
 
     private readonly IMemoryReader _reader;
-    private readonly PoolContainer _pool;
+    private readonly long _moduleBase;
+    private readonly GameBuildOffsets _offsets;
+    private volatile PoolContainer _pool;
 
-    private AcdReader(IMemoryReader reader, PoolContainer pool) => (_reader, _pool) = (reader, pool);
+    private AcdReader(IMemoryReader reader, long moduleBase, GameBuildOffsets offsets, PoolContainer pool) =>
+        (_reader, _moduleBase, _offsets, _pool) = (reader, moduleBase, offsets, pool);
 
     /// <summary>Byte distance between slots; a slot holds this many bytes.</summary>
     public long Stride => _pool.Stride;
@@ -35,8 +38,15 @@ public sealed class AcdReader
     {
         acds = null!;
         if (offsets.Acd is not { } acd || !PoolContainer.TryOpen(reader, moduleBase, offsets, acd.Pool, out var pool)) return false;
-        acds = new AcdReader(reader, pool);
+        acds = new AcdReader(reader, moduleBase, offsets, pool);
         return true;
+    }
+
+    /// <summary>Re-reads the pool header, keeping the last one when unreadable: the pool grows as actors load, and a slot
+    /// past the size read before is never found (live 2026-09-30: a dungeon door's flags never arrived).</summary>
+    public void Refresh()
+    {
+        if (PoolContainer.TryOpen(_reader, _moduleBase, _offsets, _offsets.Acd!.Pool, out var pool)) _pool = pool;
     }
 
     /// <summary>The slot holding <paramref name="acdId"/> now (an RActor's +0x0C), or false when it is freed.</summary>

@@ -25,4 +25,7 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>Names of the open watched menu screens; null while they are not located or unreadable.</summary>
     IReadOnlyList<string>? ReadMenus() => null;
+
+    /// <summary>True while an in-engine cinematic plays; null while the player's state is unreadable.</summary>
+    bool? ReadCinematic() => null;
 }

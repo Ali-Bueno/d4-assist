@@ -400,6 +400,26 @@ public class GameSessionTests
         Assert.Equal(0, reader.FullScanCount);
     }
 
+    [Fact]
+    public void TheActorPollRaisesTheCinematicStateOnlyWhenReadable()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().MapOverworld(OverworldName, OverworldSno);
+        var reader = new FakeDungeonSessionReader();
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        var cinematic = new List<bool>();
+        session.CinematicRead += cinematic.Add;
+
+        feed.Raise(OverworldName);
+        session.PollActorsOnce(); // unreadable: nothing raised
+        reader.NextCinematic = true;
+        session.PollActorsOnce();
+        reader.NextCinematic = false;
+        session.PollActorsOnce();
+
+        Assert.Equal([true, false], cinematic);
+    }
+
     private static GameSession NewSession(
         FakeWorldNameSource feed, FakeClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?>? openSession = null,
@@ -454,6 +474,8 @@ public class GameSessionTests
         public int RouteReads { get; private set; }
         public IReadOnlyList<TileState>? ReadTilesViaRoute() { RouteReads++; return NextRouteTiles; }
         public IReadOnlyList<ActorState>? ReadActors() => NextActors;
+        public bool? NextCinematic { get; set; }
+        public bool? ReadCinematic() => NextCinematic;
 
         public IReadOnlyList<TileState> ReadTilesViaFullScan()
         {

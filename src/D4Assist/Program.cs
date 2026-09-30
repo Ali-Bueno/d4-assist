@@ -139,7 +139,13 @@ internal static class Program
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine);
         var cueGate = new CueGate(paused => mixer.Paused = paused, Console.WriteLine); // mute reasons always logged: testers' "no sound" reports
         session.TransitChanged += loading => cueGate.Set(CueMute.Loading, loading); // the loops would hang on their last positions
-        if (config.PauseCuesInCutscenes) WatchCutscenes(logWatcher, session, cueGate, debug);
+        if (config.PauseCuesInCutscenes)
+        {
+            WatchCutscenes(logWatcher, session, cueGate, debug);
+            // In-engine cinematics log nothing; the player's RTC Playing flag covers them (research/runtime-signals.md §2).
+            session.CinematicRead += playing => cueGate.Set(CueMute.Cinematic, playing);
+            session.WorldChanged += (_, _, _) => cueGate.Set(CueMute.Cinematic, false);
+        }
         using var focus = config.PauseCuesInBackground ? new GameWindowFocus(cueGate) : null;
         if (config.PauseCuesInConversations)
         {

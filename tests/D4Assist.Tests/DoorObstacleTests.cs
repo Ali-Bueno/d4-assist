@@ -64,6 +64,7 @@ public class DoorObstacleTests
             new ActorState(3, StartOpenSno, 10, 0, 0),
             new ActorState(4, ChestSno, 15, 0, 0),
             new ActorState(5, DoorSno, 20, 0, 12), // a floor above
+            new ActorState(6, DoorSno, 25, 0, 0, GizmoStateSet: true), // in the open state
         };
 
         var closed = Obstacles().Closed(actors, playerZ: 0);

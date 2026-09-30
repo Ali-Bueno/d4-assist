@@ -54,6 +54,19 @@ public class DungeonObjectiveReaderRealDataTests
     }
 
     [Fact]
+    public void ActorDefinitionReader_ReadsTheCarryablesAReceptacleTakes()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var reader = new ActorDefinitionReader(store, TypeSchema.Load(definitions));
+
+        // The Glacier idol quest (live 2026-09-30): each altar takes its own idol.
+        Assert.Contains(1240645, reader.Read(1240714)!.Value.AcceptedCarryables!); // Receptacle_…_Cursed_01 ← Carryable_…_Cursed_01
+        Assert.Contains(1240647, reader.Read(1240716)!.Value.AcceptedCarryables!); // Receptacle_…_Cursed_02 ← Carryable_…_Cursed_02
+        Assert.Null(reader.Read(1240647)!.Value.AcceptedCarryables);
+    }
+
+    [Fact]
     public void ActorDefinitionReader_PlayerActorSnosCoverEveryClassAndSexOnly()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

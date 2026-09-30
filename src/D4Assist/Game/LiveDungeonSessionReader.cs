@@ -38,6 +38,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private bool _actorFailureLogged;
     private AcdFlagReader? _flags;
     private bool _flagsMissing;
+    private uint? _playerAcdId;
+
+    // The actors' flags, plus the player's cinematic flag.
+    private static readonly string[] AcdNames = [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying];
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
@@ -177,14 +181,27 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlyList<string>? ReadMenus() => _menus?.Read(_process, _module);
 
+    // The player's RTC Playing flag (research/runtime-signals.md §2); the ACD id comes from the last actor read.
+    public bool? ReadCinematic() =>
+        _flags is { } flags && _playerAcdId is { } acd && flags.Known.Contains(AcdFlagReader.RtcPlaying)
+            ? flags.Values(acd).ContainsKey(AcdFlagReader.RtcPlaying)
+            : null;
+
+    // The player's own record: the closest one with the player's actor SNO (another player of the same class can be near).
+    private RActorRecord? PlayerRecord(IReadOnlyList<RActorRecord> records) =>
+        ReadPlayer() is { } p
+            ? records.Where(r => r.ActorSno == _playerActorSno && r.AcdId != RActorRecord.NoAcd)
+                .OrderBy(r => Vector2.DistanceSquared(new(r.Position.X, r.Position.Y), new(p.X, p.Y))).Select(r => (RActorRecord?)r).FirstOrDefault()
+            : null;
+
     // Opened on first use and retried while the pool is unreadable; a build whose table lacks the attribute gives up once.
     private AcdFlagReader? FlagReader(GameBuildOffsets offsets)
     {
         if (_flags is not null || _flagsMissing || offsets.Acd is null) return _flags;
         if (!AcdReader.TryOpen(_process, _moduleBase, offsets, out _)) return null;
-        _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, ActorFilter.AcdFlags);
-        if (_flags is null || _flags.Known.Count < ActorFilter.AcdFlags.Length)
-            Console.WriteLine($"ACD attributes not found: {string.Join(", ", ActorFilter.AcdFlags.Except(_flags?.Known ?? []))}.");
+        _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, AcdNames);
+        if (_flags is null || _flags.Known.Count < AcdNames.Length)
+            Console.WriteLine($"ACD attributes not found: {string.Join(", ", AcdNames.Except(_flags?.Known ?? []))}.");
         _flagsMissing = _flags is null;
         return _flags;
     }
@@ -195,7 +212,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         {
             var flags = FlagReader(offsets);
             if (flags is null) return ActorFilter.Placed(records);
-            var named = NamedByTrackedQuests(records, flags);
+            flags.Refresh();
+            var player = PlayerRecord(records);
+            _playerAcdId = player?.AcdId;
+            var named = NamedByTrackedQuests(player, flags);
             return ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
                 r => named.Any(m => m.Sno == r.ActorSno && Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= QuestMarkerReach));
         }
@@ -233,12 +253,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
 
     // The objects the player's tracked quests name in their current phase (research/client-memory.md §4).
-    private IReadOnlyList<PlacedMarker> NamedByTrackedQuests(IReadOnlyList<RActorRecord> records, AcdFlagReader flags)
+    private IReadOnlyList<PlacedMarker> NamedByTrackedQuests(RActorRecord? player, AcdFlagReader flags)
     {
-        if (_questMarkers is null || ReadPlayer() is not { } p) return _namedByQuests;
+        if (_questMarkers is null) return _namedByQuests;
         if (UpdateQuestPhases(log: true)) _namedByQuests = [.. _quests.SelectMany(q => q.Named)];
-        var player = records.Where(r => r.ActorSno == _playerActorSno && r.AcdId != RActorRecord.NoAcd)
-            .OrderBy(r => Vector2.DistanceSquared(new(r.Position.X, r.Position.Y), new(p.X, p.Y))).Select(r => (RActorRecord?)r).FirstOrDefault();
         if (player is not { } self) return _namedByQuests;
         var values = flags.Values(self.AcdId);
         int[] quests = [.. new[] { AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest }

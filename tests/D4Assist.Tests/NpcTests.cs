@@ -49,7 +49,7 @@ public class NpcTests
         using var tap = new NpcCuePlayer(mixer, () => now, autoTick: false);
         _ = new NpcCueBridge(feed, tap, a => Classifier.IsNpc(a.ActorSno), _ => null);
 
-        feed.RaiseActors(new ActorState(1, MonkSno, 30, 0, 0), new ActorState(2, FallenSno, 1, 0, 0));
+        feed.RaiseActors(new ActorState(1, MonkSno, 30, 0, 0, Talkable: true), new ActorState(2, FallenSno, 1, 0, 0));
         feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
         tap.Tick();
         Assert.Equal(0, mixer.ActiveEntityVoiceCount); // the monk is out of range, the fallen is no NPC
@@ -68,12 +68,32 @@ public class NpcTests
         using var tap = new NpcCuePlayer(mixer, () => now, autoTick: false);
         _ = new NpcCueBridge(feed, tap, a => Classifier.IsNpc(a.ActorSno), _ => null);
 
-        feed.RaiseActors(new ActorState(1, FollowerSno, 2, 0, 0, QuestFollower: true));
+        feed.RaiseActors(new ActorState(1, FollowerSno, 2, 0, 0, QuestFollower: true, Talkable: true));
         feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
         tap.Tick();
         Assert.Equal(0, mixer.ActiveEntityVoiceCount);
 
-        feed.RaiseActors(new ActorState(1, FollowerSno, 2, 0, 0, QuestFollower: false)); // the quest let it go
+        feed.RaiseActors(new ActorState(1, FollowerSno, 2, 0, 0, QuestFollower: false, Talkable: true)); // the quest let it go
+        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
+        tap.Tick();
+        Assert.Equal(1, mixer.ActiveEntityVoiceCount);
+    }
+
+    [Fact]
+    public void An_npc_that_offers_no_interaction_is_silent()
+    {
+        var feed = new FakeFeed();
+        var mixer = new AudioMixer();
+        double now = 0;
+        using var tap = new NpcCuePlayer(mixer, () => now, autoTick: false);
+        _ = new NpcCueBridge(feed, tap, a => Classifier.IsNpc(a.ActorSno), _ => null);
+
+        feed.RaiseActors(new ActorState(1, MonkSno, 2, 0, 0)); // live: the quest's hell spirits
+        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
+        tap.Tick();
+        Assert.Equal(0, mixer.ActiveEntityVoiceCount);
+
+        feed.RaiseActors(new ActorState(1, MonkSno, 2, 0, 0), new ActorState(2, FollowerSno, 5, 0, 0, Talkable: true)); // the wolf to talk to
         feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
         tap.Tick();
         Assert.Equal(1, mixer.ActiveEntityVoiceCount);

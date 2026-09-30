@@ -19,13 +19,13 @@ public sealed class DoorObstacles(InteractableClassifier doors, Func<int, ActorD
     // cell past the door's edge (doorways of 3-5 cells around a 2.4-wide ProtoDun_Door, dungeon-objectives.md §6).
     private const float WidthPad = CellSize;
 
-    /// <summary>The doors that are closed (never used) and on the player's floor.</summary>
+    /// <summary>The doors that are closed (never used, not in the open state) and on the player's floor.</summary>
     public IReadOnlyList<DoorFootprint> Closed(IEnumerable<ActorState> actors, float playerZ)
     {
         var result = new List<DoorFootprint>();
         foreach (var actor in actors)
         {
-            if (actor.StateChanged || doors.Classify(actor.ActorSno)?.Kind != InteractableKind.Door) continue;
+            if (actor.StateChanged || actor.GizmoStateSet || doors.Classify(actor.ActorSno)?.Kind != InteractableKind.Door) continue;
             if (definition(actor.ActorSno) is not { } info || info.BoundsHalfExtents.X <= 0 || info.BoundsHalfExtents.Y <= 0) continue;
             if (!OnPlayerFloor(actor, info, playerZ)) continue;
             result.Add(Footprint(actor, info.BoundsCenter, info.BoundsHalfExtents));

@@ -6,7 +6,8 @@ namespace D4Assist.Game;
 /// <summary>
 /// Aims D2R's friendly-NPC tap (NpcCuePlayer) at the nearest NPC within range, on every player poll; one NPC at a time,
 /// like D2R's single NPC class (d2r-access docs/entity-cues.md). Direct bearing, no line of sight: the overworld has no
-/// walk grid. Quest companions following the player (ActorState.QuestFollower) stay silent (user, 2026-09-30).
+/// walk grid. Only NPCs the player can talk to or trade with get it (ActorState.Talkable); quest companions following
+/// the player (ActorState.QuestFollower) stay silent (user, 2026-09-30).
 /// Silent on a world change.
 /// </summary>
 public sealed class NpcCueBridge
@@ -17,7 +18,7 @@ public sealed class NpcCueBridge
     private readonly Action<string>? _log;
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
-    private readonly HashSet<uint> _loggedFollowers = [];
+    private readonly HashSet<uint> _loggedSilent = [];
     private IReadOnlyList<ActorState> _npcs = [];
     private uint? _loggedId;
 
@@ -29,7 +30,7 @@ public sealed class NpcCueBridge
         _isNpc = isNpc;
         _nameOf = nameOf;
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _npcs = []; _loggedId = null; _loggedFollowers.Clear(); _player.Silence(); } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _npcs = []; _loggedId = null; _loggedSilent.Clear(); _player.Silence(); } };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) Aim(p); };
     }
@@ -37,9 +38,9 @@ public sealed class NpcCueBridge
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
         var npcs = actors.Where(_isNpc).ToList();
-        foreach (var follower in npcs.Where(n => n.QuestFollower && _loggedFollowers.Add(n.Id)))
-            _log?.Invoke($"NPC follows the player, silent: {Name(follower)}");
-        _npcs = [.. npcs.Where(n => !n.QuestFollower)];
+        foreach (var npc in npcs.Where(n => (n.QuestFollower || !n.Talkable) && _loggedSilent.Add(n.Id)))
+            _log?.Invoke($"NPC {(npc.QuestFollower ? "follows the player" : "offers no interaction")}, silent: {Name(npc)}");
+        _npcs = [.. npcs.Where(n => n.Talkable && !n.QuestFollower)];
     }
 
     private void Aim(PlayerState p)

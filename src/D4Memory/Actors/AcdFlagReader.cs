@@ -19,7 +19,10 @@ public sealed class AcdFlagReader
     /// <summary>Shown on the minimap (live 2026-09-30: the usable quest body, NPCs, an elevator; not the locked quest gate).</summary>
     public const string MinimapActive = "MinimapActive";
 
-    /// <summary>A gizmo switched off by a game script; by name only, not seen set yet.</summary>
+    /// <summary>The gizmo's state: 1 on an open door (live 2026-09-30: a story door once opened, a village door already open).</summary>
+    public const string GizmoState = "Gizmo_State";
+
+    /// <summary>A gizmo switched off by a game script (live 2026-09-30: the Inarius door, once passed).</summary>
     public const string GizmoDisabledByScript = "Gizmo_Disabled_By_Script";
 
     /// <summary>The player's tracked quest SNO, chosen in the quest log (live 2026-09-30: follows the campaign quest as it advances).</summary>
@@ -28,8 +31,21 @@ public sealed class AcdFlagReader
     /// <summary>A tracked quest the game imposes over the player's choice; by name only, not seen set yet.</summary>
     public const string OverrideTrackedQuest = "OverrideTrackedQuestSNO";
 
+    /// <summary>An NPC the player can use (live 2026-09-30: the Bloodied Wolf to talk to; not the quest's hell spirits).</summary>
+    public const string NpcHasInteractOptions = "NPC_Has_Interact_Options";
+
+    /// <summary>The icon over an NPC with something to say (live 2026-09-30: 2 on the Bloodied Wolf, 0 on the spirits).</summary>
+    public const string ConversationIcon = "Conversation_Icon";
+
+    /// <summary>The quest of the conversation an NPC offers (live 2026-09-30: 577793 on the Bloodied Wolf).</summary>
+    public const string ConversationIconQuest = "Conversation_Icon_Quest";
+
     /// <summary>The quest a companion NPC follows the player for (live 2026-09-30: Neyrelle and Vigo, and no other NPC).</summary>
     public const string FollowerQuest = "Follower_Quest";
+
+    /// <summary>On the player during a real-time (in-engine) cinematic, 0 again when it ends (live 2026-09-30: 1 during the
+    /// Inarius door scene, 0 after it; the player's other scene-time flags also turn on in NPC menus and teleports).</summary>
+    public const string RtcPlaying = "RTC Playing";
 
     // The live descriptor table held 1366 attributes, ids up to 0x571.
     private const uint MaxAttributeId = 0x1000;
@@ -51,6 +67,9 @@ public sealed class AcdFlagReader
             if (table.NameOf(id) is { } name && names.Contains(name)) flags[id] = name;
         return flags.Count == 0 ? null : new AcdFlagReader(reader, acds, flags);
     }
+
+    /// <summary>Re-reads the ACD pool header; call once per actor read, as actors load and leave.</summary>
+    public void Refresh() => _acds.Refresh();
 
     /// <summary>The names found in the game's table; a missing one is never reported set.</summary>
     public IReadOnlyCollection<string> Known => _flags.Values;

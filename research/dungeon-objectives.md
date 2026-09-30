@@ -73,6 +73,25 @@ actor references. Examples: `DGN_Standard_NPC_PrisonerAndStake` 991162, `…_Pri
 
 `dwFlags` (+12) / `dwFlagsEx` (+16) do not separate quest or interactable actors.
 
+**Carryables in hand** (live 2026-09-30, `Carryable_HolyRelic_QST_Frac_Glacier_Cursed_01`/`_02`, M): picking one up
+removes the ground actor and creates a new RActor of the same SNO that follows the player (0.1–1.2 units away). That
+copy has **no ACD** (RActor +0x0C = −1), like the weapons the player wields; the app gives it no loop. Not yet checked
+by a dump: that the ground copy has an ACD (inferred: picking it up goes through the server, and the altar, a
+receptacle, read quest flags).
+
+**Receptacles** (same quest, H for the data, M live): `CarryableReceptacleGizmoData.arCarryables` (+208 in the gizmo
+data, a DT_SNO array) lists the carryables a receptacle takes (`Receptacle_HolyRelic_QST_Frac_Glacier_Cursed_01`
+1240714 ← `Carryable_…_Cursed_01` 1240645, `_02` 1240716 ← 1240647); `nMaxCount` +224. The empty altar was
+`Gizmo_Is_Quest_Restricted` without `MinimapActive`, so the quest-step rule left it silent while the player carried its
+idol. Filled, it holds `Carryable_Receptacle_Count` = 1 and `Gizmo_Has_Been_Operated` = 1.
+
+Each new idol spawns on `Receptacle_HolyRelic_QST_Frac_Glacier_Cursed_Dummy` 1249716, a bare switch (57) at the altar
+that stays quest-restricted **and** `MinimapActive` after the pickup, yet the player can't use it. Its SwitchGizmoData
+holds no non-operable mark: no power, zero radius and use time, the same as ~110 other switches, some of them usable
+(offline diff, 2026-09-30). Only 4 switches are named `*Dummy*`. The app: while the player holds a carryable,
+delivering it is the step. A receptacle that takes it is the quest step even when quest-locked, and falls silent once
+operated. Every other quest step waits. Unseen: whether the Dummy stays on the minimap once the idol is delivered.
+
 **Prisoners:** 94 actor names contain "Prisoner". 62 are free-able NPCs
 `DGN_NPC_<Region>_Prisoner_{F,M}_0N[_Invulnerable]` (eType 1, NPC data). No quest references them, so they
 are recognised by name + eType 1. The switch-gizmo variants listed in the table above are recognised by
@@ -214,6 +233,11 @@ them as missing. Gizmos (`eType` 2): 22,725.
   The app therefore goes by name: `ObjectiveClassifier` makes a gizmo 57 an objective when its name holds `QST_`,
   `Quest`, `Prologue` or `BloodPetal` (e.g. `Frac_Prologue_RitualBonfire` 669960, the prologue brazier). A switch is
   always interactable, so the 226 name matches are quest switches rather than false positives.
+- **Quest notes (H for the census, 2026-09-30):** the same name rule makes a sign gizmo (98) an objective: 808 of the
+  1,399 are named `QST_` (e.g. `QST_Frac_Glacier_Zak_Triptych_01`–`_03`, the Glacier idol quest's messages, which
+  looped the scroll sound before), plus `Quest_Frac_Prologue_Lorath_Clickies_*`, `Prologue_SignClicky_LorathClue_*`
+  and other prologue story props. Live, the Triptych carried no quest flag and no `MinimapActive`; reading it sets
+  `Gizmo_Has_Been_Operated`, which silences the loop. Town notes (`TWN_*_Sign_*`) stay readables.
 - **Quest corpses (H):** 166 of the 954 chest gizmos (1) are bodies (`Corpse`/`Remains`/`Body`). Their marks:
   - dwFlags 0x800 marks 126 (124 bodies).
   - A `SoundGroup_QUE_*` on-click marks 131 (127 bodies); `Prologue_RitualCorpse_Decapitated` 652894 plays
@@ -234,3 +258,11 @@ them as missing. Gizmos (`eType` 2): 22,725.
   (user, 2026-09-30).
 - **Not covered:** player summons, pets, mounts and ambient animals (fIsNPC 0).
 - **Live check:** `NPC_Frac_Prologue_Monk` was picked at 1.9 units in Nevesk (2026-09-30).
+- **Only NPCs the player can use (live 2026-09-30, IllusionWoods, M):** the ACD tells them apart. The Bloodied Wolf to talk
+  to (`NPC_Wolphisto_Beast`) held `NPC_Has_Interact_Options` = 1, `Conversation_Icon` = 2 and `Conversation_Icon_Quest` =
+  577793. The quest's hell spirits (`QST_Frac_GV2_Wolphisto_HellSpirit_*`), which offer nothing, held `Conversation_Icon` =
+  0 and no interact options; all four had `NPC_Is_Operatable` = 1, so that one doesn't separate them. The tap keeps NPCs
+  with any of the three set. Unchecked: vendors, townsfolk gossip, escorts (the Vessel of Hatred light carrier).
+- **A door with no use mark (live 2026-09-30, M):** `Hell_Fort_Door_A_01_Dyn` 1247789, which the player couldn't use,
+  held only `Gizmo_State` = 0. Its DoorGizmoData matches usable doors field for field (`fGizmoPlayerOperable` 1, not
+  starting disabled, no condition). Level scripting keeps it shut, so it still loops.

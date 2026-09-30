@@ -71,14 +71,30 @@ public sealed class LoopTargetSelector
     {
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
         if (_objectives is not null && actor.QuestStep) return _objectiveTargets[ObjectiveReason.Quest];
+        if (IsHeld(actor)) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
             return (_objectives.IsMonster(actor.ActorSno) ? _npcObjectiveTargets : _objectiveTargets)[reason];
-        return _interactables?.Classify(actor.ActorSno) is { } thing && _interactableKinds.Contains(thing.Kind)
-            ? new LoopTarget(
-                thing.Kind == InteractableKind.Door ? LoopKind.Door : LoopKind.Container, thing.Sound, _interactableProfile,
-                thing.Kind.ToString().ToLowerInvariant(), StopsWhenUsed: thing.Kind != InteractableKind.PointOfInterest)
-            : null;
+        if (_interactables?.Classify(actor.ActorSno) is not { } thing || !_interactableKinds.Contains(thing.Kind)) return null;
+        if (thing.Kind == InteractableKind.Door && actor.GizmoStateSet) return null; // already open: nothing to do
+        return new LoopTarget(
+            thing.Kind == InteractableKind.Door ? LoopKind.Door : LoopKind.Container, thing.Sound, _interactableProfile,
+            thing.Kind.ToString().ToLowerInvariant(), StopsWhenUsed: thing.Kind != InteractableKind.PointOfInterest);
     }
+
+    /// <summary>While the player holds a carryable, delivering it is the quest step: a receptacle that takes it is the step
+    /// even when quest-locked, and every other quest step waits (research/dungeon-objectives.md §3).</summary>
+    public IReadOnlyList<ActorState> WithCarryGoals(IReadOnlyList<ActorState> actors)
+    {
+        if (_objectives is not { } objectives) return actors;
+        var held = actors.Where(IsHeld).Select(a => a.ActorSno).ToHashSet();
+        if (held.Count == 0) return actors;
+        return [.. actors.Select(a => held.Any(c => objectives.Accepts(a.ActorSno, c))
+            ? a.QuestLocked ? a with { QuestLocked = false, QuestStep = true } : a
+            : a.QuestStep ? a with { QuestStep = false, QuestLocked = true } : a)];
+    }
+
+    // The carryable on the ground has a game record; the copy in the player's hands has none (research/dungeon-objectives.md §3).
+    private bool IsHeld(ActorState actor) => actor.ClientOnly && _objectives?.IsCarryable(actor.ActorSno) == true;
 
     private static LoopProfile Scaled(LoopProfile profile, double volume) => profile with { NearGain = profile.NearGain * volume };
 }

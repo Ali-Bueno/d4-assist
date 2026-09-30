@@ -114,7 +114,10 @@ player appeared or vanished within 15 units of as used: they lead back, the othe
 
 The same bridge loops the quest sound (never spoken, positional, D2R quest profile at full near gain) at the dungeon's
 objectives: actors the world's DPO quest names (`D4Data` `DungeonObjectiveReader`: world SNO, Global `zone_progress`,
-`DPO_*` quest callbacks) minus monsters, plus every carryable, carryable receptacle, quest switch and quest chest, and
+`DPO_*` quest callbacks) minus monsters, plus every carryable (on the ground; the copy in the player's hands, with no
+ACD, stays silent), carryable receptacle (a quest-locked one only while the player holds a carryable it takes; other quest steps
+wait meanwhile), quest
+switch and quest chest, switches and notes named for a quest (`QST_`, `Quest`, `Prologue`), and
 free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor). Rules and data:
 [dungeon-objectives](../../research/dungeon-objectives.md). The exit pads keep the beacon profile and are the only loops that
 mute the exploration guide. A loop stops when its actor leaves the placed list, or when the gizmo was used
@@ -161,7 +164,9 @@ room announcements. A closed door does not register as an obstacle yet.
 - **menus**: `MenuMute`, fed by `GameSession.MenusRead`, mutes while any of the 85 watched screens (`MenuScreens.Watched`) is open:
   character panel, main menu, signs, Horadric shipments, vendor, artisans, stash (seen live), every other side panel and the
   full menus opened on purpose. `--debug` logs `MENU open: <screen>`. `MenuScreenTracker` locates the screen
-  records by a background scan and retries after a miss.
+  records by a background scan and retries after a miss. After the NPC interaction menu (`screen_InteractPopup`) closes,
+  the mute holds 3 s more: a scene picked there can open with music 1.7 s before its conversation shows up (live
+  2026-09-30). The conversation mute takes over if one starts.
 
 A sound example lifts the pause while it plays.
 
@@ -181,6 +186,11 @@ means the yaw lays the door across its doorway.
 mixer renders silence, drops radar cues and guide pings, and holds its loops. The game never logs a cutscene's end
 ([runtime-signals](../../research/runtime-signals.md) §2), so the pause lifts on the next world change, or once the
 player has walked one map cell. `--debug` logs `CUTSCENE state …` and `CUES paused/resumed (cause)`.
+
+In-engine cinematics log nothing and can open with music long before their conversation shows up (live 2026-09-30:
+the Inarius door scene, ~16 s). The player's ACD attribute `RTC Playing` (real-time cinematic) is 1 while one plays:
+`LiveDungeonSessionReader.ReadCinematic` reads it at the actor-poll rate (500 ms), and `GameSession.CinematicRead` sets
+the `Cinematic` mute (`CUES muted: Cinematic`). A world change lifts it. Also under `PauseCuesInCutscenes`.
 
 ## NPC sound
 

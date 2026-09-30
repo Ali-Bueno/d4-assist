@@ -155,8 +155,13 @@ RActor +0x750..+0x7AC.
   starts with the ASCII name `ActorCommonData`; its header matches the scene pool (capacity 0x200, shift 9, mask
   0x1FF), and the seed at RVA 0x37CC59C gives k = 8.
 - Only networked actors have an ACD (RActor +0x0C != −1): players, monsters, items, server gizmos; decor has none.
-  About 35 slots are occupied. An ACD is freed when its actor leaves the client's range and re-created with a new id
+  Neither do the `*_Dyn` breakables, the weapons the player wields, nor a carryable in the player's hands (live
+  2026-09-30, [dungeon-objectives](dungeon-objectives.md) §3). About 35 slots are occupied. An ACD is freed when its actor leaves the client's range and re-created with a new id
   when it comes back.
+- The pool header's max index grows as actors load (live 2026-09-30): a reader that keeps the header from its open
+  never finds later slots. The app kept one from start-up, so a dungeon door (`QST_Frac_Glacier_02_Inarius_Base_Door_Main_A_01`,
+  ACD 0x1C8007F, index 127) never got its `Gizmo_Disabled_By_Script` = 1 and looped on. It now re-reads the header on
+  every actor read, as the RActor pool always did.
 - `acd` listing: 10 of 10 gizmos' ACD slots held the same RActor id and SNO.
 
 **Attribute container** (`[ACD+0x2A0]`, 0x230-byte pooled object; live, H):
@@ -227,7 +232,9 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
 - A town sign (`TWN_Frac_Yelesna_Sign_VampireHanged`) gained `Gizmo_Has_Been_Operated` = 1 when read, without
   `Gizmo_State`.
 - A story door (`GizmoBlockout_GaleValley_NeyrelleDoor`) read `Gizmo_State` = 0 closed; once opened it held
-  `Gizmo_State` = 1, `Gizmo_Has_Been_Operated` = 1 and a `Door_Timer`.
+  `Gizmo_State` = 1, `Gizmo_Has_Been_Operated` = 1 and a `Door_Timer`. A village door already open
+  (`Pale_Frac_DoorC_Dyn`, 2026-09-30) held `Gizmo_State` = 1 alone: no operated mark, RActor `+0x148` = 0, not
+  usable. The app reads `Gizmo_State` set on a door as open: no door loop, no radar knock.
 - Real chests (`Chest_Open`, id 0x220, never seen set), levers and prisoners are not checked.
 - **Quest gizmos** (live 2026-09-30, Darkened Way, 2 samples, M): `Gizmo_Is_Quest_Restricted` (0x226) = 1 marks a gizmo
   the quest controls, usable or not:
@@ -236,7 +243,7 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   - the demon body `Frac_UnderWorld_OreHoist_HangingCorpse_FallenBrute_Dyn` (gizmo 57 switch, the quest's next step, the
     player could use it): quest-restricted **and** `MinimapActive` = 1 (as are NPCs and an elevator nearby).
   The app reads quest-restricted + minimap as the quest step (quest loop) and quest-restricted alone, or
-  `Gizmo_Disabled_By_Script` (0x222, by name only), as not usable yet (silent). The Neyrelle door the player opened
+  `Gizmo_Disabled_By_Script` (0x222; seen set live on the Inarius door, 2026-09-30), as not usable yet (silent). The Neyrelle door the player opened
   carried neither. `+0x140` doesn't separate them: a usable village door also starts at `0x4046D66`.
   - **The gate unlocked with no trace:** once the quest advanced (tracked quest 889465 → 486210) the player could open
     it, yet its attributes, `MinimapActive` (absent) and RActor words (`+0xA0` 0x10B) were unchanged, and the player's
@@ -274,6 +281,14 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =
   525136 and `Pet_Type`; no other NPC in range had them. The app silences NPCs with `Follower_Quest` (`AcdFlagReader`).
   Still to see: an escort the player must follow (the Vessel of Hatred light carrier).
+- **In-engine cinematic** (live 2026-09-30, the Inarius door scene): the player's ACD held `RTC Playing` (id 0x313 in
+  3.2.2; the name has a space) = 1 during the scene and 0 after it. `Busy`, `Invulnerable`, `Untargetable`,
+  `CantStartDisplayedPowers` and `Is_Crowd_Control[0x1]` were also on during the scene, but a 30-min watch saw them
+  flicker in NPC menus, teleports and short skill moments too, so only `RTC Playing` marks a cinematic. `In_Conversation`
+  stayed absent. `D4MemScan acd --match <hero> --range 0.5 --watch N` watches it. A second 6-min watch (Gale Valley)
+  saw `RTC Playing` on three times, each for a short story scene (`QST_Frac_GV2_Wolph_PC_01`/`_02`,
+  `Frac_GV2_PH_FoundNeyrelle`): on 0.1–0.3 s before the conversation appeared and off within 0.3 s after it ended. It
+  stayed 0 through NPC menus, teleports (`Hidden` on) and barks.
 
 ## 5. UI state: conversations and menus (live 2026-09-29)
 

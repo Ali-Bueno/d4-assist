@@ -14,9 +14,10 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     // Free-able prisoners are named DGN_NPC_<Region>_Prisoner_*; "Dead" excludes DGN_Standard_DeadPrisoner_*.
     private const string PrisonerToken = "Prisoner", DeadToken = "Dead";
 
-    // Story switches the game data can't tell from levers (research/dungeon-objectives.md §8): named for their quest,
-    // the prologue, or Lilith's blood petals.
-    private static readonly string[] QuestSwitchTokens = ["QST_", "Quest", "Prologue", "BloodPetal"];
+    // Story switches and notes the game data can't tell from levers and lore (research/dungeon-objectives.md §8): named
+    // for their quest, the prologue, or Lilith's blood petals.
+    private static readonly string[] QuestTokens = ["QST_", "Quest", "Prologue", "BloodPetal"];
+    private static readonly HashSet<int> QuestNamedGizmos = [Conventions.GizmoSwitch, Conventions.GizmoSign];
 
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =
@@ -25,7 +26,7 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     ];
 
     // The world-independent part of the answer, cached per actor SNO.
-    private readonly record struct Traits(ObjectiveReason? Fixed, bool IsMonster);
+    private readonly record struct Traits(ObjectiveReason? Fixed, bool IsMonster, bool IsCarryable, IReadOnlyList<int>? Accepts);
 
     private readonly Dictionary<int, Traits?> _traits = [];
 
@@ -40,11 +41,18 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     /// <summary>True for monsters and NPCs, whose state changes as they animate: a gizmo-only "used" signal does not apply.</summary>
     public bool IsMonster(int actorSno) => TraitsOf(actorSno)?.IsMonster == true;
 
+    /// <summary>True for an item the player carries to a receptacle (relics, idols, stone carvings).</summary>
+    public bool IsCarryable(int actorSno) => TraitsOf(actorSno)?.IsCarryable == true;
+
+    /// <summary>True when the receptacle <paramref name="receptacleSno"/> takes the carryable <paramref name="carryableSno"/>.</summary>
+    public bool Accepts(int receptacleSno, int carryableSno) => TraitsOf(receptacleSno)?.Accepts?.Contains(carryableSno) == true;
+
     private Traits? TraitsOf(int actorSno)
     {
         if (_traits.TryGetValue(actorSno, out var cached)) return cached;
         Traits? traits = definition(actorSno) is { } info
-            ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster)
+            ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster, info.GizmoType == Conventions.GizmoCarryable,
+                info.AcceptedCarryables)
             : null;
         return _traits[actorSno] = traits;
     }
@@ -53,9 +61,9 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     {
         string? name = nameOf(actorSno);
         if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
-        bool questSwitch = info.GizmoType == Conventions.GizmoSwitch && name is not null
-            && QuestSwitchTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
-        return questSwitch || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
+        bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
+            && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
+        return questNamed || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
     }
 
     private static bool IsPrisoner(string? name, ActorDefinitionInfo info) =>

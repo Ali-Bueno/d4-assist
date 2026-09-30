@@ -76,6 +76,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>The open watched menu screens, read at the player-poll rate alongside the conversation.</summary>
     public event Action<IReadOnlyList<string>>? MenusRead;
 
+    /// <summary>Whether an in-engine cinematic plays, read at the actor-poll rate after the actors (it needs the player's ACD).</summary>
+    public event Action<bool>? CinematicRead;
+
     /// <param name="staticTiles">Offline tiles of a radar-only (static-grid) world, raised once on entry; null means none.</param>
     /// <param name="playerPollIntervalMs">Timer.Infinite disables the automatic timer entirely — tests then
     /// drive polling deterministically via PollPlayerOnce/PollTilesOnce instead of a background tick.</param>
@@ -252,6 +255,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         IDungeonSessionReader? session;
         lock (_gate) session = _session;
         if (session?.ReadActors() is { } actors) Raise("actors", ActorsUpdated, h => h(actors));
+        if (session?.ReadCinematic() is { } cinematic) Raise("cinematic", CinematicRead, h => h(cinematic));
     }
 
     // A failing listener must never kill the app from a timer thread, nor starve the other listeners

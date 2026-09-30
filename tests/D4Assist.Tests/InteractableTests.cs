@@ -23,7 +23,7 @@ public class InteractableTests
         [ChestSno] = ("ProtoDunKeep_Chest_01", new(Gizmo, Conventions.GizmoChest)),
         [RewardChestSno] = ("ZE_Chest_Reward", new(Gizmo, Conventions.GizmoRewardChest)),
         [LockedChestSno] = ("Generic_Chest_Rare_Locked_GamblingCurrency", new(Gizmo, Conventions.GizmoLockedChest)),
-        [SignSno] = ("QST_Sign_Frac_Notice", new(Gizmo, Conventions.GizmoSign)),
+        [SignSno] = ("TWN_Frac_Kyovashad_Sign_Notice", new(Gizmo, Conventions.GizmoSign)),
         [LorebookChestSno] = ("Generic_Lorebook_Chest_01_Dyn", new(Gizmo, Conventions.GizmoChest)),
         [BreakableSno] = ("Kurast_Prop_Basket_AnyLoot_01", new(Gizmo, BreakableContainerGizmo)),
         [PrisonerSno] = ("DGN_NPC_Frac_Prisoner_F_01", new(Monster, NotGizmo)),
@@ -82,6 +82,14 @@ public class InteractableTests
 
         Assert.Equal((LoopKind.Container, InteractableClassifier.ScrollSound, false), (look!.Kind, look.Sound, look.StopsWhenUsed));
         Assert.True(sign!.StopsWhenUsed);
+    }
+
+    [Fact]
+    public void Selector_AnOpenDoorGetsNoLoop()
+    {
+        Assert.NotNull(Selector().Select(Placed(DoorSno)));
+        Assert.Null(Selector().Select(Placed(DoorSno) with { GizmoStateSet = true })); // live: Pale_Frac_DoorC_Dyn, already open
+        Assert.NotNull(Selector().Select(Placed(ChestSno) with { GizmoStateSet = true })); // doors only
     }
 
     [Fact]
@@ -162,7 +170,7 @@ public class InteractableTests
         feed.RaiseWorld(World);
         feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
 
-        feed.RaiseActors(new ActorState(1, DoorSno, 1, 0, 0, Unusable: true), new ActorState(2, PrisonerSno, 0, 1, 0, Unusable: true));
+        feed.RaiseActors(new ActorState(1, DoorSno, 1, 0, 0, QuestLocked: true), new ActorState(2, PrisonerSno, 0, 1, 0, ScriptDisabled: true));
         feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
         Assert.Equal(1, player.ActiveCount); // the quest-restricted door is silent; NPC targets never stop
 

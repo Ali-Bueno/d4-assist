@@ -66,6 +66,7 @@ public sealed class ActorLoopBridge
 
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
+        actors = _selector.WithCarryGoals(actors);
         _sightings?.Note(actors, _lastPlayer);
         _used?.Observe(actors, _lastPlayer);
         var selected = actors

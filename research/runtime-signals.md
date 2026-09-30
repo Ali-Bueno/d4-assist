@@ -60,6 +60,16 @@ In-engine scripted cutscenes (`ScriptedCutsceneUI` in the exe) may not log at al
 Live 2026-09-30 (Darkened Way, the Lilith blood petal): the story scene after the use was a type-3 conversation
 (`Frac_Und_LilithVhenardChat1b`, ~110 s) that the conversation mute covered from start to end ([client-memory](client-memory.md)
 §5). No cutscene state was logged, and none of the 292 registered screens opened or closed (`D4MemScan screens`).
+Same day, the Neyrelle cinematic after the dialogue option ("I'll protect you") was also a type-3 conversation,
+`QST_Frac_Und_Cine_CFN` (~85 s), muted from start to end. `screen_Cutscene` never opened (only `screen_InteractPopup`
+for the menu before it), and no cutscene state was logged. The scene opened with music, and the conversation only
+showed up 1.7 s after the menu closed. The cues sounded over that music (user), so the app now holds the menu mute
+3 s after that menu closes (`Game/MenuMute.cs`). So far every story "cinematic" has been a conversation.
+The Inarius door scene (Fractured Peaks, same day) was a real in-engine cinematic: music and camera for ~16 s before
+its conversation (`QST_Frac_Glac_Cine_FIG`) showed up, the cues live over it. No screen opened and nothing was logged.
+The player's ACD attribute `RTC Playing` was 1 during it and 0 after ([client-memory](client-memory.md) §4), and the app
+mutes on it. In three short scenes it came on 0.1–0.3 s before the conversation; a long scene that opens with music
+is not timed yet.
 
 ## 3. Player position
 

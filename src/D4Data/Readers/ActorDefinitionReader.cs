@@ -11,9 +11,10 @@ namespace D4Data.Readers;
 /// <param name="DefaultTeam">eDefaultTeam: 19 is the hostile monsters' team.</param>
 /// <param name="IsNpc">ActorMonsterData.fIsNPC: townsfolk, vendors, quest givers and followers (research/dungeon-objectives.md §9).</param>
 /// <param name="MonsterFamilySno">ActorMonsterData.snoMonsterFamily, or -1.</param>
+/// <param name="AcceptedCarryables">CarryableReceptacleGizmoData.arCarryables: the carryable SNOs a receptacle takes; null otherwise.</param>
 public readonly record struct ActorDefinitionInfo(
     int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default,
-    int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1);
+    int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1, IReadOnlyList<int>? AcceptedCarryables = null);
 
 /// <summary>Reads (and caches per SNO) <see cref="ActorDefinitionInfo"/> from ActorDefinition meta records.</summary>
 public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
@@ -21,6 +22,8 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
     private const string ActorDefinition = "ActorDefinition";
     private const string Aabb = "AABB";
     private const string MonsterData = "ActorMonsterData";
+    private const string ReceptacleData = "CarryableReceptacleGizmoData";
+    private const int SnoIdSize = 4; // DT_SNO
 
     private readonly Dictionary<int, ActorDefinitionInfo?> _cache = [];
 
@@ -43,9 +46,17 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
                 IsNpc = meta!.I32(monster + schema.Offset(MonsterData, "fIsNPC")) != 0,
                 MonsterFamilySno = meta.I32(monster + schema.Offset(MonsterData, "snoMonsterFamily")),
             };
+        if (info is { GizmoType: Conventions.GizmoCarryableReceptacle } receptacle)
+            info = receptacle with { AcceptedCarryables = AcceptedCarryables(meta!) };
         _cache[actorSno] = info;
         return info;
     }
+
+    // ptGizmoData holds one polymorphic element, here a CarryableReceptacleGizmoData.
+    private int[] AcceptedCarryables(SnoBlob meta) =>
+        [.. meta.PolymorphicArray(schema.Offset(ActorDefinition, "ptGizmoData"), schema.Size(ReceptacleData)).Take(1)
+            .SelectMany(gizmo => meta.Array(gizmo + schema.Offset(ReceptacleData, "arCarryables"), SnoIdSize))
+            .Select(meta.I32)];
 
     // Where the actor's ActorMonsterData block starts in its record, or null when it has none.
     private int? MonsterDataOffset(SnoBlob meta)

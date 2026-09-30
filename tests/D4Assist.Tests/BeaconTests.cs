@@ -99,6 +99,38 @@ public class BeaconTests
     }
 
     [Fact]
+    public void ActorFilter_AnActorWithoutAGameRecordIsClientOnly()
+    {
+        var held = Record(1, Vector3.One, placement: 0) with { AcdId = RActorRecord.NoAcd };
+
+        Assert.Equal([true, false], ActorFilter.Placed([held, Record(2, Vector3.One, placement: 0)]).Select(a => a.ClientOnly));
+    }
+
+    [Fact]
+    public void ActorFilter_TheGizmoStateFlagMarksTheStateSet()
+    {
+        var records = new[] { Record(1, Vector3.One, placement: 0), Record(2, Vector3.One, placement: 0) };
+        IReadOnlySet<string> open = new HashSet<string> { AcdFlagReader.GizmoState };
+
+        Assert.Equal([true, false], ActorFilter.Placed(records, r => r.Id == 1 ? open : null).Select(a => a.GizmoStateSet));
+    }
+
+    [Fact]
+    public void ActorFilter_AnNpcWithInteractOptionsOrAConversationIconIsTalkable()
+    {
+        var records = Enumerable.Range(1, 4).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        var flags = new Dictionary<uint, IReadOnlySet<string>>
+        {
+            [1] = new HashSet<string> { AcdFlagReader.NpcHasInteractOptions },
+            [2] = new HashSet<string> { AcdFlagReader.ConversationIcon },
+            [3] = new HashSet<string> { AcdFlagReader.ConversationIconQuest },
+            [4] = new HashSet<string>(), // a hell spirit: Conversation_Icon 0 is not set
+        };
+
+        Assert.Equal([true, true, true, false], ActorFilter.Placed(records, r => flags[r.Id]).Select(a => a.Talkable));
+    }
+
+    [Fact]
     public void Bridge_KeepsTheBeaconWhenThePadChangesState()
     {
         var (feed, player, _) = Create();

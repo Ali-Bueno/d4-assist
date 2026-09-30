@@ -10,7 +10,8 @@ public class ObjectiveTests
     private const int Monster = Conventions.ActorTypeMonster, Gizmo = 2, Prop = 3, NotGizmo = -1, DoorGizmo = 0;
     private const int PadSno = 1, MinibossSno = 2, LeverSno = 3, PrisonerNpcSno = 4, PrisonerSwitchSno = 5, DeadPrisonerCageSno = 6,
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
-        PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17;
+        PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
+        QuestNoteSno = 19, TownNoteSno = 20;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -22,7 +23,8 @@ public class ObjectiveTests
         [PrisonerSwitchSno] = ("DGN_Switch_Standard_NPC_PrisonerEntangled_01", new(Gizmo, Conventions.GizmoSwitch)),
         [DeadPrisonerCageSno] = ("DGN_Standard_DeadPrisoner_Cage", new(Gizmo, DoorGizmo)),
         [CarryableSno] = ("Carryable_StoneCarving", new(Gizmo, Conventions.GizmoCarryable)),
-        [ReceptacleSno] = ("Receptacle_StoneCarving", new(Gizmo, Conventions.GizmoCarryableReceptacle)),
+        [ReceptacleSno] = ("Receptacle_StoneCarving", new(Gizmo, Conventions.GizmoCarryableReceptacle, AcceptedCarryables: [CarryableSno])),
+        [OtherReceptacleSno] = ("Receptacle_Bloodstone", new(Gizmo, Conventions.GizmoCarryableReceptacle, AcceptedCarryables: [])),
         [QuestSwitchSno] = ("QST_Stake", new(Gizmo, Conventions.GizmoQuestSwitch)),
         [QuestChestSno] = ("QST_Chest", new(Gizmo, Conventions.GizmoQuestChest)),
         [DpoSwitchSno] = ("DGN_Standard_Sitting_Skeleton_Switch", new(Gizmo, DoorGizmo)),
@@ -31,6 +33,8 @@ public class ObjectiveTests
         [PrisonerDoorSno] = ("DGN_Standard_Prisoner_Cage", new(Gizmo, DoorGizmo)),
         [BloodPetalsSno] = ("Ancients_Prop_Lilith_BloodPetal", new(Gizmo, Conventions.GizmoSwitch)),
         [BonfireSno] = ("Frac_Prologue_RitualBonfire", new(Gizmo, Conventions.GizmoSwitch)),
+        [QuestNoteSno] = ("QST_Frac_Glacier_Zak_Triptych_03", new(Gizmo, Conventions.GizmoSign)),
+        [TownNoteSno] = ("TWN_Frac_Kyovashad_Sign_Brazier", new(Gizmo, Conventions.GizmoSign)),
     };
 
     private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno };
@@ -50,6 +54,7 @@ public class ObjectiveTests
     [InlineData(DpoSwitchSno, ObjectiveReason.Dpo)]
     [InlineData(BloodPetalsSno, ObjectiveReason.Gizmo)] // a plain switch, known by name
     [InlineData(BonfireSno, ObjectiveReason.Gizmo)]
+    [InlineData(QuestNoteSno, ObjectiveReason.Gizmo)]   // a quest's message, known by name
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 
@@ -60,6 +65,7 @@ public class ObjectiveTests
     [InlineData(DeadPrisonerCageSno)] // dead prisoner, not eType 1 / switch
     [InlineData(PrisonerDoorSno)]     // door gizmo, not a switch or NPC
     [InlineData(PlainPropSno)]
+    [InlineData(TownNoteSno)]         // an ordinary note stays a readable
     [InlineData(UnreadableSno)]       // no ActorDefinition record
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));
@@ -120,6 +126,55 @@ public class ObjectiveTests
 
         Assert.NotNull(selector.Select(Placed(PadSno)));
         Assert.Null(selector.Select(Placed(CarryableSno)));
+    }
+
+    [Fact]
+    public void Selector_SilencesTheCarryableInThePlayersHands()
+    {
+        var selector = Selector();
+        selector.SetWorld(WorldA, isDungeon: true);
+
+        Assert.NotNull(selector.Select(Placed(CarryableSno)));
+        Assert.Null(selector.Select(Placed(CarryableSno) with { ClientOnly = true }));
+        Assert.NotNull(selector.Select(Placed(ReceptacleSno) with { ClientOnly = true })); // only the carried item goes silent
+    }
+
+    [Fact]
+    public void Selector_WhileTheCarryableIsHeld_TheQuestLockedReceptacleTakingItIsTheQuestStep()
+    {
+        var selector = Selector();
+        var held = new ActorState(1, CarryableSno, 0, 0, 0, ClientOnly: true);
+        var altar = new ActorState(2, ReceptacleSno, 10, 0, 0, QuestLocked: true);
+        var otherAltar = new ActorState(3, OtherReceptacleSno, 20, 0, 0, QuestLocked: true);
+        var idolStand = new ActorState(4, QuestSwitchSno, 0, 0, 0, QuestStep: true); // the Glacier altar's Dummy, on the minimap
+
+        var carrying = selector.WithCarryGoals([held, altar, otherAltar, idolStand]);
+        var notCarrying = selector.WithCarryGoals([held with { ClientOnly = false }, altar, otherAltar, idolStand]);
+
+        Assert.Equal([false, true, false, false], carrying.Select(a => a.QuestStep));
+        Assert.Equal([false, false, true, true], carrying.Select(a => a.Unusable));
+        Assert.Equal([false, true, true, false], notCarrying.Select(a => a.Unusable));
+    }
+
+    [Fact]
+    public void Bridge_LoopsTheAltarInsteadOfTheIdolInTheHands()
+    {
+        var log = new List<string>();
+        var (feed, player, _) = CreateBridge(log: log.Add);
+        feed.RaiseWorld(WorldA);
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+
+        var stand = new ActorState(3, QuestSwitchSno, 0, 0, 0, QuestStep: true);
+        feed.RaiseActors(new ActorState(1, CarryableSno, 0, 0, 0), stand, new ActorState(2, ReceptacleSno, -10, -10, 0, QuestLocked: true));
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(2, player.ActiveCount); // the idol and its stand
+
+        feed.RaiseActors(new ActorState(1, CarryableSno, 0, 0, 0, ClientOnly: true), stand, new ActorState(2, ReceptacleSno, -10, -10, 0, QuestLocked: true));
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+
+        Assert.Equal(1, player.ActiveCount);
+        Assert.Contains(log, l => l.Contains("started") && l.Contains("id=2") && l.Contains("reason=quest"));
+        Assert.Contains(log, l => l.Contains("stopped") && l.Contains("id=3") && l.Contains("cause=unusable"));
     }
 
     [Fact]

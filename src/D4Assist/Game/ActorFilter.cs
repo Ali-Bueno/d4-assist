@@ -9,7 +9,8 @@ public static class ActorFilter
     /// <summary>The ACD flags the app reads (AcdFlagReader).</summary>
     public static readonly string[] AcdFlags =
         [AcdFlagReader.GizmoOperated, AcdFlagReader.FollowerQuest, AcdFlagReader.GizmoQuestRestricted, AcdFlagReader.GizmoDisabledByScript,
-         AcdFlagReader.MinimapActive, AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest];
+         AcdFlagReader.MinimapActive, AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest, AcdFlagReader.GizmoState,
+         AcdFlagReader.NpcHasInteractOptions, AcdFlagReader.ConversationIcon, AcdFlagReader.ConversationIconQuest];
 
     /// <param name="flags">The actor's set ACD flags (AcdFlagReader.Read); null when unavailable or not read for it.</param>
     /// <param name="namedByQuest">True for an actor the tracked quest's scripts name (QuestScriptMarkerReader); null for none.</param>
@@ -29,8 +30,12 @@ public static class ActorFilter
         return new(r.Id, r.ActorSno, r.Position.X, r.Position.Y, r.Position.Z, r.PreviousState != 0, Yaw(r.Rotation),
             Operated: Has(AcdFlagReader.GizmoOperated),
             QuestFollower: Has(AcdFlagReader.FollowerQuest),
-            Unusable: (questGizmo && !current) || Has(AcdFlagReader.GizmoDisabledByScript),
-            QuestStep: current);
+            QuestLocked: questGizmo && !current,
+            ScriptDisabled: Has(AcdFlagReader.GizmoDisabledByScript),
+            QuestStep: current,
+            ClientOnly: r.AcdId == RActorRecord.NoAcd,
+            GizmoStateSet: Has(AcdFlagReader.GizmoState),
+            Talkable: Has(AcdFlagReader.NpcHasInteractOptions) || Has(AcdFlagReader.ConversationIcon) || Has(AcdFlagReader.ConversationIconQuest));
     }
 
     /// <summary>Rotation about Z of a unit quaternion, from +X towards +Y.</summary>

@@ -329,9 +329,10 @@ then watches the candidates live.
 | `screen_crafting_default` | artisans: blacksmith and occultist live (the name is generic) |
 | `screen_Stash_default` | stash |
 | `screen_ActionBar_Left` | assigning a skill to a button (pad); the skills panel closes while it is open |
+| `screen_InteractPopup` | an NPC's interaction menu (live 2026-09-30, build 3.2.2: Neyrelle, one option; the conversation-options search found no dialogue menu while it was open) |
 
 Each of these 8 was seen opening and closing live 2026-09-30 with a watcher that logged every registered screen's open
-bit (the occultist also uses `screen_crafting_default`). The app watches 88 screens (`MenuScreens.Watched`): these 8, every
+bit (the occultist also uses `screen_crafting_default`). The app watches 89 screens (`MenuScreens.Watched`): these 8, every
 other side panel and the full menus opened on purpose. A side panel is a `<name>_Default` screen with Left/Right variants
 (split-screen layouts, though `ActionBar_Left` opened alone in single player); the registry held 41 such screens. The
 `ActionBar` family is the skill assignment, not the HUD bar: its screens stay closed in play. Left out too:
@@ -341,7 +342,7 @@ StoreDetails_v2, Mailbox_Right, and after a character switch InGameLogout, World
   held 0 or 1 in play. During a character switch freed records read junk (`0xFFFFFFFF`, `0x876747B5`), so any other value
   makes the record invalid. The tabs of the character panel (`screen_Mercenary_Default`,
 `screen_WarPlanActivities_Default`) open inside `screen_MenuPanel_Default`. `screen_InteractPopup` was open ~4 s during an
-interaction and is not watched.
+interaction: the NPC interaction menu, watched since 2026-09-30.
 
 - Other toggles seen: the inventory's paper-doll camera record (`screen_Inventory_default` + `Camera 000`, flag `0xCE600` →
   `0xCE601`) and `screen_Abilities_Default` (skills). The map and the pause menu also set flags near HUD screen names

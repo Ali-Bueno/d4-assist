@@ -21,8 +21,8 @@ public class SceneRouteTests
         Pool: new PoolLayout(
             ContainerSize: 0x100, CapacityOffset: 0x18, MaxIndexOffset: 0x20,
             ShiftOffset: 0x24, MaskOffset: 0x28, ChunkTableOffset: 0x40),
-        Scene: new PoolParameters(ContainerOffset: 0x8, SeedRva: 0x10, StrideBase: 0x92F),
-        Actor: new PoolParameters(ContainerOffset: 0x8, SeedRva: 0x10, StrideBase: 0xC27),
+        Scene: new PoolParameters(ContainerOffset: 0x8, StrideBase: 0x92F),
+        Actor: new PoolParameters(ContainerOffset: 0x8, StrideBase: 0xC27),
         CSceneVtableRva: 0x500);
 
     [Fact]
@@ -32,15 +32,13 @@ public class SceneRouteTests
         var buffer = new byte[0xD000];
 
         const long g = 0x2000, p = 0x9000, chunks = 0xA000, chunkArrayBase = 0xB000;
-        const uint seed = 3;
-        // k = ((p / Pool.ContainerSize) + seed) & 0xF = ((0x9000/0x100) + 3) & 0xF = (0x90 + 3) & 0xF = 3.
+        // The chunk table in use is k = 3; the other tables are empty.
         const long k = 3;
         // stride = (0x92F + 16*k) & ~0xF, the same formula SceneRoute computes (client-memory.md §1 step 2).
         const long stride = 0x950;
 
         WriteU64(buffer, ModuleBase + offsets.GameObjectPointerRva, g);
         WriteU64(buffer, g + offsets.Scene.ContainerOffset, p);
-        WriteU32(buffer, ModuleBase + offsets.Scene.SeedRva, seed);
         WriteU32(buffer, p + offsets.Pool.MaxIndexOffset, 2); // idx 0..2 inclusive
         WriteU32(buffer, p + offsets.Pool.ShiftOffset, 4);
         WriteU32(buffer, p + offsets.Pool.MaskOffset, 0xF);
@@ -50,13 +48,13 @@ public class SceneRouteTests
         long slot0 = chunkArrayBase, slot1 = chunkArrayBase + stride, slot2 = chunkArrayBase + 2 * stride;
         long expectedVtable = ModuleBase + offsets.CSceneVtableRva;
 
-        WriteU32(buffer, slot0 + 8, 5); // occupied
+        WriteU32(buffer, slot0 + 8, 0x100000); // occupied (id & 0x7FFFF == index 0)
         WriteU64(buffer, slot0 + 0x158, expectedVtable);
         WriteGoodRecord(buffer, a: slot0 + 0x168, expectedVtable);
 
         WriteU32(buffer, slot1 + 8, 0xFFFFFFFF); // free: must be skipped without reading anything else
 
-        WriteU32(buffer, slot2 + 8, 9); // occupied but...
+        WriteU32(buffer, slot2 + 8, 0x80002); // occupied but...
         WriteU64(buffer, slot2 + 0x158, unchecked((long)0xBADBADBADBADBADBUL)); // ...wrong vtable: must be skipped
 
         var reader = new FakeMemoryReader();
@@ -93,7 +91,6 @@ public class SceneRouteTests
 
         WriteU64(buffer, ModuleBase + offsets.GameObjectPointerRva, g);
         WriteU64(buffer, g + offsets.Scene.ContainerOffset, p);
-        WriteU32(buffer, ModuleBase + offsets.Scene.SeedRva, 0);
         WriteU32(buffer, p + offsets.Pool.MaxIndexOffset, uint.MaxValue); // corrupted/garbage field
 
         var reader = new FakeMemoryReader();

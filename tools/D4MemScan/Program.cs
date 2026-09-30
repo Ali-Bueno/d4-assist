@@ -40,6 +40,7 @@ internal static class Program
                 "pose-context" => PoseContextCommand.Run(rest),
                 "peek" => PeekCommand.Run(rest),
                 "screens" => ScreensCommand.Run(rest),
+                "conversations" => ConversationsCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

@@ -35,6 +35,8 @@ Contenido de la carpeta
 - LEEME.txt: este archivo.
 - d4assist-log.txt: el registro, se crea solo al abrir el programa (ver
   "Si algo no funciona").
+- d4assist-addresses.json: se crea solo la primera vez que un personaje
+  habla tras cada actualización del juego. Si lo borras, se vuelve a crear.
 Los sonidos y los datos del programa van dentro de D4Assist.exe.
 
 

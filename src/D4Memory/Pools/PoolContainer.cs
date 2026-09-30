@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using D4Memory.Scan;
 using D4Memory.SceneRoute;
 
@@ -8,8 +10,8 @@ namespace D4Memory.Pools;
 public readonly record struct PoolSlot(long Address, uint Id);
 
 /// <summary>
-/// A chunked object pool of the game object G (research/client-memory.md §1, §4): header + seeded chunk-table
-/// choice give the record stride; slots are enumerated or looked up by id. Reads only through IMemoryReader.
+/// A chunked object pool of the game object G (research/client-memory.md §1, §4): the header and the chunk table in use
+/// give the record stride; slots are enumerated or looked up by id. Reads only through IMemoryReader.
 /// </summary>
 public sealed class PoolContainer
 {
@@ -25,7 +27,6 @@ public sealed class PoolContainer
     // The chunk-table selector array holds 16 entries; k picks one (client-memory.md §1 step 2).
     private const int ChunkTableEntryCount = 16;
     private const int ChunkTableEntrySize = 0x18;
-    private const uint ChunkTableSelectorMask = 0xF;
 
     // stride = (StrideBase + StrideKMultiplier * k) rounded down to StrideRoundingUnit (client-memory.md §1 step 2).
     private const int StrideKMultiplier = 16;
@@ -33,6 +34,16 @@ public sealed class PoolContainer
 
     /// <summary>Sanity bound on the reported max index: only rejects a misread container field.</summary>
     private const int MaxIndexSanityBound = 1_000_000;
+
+    // Chunk-table validation: the first slots of chunk 0 are checked; a table is taken when at least MinMatches occupied
+    // slots map back to their index and none contradicts it. When no table fits the layout's stride (an update resized
+    // the record), every 16-byte stride up to MaxStride is tried.
+    private const int ValidationSlots = 64;
+    private const int MinMatches = 2;
+    private const int MinStride = 0x100, MaxStride = 0x2000;
+
+    // The chunk table in use per container, per process: it only changes with the container (a new session).
+    private static readonly ConditionalWeakTable<IMemoryReader, ConcurrentDictionary<(long Container, int StrideBase), (uint K, long Stride)>> Tables = new();
 
     private readonly IMemoryReader _reader;
     private readonly long _chunks;
@@ -62,7 +73,6 @@ public sealed class PoolContainer
         if (!TryReadU64(reader, moduleBase + offsets.GameObjectPointerRva, out ulong g) || g == 0) return false;
         if (!TryReadU64(reader, (long)g + parameters.ContainerOffset, out ulong p) || p == 0) return false;
         if (parameters.ContainerBehindPointer && (!TryReadU64(reader, (long)p, out p) || p == 0)) return false;
-        if (!TryReadU32(reader, moduleBase + parameters.SeedRva, out uint seed)) return false;
 
         if (!TryReadU32(reader, (long)p + layout.MaxIndexOffset, out uint maxIndexRaw)) return false;
         if (!TryReadU32(reader, (long)p + layout.ShiftOffset, out uint shiftRaw)) return false;
@@ -71,15 +81,79 @@ public sealed class PoolContainer
         int shift = (int)shiftRaw;
         if (maxIndex < 0 || maxIndex > MaxIndexSanityBound || shift is < 0 or >= 64) return false;
 
-        uint k = (uint)((long)(p / (ulong)layout.ContainerSize) + seed) & ChunkTableSelectorMask;
-        if (k >= ChunkTableEntryCount) return false; // defensive; the mask already guarantees this
-        long stride = StrideFor(parameters.StrideBase, k);
+        // The game picks the table with a per-session seed kept at a build-specific address (client-memory.md §1 step 2).
+        // The table is found by its content instead, so an update doesn't need that address.
+        var tables = Tables.GetOrCreateValue(reader);
+        if (!tables.TryGetValue(((long)p, parameters.StrideBase), out var table))
+        {
+            if (!TryFindTable(reader, (long)p, layout, parameters.StrideBase, maxIndex, mask, out table)) return false;
+            tables[((long)p, parameters.StrideBase)] = table;
+        }
 
-        long entry = (long)p + layout.ChunkTableOffset + ChunkTableEntrySize * k;
+        long entry = (long)p + layout.ChunkTableOffset + ChunkTableEntrySize * table.K;
         if (!TryReadU64(reader, entry, out ulong chunks) || chunks == 0) return false;
 
-        pool = new PoolContainer(reader, (long)chunks, maxIndex, shift, mask, stride);
+        pool = new PoolContainer(reader, (long)chunks, maxIndex, shift, mask, table.Stride) { ChunkTableIndex = table.K };
         return true;
+    }
+
+    /// <summary>The chunk table in use (the seeded k).</summary>
+    public uint ChunkTableIndex { get; private init; }
+
+    // In the table in use, an occupied slot's id maps back to its index (idx = id & 0x7FFFF); any other table or stride
+    // reads other bytes there. The layout's stride formula is tried first for every table.
+    private static bool TryFindTable(
+        IMemoryReader reader, long p, PoolLayout layout, int strideBase, int maxIndex, uint mask, out (uint K, long Stride) table)
+    {
+        table = default;
+        int slots = (int)Math.Min(Math.Min(maxIndex, mask) + 1L, ValidationSlots);
+        var chunk0 = new ulong[ChunkTableEntryCount];
+        for (uint k = 0; k < ChunkTableEntryCount; k++)
+            if (TryReadU64(reader, p + layout.ChunkTableOffset + ChunkTableEntrySize * k, out ulong chunks) && chunks != 0)
+                TryReadU64(reader, (long)chunks, out chunk0[k]);
+
+        int best = 0;
+        for (uint k = 0; k < ChunkTableEntryCount; k++)
+        {
+            long stride = StrideFor(strideBase, k);
+            if (chunk0[k] == 0 || !TryReadSlots(reader, (long)chunk0[k], slots, stride, out var bytes)) continue;
+            int score = Score(bytes, slots, stride);
+            if (score > best) (best, table) = (score, (k, stride));
+        }
+        if (best >= MinMatches) return true;
+
+        for (uint k = 0; k < ChunkTableEntryCount; k++)
+        {
+            if (chunk0[k] == 0 || !TryReadSlots(reader, (long)chunk0[k], slots, MaxStride, out var bytes)) continue;
+            for (long stride = MinStride; stride <= MaxStride; stride += StrideRoundingUnit)
+            {
+                int score = Score(bytes, slots, stride);
+                if (score > best) (best, table) = (score, (k, stride));
+            }
+        }
+        return best >= MinMatches;
+    }
+
+    private static bool TryReadSlots(IMemoryReader reader, long chunkBase, int slots, long stride, out byte[] bytes)
+    {
+        bytes = new byte[(int)(slots * stride)];
+        return reader.TryRead(chunkBase, bytes, bytes.Length);
+    }
+
+    // Occupied slots whose id maps back to their index; 0 when any occupied slot contradicts it.
+    private static int Score(byte[] bytes, int slots, long stride)
+    {
+        int matches = 0;
+        for (int idx = 0; idx < slots; idx++)
+        {
+            long at = idx * stride + IdOffsetInSlot;
+            if (at + sizeof(uint) > bytes.Length) break;
+            uint id = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan((int)at));
+            if (id == FreeSlotSentinel) continue;
+            if ((id & IdIndexMask) != idx) return 0;
+            matches++;
+        }
+        return matches;
     }
 
     /// <summary>Record stride for chunk-table index <paramref name="k"/>.</summary>

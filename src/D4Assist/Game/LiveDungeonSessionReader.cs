@@ -29,6 +29,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly Func<int, bool> _readsFlags;
     private readonly int _playerActorSno;
     private readonly Func<int, IReadOnlyList<PlacedMarker>>? _questMarkers;
+    private readonly ConversationAddresses? _conversations;
+    private readonly uint _build;
+    private readonly IReadOnlyList<MemoryRegion> _moduleData;
     private int[] _trackedQuests = [];
     private IReadOnlyList<PlacedMarker> _namedByQuests = [];
     private bool _actorFailureLogged;
@@ -37,8 +40,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
-        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers)
+        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers,
+        ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData)
     {
+        (_conversations, _build, _moduleData) = (conversations, build, moduleData);
         _readsFlags = readsFlags;
         _playerActorSno = playerActorSno;
         _questMarkers = questMarkers;
@@ -57,7 +62,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="questMarkers">The objects a quest's scripts name (QuestScriptMarkerReader.Markers); null ignores the tracked quest.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
-        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers = null)
+        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers = null,
+        ConversationAddresses? conversations = null)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
         string exePath = Path.Combine(installPath, ExecutableFileName);
@@ -87,11 +93,29 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             throw new InvalidOperationException($"player not found in world {worldSno}; {records}");
         }
 
-        GameBuildOffsets? offsets = GameBuildOffsetsTable.TryGet(build, out var known) ? known : null;
-        Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}" +
-            (offsets is null ? " (unknown build: no rooms, radar or actor sounds)." : "."));
+        GameBuildOffsets? offsets = OffsetsFor(process, regions, liveModule, build, out string addresses);
+        Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}, {addresses}" +
+            (offsets is null ? " (no rooms, radar walls or actor sounds)." : "."));
         return new LiveDungeonSessionReader(
-            process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers);
+            process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
+            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base));
+    }
+
+    // The addresses hold for the whole build, so they are searched once per build and kept for later sessions.
+    private static readonly Dictionary<uint, GameBuildOffsets> DiscoveredByBuild = [];
+
+    private static GameBuildOffsets? OffsetsFor(
+        ProcessReader process, IReadOnlyList<MemoryRegion> regions, ModuleRange module, uint build, out string report)
+    {
+        lock (DiscoveredByBuild)
+        {
+            if (DiscoveredByBuild.TryGetValue(build, out var known)) { report = "addresses known"; return known; }
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var offsets = BuildOffsetsDiscovery.Discover(process, regions, module, out report);
+            report += $" ({clock.ElapsedMilliseconds} ms)";
+            if (offsets is not null) DiscoveredByBuild[build] = offsets;
+            return offsets;
+        }
     }
 
     // Which field stops the match: the log line stays the same while walking unless that changes.
@@ -143,8 +167,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         return SceneRouteReader.TryRead(_process, _moduleBase, offsets, _candidates, out var hits) ? ToTileStates(hits) : null;
     }
 
-    public ConversationSnapshot? ReadConversation() =>
-        _offsets?.Conversation is { } conversation ? ConversationReader.TryRead(_process, _moduleBase, conversation) : null;
+    public ConversationSnapshot? ReadConversation()
+    {
+        if (_conversations is null) return null;
+        _conversations.SearchIfDue(_process, _moduleData, _module, _build);
+        return _conversations.For(_build) is { } conversation ? ConversationReader.TryRead(_process, _moduleBase, conversation) : null;
+    }
 
     public IReadOnlyList<string>? ReadMenus() => _menus?.Read(_process, _module);
 

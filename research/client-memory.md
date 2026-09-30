@@ -361,6 +361,28 @@ interaction and is not watched.
   matched the player's described route.
 - Where the minimap keeps positions of unloaded scenes is still unknown.
 
+**Surviving game updates (live 2026-09-30, build 3.2.1.73552 → 3.2.2.73764, TimeDateStamp 0x6A973496 → 0x6AAD7D16).**
+Every RVA moved, by different amounts (G −0x1C870, attribute names −0x206D0, playing list −0x274F0); the structure
+offsets (G+0xAB0/0xB78/0xC18, pool header, stride bases, slot and record fields, conversation layout) did not. So the
+app keeps only the structure layout (`GameBuildOffsetsTable.Layout`) and finds the addresses at session start:
+- **G** (`BuildOffsetsDiscovery`): every heap-looking u64 in the module's writable data (≈425,000) is tried as G; the
+  one whose `[[G+0xAB0]]` container starts with `ActorCommonData` (and whose scene and actor containers are set) wins.
+  New build: RVA 0x3670918. 118 ms in the app.
+- **Attribute names:** the `Gizmo_Has_Been_Operated` string in the module, the data pointer to it (descriptor +0x40),
+  back by id × 0x58 to the table; entries 0..2 must hold their own ids. New build: RVA 0x36CF540.
+- **Pool seeds are not read** (`PoolContainer`): in the chunk table in use, occupied slots hold ids with
+  `id & 0x7FFFF == index`; the other 15 tables (or another stride) don't. The first 64 slots of each table are tested with
+  the layout's stride, then every 16-byte stride from 0x100 to 0x2000 if the record size changed; ≥ 2 matches, no
+  contradiction. Kept per container. Live: scene k = 6, 9 slots; RActor and ACD pools read (25/25 ACD PASS).
+- **CScene vtable:** not checked any more; `CSceneRecordMatcher` validates each record.
+- **Conversations** (`ConversationDiscovery`, `ConversationAddresses`): only findable while live. The playing list is a
+  data word H whose first node's prev is H and whose +0x28 is a ConversationDefinition SNO; the dialogue menu is a data
+  pointer followed by a count 1..16 whose options are all conversations or 0. The app searches every 5 s in the background
+  (≈0.5 s per search) until found, and saves the RVAs per build in `d4assist-addresses.json` next to the exe. New build:
+  playing list RVA 0x30AB408 (found while an NPC spoke, empty again after); the dialogue menu not seen yet.
+- The screen registry (§5) and the player record (§3) were already found by content.
+- Build 3.2.1.73552's RVAs stay in this file (§1, §4, §5) for reference.
+
 ## 7. Open questions
 
 - The tile-hash units for tiles larger than 32×32, and whether RVAs stay stable across restarts.

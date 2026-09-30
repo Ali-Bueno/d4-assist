@@ -44,16 +44,16 @@ internal static class AcdCommand
         using (store)
         {
             string exePath = Path.Combine(install, GameData.MainModuleFileName);
-            if (!GameBuildOffsetsTable.TryGet(PeHeaderReader.ReadFromFile(exePath).TimeDateStamp, out var offsets) || offsets.Acd is null)
-            {
-                Console.WriteLine("No ACD offsets known for this build.");
-                return 1;
-            }
             var (worldSno, worldName) = WorldResolver.Resolve(store, schema, install);
             Console.WriteLine($"World: {worldName} -> SNO {worldSno}.");
 
             using var process = ProcessReader.OpenDiabloIv();
             if (!PlayerRecordLocator.TryLocateLive(process, store, schema, exePath, worldSno, out var module, out var player)) return 1;
+            if (Offsets.Discover(process, module) is not { Acd: not null } offsets)
+            {
+                Console.WriteLine("ACD addresses not found for this build.");
+                return 1;
+            }
             if (!RActorReader.TryRead(process, module.Base, offsets, out var actors) || !AcdReader.TryOpen(process, module.Base, offsets, out var acds))
             {
                 Console.Error.WriteLine("RActor or ACD route unavailable (container header unreadable or inconsistent).");

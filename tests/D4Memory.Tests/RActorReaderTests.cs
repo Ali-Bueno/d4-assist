@@ -14,20 +14,18 @@ public class RActorReaderTests
         GameObjectPointerRva: 0x8,
         Pool: new PoolLayout(ContainerSize: 0x100, CapacityOffset: 0x18, MaxIndexOffset: 0x20,
             ShiftOffset: 0x24, MaskOffset: 0x28, ChunkTableOffset: 0x40),
-        Scene: new PoolParameters(ContainerOffset: 0x8, SeedRva: 0x10, StrideBase: 0x92F),
-        Actor: new PoolParameters(ContainerOffset: 0x10, SeedRva: 0x14, StrideBase: 0xC27),
+        Scene: new PoolParameters(ContainerOffset: 0x8, StrideBase: 0x92F),
+        Actor: new PoolParameters(ContainerOffset: 0x10, StrideBase: 0xC27),
         CSceneVtableRva: 0x500);
 
-    /// <summary>Builds a pool with k = ((P/0x100) + seed) &amp; 0xF = 5, so stride = (0xC27 + 80) &amp; ~0xF = 0xC70.</summary>
+    /// <summary>Builds a pool whose chunk table in use is k = 5, so stride = (0xC27 + 80) &amp; ~0xF = 0xC70; the other tables are empty.</summary>
     private static (FakeMemoryReader Reader, byte[] Buffer, long Stride) BuildPool(uint maxIndex)
     {
         var offsets = BuildOffsets();
         var buffer = new byte[0x10000];
-        const uint seed = 5; // P/0x100 = 0x90, so k = (0x90 + 5) & 0xF = 5
         const long k = 5;
         Write64(buffer, ModuleBase + offsets.GameObjectPointerRva, G);
         Write64(buffer, G + offsets.Actor.ContainerOffset, P);
-        Write32(buffer, ModuleBase + offsets.Actor.SeedRva, seed);
         Write32(buffer, P + offsets.Pool.MaxIndexOffset, maxIndex);
         Write32(buffer, P + offsets.Pool.ShiftOffset, 4);
         Write32(buffer, P + offsets.Pool.MaskOffset, 0xF);
@@ -39,22 +37,22 @@ public class RActorReaderTests
     }
 
     [Fact]
-    public void ReadsOccupiedSlotsUsingTheSeededNonZeroKStrideAndSkipsFreeOnes()
+    public void ReadsOccupiedSlotsUsingTheNonZeroKStrideAndSkipsFreeOnes()
     {
         var (reader, buffer, stride) = BuildPool(maxIndex: 2);
         Assert.Equal(0xC70, stride);
 
         long slot0 = SlotBase, slot1 = SlotBase + stride, slot2 = SlotBase + 2 * stride;
-        WriteActor(buffer, slot0, id: 7, acd: 70, sno: 176832, pos: (10f, 20f, 3f), scene: 0x8001, placement: 0);
+        WriteActor(buffer, slot0, id: 0x80000, acd: 70, sno: 176832, pos: (10f, 20f, 3f), scene: 0x8001, placement: 0);
         Write32(buffer, slot1 + 8, 0xFFFFFFFF); // free
-        WriteActor(buffer, slot2, id: 9, acd: 90, sno: 555, pos: (1f, 2f, 3f), scene: 0x8002, placement: -1);
+        WriteActor(buffer, slot2, id: 0x80002, acd: 90, sno: 555, pos: (1f, 2f, 3f), scene: 0x8002, placement: -1);
 
         Assert.True(RActorReader.TryRead(reader, ModuleBase, BuildOffsets(), out var actors));
 
         Assert.Equal(2, actors.Count);
         var placed = actors[0];
         Assert.Equal(slot0, placed.SlotAddress);
-        Assert.Equal(7u, placed.Id);
+        Assert.Equal(0x80000u, placed.Id);
         Assert.Equal(70u, placed.AcdId);
         Assert.Equal(176832, placed.ActorSno);
         Assert.Equal(10f, placed.Position.X);
@@ -67,11 +65,11 @@ public class RActorReaderTests
     public void UnplacedRecordsAreReportedWithTheirFlag()
     {
         var (reader, buffer, stride) = BuildPool(maxIndex: 1);
-        WriteActor(buffer, SlotBase + stride, id: 9, acd: 90, sno: 555, pos: (1f, 2f, 3f), scene: 0x8002, placement: -1);
+        WriteActor(buffer, SlotBase + stride, id: 0x80001, acd: 90, sno: 555, pos: (1f, 2f, 3f), scene: 0x8002, placement: -1);
 
         Assert.True(RActorReader.TryRead(reader, ModuleBase, BuildOffsets(), out var actors));
 
-        var unplaced = Assert.Single(actors, a => a.Id == 9);
+        var unplaced = Assert.Single(actors, a => a.Id == 0x80001);
         Assert.Equal(-1, unplaced.Placement);
         Assert.False(unplaced.IsPlaced);
     }
@@ -81,6 +79,7 @@ public class RActorReaderTests
     {
         var (reader, buffer, stride) = BuildPool(maxIndex: 2);
         WriteActor(buffer, SlotBase + stride, id: 1, acd: 1, sno: 1, pos: (0f, 0f, 0f), scene: 0, placement: 0);
+        Write32(buffer, SlotBase + 2 * stride + 8, 0xFFFFFFFF); // free
         Assert.True(PoolContainer.TryOpen(reader, ModuleBase, BuildOffsets(), BuildOffsets().Actor, out var pool));
 
         Assert.True(pool.TryGetSlotById(1, out long found));

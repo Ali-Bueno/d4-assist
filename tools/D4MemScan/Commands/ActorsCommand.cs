@@ -44,12 +44,6 @@ internal static class ActorsCommand
         using (store)
         {
             string exePath = Path.Combine(install, GameData.MainModuleFileName);
-            if (!GameBuildOffsetsTable.TryGet(PeHeaderReader.ReadFromFile(exePath).TimeDateStamp, out var offsets))
-            {
-                Console.WriteLine("No offsets known for this build; the RActor route is unavailable.");
-                return 1;
-            }
-
             var (worldSno, worldName) = WorldResolver.Resolve(store, schema, install);
             Console.WriteLine($"World: {worldName} -> SNO {worldSno}.");
             var sceneSnos = PlayerRecordLocator.SceneSnos(store, schema);
@@ -63,6 +57,7 @@ internal static class ActorsCommand
                 Console.Error.WriteLine("No live player record found.");
                 return 1;
             }
+            if (Offsets.Discover(process, module) is not { } offsets) return 1;
             if (!RActorReader.TryRead(process, module.Base, offsets, out var actors))
             {
                 Console.Error.WriteLine("RActor route unavailable (container header unreadable or inconsistent).");

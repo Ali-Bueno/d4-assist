@@ -36,16 +36,15 @@ internal static class SceneRouteDiagnostics
             ulong expectedVtable = (ulong)moduleBase + (ulong)offsets.CSceneVtableRva;
             var g = U64(process, moduleBase + offsets.GameObjectPointerRva);
             var p = g is { } gv and not 0 ? U64(process, (long)gv + offsets.Scene.ContainerOffset) : null;
-            var seed = U32(process, moduleBase + offsets.Scene.SeedRva);
-            Console.WriteLine($"  G=0x{g:X} P=0x{p:X} seed=0x{seed:X}");
-            if (p is not { } pv || pv == 0 || seed is not { } sv) continue;
+            uint? k = PoolContainer.TryOpen(process, moduleBase, offsets, offsets.Scene, out var pool) ? pool.ChunkTableIndex : null;
+            Console.WriteLine($"  G=0x{g:X} P=0x{p:X} table in use: {(k is { } kv ? kv.ToString() : "none validates")}");
+            if (p is not { } pv || pv == 0 || k is null) continue;
 
             var capacity = U32(process, (long)pv + offsets.Pool.CapacityOffset);
             var maxIndex = U32(process, (long)pv + offsets.Pool.MaxIndexOffset);
             var shift = U32(process, (long)pv + offsets.Pool.ShiftOffset);
             var mask = U32(process, (long)pv + offsets.Pool.MaskOffset);
-            uint k = (uint)((long)(pv / (ulong)offsets.Pool.ContainerSize) + sv) & 0xF;
-            Console.WriteLine($"  capacity={capacity} maxIndex={maxIndex} shift={shift} mask=0x{mask:X} k={k} stride=0x{Stride(k, offsets):X}");
+            Console.WriteLine($"  capacity={capacity} maxIndex={maxIndex} shift={shift} mask=0x{mask:X} k={k} stride=0x{pool.Stride:X}");
 
             for (int e = 0; e < ChunkTableEntryCount; e++)
             {
@@ -93,19 +92,18 @@ internal static class SceneRouteDiagnostics
         var g = U64(process, moduleBase + offsets.GameObjectPointerRva);
         if (g is not { } gv || gv == 0) return;
         var p = U64(process, (long)gv + offsets.Scene.ContainerOffset);
-        var seed = U32(process, moduleBase + offsets.Scene.SeedRva);
-        if (p is not { } pv || pv == 0 || seed is not { } sv) return;
+        if (p is not { } pv || pv == 0 || !PoolContainer.TryOpen(process, moduleBase, offsets, offsets.Scene, out var pool)) return;
+        uint k = pool.ChunkTableIndex;
         int maxIndex = (int)(U32(process, (long)pv + offsets.Pool.MaxIndexOffset) ?? 0);
         int shift = (int)(U32(process, (long)pv + offsets.Pool.ShiftOffset) ?? 0);
         uint mask = U32(process, (long)pv + offsets.Pool.MaskOffset) ?? 0;
-        uint k = (uint)((long)(pv / (ulong)offsets.Pool.ContainerSize) + sv) & 0xF;
         var chunks = U64(process, (long)pv + offsets.Pool.ChunkTableOffset + ChunkTableEntrySize * k) ?? 0;
         Console.WriteLine($"Module 0x{moduleBase:X}: maxIndex={maxIndex} k={k}");
         for (int idx = 0; idx <= maxIndex; idx++)
         {
             var chunkBase = U64(process, (long)chunks + 8L * (idx >> shift)) ?? 0;
             if (chunkBase == 0) continue;
-            long slot = (long)chunkBase + (idx & mask) * Stride(k, offsets);
+            long slot = (long)chunkBase + (idx & mask) * pool.Stride;
             var id = U32(process, slot + SceneIdOffsetInSlot);
             long a = slot + SnoSceneOffsetInSlot;
             int sno = (int)(U32(process, a) ?? 0);

@@ -35,6 +35,7 @@ D4MemScan pose-context --in <file.json> [--out <file.focus.json>]
 D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>] [--snapshot-pointers <file> [--snapshot-count N --snapshot-every-ms M]]
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]
+D4MemScan conversations --defs <definitions.json> [--install <dir>] [--watch <seconds>]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
 D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
@@ -122,6 +123,13 @@ the repo.
     record in the heap screen registry (`D4Memory.Ui.ScreenRegistryReader`, `research/client-memory.md` §5), prints the
     open ones, then every open/close with its time for `--watch` seconds (default 120, every 200 ms). About 35 s to
     start. Use it to see which screens a game state opens, e.g. a cutscene or a new panel.
+
+11. **`conversations`** — searches the module data for the playing-conversation list and the dialogue menu
+    (`D4Memory.Ui.ConversationDiscovery`) every 2 s until both are found, then prints their contents on each change. Talk
+    to an NPC while it runs: each part is only found while live.
+
+Every live command finds the build's addresses itself (`Offsets.cs` → `BuildOffsetsDiscovery`) and prints them, e.g.
+`Module 0x7FF7B55F0000: game object at RVA 0x3670918, attribute names at RVA 0x36CF540.`
 
 ## Layout
 

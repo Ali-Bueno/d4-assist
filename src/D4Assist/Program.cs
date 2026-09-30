@@ -95,10 +95,14 @@ internal static class Program
         Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
         Func<int, IReadOnlyList<PlacedMarker>> questMarkers = quest => { lock (cascGate) return questScripts.Markers(quest); };
+        // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
+        var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
+        var conversationAddresses = new ConversationAddresses(
+            Path.Combine(AppContext.BaseDirectory, "d4assist-addresses.json"), conversationSnos.Contains, debug ? Console.WriteLine : null);
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
-                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers),
+                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses),
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);

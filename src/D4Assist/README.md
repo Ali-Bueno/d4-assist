@@ -26,6 +26,9 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   (`Memory: cannot read the game yet, retrying: …`, once per reason; the open is retried every second, since the
   log names a world before the player is placed in it), the player actor and game build once reading, and every
   `CUES muted/unmuted` reason.
+- The game's memory addresses change with every game update; the app finds them at session start (`Memory: … game
+  object at RVA …`). The conversation addresses can only be found while someone talks (`TALK playing list found at RVA
+  …`); they are saved per game build in `d4assist-addresses.json` next to the exe (research/client-memory.md §6).
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
 - Loops positional beacons at every portal in a dungeon and at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).

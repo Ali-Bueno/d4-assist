@@ -34,7 +34,7 @@ public static class SceneRouteReader
         foreach (var (slot, _) in pool.OccupiedSlots())
         {
             if (!PoolContainer.TryReadU64(reader, slot + VtableOffsetInSlot, out ulong vtable)) continue;
-            if (vtable != expectedVtable) continue; // inconsistent slot; skip it, not the whole route
+            if (offsets.CSceneVtableRva != 0 && vtable != expectedVtable) continue; // inconsistent slot; skip it, not the whole route
 
             long snoSceneAddress = slot + SnoSceneOffsetInSlot;
             if (!reader.TryRead(snoSceneAddress - CSceneRecordMatcher.RecordBytesBefore, window, window.Length)) continue;

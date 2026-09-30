@@ -14,7 +14,8 @@ public sealed record ConversationOffsets(long OptionsPointerRva, int OptionStrid
 /// <summary>The dialogue menu's offered conversations (empty when the menu is closed) and the conversations playing now.</summary>
 public sealed record ConversationSnapshot(IReadOnlyList<int> MenuOptions, IReadOnlyList<int> Playing);
 
-/// <summary>Reads the dialogue menu and the playing-conversation list through static module addresses.</summary>
+/// <summary>Reads the dialogue menu and the playing-conversation list through static module addresses; a part whose RVA is
+/// 0 (not found yet for the build) reads as empty.</summary>
 public static class ConversationReader
 {
     // Guards against a torn or foreign read: the prologue menu offered 5 options; a list walk stops after this many nodes.
@@ -22,20 +23,22 @@ public static class ConversationReader
 
     public static ConversationSnapshot? TryRead(IMemoryReader memory, long moduleBase, ConversationOffsets offsets)
     {
-        var header = new byte[sizeof(long) + sizeof(uint)];
-        if (!memory.TryRead(moduleBase + offsets.OptionsPointerRva, header, header.Length)) return null;
-        long options = BinaryPrimitives.ReadInt64LittleEndian(header);
-        int count = (int)Math.Min(BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(sizeof(long))), MaxOptions);
-
         var menu = new List<int>();
         var word = new byte[sizeof(long)];
-        for (int i = 0; i < count; i++)
-            if (memory.TryRead(options + i * offsets.OptionStride + offsets.OptionSnoOffset, word, sizeof(int)))
-                menu.Add(BinaryPrimitives.ReadInt32LittleEndian(word));
+        if (offsets.OptionsPointerRva != 0)
+        {
+            var header = new byte[sizeof(long) + sizeof(uint)];
+            if (!memory.TryRead(moduleBase + offsets.OptionsPointerRva, header, header.Length)) return null;
+            long options = BinaryPrimitives.ReadInt64LittleEndian(header);
+            int count = (int)Math.Min(BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(sizeof(long))), MaxOptions);
+            for (int i = 0; i < count; i++)
+                if (memory.TryRead(options + i * offsets.OptionStride + offsets.OptionSnoOffset, word, sizeof(int)))
+                    menu.Add(BinaryPrimitives.ReadInt32LittleEndian(word));
+        }
 
         var playing = new List<int>();
         long head = moduleBase + offsets.PlayingListRva, node = head;
-        for (int i = 0; i < MaxPlaying; i++)
+        for (int i = 0; i < MaxPlaying && offsets.PlayingListRva != 0; i++)
         {
             if (!memory.TryRead(node, word, sizeof(long))) return null;
             node = BinaryPrimitives.ReadInt64LittleEndian(word);

@@ -30,13 +30,12 @@ internal static class SceneRouteCommand
 
             string exePath = Path.Combine(install, GameData.MainModuleFileName);
             var signature = PeHeaderReader.ReadFromFile(exePath);
-            if (!GameBuildOffsetsTable.TryGet(signature.TimeDateStamp, out var offsets))
+            using var process = ProcessReader.OpenDiabloIv();
+            if (Offsets.DiscoverAny(process, exePath).Offsets is not { } offsets)
             {
-                Console.WriteLine($"Route unavailable: no offsets known for build TimeDateStamp 0x{signature.TimeDateStamp:X}. Fall back to `scenes`.");
+                Console.WriteLine($"Route unavailable: addresses not found for build TimeDateStamp 0x{signature.TimeDateStamp:X}. Fall back to `scenes`.");
                 return 1;
             }
-
-            using var process = ProcessReader.OpenDiabloIv();
             if (reader.Has("--diagnose"))
             {
                 var bases = ModuleLocator.LocateAll(process.ImageRegions(), process, exePath).Select(m => m.Base).ToList();

@@ -86,6 +86,10 @@ internal static class PassageScanner
     private static Passage Classify(Passage passage, RadarVector axis, PassageQuery query)
     {
         if (passage.LeadsUnknown) return passage with { Observed = RadarCueKind.Exit };
+        // D4 deviation (user, 2026-09-30): a route that enters another room is an exit even with a wall just beyond the
+        // border. D4 doorways open onto corridors along the screen diagonals, whose far wall a cardinal ray meets within
+        // the closing depth; D2R required the route to clear the border by a doorway (radar_passage.cpp:85-86).
+        if (passage.Crossing >= 0) return passage with { Observed = RadarCueKind.Exit };
         if (passage.Depth <= query.CloseDepth) return passage with { Observed = passage.Door ? RadarCueKind.Door : RadarCueKind.Blocked };
         if (passage.Depth < query.OpenDepth && query.Committed is { } committed && committed.IsObstacle()) return passage with { Observed = committed };
         // The route arrives within a doorway (radar_passage.cpp:73-84): D2R's level exits, fed with the room's doorways,
@@ -96,9 +100,7 @@ internal static class PassageScanner
             if (ahead > 0 && ahead <= passage.Depth + query.WayThrough && aside <= doorway.Width / 2)
                 return passage with { Observed = RadarCueKind.Exit, CrossingRoom = doorway.Beyond, ViaDoorway = true };
         }
-        // Another room entered and its border cleared by a doorway's width (radar_passage.cpp:85-86).
-        var leaves = passage.Crossing >= 0 && passage.Depth >= passage.Crossing + query.WayThrough;
-        return passage with { Observed = leaves ? RadarCueKind.Exit : RadarCueKind.Open };
+        return passage with { Observed = RadarCueKind.Open };
     }
 
     // A diagonal step between two non-open cells is a zero-width gap; D2R's cross body could not take it either.

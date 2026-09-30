@@ -42,21 +42,21 @@ public class PassageClassificationTests
     }
 
     [Fact]
-    public void TouchingAnotherRoomWithoutClearingADoorway_ReadsOpen()
+    public void EnteringAnotherRoom_ReadsExit_EvenWithAWallWithinTheClosingDepth()
     {
-        // Enters room 1 at depth 8 but ends at 13, short of 8 + the doorway width (D2R radar_passage.cpp:105).
-        var sensor = Baseline(FakeRadarWorld.Corridor(wallX: 16, secondRoomFromX: 10), 2);
+        // Enters room 1 at depth 4 and ends at 7: D2R read a wall, short of the border + a doorway's width.
+        var sensor = Baseline(FakeRadarWorld.Corridor(wallX: 12, secondRoomFromX: 8), 4);
 
-        Assert.Equal(RadarCueKind.Open, sensor.State);
+        Assert.Equal(RadarCueKind.Exit, sensor.State);
     }
 
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    public void RouteArrivingWithinADoorwayOfTheRoom_ReadsExit_WithoutClearingTheBorder(bool visited, bool unexplored)
+    public void RouteArrivingWithinADoorwayOfTheRoom_ReadsExit(bool visited, bool unexplored)
     {
-        // The same short route as above, now toward a known doorway of room 0 at x = 10 (radar_passage.cpp:73-84).
-        var world = FakeRadarWorld.Corridor(wallX: 16, secondRoomFromX: 10);
+        // A route that never enters room 1's cells, toward a known doorway of room 0 at x = 10 (radar_passage.cpp:73-84).
+        var world = FakeRadarWorld.Corridor(wallX: 16);
         world.DoorwayList.Add(new RadarDoorway(new RadarVector(10, 2.5), 3, Room: 0, Beyond: 1));
         if (visited) world.Visited.Add(1);
 
@@ -71,7 +71,7 @@ public class PassageClassificationTests
     [InlineData(10, 2.5, 1)] // a doorway of another room
     public void DoorwaysOffTheRayOrOfAnotherRoom_AreIgnored(double x, double y, int room)
     {
-        var world = FakeRadarWorld.Corridor(wallX: 16, secondRoomFromX: 10);
+        var world = FakeRadarWorld.Corridor(wallX: 16);
         world.DoorwayList.Add(new RadarDoorway(new RadarVector(x, y), 3, room, Beyond: 2));
 
         Assert.Equal(RadarCueKind.Open, Baseline(world, 2).State);

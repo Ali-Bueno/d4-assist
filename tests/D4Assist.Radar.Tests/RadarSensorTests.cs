@@ -126,6 +126,17 @@ public class RadarSensorTests
         Assert.Equal(RadarCueKind.Exit, Walk(400, 12, Scan(RadarCueKind.Exit, 26)));
     }
 
+    [Fact]
+    public void AnExitWhoseRouteEndsAtTheAnnouncedWall_StillSounds()
+    {
+        Walk(0, 0, Scan(RadarCueKind.Open, 20));
+        Walk(100, 13, Scan(RadarCueKind.Blocked, 7));
+        Walk(200, 14, Scan(RadarCueKind.Blocked, 6));
+
+        Move(300, 14, 1, Scan(RadarCueKind.Exit, 6)); // a doorway beside the player, its route ending at the same wall
+        Assert.Equal(RadarCueKind.Exit, Move(400, 14, 2, Scan(RadarCueKind.Exit, 6)));
+    }
+
     // Steps back along the axis one cell per poll from a wall at x = wall; inside the band the scan keeps the wall.
     private List<RadarCueKind?> Retreat(int wall, int from, int to, long startMs, double y = 0)
     {

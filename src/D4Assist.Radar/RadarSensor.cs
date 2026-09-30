@@ -108,10 +108,11 @@ public sealed class RadarSensor(RadarSettings settings)
     {
         if (_deferred is not { } deferred) return null;
         var passable = deferred.IsPassable();
-        if (passable && Frontier is { } frontier)
+        if (deferred == RadarCueKind.Open && Frontier is { } frontier)
         {
             // Backing away from an announced wall lengthens the route without opening anything; half the
-            // hysteresis band absorbs raster steps. Dropped, not held (radar.cpp:109-125).
+            // hysteresis band absorbs raster steps. Dropped, not held (radar.cpp:109-125). D4: never an exit, which a
+            // retreat cannot create and whose route may end at that same wall (PassageScanner.Classify).
             var lateral = Math.Abs(axis.Across(motion - frontier.Origin));
             var reach = motion.Dot(axis) + Passage.Depth;
             var margin = (Passage.OpenDepth - Passage.CloseDepth) / 2;

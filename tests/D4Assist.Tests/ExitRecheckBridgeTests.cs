@@ -45,7 +45,7 @@ public class ExitRecheckBridgeTests
         {
             var ping = new GuidePingPlayer(new AudioMixer(), () => 0, autoTick: false);
             _ = new ExplorationGuideBridge(
-                Feed, (_, missing, _) => { Asked.Add(missing); return Step; }, ping, Speech, () => Beacon, Log.Add, language: Language,
+                Feed, (_, missing, _, _) => { Asked.Add(missing); return Step; }, ping, Speech, () => Beacon, Log.Add, language: Language,
                 destinations: () => Destinations);
             Feed.RaiseWorld(world);
         }

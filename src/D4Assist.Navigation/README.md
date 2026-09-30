@@ -78,6 +78,9 @@ Touching tiles of one room are linked even without exit bits (preset rooms' live
 Re-check mode: `Step(player, exitMissing: true)` with nothing left to explore returns `Rechecking` (`GuideStep.Round`) toward the known tiles whose scene `isExitCandidate` accepts, nearest first with the same commitment rules;
 a candidate is re-checked once the player is within `SeenRadiusUnits` of its centre (an arrival), and after all are done a new round starts (the one under the player re-arms only after leaving). No known candidate keeps `AllExplored`.
 `Arrivals` counts targets reached (explored, or a dead exit stood at), not targets that merely loaded.
+Objectives: `Step(..., objectives: points)` leads to the reachable points of the lowest tier (`GuideTargetKind.Objective`)
+before any exploring; a point on an unloaded or cut-off tile waits. The caller drops points reached or done; one dropped
+within `DestinationArrivalUnits` of the player is an arrival.
 
 ## D2R correspondence
 

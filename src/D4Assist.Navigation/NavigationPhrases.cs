@@ -20,6 +20,9 @@ public sealed class NavigationPhrases
         NoOtherExits = "Sin otras salidas.",
         AllExplored = "Todo explorado.",
         Rechecking = "Salida no encontrada. Revisando los callejones.",
+        ToQuestObjective = "Hacia el objetivo de la misión.",
+        ToDungeonObjective = "Hacia un objetivo de la mazmorra.",
+        ToUnexplored = "Hacia zona sin explorar.",
         Directions = Map("arriba", "arriba a la derecha", "derecha", "abajo a la derecha", "abajo", "abajo a la izquierda", "izquierda", "arriba a la izquierda"),
         Labels = new() { [RoomKind.Junction] = "Cruce.", [RoomKind.BigRoom] = "Sala grande.", [RoomKind.Corridor] = "Pasillo." },
     };
@@ -36,6 +39,9 @@ public sealed class NavigationPhrases
         NoOtherExits = "No other exits.",
         AllExplored = "All explored.",
         Rechecking = "Exit not found. Rechecking dead ends.",
+        ToQuestObjective = "To the quest objective.",
+        ToDungeonObjective = "To a dungeon objective.",
+        ToUnexplored = "To unexplored ground.",
         Directions = Map("up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"),
         Labels = new() { [RoomKind.Junction] = "Junction.", [RoomKind.BigRoom] = "Big room.", [RoomKind.Corridor] = "Corridor." },
     };
@@ -49,6 +55,15 @@ public sealed class NavigationPhrases
 
     /// <summary>Spoken once per round when the guide walks back to the dead ends that could hold the missing exit.</summary>
     public string Rechecking { get; private init; } = "";
+
+    /// <summary>Spoken when the guide turns to the tracked quest's step seen earlier.</summary>
+    public string ToQuestObjective { get; private init; } = "";
+
+    /// <summary>Spoken when the guide turns to a dungeon objective seen earlier (prisoner, altar, lever...).</summary>
+    public string ToDungeonObjective { get; private init; } = "";
+
+    /// <summary>Spoken when the guide turns (back) to exploring, or is switched on while exploring.</summary>
+    public string ToUnexplored { get; private init; } = "";
 
     private string SingularHeader { get; init; } = "";
     private string PluralHeader { get; init; } = "";

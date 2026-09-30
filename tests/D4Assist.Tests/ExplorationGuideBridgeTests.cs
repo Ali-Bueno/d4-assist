@@ -47,11 +47,16 @@ public class ExplorationGuideBridgeTests
         public bool BeaconActive;
         public double Now;
         public List<string> Log = [];
+        public List<GuideDestination> Objectives = [];
+        public IReadOnlyList<GuideDestination>? AskedObjectives;
+        public int Rearms;
 
         public Rig(bool guideInDungeons = false)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
-            _ = new ExplorationGuideBridge(Feed, (_, _, _) => Step, Ping, Speech, () => BeaconActive, Log.Add, Pad, guideInDungeons);
+            _ = new ExplorationGuideBridge(
+                Feed, (_, _, _, objectives) => { AskedObjectives = objectives; return Step; }, Ping, Speech, () => BeaconActive, Log.Add, Pad,
+                guideInDungeons, objectives: () => Objectives, rearmObjectives: () => Rearms++);
             Feed.RaiseWorld();
         }
 
@@ -74,7 +79,7 @@ public class ExplorationGuideBridgeTests
         var mixer = new AudioMixer();
         var ping = new GuidePingPlayer(mixer, () => 0, autoTick: false);
         var step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Frontier, "a", (-10, 10)), (-10, 10), 50);
-        _ = new ExplorationGuideBridge(feed, (_, _, _) => step, ping, new FakeSpeech(), () => false);
+        _ = new ExplorationGuideBridge(feed, (_, _, _, _) => step, ping, new FakeSpeech(), () => false);
 
         feed.RaisePlayer();
         ping.Tick();
@@ -333,5 +338,73 @@ public class ExplorationGuideBridgeTests
         var (left, _) = rig.Hear();
 
         Assert.Equal(0, left); // only the hard-right ping, never the centred arrival chime
+    }
+
+    private static GuideStep ToObjective(string id) =>
+        new(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Objective, id, (-10, 10)), (-10, 10), 50);
+
+    [Fact]
+    public void Switching_on_says_where_the_guide_leads()
+    {
+        var rig = new Rig { Objectives = [new("q", (-10, 10), ObjectiveMemory.QuestTier)], Step = ToObjective("q") };
+        rig.Feed.RaiseWorld("DGN_Test"); // off by default
+        rig.Feed.RaisePlayer();
+        Assert.Empty(rig.Speech.Spoken);
+
+        rig.Pad.Press();
+
+        Assert.Equal([("Guía activada.", true), (NavigationPhrases.Spanish.ToQuestObjective, false)], rig.Speech.Spoken);
+        Assert.True(rig.Hear().Right > 0);
+        Assert.Equal(1, rig.Rearms); // objectives walked past lead again
+
+        rig.Pad.Press();
+        Assert.Equal(1, rig.Rearms);
+    }
+
+    [Fact]
+    public void A_floor_starts_exploring_silently_and_turning_to_an_objective_and_back_is_spoken_once_each()
+    {
+        var rig = new Rig(guideInDungeons: true);
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Feed.RaisePlayer();
+        Assert.Empty(rig.Speech.Spoken);
+
+        rig.Objectives = [new("d", (-10, 10), ObjectiveMemory.DungeonTier)];
+        rig.Step = ToObjective("d");
+        rig.Feed.RaisePlayer();
+        rig.Feed.RaisePlayer();
+        rig.Objectives = [];
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.UnvisitedTile, "t", (5, 6)), (5, 6), 12);
+        rig.Feed.RaisePlayer();
+        rig.Feed.RaisePlayer();
+
+        Assert.Equal([(NavigationPhrases.Spanish.ToDungeonObjective, false), (NavigationPhrases.Spanish.ToUnexplored, false)], rig.Speech.Spoken);
+        Assert.Equal("Hacia zona sin explorar.", NavigationPhrases.Spanish.ToUnexplored);
+    }
+
+    [Fact]
+    public void Endgame_runs_never_lead_to_objectives()
+    {
+        var rig = new Rig { Objectives = [new("d", (-10, 10), ObjectiveMemory.DungeonTier)] }; // Undercity
+
+        rig.Feed.RaisePlayer();
+
+        Assert.NotNull(rig.AskedObjectives);
+        Assert.Empty(rig.AskedObjectives!);
+    }
+
+    [Fact]
+    public void A_waiting_objective_keeps_leading_while_an_unused_portal_is_in_sight()
+    {
+        var rig = new Rig(guideInDungeons: true) { BeaconActive = true, Objectives = [new("d", (-10, 10), ObjectiveMemory.DungeonTier)] };
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Step = ToObjective("d");
+        rig.Feed.RaisePlayer();
+        Assert.True(rig.Hear().Right > 0);
+
+        rig.Now += 10;
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Frontier, "a", (-10, 10)), (-10, 10), 50); // objective cut off
+        rig.Feed.RaisePlayer();
+        Assert.Equal((0, 0), rig.Hear());
     }
 }

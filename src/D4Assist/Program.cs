@@ -143,8 +143,10 @@ internal static class Program
         var doors = config.RadarClosedDoorsEnabled ? new DoorObstacles(interactables, definitionOf) : null;
         _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug, doors);
 
-        var portals = loopSounds is null ? null : StartLoops(
+        var loopMemory = loopSounds is null ? null : StartLoops(
             session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, cue => liveSound.Current.Level(cue));
+        var portals = loopMemory?.Portals;
+        var objectives = loopMemory?.Objectives;
         using var npcTap = new NpcCuePlayer(mixer);
         StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles and the portals.
@@ -201,7 +203,8 @@ internal static class Program
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
-                pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations);
+                pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations,
+                objectives is null ? null : objectives.Destinations, objectives is null ? null : objectives.Rearm);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
@@ -290,8 +293,11 @@ internal static class Program
         catch (InvalidDataException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
     }
 
-    /// <summary>Starts the actor loops, levelled live by <paramref name="levelOf"/>; returns the memory of the portals they found.</summary>
-    private static PortalMemory StartLoops(
+    /// <summary>The portals and objectives the actor loops found in the current dungeon, for the exploration guide.</summary>
+    private sealed record LoopMemory(PortalMemory Portals, ObjectiveMemory Objectives);
+
+    /// <summary>Starts the actor loops, levelled live by <paramref name="levelOf"/>; returns the memory of the portals and objectives they found.</summary>
+    private static LoopMemory StartLoops(
         GameSession session, AudioMixer mixer, Dictionary<string, float[]> sounds, AppConfig config, SnoStore store, TypeSchema schema,
         object cascGate, bool debug, Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables,
         Func<SoundCue, CueLevel> levelOf)
@@ -314,9 +320,12 @@ internal static class Program
             : null;
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
-        _ = new ActorLoopBridge(
+        var loops = new ActorLoopBridge(
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
-        return new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
+        var objectiveMemory = new ObjectiveMemory(session, store.Name, debug ? Console.WriteLine : null);
+        loops.ObjectivesLooping += objectiveMemory.Observe;
+        var portals = new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
+        return new LoopMemory(portals, objectiveMemory);
     }
 
     // Prisoners keep their own objective loop, so they never tap as well.

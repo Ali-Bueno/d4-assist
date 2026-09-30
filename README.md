@@ -14,7 +14,8 @@ next to the game (controller + NVDA through D4's third-party screen-reader optio
   (prisoners, switches, carryables and receptacles, quest chests, the actors the dungeon's objective quest names).
 - **An exploration guide**: an automatic ping along the path to the nearest unexplored part (on by default in
   the Undercity and the Pit, D-pad left toggles it, ignored while a game menu is open), with an arrival chime. With
-  nothing left to explore it leads to a portal seen earlier, preferring one the player has not come through.
+  nothing left to explore it leads to a portal seen earlier, preferring one the player has not come through. In other
+  dungeons it first leads back to a quest or dungeon objective heard earlier and not done, and switching it on says where it leads.
 - **Campaign routes** outside dungeons: the same ping leads point by point through known story stretches, such as
   the shelters from the desert sandstorms on the way to Elias's palace with Meshif ("Refugio 1 de 3.").
 - **A settings window** from the notification-area icon (or Ctrl+Alt+Shift+C): every sound can be switched off, levelled

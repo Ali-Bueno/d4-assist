@@ -54,6 +54,9 @@ public sealed class ActorLoopBridge
         feed.PlayerMoved += p => { lock (_gate) OnPlayer(p); };
     }
 
+    /// <summary>Raised on every actor poll with the objective actors looping now, whatever their volume (ObjectiveMemory).</summary>
+    public event Action<IReadOnlyList<ActorState>>? ObjectivesLooping;
+
     /// <summary>True while an actor of <paramref name="kind"/> has been detected in the current dungeon.</summary>
     public bool HasTarget(LoopKind kind) { lock (_gate) return _targets.Values.Any(t => t.Target.Kind == kind); }
 
@@ -79,13 +82,14 @@ public sealed class ActorLoopBridge
             .GroupBy(x => x.Actor.Id).ToDictionary(g => g.Key, g => g.First());
         // An unusable gizmo (quest-restricted, script-disabled) offers no interaction: silent until the game allows it.
         var next = selected.Where(kv => !(kv.Value.Target!.StopsWhenUsed && (kv.Value.Actor.Unusable || _isUsed(kv.Value.Actor))))
-            .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, kv.Value.Target!));
+            .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, Target: kv.Value.Target!));
         if (_log is not null)
             foreach (var (actor, target) in selected.Values.Where(x =>
                          x.Target!.StopsWhenUsed && x.Actor.Unusable && !_targets.ContainsKey(x.Actor.Id) && _loggedUnusable.Add(x.Actor.Id)))
                 Log("silent", actor, target!, "unusable");
         if (_log is not null) LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
         _targets = next;
+        ObjectivesLooping?.Invoke([.. next.Values.Where(t => t.Target.Kind == LoopKind.Objective).Select(t => t.Actor)]);
     }
 
     // Switched-off cues are dropped before the per-kind cap, so a silent chest never takes a corpse's voice.

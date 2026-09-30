@@ -226,8 +226,16 @@ the nearest NPC within 15 units, on every player poll. It repeats faster as the 
 ## Exploration guide
 
 `Game/ExplorationGuideBridge` asks the navigation engine's `ExplorationGuide` for a waypoint on every player poll
-and tile update and aims `GuidePingPlayer` at it (no buttons). It mutes while an unused portal is in sight (`PortalMemory.FreshInSight`: its
-beacon takes over), stops on a world change, and when every reachable part is visited leads to the portals seen earlier:
+and tile update and aims `GuidePingPlayer` at it (no buttons). Outside the endgame it first leads to an objective heard
+earlier and not done: `Game/ObjectiveMemory` remembers every objective loop (`ActorLoopBridge.ObjectivesLooping`), the
+tracked quest's step before the dungeon's own objectives (prisoners, altars, levers, carryables). An objective that falls
+silent within 20 units of the player is done (used, locked or removed); one the player came within a quarter tile of is
+passed over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again.
+Pit and Undercity keep the order below unchanged (user, 2026-09-30). Switching the guide on says where it leads ("Hacia el
+objetivo de la misión." / "Hacia un objetivo de la mazmorra." / "Hacia zona sin explorar." / the portal lines / "Todo explorado.");
+while on, a change of goal is spoken once, and a new floor starts exploring without a word. `--debug` logs `OBJECTIVE seen|reached|done|re-armed`.
+It mutes while an unused portal is in sight (`PortalMemory.FreshInSight`: its
+beacon takes over) unless an objective still leads, stops on a world change, and when every reachable part is visited leads to the portals seen earlier:
 the reachable unused ones, or else the ones already used ("Todo explorado. Te llevo a un portal." / "... al portal por el que
 llegaste."). Reaching the last of them, or having none, it stays silent and speaks "Todo explorado." once per dungeon (`interrupt=false`). `--debug` logs one `GUIDE` line per target change and per toggle.
 Each target reached plays the arrival chime (a target reached while the beacon leads never chimes late). Once a

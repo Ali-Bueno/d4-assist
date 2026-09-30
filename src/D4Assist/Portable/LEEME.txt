@@ -152,6 +152,14 @@ Qué hace
     - En Undercity, si ya no queda nada por explorar y la salida no ha
       aparecido, dice "Salida no encontrada. Revisando los callejones" y te
       lleva otra vez por los callejones donde puede estar la plataforma.
+    - Para cuando te pierdes (NUEVO, sin probar): en las mazmorras normales,
+      si ya oíste un objetivo que sigue pendiente (el de la misión, un
+      prisionero, un altar, una palanca...), la guía te lleva primero a él y
+      luego sigue explorando. Primero el de la misión, luego los de la
+      mazmorra. Al activarla dice adónde te lleva: "Hacia el objetivo de la
+      misión", "Hacia un objetivo de la mazmorra", "Hacia zona sin explorar",
+      el portal o "Todo explorado". En Undercity y en el Foso sigue igual que
+      antes.
 - Guía de refugios (NUEVO, todavía sin probar): en la misión de campaña en la
   que cruzas el desierto con Mesif y hay que protegerse de las tormentas de
   arena. Al empezar esa parte dice "Guía de refugios" y el mismo pitido de la

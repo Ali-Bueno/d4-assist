@@ -1,7 +1,7 @@
 namespace D4Assist.Navigation;
 
 /// <summary>
-/// Leads the player to the nearest unexplored part of the dungeon: a known tile not yet explored (stood in, or seen from a connected doorway), or an exit
+/// Leads the player to an objective seen earlier, else to the nearest unexplored part of the dungeon: a known tile not yet explored (stood in, or seen from a connected doorway), or an exit
 /// whose far side never loaded (a frontier); with nothing left, to the caller's known destinations (portals seen earlier).
 /// "Nearest" is route length over the tile graph; the next waypoint
 /// is the look-ahead point on the room's walk-grid path to the opening that leaves the player's room.
@@ -82,7 +82,9 @@ public sealed class ExplorationGuide
 
     /// <param name="exitMissing">True while the caller still lacks the floor exit: with nothing left to explore the guide re-checks the exit-candidate tiles.</param>
     /// <param name="destinations">Where to lead once nothing is left to explore (after any re-check); null for none.</param>
-    public GuideStep Step(PlayerInput player, bool exitMissing = false, IReadOnlyList<GuideDestination>? destinations = null)
+    /// <param name="objectives">Where to lead before exploring, lowest reachable tier first; the caller drops the ones reached or done. Null for none.</param>
+    public GuideStep Step(
+        PlayerInput player, bool exitMissing = false, IReadOnlyList<GuideDestination>? destinations = null, IReadOnlyList<GuideDestination>? objectives = null)
     {
         if (_map.TileAt(player.X, player.Y) is not { } tile) return GuideStep.Unknown;
 
@@ -91,9 +93,10 @@ public sealed class ExplorationGuide
         SpendReachedFrontiers(graph, player);
         if (exitMissing && _rechecking) MarkRechecked(graph, player);
         destinations ??= [];
+        objectives ??= [];
         foreach (var d in destinations.Where(d => TileRoutes.Distance((player.X, player.Y), d.Position) <= DestinationArrivalUnits))
             _reachedDestinations.Add(d.Id);
-        var destinationKey = string.Join(";", destinations.Select(d => $"{d.Id}:{d.Tier}")) + $"|{_reachedDestinations.Count}";
+        var destinationKey = string.Join(";", destinations.Concat(objectives).Select(d => $"{d.Id}:{d.Tier}")) + $"|{_reachedDestinations.Count}";
 
         var here = (player.X, player.Y);
         if (_cached is not null && _cachedVersion == _map.Version && _cachedSpent == _spentFrontiers.Count &&
@@ -101,7 +104,7 @@ public sealed class ExplorationGuide
             TileRoutes.Distance(here, _cachedPlayer) <= RoomRouteCache.RecomputeThresholdUnits)
             return _cached;
 
-        _cached = Compute(graph, tile, player, exitMissing, destinations);
+        _cached = Compute(graph, tile, player, exitMissing, destinations, objectives);
         _cachedPlayer = here;
         _cachedVersion = _map.Version;
         _cachedSpent = _spentFrontiers.Count;
@@ -121,21 +124,27 @@ public sealed class ExplorationGuide
         return _graph;
     }
 
-    private GuideStep Compute(TileGraph graph, MapTile tile, PlayerInput player, bool exitMissing, IReadOnlyList<GuideDestination> destinations)
+    private GuideStep Compute(
+        TileGraph graph, MapTile tile, PlayerInput player, bool exitMissing, IReadOnlyList<GuideDestination> destinations,
+        IReadOnlyList<GuideDestination> objectives)
     {
         var start = graph.NodeAt(tile)!;
         var here = (player.X, player.Y);
         var routes = TileRoutes.From(start, here);
 
-        var candidates = Candidates(routes, start).ToList();
-        if (_current is { } previous && candidates.All(c => c.Target.Id != previous.Target.Id) && Reached(previous)) Arrivals++;
+        var objectiveCandidates = TierCandidates(graph, routes, objectives, GuideTargetKind.Objective, _ => true);
+        var exploring = Candidates(routes, start).ToList();
+        if (_current is { } previous && objectiveCandidates.Concat(exploring).All(c => c.Target.Id != previous.Target.Id) && Reached(previous, here))
+            Arrivals++;
+        var candidates = objectiveCandidates.Count > 0 ? objectiveCandidates : exploring;
         _rechecking = false;
         if (candidates.Count == 0 && exitMissing)
         {
             candidates = RecheckCandidates(routes, player);
             _rechecking = candidates.Count > 0;
         }
-        if (candidates.Count == 0) candidates = DestinationCandidates(graph, routes, destinations);
+        if (candidates.Count == 0)
+            candidates = TierCandidates(graph, routes, destinations, GuideTargetKind.Destination, d => !_reachedDestinations.Contains(d.Id));
         if (candidates.Count == 0)
         {
             _current = null;
@@ -157,25 +166,27 @@ public sealed class ExplorationGuide
     }
 
     // A target left the candidate list because the player got there, not because its far side merely loaded.
-    private bool Reached(Candidate target) => target.Target.Kind switch
+    private bool Reached(Candidate target, (float X, float Y) player) => target.Target.Kind switch
     {
         GuideTargetKind.ExitCandidate => false, // counted when passed, see MarkRechecked
         GuideTargetKind.Destination => _reachedDestinations.Contains(target.Target.Id),
+        GuideTargetKind.Objective => TileRoutes.Distance(player, target.Target.Position) <= DestinationArrivalUnits,
         _ => target.FrontierHop is null ? _map.IsVisited(target.Node.Tile) : _spentFrontiers.Contains(target.Target.Id),
     };
 
-    // The unreached destinations of the lowest reachable tier: reaching every one of them ends the guiding, it never
-    // falls back a tier. A destination on an unloaded or cut-off tile waits.
-    private List<Candidate> DestinationCandidates(TileGraph graph, TileRoutes routes, IReadOnlyList<GuideDestination> destinations)
+    // The open points of the lowest reachable tier: once every one of them is closed the tier ends, it never falls back a
+    // tier (a closed point still holds its tier). A point on an unloaded or cut-off tile waits.
+    private List<Candidate> TierCandidates(
+        TileGraph graph, TileRoutes routes, IReadOnlyList<GuideDestination> points, GuideTargetKind kind, Func<GuideDestination, bool> open)
     {
         var reachable = new List<(GuideDestination Destination, TileNode Node)>();
-        foreach (var d in destinations)
+        foreach (var d in points)
             if (_map.TileAt(d.Position.X, d.Position.Y) is { } tile && graph.NodeAt(tile) is { } node && routes.Reaches(node))
                 reachable.Add((d, node));
         if (reachable.Count == 0) return [];
         int tier = reachable.Min(r => r.Destination.Tier);
-        return [.. reachable.Where(r => r.Destination.Tier == tier && !_reachedDestinations.Contains(r.Destination.Id)).Select(r => new Candidate(
-            new GuideTarget(GuideTargetKind.Destination, r.Destination.Id, r.Destination.Position),
+        return [.. reachable.Where(r => r.Destination.Tier == tier && open(r.Destination)).Select(r => new Candidate(
+            new GuideTarget(kind, r.Destination.Id, r.Destination.Position),
             routes.LengthTo(r.Node) + TileRoutes.Distance(routes.EntryPoint(r.Node), r.Destination.Position), r.Node, null))];
     }
 

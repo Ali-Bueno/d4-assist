@@ -86,9 +86,10 @@ internal static class Program
             sceneSno => { lock (cascGate) return sceneReader.Read(sceneSno).TileSize; },
             store.Name);
 
+        var menuScreens = config.PauseCuesInMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
         using var session = new GameSession(
             logWatcher, classifier,
-            (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(installPath, candidates, playerActorSnos, worldSno, knownSceneSnos),
+            (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens),
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -123,9 +124,18 @@ internal static class Program
         using var focus = config.PauseCuesInBackground ? new GameWindowFocus(cueGate) : null;
         if (config.PauseCuesInConversations)
         {
-            var talk = new ConversationMute(muted => cueGate.Set(CueMute.Conversation, muted), store.Name, debug ? Console.WriteLine : null);
+            var conversations = new ConversationDefinitionReader(store, schema);
+            var talk = new ConversationMute(muted => cueGate.Set(CueMute.Conversation, muted), store.Name,
+                sno => { lock (cascGate) return conversations.ReadType(sno); }, sno => { lock (cascGate) return conversations.IsNpcTalk(sno); },
+                debug ? Console.WriteLine : null);
             session.ConversationRead += talk.OnSnapshot;
             session.WorldChanged += (_, _, _) => talk.Reset();
+        }
+        if (config.PauseCuesInMenus)
+        {
+            var menus = new MenuMute(muted => cueGate.Set(CueMute.Menu, muted), debug ? Console.WriteLine : null);
+            session.MenusRead += menus.OnScreens;
+            session.WorldChanged += (_, _, _) => menus.Reset();
         }
 
         // Created after the NavigationBridge so each poll marks the tile visited before the guide reads it.

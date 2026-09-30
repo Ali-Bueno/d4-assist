@@ -29,6 +29,7 @@ public static class RegionWindows
             int size = (int)Math.Min(buffer.Length, region.Size - offset);
             if (reader.TryRead(region.Address + offset, buffer, size))
                 yield return (region.Address + offset, new ReadOnlyMemory<byte>(buffer, 0, size));
+            if (offset + size >= region.Size) break; // this window reached the region's end
             offset += Math.Max(1, size - overlapBytes);
         }
     }

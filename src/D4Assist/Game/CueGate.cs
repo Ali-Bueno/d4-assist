@@ -1,7 +1,7 @@
 namespace D4Assist.Game;
 
 /// <summary>Why the cues are silent right now.</summary>
-public enum CueMute { Cutscene, GameInBackground, Conversation }
+public enum CueMute { Cutscene, GameInBackground, Conversation, Menu }
 
 /// <summary>
 /// The one switch for the shared mixer's pause (CLAUDE.md §9): silent while any <see cref="CueMute"/> holds,

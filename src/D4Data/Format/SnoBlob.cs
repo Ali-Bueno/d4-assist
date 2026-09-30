@@ -69,5 +69,26 @@ public sealed class SnoBlob(byte[] bytes, int baseOffset = 0)
         for (int i = 0; i < count; i++) yield return start + i * stride;
     }
 
+    /// <summary>Element offsets of a DT_POLYMORPHIC_VARIABLEARRAY of mixed subtypes, stored back to back;
+    /// <paramref name="elementSize"/> sizes the element at an offset (null = unknown type). Null when the sizes don't
+    /// add up to the array's data size.</summary>
+    public List<int>? PolymorphicElements(int off, Func<int, int?> elementSize)
+    {
+        var (data, size) = ArrayDescriptor(off);
+        int count = I32(off + PolymorphicCount);
+        if (count == 0) return [];
+        if (data <= 0 || count < 0 || size <= 0 || data + size > Length) return null;
+        int p = data + count * PolymorphicTypeHeaderSize, end = data + size;
+        var elements = new List<int>(count);
+        for (int i = 0; i < count; i++)
+        {
+            int? s = p < end ? elementSize(p) : null;
+            if (s is not > 0 || p + s.Value > end) return null;
+            elements.Add(p);
+            p += s.Value;
+        }
+        return p == end ? elements : null;
+    }
+
     private ReadOnlySpan<byte> Span(int off, int len) => bytes.AsSpan(baseOffset + off, len);
 }

@@ -78,8 +78,14 @@ Qué hace
   sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
   hechas con el motor del juego todavía no se detectan.
 - Silencio en conversaciones (NUEVO): con el menú de opciones de un personaje
-  abierto, y mientras habla la conversación que elegiste, no suena nada. Los
-  comentarios sueltos de personajes o jefes no callan nada.
+  abierto, mientras habla la conversación que elegiste y en las conversaciones
+  de historia o de misión aunque no salga menú, no suena nada. Tampoco suena
+  nada cuando un personaje te dice algo sin menú, como un aldeano. Los
+  comentarios sueltos de jefes y las frases de tu propio personaje (por
+  ejemplo "no tengo suficiente vida") no callan nada.
+- Silencio en menús (NUEVO): con el inventario, las habilidades, el mapa, la
+  pausa, un cartel o tablón, los envíos horádricos, un vendedor, un artesano
+  o el alijo abiertos, no suena nada.
 - Silencio fuera del juego (NUEVO): si cambias a otra ventana se callan los
   sonidos; vuelven al volver al juego. Los ejemplos de sonido sí suenan.
 - Puertas cerradas en el radar (NUEVO, sin probar): en las mazmorras, una
@@ -125,10 +131,12 @@ Ajustes (archivo d4assist.json, se abre con el Bloc de notas)
 - "RadarEnabled", "BeaconSoundsEnabled", "ObjectiveSoundsEnabled",
   "DoorSoundsEnabled", "ChestSoundsEnabled", "ReadableSoundsEnabled",
   "ExplorationGuideEnabled", "QuestRoutesEnabled", "PauseCuesInCutscenes",
-  "PauseCuesInBackground", "PauseCuesInConversations",
+  "PauseCuesInBackground", "PauseCuesInConversations", "PauseCuesInMenus",
   "RadarClosedDoorsEnabled": true activa y false desactiva cada función
   ("QuestRoutesEnabled" es la guía de refugios; los "PauseCues..." son los
-  silencios en cinemáticas, fuera del juego y en conversaciones).
+  silencios en cinemáticas, fuera del juego, en conversaciones y con un
+  menú del juego abierto: inventario, habilidades, mapa, pausa, carteles,
+  envíos horádricos, vendedor, artesanos o alijo).
 - "OutsideDungeonsEnabled": false hace que el programa no lea nada fuera de las
   mazmorras (sin objetivos ni guía de refugios fuera de ellas).
 - "ExplorationGuideInDungeons": true hace que la guía venga activada también en

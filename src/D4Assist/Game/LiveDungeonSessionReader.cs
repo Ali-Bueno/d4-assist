@@ -21,23 +21,28 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly CandidateIndex _candidates;
     private readonly GameBuildOffsets? _offsets;
     private readonly long _moduleBase;
+    private readonly ModuleRange _module;
+    private readonly MenuScreenTracker? _menus;
     private readonly long _positionAddress;
     private bool _actorFailureLogged;
 
     private LiveDungeonSessionReader(
-        ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, long moduleBase, long positionAddress)
+        ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus)
     {
         _process = process;
         _candidates = candidates;
         _offsets = offsets;
-        _moduleBase = moduleBase;
+        _moduleBase = module.Base;
+        _module = module;
+        _menus = menus;
         _positionAddress = positionAddress;
     }
 
     /// <summary>Throws InvalidOperationException with the reason when the process isn't running or can't be read, the
     /// module can't be located, or no live player record is in this world yet.</summary>
     public static LiveDungeonSessionReader? TryOpen(
-        string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos)
+        string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
+        MenuScreenTracker? menus = null)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
         string exePath = Path.Combine(installPath, ExecutableFileName);
@@ -51,13 +56,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         }
 
         PlayerRecordHit? player = null;
-        long moduleBase = 0;
+        ModuleRange liveModule = default;
         foreach (var module in modules)
         {
             var hit = FindLivePlayerRecord(
                 process, ModuleLocator.WritableRegionsAt(regions, module.Base), playerActorSnos, worldSno, sceneSnos);
             if (hit is null) continue;
-            (player, moduleBase) = (hit, module.Base);
+            (player, liveModule) = (hit, new ModuleRange(module.Base, module.SizeOfImage));
             break;
         }
         if (player is not { } found)
@@ -70,7 +75,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         GameBuildOffsets? offsets = GameBuildOffsetsTable.TryGet(build, out var known) ? known : null;
         Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}" +
             (offsets is null ? " (unknown build: no rooms, radar or actor sounds)." : "."));
-        return new LiveDungeonSessionReader(process, candidates, offsets, moduleBase, found.PositionAddress);
+        return new LiveDungeonSessionReader(process, candidates, offsets, liveModule, found.PositionAddress, menus);
     }
 
     // Which field stops the match: the log line stays the same while walking unless that changes.
@@ -124,6 +129,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public ConversationSnapshot? ReadConversation() =>
         _offsets?.Conversation is { } conversation ? ConversationReader.TryRead(_process, _moduleBase, conversation) : null;
+
+    public IReadOnlyList<string>? ReadMenus() => _menus?.Read(_process, _module);
 
     public IReadOnlyList<ActorState>? ReadActors()
     {

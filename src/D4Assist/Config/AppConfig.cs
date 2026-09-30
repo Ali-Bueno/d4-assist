@@ -83,6 +83,9 @@ public sealed class AppConfig
     /// <summary>Silence every sound cue while the dialogue menu is open and while the conversation you chose in it plays.</summary>
     public bool PauseCuesInConversations { get; set; } = true;
 
+    /// <summary>Silence every sound cue while a game menu (inventory, skills, map, pause) is open.</summary>
+    public bool PauseCuesInMenus { get; set; } = true;
+
     /// <summary>CoreTOC names of the actors that get a beacon loop; unknown names are logged and ignored.</summary>
     public string[] BeaconActorNames { get; set; } = ["X1_Undercity_WarpPad"];
 

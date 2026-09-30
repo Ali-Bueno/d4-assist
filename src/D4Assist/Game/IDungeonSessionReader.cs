@@ -22,4 +22,7 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The dialogue menu and the playing conversations; null when unknown for this build or unreadable.</summary>
     ConversationSnapshot? ReadConversation() => null;
+
+    /// <summary>Names of the open watched menu screens; null while they are not located or unreadable.</summary>
+    IReadOnlyList<string>? ReadMenus() => null;
 }

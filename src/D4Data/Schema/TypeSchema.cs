@@ -15,8 +15,10 @@ public sealed class TypeSchema
     private const string PolymorphicArrayType = "DT_POLYMORPHIC_VARIABLEARRAY";
 
     private readonly Dictionary<string, TypeDef> _types;
+    private readonly Dictionary<uint, string> _namesByHash;
 
-    private TypeSchema(Dictionary<string, TypeDef> types) => _types = types;
+    private TypeSchema(Dictionary<string, TypeDef> types, Dictionary<uint, string> namesByHash) =>
+        (_types, _namesByHash) = (types, namesByHash);
 
     public static TypeSchema Load(string definitionsPath)
     {
@@ -29,6 +31,7 @@ public sealed class TypeSchema
     {
         using var doc = JsonDocument.Parse(definitions);
         var types = new Dictionary<string, TypeDef>(StringComparer.Ordinal);
+        var namesByHash = new Dictionary<uint, string>();
         long polymorphicArrayHash = doc.RootElement.EnumerateObject()
             .Where(e => e.Value.GetProperty("name").GetString() == PolymorphicArrayType).Select(e => long.Parse(e.Name)).FirstOrDefault(-1);
         foreach (var entry in doc.RootElement.EnumerateObject())
@@ -44,11 +47,17 @@ public sealed class TypeSchema
             var size = t.TryGetProperty("size", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : 0;
             var group = t.TryGetProperty("snoGroup", out var g) && g.ValueKind == JsonValueKind.Number ? g.GetInt32() : -1;
             types[name] = new TypeDef(size, group, fields);
+            if (long.TryParse(entry.Name, out long hash)) namesByHash[(uint)hash] = name;
         }
-        return new TypeSchema(types);
+        return new TypeSchema(types, namesByHash);
     }
 
     public int Offset(string type, string field) => Field(type, field).Offset;
+
+    /// <summary>A polymorphic array element's type: its dwType holds the type's hash, the key in definitions.json.</summary>
+    public string? TypeName(uint typeHash) => _namesByHash.GetValueOrDefault(typeHash);
+
+    public bool HasField(string type, string field) => Type(type).Fields.ContainsKey(field);
 
     public int Size(string type) => Type(type).Size;
 

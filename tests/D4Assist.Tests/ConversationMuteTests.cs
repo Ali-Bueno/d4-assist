@@ -6,13 +6,14 @@ namespace D4Assist.Tests;
 public class ConversationMuteTests
 {
     // Prologue menu with Vani, live 2026-09-29: an empty option, then four conversations.
-    private const int Leave = 0, Village08 = 641998, Opt03 = 843567, Opt06 = 1088736, Opt05 = 976538, Bark = 1234;
+    private const int Leave = 0, Village08 = 641998, Opt03 = 843567, Opt06 = 1088736, Opt05 = 976538, Bark = 1234, Story = 2639189;
+    private const int StandardType = 3;
     private static readonly int[] Menu = [Leave, Village08, Opt03, Opt06, Opt05];
 
     private static (ConversationMute Mute, List<bool> Applied) Create()
     {
         var applied = new List<bool>();
-        return (new ConversationMute(applied.Add, _ => null), applied);
+        return (new ConversationMute(applied.Add, _ => null, sno => sno == Story ? StandardType : 0, sno => sno == Story), applied);
     }
 
     private static ConversationSnapshot Snap(int[] menu, params int[] playing) => new(menu, playing);
@@ -24,6 +25,19 @@ public class ConversationMuteTests
 
         mute.OnSnapshot(Snap(Menu));
         mute.OnSnapshot(Snap([], Opt03));
+        Assert.True(mute.IsMuted);
+
+        mute.OnSnapshot(Snap([]));
+        Assert.False(mute.IsMuted);
+        Assert.Equal([true, false], applied);
+    }
+
+    [Fact]
+    public void AStandardConversationWithoutAMenu_MutesUntilItEnds()
+    {
+        var (mute, applied) = Create();
+
+        mute.OnSnapshot(Snap([], Story));
         Assert.True(mute.IsMuted);
 
         mute.OnSnapshot(Snap([]));

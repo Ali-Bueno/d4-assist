@@ -1,6 +1,6 @@
 # STATUS — Diablo IV Dungeon Assist
 
-**Last updated:** 2026-09-29 — live prologue session (new character): used-gizmo signal, conversation mute, D2R door/chest/scroll/corpse loops, closed doors in the radar (untested), cue pauses. Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
+**Last updated:** 2026-09-30 — menu mute now watches 7 screens (live-seen), parallel screen locator, NPC-talk conversation mute (live). Repo: private GitHub `Ali-Bueno/d4-dungeon-assist`.
 
 ## Identity
 
@@ -8,7 +8,7 @@
 - **Screen-reader transport:** .NET 10 companion app → PRISM via the Prismatoid 0.3.0 NuGet package (backend NVDA live).
 - **Build command:** `dotnet build`
 - **Game install:** `D:\games\battlenet\Diablo IV` (build 3.2.1.73552 on 2026-09-16)
-- **Run / test:** `dotnet build D4DungeonAssist.sln`, `dotnet test D4DungeonAssist.sln` (~460 tests). Run `src/D4Assist/bin/Debug/net10.0-windows/win-x64/D4Assist.exe --debug > log.txt`, then play; it idles in menus and loading screens, reads position + actors in the overworld and everything in dungeons (world from `FenrisDebug.txt`). Flags and config (`d4assist.json`): [src/D4Assist/README](src/D4Assist/README.md). The exe must be stopped before rebuilding (file lock).
+- **Run / test:** `dotnet build D4DungeonAssist.sln`, `dotnet test D4DungeonAssist.sln` (553 tests). Run `src/D4Assist/bin/Debug/net10.0-windows/win-x64/D4Assist.exe --debug > log.txt`, then play; it idles in menus and loading screens, reads position + actors in the overworld and everything in dungeons (world from `FenrisDebug.txt`). Flags and config (`d4assist.json`): [src/D4Assist/README](src/D4Assist/README.md). The exe must be stopped before rebuilding (file lock).
 - **Code map:** `src/D4Data` (offline CASC), `src/D4Memory` (read-only process access, scene route, player record), `src/D4Assist.Navigation` (rooms, openings, spoken announcements), `src/D4Assist.Radar` (D2R radar port), `src/D4Assist.Audio` (cue synth + WinMM mixer), `src/D4Assist` (app: `Game/GameSession`, `NavigationBridge`, `RadarBridge`); `tools/D4MemScan` (live RE diagnostics, e.g. `scene-route --diagnose --slots`), `tools/D4DungeonDump` (offline dumps). Each has a README.
 - **Brief:** [`diablo4-dungeon-assist-research-for-claude.md`](diablo4-dungeon-assist-research-for-claude.md)
 
@@ -24,21 +24,23 @@
 | P4 Auto room announcements (D2R `Rooms::Describe` port) | wip | live test 2 (2026-09-28): user finished the dungeon faster but directions felt imprecise. Fixed: bearing to the farthest line-of-sight path point (was a 3-unit look-ahead → diagonal bias), widest run wins per neighbour (a 1-cell noise run hid the real 15-wide exit), start-cell snap, 4-unit doorway stickiness + silent rekey, entry opening not spoken ("Sin otras salidas."), first room = "Entrada.", repeated directions grouped. Live test 3: "funcionó"; direction accuracy not yet re-assessed in detail |
 | P5 Procedural dungeon / exploration tracking | todo | |
 | P5b D2R radar (port) | wip | `src/D4Assist.Radar` ([README](src/D4Assist.Radar/README.md)) + `DungeonRadarWorld`/`RadarBridge`; Cardinal frame; cues queued like D2R (`CueScheduler`). **Live test 3 (2026-09-28): works, user impressed**, incl. a preset throne room. Depths (10/7) not tuned yet. No beacon/XInput yet |
-| Exploration guide (auto ping to nearest unexplored part) | wip | Live 2026-09-28: "funcionó", cadence fine. D2R arrival chime per target; off in the Undercity boss room; on by default in Undercity + Pit, off elsewhere, D-pad left toggles (read-only XInput). Stops when the game closes. Next: lead to visible objectives first, detect barriers ("Paso bloqueado.") |
+| Exploration guide (auto ping to nearest unexplored part) | wip | Live 2026-09-28: "funcionó", cadence fine. D2R arrival chime per target; off in the Undercity boss room; on by default in Undercity + Pit, off elsewhere, D-pad left toggles (read-only XInput, or a DualSense/DS4 over HID: `CombinedPad`; DualSense USB live-verified 2026-09-29). Stops when the game closes. Next: lead to visible objectives first, detect barriers ("Paso bloqueado.") |
 | P6 UX (cues, TTS, anti-spam, controller) | todo | |
 | Endgame (Undercity, Pit) | wip | All 71 `PIT_`/`X1_Undercity_` worlds are DRLG → app active. Undercity BugCave 1–3 live 2026-09-28: announcements + radar work; radar +12 dB after "drowned in fights" |
 | Exit beacon (Undercity) | wip | `BeaconBridge`: `quest-item` loop (D2R sound) at `X1_Undercity_WarpPad` from the live actor list; worked on all 3 floors, pad visible only within 22–34 units ([dungeon-objectives](research/dungeon-objectives.md) §5). Pit: no static exit, needs its actors |
 | P7 Objective / interactable cues (prisoners, levers, carryables) | wip | `ActorLoopBridge` + `ObjectiveClassifier`: `quest-item` loop on DPO-quest actors (world → `zone_progress` → DPO, `DungeonObjectiveReader`), carryables/receptacles/quest switches+chests, live prisoners. **Not live-tested.** "Used" signal unknown: seam `isUsed`; find it with `D4MemScan actors --watch 20 --match <name>` |
 | Doors, chests, readables (D2R loops) | wip | `InteractableClassifier`: door gizmos → wooden/metal/stone door by name, chest gizmos → chest, `SignGizmoData`/lorebooks → scroll, bodies (`*Corpse*`/`*Remains*`/`*Body*`) → corpse; D2R container profile and caps (2 doors, 3 containers). Prisoners now loop the corpse sound. Live 2026-09-29 (prologue): chest loops play; used gizmos now fall silent (see "Used" signal) |
 | Closed doors in radar | wip | `DoorObstacles`: each closed door's `aabbBounds` box, turned by its RActor yaw, overlays open floor as `RadarCell.Door` → D2R's two knocks; opening it (the used signal) makes it an exit again. `--debug` logs `RADAR door … ends=` (both ends should be walls). **Not live-tested** (no dungeon yet). Room announcements still treat a closed doorway as an exit |
-| Cue pause: conversations | done | Mutes while the dialogue menu is open and while the conversation picked from it plays; barks never mute. Live 2026-09-29 with Vani: works ([client-memory](research/client-memory.md) §5) |
+| Cue pause: conversations | done | Dialogue menu, the picked conversation, type 3 and type-1 lines spoken by an NPC; hero lines and barks don't mute. Live 2026-09-30 ([client-memory](research/client-memory.md) §5) |
 | Cue pause: game in background | wip | Foreground-window check, like D2R; the sound examples still play. Not confirmed by the user yet |
-| Cue pause: menus (inventory, map, skills) | todo | No clean signal yet; UI state is on the heap and screens are addressed by name hashes ([client-memory](research/client-memory.md) §5) |
+| Cue pause: menus | wip | `MenuMute` watches 7 screens (inventory, skills, map, pause, signs, Horadric shipments, vendor, artisans, stash) ([client-memory](research/client-memory.md) §5). Inventory, map and signs confirmed by the user; the occultist muted in the log (`screen_crafting_default`, shared by the artisans); vendor, stash and mailbox await their by-ear confirmation |
 | Cue pause in cutscenes | wip | `CutscenePause` mutes the mixer on the log's `m_eCutsceneState: PLAYBACK`; the end is never logged, so it resumes on world change or one walked cell ([runtime-signals](research/runtime-signals.md) §2). **Not live-tested**; unknown whether story/scripted cutscenes log it |
 | Campaign & expansion dungeons | todo (live test) | The app keys on DRLG layout, not names: all 802 layout-2 worlds run it, incl. 130 `QST_`, 66 `CSD_`, Nahantu (`DGN_Naha_*`, `CSD_Naha_*`) and `X2_` ([dungeon-data](research/dungeon-data.md) §3 census). Campaign dungeons have no DPO quest → only generic objective loops. Never tried live in one |
 | Outside dungeons (`WorldKind.Overworld`) | wip | Every non-DRLG world except menus/loading/cinematics (`WorldClassifier.MenuWorldPrefixes`): player + actors polled, no tiles/radar/announcements. Config `OutsideDungeonsEnabled`. **Not live-tested**: player record in the overworld unverified |
 | Campaign routes (`QuestRouteBridge`) | wip | Guide ping, straight line, point to point; points from the quest's subzone MarkerSet ([campaign-routes](research/campaign-routes.md)). First route: sandstorm shelters with Meshif (`VGN_Kehj_EliasPalace_Sandstorm`, 3 safe zones). **Not live-tested** |
 | Map points (waypoints, dungeon entrances) | todo | Offline positions available the same way (overworld MarkerSets); needs a selection UX with few buttons — ask the user |
+| Party play | done | Joining a friend's game: the player record's p+12 is the player number (2 as joiner), not a fixed 1. Live 2026-09-29 as joiner ([client-memory](research/client-memory.md) §3) |
+| Tester log | done | Everything the console prints goes to `d4assist-log.txt` next to the exe (previous run kept as `.old`) |
 | Adapter + Speech (`Speak("test")` via PRISM) | done | Prismatoid 0.3.0, backend NVDA; `src/D4Assist` companion app |
 
 ## Derived facts
@@ -69,19 +71,12 @@
 | Scene record signature | `RevealSceneMessage`: `snoScene` @344, `transform` PRTransform (quat + vec3) @356 | d4data `definitions.json` (build 3.2.1.73552) |
 | Quest props in world space | a quest's subzone MarkerSet `<region> (<region>_Subzone_<area>)` holds its actors + one marker for the Quest SNO (the start), world coordinates | [campaign-routes](research/campaign-routes.md) §1 |
 | Overworld walkability | coarse nav boxes only (8–14 per scene), no detailed grid → no radar or pathing there | [campaign-routes](research/campaign-routes.md) §1 |
+| Screen open state | heap table `{next, u32 key = name hash (×33 + c, lowercase), u32 padding, value}` → record `+0x10` bit 0; no static route, located by parallel scan (0.3–1.8 s) | live 2026-09-30, [client-memory](research/client-memory.md) §5 |
 | No verbose/debug log switch for players | `DebugLoggingTypesEnabled` is a server/debug attribute, not a pref | exe strings + `LocalPrefs.txt` |
 
 ## Next step
 
-**Now (user, 2026-09-29): mute the cues while a menu is open (inventory, map, character/skills), before testing doors and chests in dungeons.**
-Leads and dead ends are in [client-memory](research/client-memory.md) §5. Tools:
-- `D4MemScan player --snapshot-pointers` series plus `peek`.
-- The read-only Python helper pattern (OpenProcess with VM_READ only).
-
-Next leads:
-- Find how screens are addressed (a `UIControlHandle` hash, or the screen-visible check used by `IsScreenVisibleBehaviorNode`).
-- Go one level deeper than the depth-1 snapshot.
-- The accessibility screen reader's own focus text.
+**Now:** the user confirms by ear that vendor, crafting, stash and Horadric shipments mute the cues. Then, when the user asks, build the portable zip for the tester friend: `dotnet publish src/D4Assist -p:PublishProfile=Portable`.
 
 0. **Live test with a new character (user, campaign from the prologue):** run with `--debug`. Read the `CUTSCENE state` / `CUES paused/resumed` lines: does each story cutscene log `PLAYBACK`, and do cues come back at the right moment? Listen to the door, chest, scroll and corpse loops. At a door, chest, lore book or prisoner, run `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while the user uses it; that gives both the "used" signal (step 1) and the open state for closed doors in the radar.
 0b. **Live test outside dungeons (user, sandstorm quest with Meshif):** run with `--debug`. Check that the session opens in `Sanctuary_Eastern_Continent` (`World kind: Overworld`, player position moving), that a `ROUTE sandstorm-shelters started` line appears (which actor, or the quest marker), and that "Refugio N de 3." matches where the game considers you safe. Note which quest actors show up (`ACTOR seen`) and whether towns get noisy objective loops.
@@ -108,4 +103,5 @@ Next leads:
 - Preset rooms (96×96 pieces): the walkable area doesn't touch the tile edge, so `OpeningFinder` finds no runs and falls back to edge midpoints (path fails → straight line). Scan a band of a few cells inward instead of the boundary row. The radar is unaffected.
 - The first room after the app starts is called "Entrada." even when the app was started mid-dungeon.
 - The app loads walkability for all ~4000 scenes (≈650 MB); load lazily.
+- The user said the Horadric shipments contents "no se leen". Unclear whether the game's narration doesn't read them; not investigated.
 

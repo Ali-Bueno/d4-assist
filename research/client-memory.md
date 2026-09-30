@@ -171,7 +171,7 @@ Noise when diffing a slot:
 - While the player hovers or targets the gizmo, `+0x78` goes 0/−1, `+0xA0` bit 0x4 flips and `+0x230` goes 1.0/10.0.
 - `+0x720` looks like a distance.
 
-## 5. UI state: conversations found, menus not yet (live 2026-09-29, prologue)
+## 5. UI state: conversations and menus (live 2026-09-29)
 
 **Method.** `D4MemScan player --snapshot-pointers <file> [--snapshot-count N --snapshot-every-ms M]` writes a depth-1
 heap snapshot:
@@ -193,16 +193,64 @@ then watches the candidates live.
   line and nothing before or after.
 - The app mutes while the menu is open, and while a playing conversation is one of the menu's options (`ConversationMute`),
   so barks and taunts never mute. Live: "funcionó".
+- Conversations started without the menu (quest NPCs, scripted story lines) were missed: a tester heard the cues during
+  Deckard Cain. `ConversationDefinition.eConvType` (+0x8, census of 8411): 0 barks and floats (2742), 1 hero lines, town
+  gossip and talk-menu greetings (1320, incl. `Vani_OPT_*`), 2 companion chatter (863), **3 standard NPC conversations and
+  in-engine story scenes** (2498: `*_OPT*`, `*_Cine_*`, the Cain quest lines), 4 vendors (62), 5 lore books and
+  announcements (909), 6 emotes (16). The app also mutes while a type-3 conversation plays (live 2026-09-30:
+  `Frac_Prologue_Monk01a(3)`). The `TALK` debug line prints `Name(type)`, or `Name(type npc)` for an NPC line. Undercity
+  guide lines mix types 0 and 3.
+- Type 1 with an NPC speaker also mutes (villagers without a menu). Rule: mute if any line, lineset or case node of the
+  ConversationDefinition has a `snoSpeaker` other than the hero's Speaker SNO `Player` (SNO group 72). The nodes are
+  polymorphic arrays under `arRootNodes`; each node's `dwType` is its type's hash key in `definitions.json`, so sizes and
+  fields come from the schema (`ConversationDefinitionReader.IsNpcTalk`, `SnoBlob.PolymorphicElements`,
+  `TypeSchema.TypeName`). Census of the 1320 type-1 conversations: 502 hero-only (all 396 `HRO_*` error lines and the
+  `*_Player_*` story lines; not muted), 796 NPC-only, 12 mixed (muted), 10 without lines (not muted). Every `TWN_*` gossip
+  line is NPC. `eSpeakerTarget` does not separate hero from NPC. Live: `TWN_Frac_Kyovashad_VLG_G17(1 npc)` muted.
 
-**Menus (inventory, map, skills): not found.**
-- Two words count up while a menu is open: `[base+0x3046290]+0x358` (3 closed, 4 inventory, 7 skills) and
-  `[base+0x30434F0]+0x318` (7 closed, 9 inventory, 10-11 skills, 6 for the map). Both sit in allocator-like objects
-  (`0x600DF00D` markers). The second is the entry count of a hash cache that holds item-name strings. They follow what
-  the UI loads, not what is open.
-- Screen names (`screen_*` strings, 233 in the exe) are only referenced from static tables.
-- UI-group SNOs (group 46, e.g. `Inventory` 4007) never toggled.
-- Screens are addressed by name through behavior plugs and `UIControlHandle`, probably a hash of the control path. That
-  is the next lead.
+**Menus (build 3.2.1.73552), used by the app:** a heap table of screen records, located by scan.
+- Name hash (UI controls and screens): `h = h * 33 + c` over the lowercased ASCII name, u32. `UIControlHandle` is
+  `{ snoUI, hash(control name) }` (UI SNOs are group 46, e.g. `Inventory` 4007, root control `inventory_dialog_mainPage`).
+  d4data field hashes are the same value `& 0x0FFFFFFF`.
+- Screen registry: a hash table on the heap, 24-byte entries `{ u64 next, u32 key @+8, u32 padding, u64 value }`. `key` is
+  the name hash, `next` is 0 or a chained entry with the same layout, `value` points to the screen record. The u32 after
+  the key is leftover heap padding (0 in one session, 0x258 in the next), so only the u32 is matched. It held ~290 screens
+  in 2026-09-30 (292 of the 441 `screen_*` names in memory had a validating record). `screen_DungeonCompanions` flips its
+  whole flag word constantly, so it is not a real open bit.
+- Screen record: `u32` at +0x10, **bit 0 = open**. +0x58 points into the main module (a callback, RVA 0x64D210 here).
+- A second table with the same keys points to name strings. Its +0x58 holds text, so the module-pointer check rejects it.
+- No static route. Pointer climbs from the table found only allocator bookkeeping and coincidental paths: owners are
+  probably obfuscated like the pools (§1, §4). The app scans private RW memory upward for the key and validates the record.
+  The table sat ~72 MB into the first heap arena. The scan is parallel (half the cores): on 16 cores and a 14 GB heap a
+  full-heap miss took 8.7 s (57 s sequential) and a hit 0.3 s (3.3 s); the 7 screens were found in 0.3–1.8 s. After a
+  character switch the UI is rebuilt and the old records stop validating (the first scan during loading found nothing,
+  43 s sequential), so `MenuScreenTracker` retries 5 s after a scan and doubles the wait after each miss up to 60 s
+  (`FirstRetryDelay`, `MaxRetryDelay`).
+- Which screen opens with what (voice-guided snapshot series, 2–3 toggles each, all consistent):
+
+| Screen | Open for |
+|---|---|
+| `screen_MenuPanel_Default` | inventory, skills (the character panel; with a controller other panels go through it) |
+| `screen_MainInGameMenu` | map, pause menu (`screen_Map` also toggles with the map) |
+| `screen_Signs` | reading a sign or notice board |
+| `screen_Mailbox_Default` | Horadric shipments |
+| `screen_Shop_default` | vendor (buy/sell) |
+| `screen_crafting_default` | artisans: blacksmith and occultist live (the name is generic) |
+| `screen_Stash_default` | stash |
+
+The app watches these 7 (`MenuScreens.Watched`); each was seen opening and closing live 2026-09-30 with a watcher that
+logged every registered screen's open bit. The tabs of the character panel (`screen_Mercenary_Default`,
+`screen_WarPlanActivities_Default`) open inside `screen_MenuPanel_Default`. `screen_InteractPopup` was open ~4 s during an
+interaction and is not watched.
+
+- Other toggles seen: the inventory's paper-doll camera record (`screen_Inventory_default` + `Camera 000`, flag `0xCE600` →
+  `0xCE601`) and `screen_Abilities_Default` (skills). The map and the pause menu also set flags near HUD screen names
+  (`ActionBar_Right`, `InteractPopup`).
+- Dead ends: two allocator counters that follow what the UI loads (`[base+0x3046290]+0x358`, `[base+0x30434F0]+0x318`),
+  and depth-1 module-pointer diffs. Full control-path strings (`Root.NormalLayer.*`) exist only for store screens.
+- Method: `screen_*` strings scanned once, then 1 KB around each re-read per state. A Python script spoke each step through
+  PRISM ("Abre el mapa.", "Cierra el menú.") and waited 8 s. Words constant within each state and different between them
+  were kept.
 
 ## 6. Consequences for the assist
 

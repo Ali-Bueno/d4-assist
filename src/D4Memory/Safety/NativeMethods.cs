@@ -41,6 +41,7 @@ internal static class NativeMethods
     // MEMORY_BASIC_INFORMATION.Type (winnt.h) — a page backed by a mapped PE image (exe/dll).
     internal const uint MemImage = 0x1000000;
     internal const uint MemMapped = 0x40000;
+    internal const uint MemPrivate = 0x20000;
 
     // MEMORY_BASIC_INFORMATION.Protect page-protection constants (winnt.h).
     internal const uint PageNoAccess = 0x01;

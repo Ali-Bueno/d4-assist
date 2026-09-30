@@ -18,6 +18,7 @@
   "PauseCuesInCutscenes": true,
   "PauseCuesInBackground": true,
   "PauseCuesInConversations": true,
+  "PauseCuesInMenus": true,
   "ExplorationGuideEnabled": true,
   "ExplorationGuideInDungeons": false,
   "ExplorationGuideVolume": 1.0,

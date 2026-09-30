@@ -54,6 +54,36 @@ public class DungeonObjectiveReaderRealDataTests
     }
 
     [Fact]
+    public void ConversationDefinitionReader_ReadsTheConvType()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var reader = new ConversationDefinitionReader(store, TypeSchema.Load(definitions));
+
+        // research/client-memory.md §5 census: story scene = 3 (standard), prologue Vani greeting = 1.
+        Assert.Equal(3, reader.ReadType(2639189)); // S15_QST_TheButcher_Optional_DeckardCain_S15REUSE
+        Assert.Equal(1, reader.ReadType(843567)); // Frac_Prologue_Vani_OPT_03
+        Assert.True(reader.IsStandard(2639189));
+    }
+
+    [Fact]
+    public void ConversationDefinitionReader_TellsNpcLinesFromHeroLines()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var reader = new ConversationDefinitionReader(store, TypeSchema.Load(definitions));
+
+        // Speaker census 2026-09-30: type-1 lines by NPCs talk; the hero's own type-1 lines and type-0 barks don't.
+        Assert.True(reader.IsNpcTalk(513029)); // Frac_Prologue_Isbel_01, said on interaction without a menu
+        Assert.True(reader.IsNpcTalk(1226029)); // Frac_Prologue_Devmir_OPT_01
+        Assert.True(reader.IsNpcTalk(1012842)); // TWN_Scos_Cerrigar_INN_G01, town gossip
+        Assert.True(reader.IsNpcTalk(2639189)); // standard story conversation
+        Assert.False(reader.IsNpcTalk(149240)); // HRO_SorcF_NotEnoughHealth
+        Assert.False(reader.IsNpcTalk(494407)); // Frac_Prologue_Player_01
+        Assert.False(reader.IsNpcTalk(641776)); // Frac_Prologue_Village_07, a bark
+    }
+
+    [Fact]
     public void WorldWithoutADpoQuest_HasNoObjectiveActors()
     {
         if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;

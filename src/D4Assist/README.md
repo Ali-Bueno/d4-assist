@@ -86,7 +86,7 @@ error. No key needs a machine-specific path.
 | `ObjectiveVolume` | `1.0` | Objective loop volume, 0 to 1. |
 | `DoorSoundsEnabled` | `true` | Loop D2R's door sounds at the 2 nearest doors (see Doors, chests and readables). |
 | `ChestSoundsEnabled` | `true` | Loop D2R's chest sound at chests and other lootable containers. |
-| `ReadableSoundsEnabled` | `true` | Loop D2R's scroll sound at lore books, notes and notices. |
+| `ReadableSoundsEnabled` | `true` | Loop D2R's scroll sound at lore books, notes, notices and "look" spots. |
 | `InteractableVolume` | `1.0` | Door, chest and readable loop volume, 0 to 1. |
 | `PauseCuesInCutscenes` | `true` | Silence every cue while a cutscene plays (see Cutscenes). |
 | `PauseCuesInBackground` | `true` | Silence every cue while the game window is not in the foreground, like D2R. The sound examples still play. |
@@ -137,6 +137,7 @@ Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): o
 - doors (`DoorGizmoData`, not `*StartOpen*`) → wooden, metal or stone door, picked from the name;
 - chests (`ChestGizmoData`, reward and locked chests) → chest;
 - readables (`SignGizmoData`, `*Lorebook*` chests) → scroll;
+- the "look" spot (`POI_Look_At`, the only gizmo of type 29) → scroll, and it keeps sounding after use (it can be looked at again);
 - a chest or readable named `*Corpse*`, `*Remains*` or `*Body*` → corpse, like the prisoners (user request: a body on the ground shouldn't sound like a chest).
 
 They use D2R's door/container profile: reach 18 units (30 subtiles), squared fade. `ActorLoopBridge` plays only the

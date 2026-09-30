@@ -76,7 +76,7 @@ public sealed class AppConfig
         var kinds = new HashSet<InteractableKind>();
         if (DoorSoundsEnabled) kinds.Add(InteractableKind.Door);
         if (ChestSoundsEnabled) kinds.Add(InteractableKind.Chest);
-        if (ReadableSoundsEnabled) kinds.Add(InteractableKind.Readable);
+        if (ReadableSoundsEnabled) kinds.UnionWith([InteractableKind.Readable, InteractableKind.PointOfInterest]);
         return kinds;
     }
 

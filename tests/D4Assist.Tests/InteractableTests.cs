@@ -10,7 +10,7 @@ public class InteractableTests
     private const int Gizmo = 2, NotGizmo = -1, Monster = Conventions.ActorTypeMonster;
     private const int DoorSno = 1, PortcullisSno = 2, BlockerSno = 3, StartOpenSno = 4, ChestSno = 5, RewardChestSno = 6, LockedChestSno = 7,
         SignSno = 8, LorebookChestSno = 9, BreakableSno = 10, PrisonerSno = 11, DpoDoorSno = 12, NpcSno = 13,
-        CorpseChestSno = 14, CorpseSignSno = 15, RemainsSignSno = 16, HangedSignSno = 17;
+        CorpseChestSno = 14, CorpseSignSno = 15, RemainsSignSno = 16, HangedSignSno = 17, LookAtSno = 18;
     private const int World = 100;
     private const int BreakableContainerGizmo = 23;
 
@@ -33,6 +33,7 @@ public class InteractableTests
         [CorpseSignSno] = ("TWN_Frac_Margrave_Sign_MauledCorpse", new(Gizmo, Conventions.GizmoSign)),
         [HangedSignSno] = ("TWN_Frac_Yelesna_Sign_VampireHanged", new(Gizmo, Conventions.GizmoSign)),
         [RemainsSignSno] = ("QST_Class_Spiritborn_Skeletal_Remains_Sign", new(Gizmo, Conventions.GizmoSign)),
+        [LookAtSno] = ("POI_Look_At", new(Gizmo, Conventions.GizmoLookAt)),
     };
 
     private static ActorDefinitionInfo? Info(int sno) => Actors.TryGetValue(sno, out var a) ? a.Info : null;
@@ -52,6 +53,7 @@ public class InteractableTests
     [InlineData(CorpseSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
     [InlineData(RemainsSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
     [InlineData(HangedSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
+    [InlineData(LookAtSno, InteractableKind.PointOfInterest, InteractableClassifier.ScrollSound)]
     public void Classify_NamesTheKindAndSound(int sno, InteractableKind kind, string sound) =>
         Assert.Equal(new Interactable(kind, sound), Classifier().Classify(sno));
 
@@ -70,6 +72,16 @@ public class InteractableTests
         Assert.Equal(LoopKind.Objective, target!.Kind);
         Assert.Equal(InteractableClassifier.CorpseSound, target.Sound);
         Assert.Equal(LoopProfiles.Quest.Reach, target.Profile.Reach);
+    }
+
+    [Fact]
+    public void Selector_APointOfInterestKeepsSoundingAfterUse()
+    {
+        var look = Selector().Select(Placed(LookAtSno));
+        var sign = Selector().Select(Placed(SignSno));
+
+        Assert.Equal((LoopKind.Container, InteractableClassifier.ScrollSound, false), (look!.Kind, look.Sound, look.StopsWhenUsed));
+        Assert.True(sign!.StopsWhenUsed);
     }
 
     [Fact]

@@ -76,7 +76,7 @@ public sealed class LoopTargetSelector
         return _interactables?.Classify(actor.ActorSno) is { } thing && _interactableKinds.Contains(thing.Kind)
             ? new LoopTarget(
                 thing.Kind == InteractableKind.Door ? LoopKind.Door : LoopKind.Container, thing.Sound, _interactableProfile,
-                thing.Kind.ToString().ToLowerInvariant(), StopsWhenUsed: true)
+                thing.Kind.ToString().ToLowerInvariant(), StopsWhenUsed: thing.Kind != InteractableKind.PointOfInterest)
             : null;
     }
 

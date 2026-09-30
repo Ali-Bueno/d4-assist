@@ -120,6 +120,7 @@ them as missing. Gizmos (`eType` 2): 22,725.
 | 19 (class unread) | 11 | `LE_`/`ZE_Chest_Reward*` event chests | chest |
 | 106 (class unread) | 88 | `*_Chest_Rare_Locked_*` key chests, `usz_rewardGizmo_*` | chest |
 | 98 `SignGizmoData` | 1,399 | lore books, notes, notices, `QST_*_Lore_*`, `X_Collectibles_*` | readable (scroll) |
+| 29 (class unread) | 1 | `POI_Look_At`, a "look" (mirar) spot, usable again and again (live 2026-09-30, Darkened Way; ACD `Gizmo_Has_Been_Operated` set after a look) | point of interest (scroll, never silenced by use) |
 | 105 `QuestChestGizmoData` | 125 | quest chests, jugs, corpses, pages | objective (quest item), §3 |
 | 23 `BreakableContainerGizmoData` | 603 | baskets, jars, `*AnyLoot*` arrangements | none: broken, not opened |
 | 48 `DestroyableObjectGizmoData` | 14,616 | crates, barrels, urns, cabinet doors | none |

@@ -91,7 +91,9 @@ Qué hace
   registran o se examinan suenan a cadáver, como los prisioneros. Se oyen los 3
   más cercanos. Se oyen a unos 18 metros. Se callan al abrirlos o usarlos,
   también los cadáveres. Los que el juego aún no deja usar (por ejemplo una
-  puerta que abre la misión) no suenan hasta que se puedan usar.
+  puerta que abre la misión) no suenan hasta que se puedan usar. Los puntos
+  que se pueden "mirar" suenan a pergamino y siguen sonando después de
+  mirarlos, porque se pueden mirar más veces.
 - Cinemáticas (NUEVO): al empezar una cinemática de vídeo se callan todos los
   sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
   hechas con el motor del juego todavía no se detectan.

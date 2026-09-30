@@ -3,8 +3,8 @@ using D4Data.Readers;
 
 namespace D4Assist.Game;
 
-/// <summary>What a non-objective gizmo is to the player: something to open, loot or read.</summary>
-public enum InteractableKind { Door, Chest, Readable }
+/// <summary>What a non-objective gizmo is to the player: something to open, loot, read, or look at (again and again).</summary>
+public enum InteractableKind { Door, Chest, Readable, PointOfInterest }
 
 /// <summary>A classified interactable and the D2R loop it gets (a WAV under Sounds/).</summary>
 public readonly record struct Interactable(InteractableKind Kind, string Sound);
@@ -42,6 +42,8 @@ public sealed class InteractableClassifier(Func<int, ActorDefinitionInfo?> defin
 
     private static Interactable? Of(int gizmoType, string name)
     {
+        // A point of interest reads like a sign (user request 2026-09-30: "mirar"); it stays usable after a look.
+        if (gizmoType == Conventions.GizmoLookAt) return new Interactable(InteractableKind.PointOfInterest, ScrollSound);
         if (gizmoType == Conventions.GizmoDoor)
             return Has(name, StartsOpenToken) ? null : new Interactable(InteractableKind.Door, DoorSound(name));
         bool body = BodyTokens.Any(t => Has(name, t));

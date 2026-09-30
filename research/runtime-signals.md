@@ -57,6 +57,9 @@ DiabloDungeonTimer uses exactly this (FileSystemWatcher + poll, `LogMonitorServi
 and `CutscenesGfxDispose` at exit. No story cutscene had been logged yet. The app pauses its cues on
 `PLAYBACK` and resumes when the world changes or the player walks one map cell (`Game/CutscenePause.cs`).
 In-engine scripted cutscenes (`ScriptedCutsceneUI` in the exe) may not log at all.
+Live 2026-09-30 (Darkened Way, the Lilith blood petal): the story scene after the use was a type-3 conversation
+(`Frac_Und_LilithVhenardChat1b`, ~110 s) that the conversation mute covered from start to end ([client-memory](client-memory.md)
+§5). No cutscene state was logged, and none of the 292 registered screens opened or closed (`D4MemScan screens`).
 
 ## 3. Player position
 

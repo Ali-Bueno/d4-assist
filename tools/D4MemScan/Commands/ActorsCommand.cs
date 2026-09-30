@@ -36,7 +36,7 @@ internal static class ActorsCommand
         int intervalMs = int.TryParse(reader.Get("--interval-ms"), out var i) ? i : DefaultIntervalMs;
         int watchSeconds = int.TryParse(reader.Get("--watch"), out var w) ? w : 0;
         var watchMatch = reader.Get("--match") is { } pattern ? new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase) : null;
-        // --words 0x1F4,0x4D4 adds slot words to the printed ones, to compare used and untouched gizmos in one snapshot.
+        // --words 0x148,0x1F4 adds slot words to the printed ones, to compare used and untouched gizmos in one snapshot.
         int[] wordOffsets = [.. UseCandidateOffsets, .. (reader.Get("--words") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(w => Convert.ToInt32(w.Trim(), 16))];
 

@@ -27,7 +27,7 @@ public static class ActorFilter
         bool questGizmo = Has(AcdFlagReader.GizmoQuestRestricted);
         bool current = questGizmo && (Has(AcdFlagReader.MinimapActive) || namedByQuest?.Invoke(r) == true);
         return new(r.Id, r.ActorSno, r.Position.X, r.Position.Y, r.Position.Z, r.PreviousState != 0, Yaw(r.Rotation),
-            Operated: r.OperatedMark != 0 || Has(AcdFlagReader.GizmoOperated),
+            Operated: Has(AcdFlagReader.GizmoOperated),
             QuestFollower: Has(AcdFlagReader.FollowerQuest),
             Unusable: (questGizmo && !current) || Has(AcdFlagReader.GizmoDisabledByScript),
             QuestStep: current);

@@ -34,6 +34,7 @@ D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.jso
 D4MemScan pose-context --in <file.json> [--out <file.focus.json>]
 D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>] [--snapshot-pointers <file> [--snapshot-count N --snapshot-every-ms M]]
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
+D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
 D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
@@ -95,7 +96,7 @@ the repo.
    `--watch N` picks the nearest gizmo/prisoner actor (or, with `--match`, the nearest actor whose name matches) and, every `--interval-ms` (default 250) for N seconds, prints the
    4-byte words of its slot that changed (and slot free/reuse), to find the "used" signal while you free a prisoner or
    pull a lever.
-   `--words 0x4D4,0x1F4` prints those slot words too, next to the use words of every gizmo in the listing and JSON, to compare used and untouched gizmos in one snapshot.
+   `--words 0x148,0x1F4` prints those slot words too, next to the use words of every gizmo in the listing and JSON, to compare used and untouched gizmos in one snapshot.
 
 7. **`player --snapshot-pointers`** — depth-1 heap snapshot for UI-state searches (`Commands/PointerSnapshotWriter.cs`):
    - It keeps every word in the live module's writable data that points into readable memory, plus 0x400 bytes at each target.
@@ -116,6 +117,11 @@ the repo.
      use the corpse. `Gizmo_Has_Been_Operated: (absent) -> 1` is the expected line.
    - `--names <regex>` lists the game's attribute names (with ids) matching the pattern instead, e.g. `--names Gizmo`.
    - `--slot-words 518,258` adds those u32 words of each ACD slot to its line (`+0x518=…`).
+
+10. **`screens`** — finds every `screen_*` name in the game's memory (330 distinct in 2026-09-30), locates each one's
+    record in the heap screen registry (`D4Memory.Ui.ScreenRegistryReader`, `research/client-memory.md` §5), prints the
+    open ones, then every open/close with its time for `--watch` seconds (default 120, every 200 ms). About 35 s to
+    start. Use it to see which screens a game state opens, e.g. a cutscene or a new panel.
 
 ## Layout
 

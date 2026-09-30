@@ -195,8 +195,10 @@ had used had `+0x148 != 0` and the 4 untouched ones had 0, and it stayed that wa
   - At the interaction, `+0x4D4` and `+0x4DC` went 0 → 0x211 and `+0x1F4` went 1.0 → 0.
   - Of the 35 gizmos nearby, only the used petals had `+0x4D4 != 0`.
   - `+0x1F4 = 0` is also on decor books and on a used door, so it is not a signal.
-  - The app treats `+0x4D4 != 0` as used (`ActorState.Operated`; `--debug` logs `USED by the operated mark`). It came
-    9 s after the use, as the cinematic started, and the villager corpse below never set it: a petal-only mark.
+  - It came 9 s after the use, as the cinematic started. **`+0x4D4` is not a used mark** (second sample, 2026-09-30,
+    `Ancients_Prop_Lilith_BloodPetal` in the Darkened Way): 0x1CA on the untouched petal, unchanged through the use, and
+    the app, which treated `+0x4D4 != 0` as used, silenced that petal on sight. The rule is gone. After that use the ACD
+    held `Gizmo_Has_Been_Operated` = 1 and `Gizmo_State` = 1 (below), and `+0x148` was `0x4046D66`.
 - **Villager corpse** (`Corpse_Frac_Villager_F_01_Snow`, chest gizmo, live 2026-09-30):
   - `+0x140`/`+0x148`/`+0x4D4` never moved.
   - At the use, `+0x78` went 0 → −1, `+0xA0` lost bit 0x4, `+0x230` went 1.0 → 10.0 and `+0x130` settled from `…83` to `…87`.

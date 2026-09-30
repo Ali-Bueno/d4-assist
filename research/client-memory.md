@@ -170,12 +170,21 @@ had used had `+0x148 != 0` and the 4 untouched ones had 0, and it stayed that wa
   - At the interaction, `+0x4D4` and `+0x4DC` went 0 → 0x211 and `+0x1F4` went 1.0 → 0.
   - Of the 35 gizmos nearby, only the used petals had `+0x4D4 != 0`.
   - `+0x1F4 = 0` is also on decor books and on a used door, so it is not a signal.
-  - The app treats `+0x4D4 != 0` as used (`ActorState.Operated`; `--debug` logs `USED by the operated mark`). This is
-    provisional: confirm it on a quest corpse. Interacting with corpses doesn't move their state word either.
+  - The app treats `+0x4D4 != 0` as used (`ActorState.Operated`; `--debug` logs `USED by the operated mark`). It came
+    9 s after the use, as the cinematic started, and the villager corpse below never set it: a petal-only mark.
+- **Villager corpse** (`Corpse_Frac_Villager_F_01_Snow`, chest gizmo, live 2026-09-30):
+  - `+0x140`/`+0x148`/`+0x4D4` never moved.
+  - At the use, `+0x78` went 0 → −1, `+0xA0` lost bit 0x4, `+0x230` went 1.0 → 10.0 and `+0x130` settled from `…83` to `…87`.
+  - None of these means "used". An untouched chest and herb nearby read the same `+0x78`/`+0xA0`/`+0x230`, and the
+    reusable ritual brazier flips `+0x130` bit 0x4 too. `+0x78 = 0` with `+0xA0` bit 0x4 marks the gizmo the player
+    currently targets.
+  - A corpse's used state is not in its RActor slot; the ACD (game record, TLS route in §4's table) is the next place
+    to look.
 - Levers and switch prisoners are not checked yet.
 Noise when diffing a slot:
 - `+0x17C`/`+0x180` tick every frame, and `+0x234` is a timer.
-- While the player hovers or targets the gizmo, `+0x78` goes 0/−1, `+0xA0` bit 0x4 flips and `+0x230` goes 1.0/10.0.
+- While the player targets the gizmo, `+0x78` is 0 (else −1) and `+0xA0` bit 0x4 is set; `+0x230` (1.0/10.0) is
+  not a used flag (above).
 - `+0x720` looks like a distance.
 
 ## 5. UI state: conversations and menus (live 2026-09-29)

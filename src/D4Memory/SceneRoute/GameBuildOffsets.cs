@@ -21,7 +21,14 @@ public sealed record PoolLayout(
 /// <param name="ContainerOffset">Offset of the u64 container pointer inside the game object G.</param>
 /// <param name="SeedRva">RVA of the u32 per-session seed used to pick the chunk-table index k.</param>
 /// <param name="StrideBase">Base of the seeded stride formula.</param>
-public sealed record PoolParameters(long ContainerOffset, long SeedRva, int StrideBase);
+/// <param name="ContainerBehindPointer">True when G+ContainerOffset holds a pointer to the container pointer (the ACD pool).</param>
+public sealed record PoolParameters(long ContainerOffset, long SeedRva, int StrideBase, bool ContainerBehindPointer = false);
+
+/// <summary>ACD pool and attribute descriptor table (research/client-memory.md §4, live 2026-09-30).</summary>
+/// <param name="AttributeTableRva">RVA of the attribute descriptor array; entry i describes attribute id i.</param>
+/// <param name="AttributeStride">Bytes per descriptor.</param>
+/// <param name="AttributeNameOffset">Offset of a descriptor's pointer to its ASCII name.</param>
+public sealed record AcdOffsets(PoolParameters Pool, long AttributeTableRva, int AttributeStride, int AttributeNameOffset);
 
 /// <summary>
 /// The build-specific RVAs/offsets the static routes (research/client-memory.md §1, §4) need, keyed by the
@@ -30,13 +37,15 @@ public sealed record PoolParameters(long ContainerOffset, long SeedRva, int Stri
 /// <param name="GameObjectPointerRva">RVA of the u64 pointer to the game object G.</param>
 /// <param name="CSceneVtableRva">RVA of the CScene vtable a valid scene slot's record must point at.</param>
 /// <param name="Conversation">Dialogue menu and playing-conversation addresses; null when unknown for the build.</param>
+/// <param name="Acd">ACD pool and attribute names; null when unknown for the build.</param>
 public sealed record GameBuildOffsets(
     long GameObjectPointerRva,
     PoolLayout Pool,
     PoolParameters Scene,
     PoolParameters Actor,
     long CSceneVtableRva,
-    ConversationOffsets? Conversation = null);
+    ConversationOffsets? Conversation = null,
+    AcdOffsets? Acd = null);
 
 /// <summary>Looks up <see cref="GameBuildOffsets"/> by the installed exe's PE TimeDateStamp (see PeHeaderReader).</summary>
 public static class GameBuildOffsetsTable
@@ -62,7 +71,11 @@ public static class GameBuildOffsetsTable
             CSceneVtableRva: 0x2819030,
             // Live pointer snapshots while talking to Vani, 2026-09-29 (client-memory.md §5).
             Conversation: new ConversationOffsets(
-                OptionsPointerRva: 0x31326A0, OptionStride: 0x20, OptionSnoOffset: 0x10, PlayingListRva: 0x30D28F8, NodeSnoOffset: 0x28)),
+                OptionsPointerRva: 0x31326A0, OptionStride: 0x20, OptionSnoOffset: 0x10, PlayingListRva: 0x30D28F8, NodeSnoOffset: 0x28),
+            // Live 2026-09-30 (client-memory.md §4): container found by scanning for known ACD slots, then pointers back to G.
+            Acd: new AcdOffsets(
+                Pool: new PoolParameters(ContainerOffset: 0xAB0, SeedRva: 0x37CC59C, StrideBase: 0x627, ContainerBehindPointer: true),
+                AttributeTableRva: 0x36EFC10, AttributeStride: 0x58, AttributeNameOffset: 0x40)),
     };
 
     /// <summary>False when the build isn't known — callers must fall back to the full signature scan.</summary>

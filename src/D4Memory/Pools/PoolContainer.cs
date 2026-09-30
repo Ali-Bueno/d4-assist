@@ -61,6 +61,7 @@ public sealed class PoolContainer
         var layout = offsets.Pool;
         if (!TryReadU64(reader, moduleBase + offsets.GameObjectPointerRva, out ulong g) || g == 0) return false;
         if (!TryReadU64(reader, (long)g + parameters.ContainerOffset, out ulong p) || p == 0) return false;
+        if (parameters.ContainerBehindPointer && (!TryReadU64(reader, (long)p, out p) || p == 0)) return false;
         if (!TryReadU32(reader, moduleBase + parameters.SeedRva, out uint seed)) return false;
 
         if (!TryReadU32(reader, (long)p + layout.MaxIndexOffset, out uint maxIndexRaw)) return false;

@@ -1,0 +1,70 @@
+using System.Buffers.Binary;
+using System.Numerics;
+using D4Memory.Pools;
+using D4Memory.Scan;
+using D4Memory.SceneRoute;
+
+namespace D4Memory.Actors;
+
+/// <summary>One live ACD slot, the actor's game record (research/client-memory.md §4).</summary>
+/// <param name="AttributesAddress">The actor's attribute container (read with <see cref="AcdAttributeReader"/>).</param>
+public readonly record struct AcdRecord(long SlotAddress, uint Id, uint RActorId, int ActorSno, Vector3 Position, long AttributesAddress);
+
+/// <summary>Reads ACD slots through the pool route `[[G+0xAB0]]` (research/client-memory.md §4, live 2026-09-30).</summary>
+public sealed class AcdReader
+{
+    // Field offsets from the slot start (research/client-memory.md §4, ACD slot).
+    private const int RActorIdOffset = 0x14;
+    private const int ActorSnoOffset = 0x50;
+    private const int PositionOffset = 0x7C;
+    private const int AttributesPointerOffset = 0x2A0;
+
+    /// <summary>Bytes read per slot: everything up to and including the attribute container pointer.</summary>
+    private const int RecordBytes = AttributesPointerOffset + sizeof(long);
+
+    private readonly IMemoryReader _reader;
+    private readonly PoolContainer _pool;
+
+    private AcdReader(IMemoryReader reader, PoolContainer pool) => (_reader, _pool) = (reader, pool);
+
+    /// <summary>Byte distance between slots; a slot holds this many bytes.</summary>
+    public long Stride => _pool.Stride;
+
+    /// <summary>False when the build has no ACD offsets or the pool header is unreadable; never throws.</summary>
+    public static bool TryOpen(IMemoryReader reader, long moduleBase, GameBuildOffsets offsets, out AcdReader acds)
+    {
+        acds = null!;
+        if (offsets.Acd is not { } acd || !PoolContainer.TryOpen(reader, moduleBase, offsets, acd.Pool, out var pool)) return false;
+        acds = new AcdReader(reader, pool);
+        return true;
+    }
+
+    /// <summary>The slot holding <paramref name="acdId"/> now (an RActor's +0x0C), or false when it is freed.</summary>
+    public bool TryGet(uint acdId, out AcdRecord record)
+    {
+        record = default;
+        return _pool.TryGetSlotById(acdId, out long slot) && TryRead(slot, acdId, out record);
+    }
+
+    /// <summary>Every occupied, readable slot.</summary>
+    public IEnumerable<AcdRecord> All()
+    {
+        foreach (var (slot, id) in _pool.OccupiedSlots())
+            if (TryRead(slot, id, out var record)) yield return record;
+    }
+
+    private bool TryRead(long slot, uint id, out AcdRecord record)
+    {
+        record = default;
+        var buffer = new byte[RecordBytes];
+        if (!_reader.TryRead(slot, buffer, buffer.Length)) return false;
+        record = new AcdRecord(slot, id,
+            RActorId: BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(RActorIdOffset)),
+            ActorSno: BinaryPrimitives.ReadInt32LittleEndian(buffer.AsSpan(ActorSnoOffset)),
+            Position: new Vector3(F32(buffer, PositionOffset), F32(buffer, PositionOffset + 4), F32(buffer, PositionOffset + 8)),
+            AttributesAddress: BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(AttributesPointerOffset)));
+        return true;
+    }
+
+    private static float F32(byte[] b, int o) => BinaryPrimitives.ReadSingleLittleEndian(b.AsSpan(o));
+}

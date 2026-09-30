@@ -24,11 +24,16 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly ModuleRange _module;
     private readonly MenuScreenTracker? _menus;
     private readonly long _positionAddress;
+    private readonly Func<int, bool> _isGizmo;
     private bool _actorFailureLogged;
+    private GizmoOperatedReader? _operated;
+    private bool _operatedMissing;
 
     private LiveDungeonSessionReader(
-        ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus)
+        ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
+        Func<int, bool> isGizmo)
     {
+        _isGizmo = isGizmo;
         _process = process;
         _candidates = candidates;
         _offsets = offsets;
@@ -40,9 +45,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     /// <summary>Throws InvalidOperationException with the reason when the process isn't running or can't be read, the
     /// module can't be located, or no live player record is in this world yet.</summary>
+    /// <param name="isGizmo">True for a gizmo actor SNO: only those get the ACD "used" read; null reads none.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
-        MenuScreenTracker? menus = null)
+        MenuScreenTracker? menus = null, Func<int, bool>? isGizmo = null)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
         string exePath = Path.Combine(installPath, ExecutableFileName);
@@ -75,7 +81,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         GameBuildOffsets? offsets = GameBuildOffsetsTable.TryGet(build, out var known) ? known : null;
         Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}" +
             (offsets is null ? " (unknown build: no rooms, radar or actor sounds)." : "."));
-        return new LiveDungeonSessionReader(process, candidates, offsets, liveModule, found.PositionAddress, menus);
+        return new LiveDungeonSessionReader(process, candidates, offsets, liveModule, found.PositionAddress, menus, isGizmo ?? (_ => false));
     }
 
     // Which field stops the match: the log line stays the same while walking unless that changes.
@@ -132,10 +138,28 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlyList<string>? ReadMenus() => _menus?.Read(_process, _module);
 
+    // Opened on first use and retried while the pool is unreadable; a build whose table lacks the attribute gives up once.
+    private GizmoOperatedReader? OperatedReader(GameBuildOffsets offsets)
+    {
+        if (_operated is not null || _operatedMissing || offsets.Acd is null) return _operated;
+        if (!AcdReader.TryOpen(_process, _moduleBase, offsets, out _)) return null;
+        _operated = GizmoOperatedReader.TryOpen(_process, _moduleBase, offsets);
+        if (_operated is null)
+        {
+            _operatedMissing = true;
+            Console.WriteLine($"ACD attribute {GizmoOperatedReader.AttributeName} not found; used gizmos keep the older signals.");
+        }
+        return _operated;
+    }
+
     public IReadOnlyList<ActorState>? ReadActors()
     {
         if (_offsets is { } offsets && RActorReader.TryRead(_process, _moduleBase, offsets, out var records))
-            return ActorFilter.Placed(records);
+        {
+            var operated = OperatedReader(offsets);
+            return ActorFilter.Placed(records, operated is null ? null
+                : r => r.AcdId != RActorRecord.NoAcd && _isGizmo(r.ActorSno) && operated.IsOperated(r.AcdId));
+        }
 
         if (!_actorFailureLogged) // once per session: the route is either unknown for this build or not yet populated
         {

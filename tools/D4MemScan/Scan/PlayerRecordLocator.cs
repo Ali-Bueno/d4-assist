@@ -44,6 +44,19 @@ internal static class PlayerRecordLocator
         return (liveModule, [.. hits.OrderByDescending(PlayerRecordMatcher.IsLive)]);
     }
 
+    /// <summary>The module view holding the player's live record, and that record; false (after printing why) when there is none.</summary>
+    public static bool TryLocateLive(
+        ProcessReader process, SnoStore store, TypeSchema schema, string exePath, int worldSno, out MainModule module, out PlayerRecordHit player)
+    {
+        var (regions, modules) = LocateModules(process, exePath);
+        var (liveModule, hits) = ScanModules(process, regions, modules, PlayerActorSnos(store, schema), worldSno, SceneSnos(store, schema));
+        module = liveModule ?? default;
+        player = hits.FirstOrDefault(PlayerRecordMatcher.IsLive);
+        if (liveModule is not null && player is { PositionAddress: not 0 }) return true;
+        Console.Error.WriteLine("No live player record found.");
+        return false;
+    }
+
     public static List<PlayerRecordHit> Scan(
         IMemoryReader memory, IReadOnlyList<MemoryRegion> regions, IReadOnlySet<int> playerActorSnos, int worldSno,
         IReadOnlySet<int> sceneSnos)

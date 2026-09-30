@@ -2,12 +2,12 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Whether a gizmo was used, remembered by its spot so a re-created actor (chests drop out of the actor list at
-/// ~16 units and come back under a new id) stays used. A closed chest carries a glow effect actor that the game
-/// removes on opening; chest kinds never seen glowing, and doors, use the RActor state word (research/client-memory.md §4).
+/// ~16 units and come back under a new id) stays used. The game's own mark (ACD Gizmo_Has_Been_Operated) wins; without
+/// it, a closed chest's glow effect actor vanishing on opening, else the RActor state word (research/client-memory.md §4).
 /// </summary>
 /// <param name="knownGlowingKinds">Chest kinds already seen glowing in earlier runs (GlowingChestStore); null for none.</param>
 /// <param name="learned">Called once per chest kind newly seen glowing; null for none.</param>
-/// <param name="log">Debug sink naming each gizmo found used by the provisional operated mark; null when not debugging.</param>
+/// <param name="log">Debug sink naming each gizmo found used by the game's mark; null when not debugging.</param>
 public sealed class GizmoUsedSignal(
     Func<int, string?> nameOf, IEnumerable<int>? knownGlowingKinds = null, Action<int>? learned = null, Action<string>? log = null)
 {
@@ -51,13 +51,14 @@ public sealed class GizmoUsedSignal(
 
     private bool Signal(ActorState gizmo)
     {
+        if (gizmo.Operated)
+        {
+            log?.Invoke($"USED by the game's operated mark: {nameOf(gizmo.ActorSno)} at ({gizmo.X:F1},{gizmo.Y:F1})");
+            return true;
+        }
         bool glowing = _glows.Any(g => Distance(g, (gizmo.X, gizmo.Y)) <= OnChestUnits);
         if (glowing && _glowingKinds.Add(gizmo.ActorSno)) learned?.Invoke(gizmo.ActorSno);
-        if (!_glowingKinds.Contains(gizmo.ActorSno))
-        {
-            if (!gizmo.StateChanged && gizmo.Operated) log?.Invoke($"USED by the operated mark (+0x4D4): {nameOf(gizmo.ActorSno)} at ({gizmo.X:F1},{gizmo.Y:F1})");
-            return gizmo.StateChanged || gizmo.Operated;
-        }
+        if (!_glowingKinds.Contains(gizmo.ActorSno)) return gizmo.StateChanged;
         return !glowing && _player is { } p && Distance((p.X, p.Y), (gizmo.X, gizmo.Y)) <= JudgeRangeUnits;
     }
 

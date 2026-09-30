@@ -55,6 +55,15 @@ public class GizmoUsedSignalTests
     }
 
     [Fact]
+    public void The_games_operated_mark_wins_over_a_glow_still_in_sight()
+    {
+        var chest = Chest();
+        Assert.False(Poll(chest, At(10), glowing: true));
+
+        Assert.True(Poll(chest with { Operated = true }, At(10), glowing: true));
+    }
+
+    [Fact]
     public void A_switch_whose_state_never_moves_is_used_once_operated()
     {
         var petals = new ActorState(1, SnowPileSno, 5, 5, 0);

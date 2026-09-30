@@ -9,7 +9,7 @@ public sealed record TileState(
 /// <summary>One placed RActor (world coordinates), as exposed to the app.</summary>
 /// <param name="StateChanged">The actor's state moved at least once; for a gizmo, it was used (research/client-memory.md §4).</param>
 /// <param name="Yaw">Rotation about Z in radians, from +X towards +Y (the RActor quaternion).</param>
-/// <param name="Operated">The player operated it though its state never moved (blood petals; provisional, research/client-memory.md §4).</param>
+/// <param name="Operated">The game marked it used: ACD Gizmo_Has_Been_Operated, or the blood petals' +0x4D4 (research/client-memory.md §4).</param>
 public sealed record ActorState(uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>

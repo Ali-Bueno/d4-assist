@@ -36,6 +36,7 @@ D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--in
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
+D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>]
 ```
 
 `--install` defaults to `D:\games\battlenet\Diablo IV`. `--out`/default output paths land under `%TEMP%`, never
@@ -102,6 +103,17 @@ the repo.
    - Diffing snapshots taken with a panel closed and open finds `[base+rva]+offset` routes. That is how the
      conversation state was found ([client-memory](../../research/client-memory.md) §5).
 8. **`peek`** — prints every change of a few u32 words at absolute addresses, to confirm a candidate live.
+9. **`acd`** — reads the ACD pool (the actors' game records, route `[[G+0xAB0]]`, `research/client-memory.md` §4;
+   `D4Memory.Actors.AcdReader`) for the placed RActors within `--range` (default 30 units) that have an ACD id: every
+   gizmo, or with `--match` the actors whose name matches.
+   - A PASS line checks that each ACD slot holds the same RActor id and actor SNO as its RActor.
+   - One line per actor lists its attributes by name (`AcdAttributeReader`, names from the game's own table via
+     `AttributeNameTable`). `Name[0x..]` is a parameterized attribute; `@1`..`@3` marks entries of the container's
+     other maps. The JSON under `%TEMP%` has the full list.
+   - `--watch N` follows the nearest listed ACD for N seconds (every `--interval-ms`, default 250). It prints each
+     attribute added, changed or removed, and the slot words that changed. It stops when the ACD leaves the pool.
+   - Example, the "used" test on a corpse: `acd --defs data/definitions.json --match Corpse --range 5 --watch 60`, then
+     use the corpse. `Gizmo_Has_Been_Operated: (absent) -> 1` is the expected line.
 
 ## Layout
 
@@ -113,7 +125,8 @@ the repo.
   `PlayerActorSnos`, `PlayerSampleWindow`, `RegionWindows` and `IMemoryReader`/`MemoryRegion` — shared with
   `D4Assist`. Reads memory only through `IMemoryReader`, so tests use an in-memory fake.
 - `src/D4Memory/SceneRoute/` — the static scene route (`SceneRouteReader`, `GameBuildOffsets`/`GameBuildOffsetsTable`).
-- `src/D4Memory/Pools/` — `PoolContainer`, the chunked pool walk shared by the scene and RActor routes; `src/D4Memory/Actors/` — `RActorReader`.
+- `src/D4Memory/Pools/` — `PoolContainer`, the chunked pool walk shared by the scene, RActor and ACD routes; `src/D4Memory/Actors/` — `RActorReader`, `AcdReader`,
+  `AcdAttributeReader`, `AttributeNameTable`.
 - `Scan/` (this project) — diagnostics-only logic that doesn't belong in the shipped app: exit-consistency
   check, ASCII map, pose scan/filter/walkability, JSON report models, `CaptureMemoryReader` (`--replay`).
 - `Commands/` — CLI glue per subcommand.

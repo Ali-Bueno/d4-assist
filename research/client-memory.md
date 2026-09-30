@@ -113,7 +113,7 @@ Recovered by position narrowing (`pose-snapshot`/`pose-filter`), then offline an
 
 A tile's exit therefore appears diagonal on screen: N = up-right, E = down-right, S = down-left, W = up-left.
 
-## 4. Actors: RActor and ACD pools (RActor validated live; ACD offline only)
+## 4. Actors: RActor and ACD pools (both validated live)
 
 Derived 2026-09-28 from game code in the stale image view (same dump and method as §1). Confidence refers
 to the code semantics. None of this has been read live yet.
@@ -126,7 +126,7 @@ The evidence is the magic multiply for `P/0x2B8` and the same header reads.
 |---|---|---|---|---|
 | Scene | `[G+0xC18]` | 0x37CC63C | 0x92F | §1 |
 | **RActor** (client actor) | `[G+0xB78]`, static | 0x37CC5A0 | 0xC27 | lookup 0x67CF70 ("RActor with ID %d was not found!"), iterator 0xD94C50 |
-| **ACD** | per-thread game context via TLS: `[[[[[TEB+0x58]]+0x1A0]]]+0x148`, then `[ ]`; no static pointer found | 0x37CC59C | 0x627 | lookup 0x67D0B0, TLS wrapper 0x67D140 ("Missing Player ACD"), iterator 0x15DDAB0 |
+| **ACD** | `[[G+0xAB0]]`, static (live 2026-09-30, below); the code reaches it per thread via TLS: `[[[[[TEB+0x58]]+0x1A0]]]+0x148`, then `[ ]` | 0x37CC59C | 0x627 | lookup 0x67D0B0, TLS wrapper 0x67D140 ("Missing Player ACD"), iterator 0x15DDAB0 |
 
 **RActor slot** (X = slot start):
 
@@ -142,10 +142,35 @@ The evidence is the magic multiply for `P/0x2B8` and the same header reads.
 | +0x7AC | placement: 0 = in the world, −1 = not placed (UI copies) | H |
 | +0x140 / +0x148 | gizmo state id / the previous one: 0 at +0x148 until the gizmo is used once (live, below) | M |
 
-**ACD slot:** +0x08 ACD id, +0x14 RActor id, +0x48 actor definition pointer, +0x50 actor SNO, +0x6C/+0x7C/+0x88
-quaternion/position/scale, +0xC0 world id, +0xC4 scene id, +0xC8 placement (all H). The attribute
-container pointer is at +0x2A0 and its getter is at 0x15F27B0. Values are obfuscated with xor/ror and the
-decoding is not derived (M). The block at ACD +0x6C..+0xC8 mirrors RActor +0x750..+0x7AC.
+**ACD slot** (offline, then live 2026-09-30 on ~35 slots; H): +0x08 ACD id, +0x14 RActor id, +0x48 actor definition
+pointer (the same for the same SNO), +0x50 actor SNO, +0x6C/+0x7C/+0x88 quaternion/position/scale (position == the
+RActor's), +0xC0 world id (== RActor +0x7A4), +0xC4 scene id, +0xC8 placement (0 in the world, 1 not placed, e.g.
+inventory items), +0x2A0 attribute container pointer (getter 0x15F27B0). The block at ACD +0x6C..+0xC8 mirrors
+RActor +0x750..+0x7AC.
+
+**ACD pool, live** (2026-09-30, prologue overworld, `D4MemScan acd`):
+- Found by a value scan for slots with +0x08 = ACD id, +0x14 = RActor id and +0x50 = SNO of 7 known actors (18.5 GB of
+  RW memory in 34 s, 6 hits). Their indices gave stride 0x6A0, the seed formula with k = 8.
+- Pointers back: chunk array ← container +0x1E0 (0x120 + 0x18·8) ← a pointer held at `G+0xAB0`. The container
+  starts with the ASCII name `ActorCommonData`; its header matches the scene pool (capacity 0x200, shift 9, mask
+  0x1FF), and the seed at RVA 0x37CC59C gives k = 8.
+- Only networked actors have an ACD (RActor +0x0C != −1): players, monsters, items, server gizmos; decor has none.
+  About 35 slots are occupied. An ACD is freed when its actor leaves the client's range and re-created with a new id
+  when it comes back.
+- `acd` listing: 10 of 10 gizmos' ACD slots held the same RActor id and SNO.
+
+**Attribute container** (`[ACD+0x2A0]`, 0x230-byte pooled object; live, H):
+- +0x00 u32 group id. Four hash maps share one header, {u64 bucket count, u64 bucket array, u64 entry count, f32 max
+  load 1.0, …}, at +0x08, +0x38, +0xD8 and +0x108.
+- The map at +0x08 holds most attributes: a gizmo has 64 buckets and ~10 entries, the player 512 buckets and 337
+  entries. The other maps' roles are unknown; +0x38 repeats a few, e.g. `TeamID` and `Last_In_Combat_Time`.
+- A bucket holds a pointer to a node's next-link word L, and a chain ends at 0. Around L: L−8 u32 attribute id,
+  L−4 i32 parameter (−1 = none), L+8 u32 value kind (0 float, 1 integer), L+0xC u32 value. Every walk matched the
+  map's entry count.
+- The values read plain (Level 1, TeamID, HP floats, seeds); the offline xor/ror note concerns another path.
+- **Names:** a descriptor array in the module's `.data` at RVA 0x36EFC10, stride 0x58: +0x00 u32 id (== index),
+  +0x40 pointer to the ASCII name in `.rdata`; 1366 names for ids 0..0x571. Found by a pointer scan for the
+  `Gizmo_Has_Been_Operated` string. The ids are build-specific: resolve them by name.
 
 **Local player:** `GetLocalPlayer` (0x6E4020) scans `[G+0xC98]` with an obfuscated key and returns player
 data holding the ACD id (+0x28) and the RActor id (+0x2C). The static record (§3) is simpler.
@@ -178,14 +203,30 @@ had used had `+0x148 != 0` and the 4 untouched ones had 0, and it stayed that wa
   - None of these means "used". An untouched chest and herb nearby read the same `+0x78`/`+0xA0`/`+0x230`, and the
     reusable ritual brazier flips `+0x130` bit 0x4 too. `+0x78 = 0` with `+0xA0` bit 0x4 marks the gizmo the player
     currently targets.
-  - A corpse's used state is not in its RActor slot; the ACD (game record, TLS route in §4's table) is the next place
-    to look.
+  - A corpse's used state is not in its RActor slot; it is in its ACD (below).
 - Levers and switch prisoners are not checked yet.
 Noise when diffing a slot:
 - `+0x17C`/`+0x180` tick every frame, and `+0x234` is a timer.
 - While the player targets the gizmo, `+0x78` is 0 (else −1) and `+0xA0` bit 0x4 is set; `+0x230` (1.0/10.0) is
   not a used flag (above).
 - `+0x720` looks like a distance.
+
+**Gizmo "used" signal in the ACD** (live 2026-09-30, `acd` + a 2 Hz watch of every ACD while the user played; H on
+presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mostly with `Gizmo_State` (0x21E) = 1.
+- **Controlled test:** a miner corpse (`Corpse_Frac_Miner_M_01`) gained both at the poll of the interaction
+  (`acd --match Corpse --watch`). The app reads it as `ActorState.Operated` (`D4Memory/Actors/GizmoOperatedReader`,
+  gizmo actors only); after a restart the used miner was judged used at once (`USED by the game's operated mark`).
+- Untouched chests, corpses, clickies, herbs and signs don't carry it; items on the ground hold it at 0.
+- A Biteberry herb gained both at the poll where the app's RActor signal fired (`cause=used`). At the same time the
+  player's ACD gained `Gizmo_Player_State[0x9921918B]` = 1.
+- A villager corpse (`Corpse_Frac_Villager_F_01`, ACD 0x3D80059) gained both between two reads a minute apart. Another
+  one was re-created 4 times as the player moved; each new ACD already carried both, while the app restarted its
+  loop each time. Unlike RActor +0x148, the ACD mark survives re-creation.
+- A town sign (`TWN_Frac_Yelesna_Sign_VampireHanged`) gained `Gizmo_Has_Been_Operated` = 1 when read, without
+  `Gizmo_State`.
+- A story door (`GizmoBlockout_GaleValley_NeyrelleDoor`) read `Gizmo_State` = 0 closed; once opened it held
+  `Gizmo_State` = 1, `Gizmo_Has_Been_Operated` = 1 and a `Door_Timer`.
+- Real chests (`Chest_Open`, id 0x220, never seen set), levers and prisoners are not checked.
 
 ## 5. UI state: conversations and menus (live 2026-09-29)
 

@@ -13,7 +13,9 @@ internal static class ActorsWatch
     private const int MaxLinesPerBurst = 15;
     private const int PoolIdOffset = PoolContainer.IdOffsetInSlot;
 
-    public static void Run(IMemoryReader memory, RActorRecord target, string label, long stride, int seconds, int intervalMs)
+    /// <param name="maxLinesPerBurst">Changed words printed per poll; the player moves, so its watch prints them all.</param>
+    public static void Run(
+        IMemoryReader memory, RActorRecord target, string label, long stride, int seconds, int intervalMs, int maxLinesPerBurst = MaxLinesPerBurst)
     {
         Console.WriteLine($"Watching RActor id 0x{target.Id:X} at 0x{target.SlotAddress:X} ({label}) for {seconds}s, every {intervalMs}ms.");
         var previous = new byte[stride];
@@ -39,24 +41,10 @@ internal static class ActorsWatch
             }
             else
             {
-                PrintChanges(previous, current, clock.ElapsedMilliseconds);
+                SlotWordDiff.Print(previous, current, clock.ElapsedMilliseconds, maxLinesPerBurst);
             }
             Array.Copy(current, previous, current.Length);
         }
         Console.WriteLine("Watch finished.");
-    }
-
-    private static void PrintChanges(byte[] old, byte[] now, long elapsedMs)
-    {
-        int changed = 0;
-        for (int off = 0; off + WordSize <= old.Length; off += WordSize)
-        {
-            uint a = BinaryPrimitives.ReadUInt32LittleEndian(old.AsSpan(off, WordSize));
-            uint b = BinaryPrimitives.ReadUInt32LittleEndian(now.AsSpan(off, WordSize));
-            if (a == b) continue;
-            if (++changed <= MaxLinesPerBurst)
-                Console.WriteLine($"[{elapsedMs,6}ms] +0x{off:X}: 0x{a:X8} -> 0x{b:X8}");
-        }
-        if (changed > MaxLinesPerBurst) Console.WriteLine($"[{elapsedMs,6}ms] ... {changed - MaxLinesPerBurst} more changed word(s)");
     }
 }

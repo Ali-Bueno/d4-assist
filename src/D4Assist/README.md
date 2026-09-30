@@ -113,8 +113,9 @@ objectives: actors the world's DPO quest names (`D4Data` `DungeonObjectiveReader
 free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor). Rules and data:
 [dungeon-objectives](../../research/dungeon-objectives.md). The exit pads keep the beacon profile and are the only loops that
 mute the exploration guide. A loop stops when its actor leaves the placed list, or when the gizmo was used
-(`Game/GizmoUsedSignal`: a chest's glow effect gone while the player is within 10 units, else the RActor state word;
-remembered by spot for the world visit, so a re-created actor stays silent). Chest kinds seen glowing are saved next to
+(`Game/GizmoUsedSignal`: the game's own mark, ACD attribute `Gizmo_Has_Been_Operated` (corpses, herbs, signs, doors;
+research/client-memory.md §4); else a chest's glow effect gone while the player is within 10 units, else the RActor
+state word; remembered by spot for the world visit, so a re-created actor stays silent). Chest kinds seen glowing are saved next to
 the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
 

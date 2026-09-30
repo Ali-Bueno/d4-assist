@@ -78,7 +78,9 @@ internal static class ActorsCommand
                 .Select(l => l.GizmoType >= 0 ? l with { UseWords = UseWords(process, l.SlotAddress, wordOffsets) } : l).ToList();
             PrintAndSave(lines, range);
 
-            if (watchSeconds > 0) Watch(process, module.Base, offsets, actors, lines, watchSeconds, intervalMs, watchMatch);
+            if (watchSeconds > 0 && reader.Has("--watch-player") && playerActor is { } self)
+                WatchPlayer(process, module.Base, offsets, self, watchSeconds, intervalMs);
+            else if (watchSeconds > 0) Watch(process, module.Base, offsets, actors, lines, watchSeconds, intervalMs, watchMatch);
             return 0;
         }
     }
@@ -120,6 +122,13 @@ internal static class ActorsCommand
 
         var target = actors.First(a => a.SlotAddress == pick.SlotAddress);
         ActorsWatch.Run(process, target, $"{pick.Name ?? "?"}, {pick.Distance:F1} units {pick.Direction}", pool.Stride, seconds, intervalMs);
+    }
+
+    // The player's own slot, to find what records the gizmo the player just used.
+    private static void WatchPlayer(ProcessReader process, long moduleBase, GameBuildOffsets offsets, RActorRecord self, int seconds, int intervalMs)
+    {
+        if (!PoolContainer.TryOpen(process, moduleBase, offsets, offsets.Actor, out var pool)) return;
+        ActorsWatch.Run(process, self, "player", pool.Stride, seconds, intervalMs, maxLinesPerBurst: int.MaxValue);
     }
 
     private static string UseWords(ProcessReader process, long slot, int[] offsets)

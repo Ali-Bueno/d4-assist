@@ -13,6 +13,9 @@ public readonly record struct RActorRecord(
     long SlotAddress, uint Id, uint AcdId, int ActorSno, Vector3 Position, Quaternion Rotation,
     uint WorldId, uint SceneId, int Placement, uint PreviousState = 0, uint OperatedMark = 0)
 {
+    /// <summary>AcdId of an actor with no game record (client-only props).</summary>
+    public const uint NoAcd = uint.MaxValue;
+
     public bool IsPlaced => Placement == RActorReader.PlacedValue;
 }
 

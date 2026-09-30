@@ -82,7 +82,7 @@ Qué hace
   libros, notas y carteles que se leen suenan a pergamino; los cadáveres que se
   registran o se examinan suenan a cadáver, como los prisioneros. Se oyen los 3
   más cercanos. Se oyen a unos 18 metros. Se callan al abrirlos o usarlos,
-  salvo los cadáveres, que todavía siguen sonando.
+  también los cadáveres.
 - Cinemáticas (NUEVO): al empezar una cinemática de vídeo se callan todos los
   sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
   hechas con el motor del juego todavía no se detectan.

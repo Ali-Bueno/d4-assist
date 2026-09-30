@@ -219,11 +219,14 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         public HashSet<uint> Uids { get; } = [.. phases.Select(p => p.PhaseUid)];
         public long? PhaseAddress { get; set; }
         public uint? Phase { get; set; }
+        public bool PhaseSeen { get; set; }
         public DateTime NextSearch { get; set; } = DateTime.MinValue;
 
-        // The current phase's objects; every phase's while the phase is unknown (a later step can then sound early).
+        // The current phase's objects. Before the phase is ever found, every phase's (a later step can then sound early);
+        // once seen, a lost phase names nothing: the quest ended while it stays tracked (live 2026-09-30, ~50 s).
         public IEnumerable<PlacedMarker> Named =>
-            Phase is { } current ? Phases.Where(p => p.PhaseUid == current).SelectMany(p => p.Markers) : Phases.SelectMany(p => p.Markers);
+            Phase is { } current ? Phases.Where(p => p.PhaseUid == current).SelectMany(p => p.Markers)
+            : PhaseSeen ? [] : Phases.SelectMany(p => p.Markers);
     }
 
     // The phase pair can move (a new quest record); a failed search waits this long before the next scan of the module data.
@@ -264,6 +267,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             }
             if (phase == quest.Phase) continue;
             quest.Phase = phase;
+            quest.PhaseSeen |= phase is not null;
             changed = true;
             if (log) Console.WriteLine($"Quest phase: {quest.Sno} {(phase is { } v ? $"at {v}" : "unknown")}, {quest.Named.Count()} object(s) named.");
         }

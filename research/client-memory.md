@@ -266,7 +266,9 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   a queue of the next phases (236, 271, 260 → 271, 260, 213). All went 236 → 271 when the petal scene's conversation
   ended (not at the use). The app (`QuestPhaseLocator`, `LiveDungeonSessionReader.NamedByTrackedQuests`) finds the pair
   by content in the module data, reads it every actor poll, and names only the current phase's objects (all phases
-  while the pair isn't found; a failed search waits 5 s). Live: `Quest tracked: 486210, 1 object(s) named, phase 271`,
+  while the pair has never been found; a failed search waits 5 s). When a quest ends it can stay tracked for ~50 s
+  after its pair is gone (live: 486210 → 486212), so a phase once seen and then lost names nothing. Quest 486212 then
+  ran 283 → 350 → 346 → 362 → 326 in `CSD_Frac_Underworld_AncientCity`; the pair stayed at RVA 0x30643CC. Live: `Quest tracked: 486210, 1 object(s) named, phase 271`,
   the city blocker silent.
 - **Quest companions** (live 2026-09-30, `acd --match .` in Fractured Peaks): `NPC_QST_Neyrelle_Follower` and
   `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =

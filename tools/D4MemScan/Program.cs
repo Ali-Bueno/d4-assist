@@ -41,6 +41,7 @@ internal static class Program
                 "peek" => PeekCommand.Run(rest),
                 "screens" => ScreensCommand.Run(rest),
                 "conversations" => ConversationsCommand.Run(rest),
+                "quest" => QuestCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

@@ -21,12 +21,25 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         if (_cache.TryGetValue(questSno, out var cached)) return cached;
         var result = new List<PlacedMarker>();
         if (store.Meta(schema.SnoGroup(Quest), questSno) is { } quest)
-            foreach (var (markerSet, id) in Handles(quest).Distinct())
+            foreach (var (markerSet, id) in Handles(quest).Select(h => (h.MarkerSet, h.Id)).Distinct())
                 if (markers.Find(markerSet, id) is { } marker) result.Add(marker);
         return _cache[questSno] = result;
     }
 
-    private IEnumerable<(int MarkerSet, int Id)> Handles(SnoBlob quest)
+    /// <summary>Each phase's UID (QuestPhase.dwUID), in the quest's order, with the markers its scripts name.</summary>
+    public IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)> PhaseMarkers(int questSno)
+    {
+        if (store.Meta(schema.SnoGroup(Quest), questSno) is not { } quest) return [];
+        var handles = Handles(quest).ToList();
+        return [.. PhaseUids(quest).Select(uid => (uid, (IReadOnlyList<PlacedMarker>)[.. handles
+            .Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
+            .Select(h => markers.Find(h.MarkerSet, h.Id)).OfType<PlacedMarker>()]))];
+    }
+
+    private IEnumerable<uint> PhaseUids(SnoBlob quest) =>
+        quest.PolymorphicArray(schema.Offset(Quest, "arQuestPhases"), schema.Size(Phase)).Select(phase => quest.U32(phase + schema.Offset(Phase, "dwUID")));
+
+    private IEnumerable<(uint PhaseUid, int MarkerSet, int Id)> Handles(SnoBlob quest)
     {
         int map = schema.Offset(Callback, "tScriptMessageMap");
         foreach (int phase in quest.PolymorphicArray(schema.Offset(Quest, "arQuestPhases"), schema.Size(Phase)))
@@ -41,7 +54,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             {
                 if (ParamType(quest, param) != MarkerHandleParam) continue;
                 int handle = param + schema.Offset(MarkerHandleParam, "tMarkerHandle");
-                yield return (quest.I32(handle + schema.Offset("MarkerHandle", "snoMarkerSet")), quest.I32(handle + schema.Offset("MarkerHandle", "nID")));
+                yield return (quest.U32(phase + schema.Offset(Phase, "dwUID")),
+                    quest.I32(handle + schema.Offset("MarkerHandle", "snoMarkerSet")), quest.I32(handle + schema.Offset("MarkerHandle", "nID")));
             }
         }
     }

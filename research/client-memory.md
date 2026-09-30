@@ -256,7 +256,18 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   them. The gate is placed twice (`Hub_Gate`, `Hub_Gate_Open`); the live actor kept one ACD across the unlock. Rule the
   app applies (`QuestScriptMarkerReader`, `LiveDungeonSessionReader`): a quest-restricted gizmo is the quest step when on
   the minimap or when the tracked quest names a marker of its SNO within 2 units; otherwise silent. Phase granularity is
-  unknown: a later step of the same quest (the city blocker) can sound early.
+  unknown: a later step of the same quest (the city blocker) can sound early. **Solved by the current phase** (below).
+- **Quest phases** (live 2026-09-30, build 3.2.2, `D4MemScan quest --sno 486210 --watch` / `--find`): a QuestDefinition's
+  `arQuestPhases` each carry a `dwUID` (small numbers: 34, 47, 127, 183, 213, 236, 260, 271, 278, 281 for
+  `QST_Frac_Underworld_02`) and their own callback sets, so each phase names its own markers. The array order is not the
+  play order: the blood petal is 236, then 271 (`Ancients_Ruins_Blocker_Door` next to it), 260 (a trigger sphere), and
+  only then 213, the city blocker that sounded early. The client holds the pair {u32 quest SNO, u32 current phase UID} in
+  several places; one is in the module's data (RVA 0x30643CC, the only such pair there), others on the heap, one of them
+  a queue of the next phases (236, 271, 260 → 271, 260, 213). All went 236 → 271 when the petal scene's conversation
+  ended (not at the use). The app (`QuestPhaseLocator`, `LiveDungeonSessionReader.NamedByTrackedQuests`) finds the pair
+  by content in the module data, reads it every actor poll, and names only the current phase's objects (all phases
+  while the pair isn't found; a failed search waits 5 s). Live: `Quest tracked: 486210, 1 object(s) named, phase 271`,
+  the city blocker silent.
 - **Quest companions** (live 2026-09-30, `acd --match .` in Fractured Peaks): `NPC_QST_Neyrelle_Follower` and
   `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =
   525136 and `Pet_Type`; no other NPC in range had them. The app silences NPCs with `Follower_Quest` (`AcdFlagReader`).

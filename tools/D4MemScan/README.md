@@ -36,6 +36,7 @@ D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--in
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]
 D4MemScan conversations --defs <definitions.json> [--install <dir>] [--watch <seconds>]
+D4MemScan quest --defs <definitions.json> --sno <quest> [--install <dir>] [--find] [--watch <seconds>]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
 D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
@@ -127,6 +128,10 @@ the repo.
 11. **`conversations`** — searches the module data for the playing-conversation list and the dialogue menu
     (`D4Memory.Ui.ConversationDiscovery`) every 2 s until both are found, then prints their contents on each change. Talk
     to an NPC while it runs: each part is only found while live.
+
+12. **`quest --sno N`** — the quest's phases (`dwUID`, array order) and the objects each phase names (offline). `--find`
+    prints the {quest SNO, phase} pair the app reads in the module data; `--watch S` watches every phase UID within
+    ±0x100 of the quest SNO anywhere in memory for S seconds, to see where the phase lives when the quest advances.
 
 Every live command finds the build's addresses itself (`Offsets.cs` → `BuildOffsetsDiscovery`) and prints them, e.g.
 `Module 0x7FF7B55F0000: game object at RVA 0x3670918, attribute names at RVA 0x36CF540.`

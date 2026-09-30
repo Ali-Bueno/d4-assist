@@ -39,4 +39,21 @@ public class QuestScriptMarkerReaderRealDataTests
 
         Assert.DoesNotContain(markers, m => m.Sno == DarkenedWayGate); // locked while this quest was tracked
     }
+
+    [Fact]
+    public void EachPhaseNamesItsOwnObjects()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        var phases = reader.PhaseMarkers(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Frac_Underworld_02"));
+
+        // research/client-memory.md §4, quest phases (live 2026-09-30): phase 236 is the blood petal; the entrance
+        // blocker that sounded early belongs to phase 213, which comes later in play.
+        string Names(uint uid) => string.Join(",", phases.Single(p => p.PhaseUid == uid).Markers.Select(m => store.Name(m.Sno)));
+        Assert.Equal("Ancients_Prop_Lilith_BloodPetal", Names(236));
+        Assert.Equal("QST_Frac_Underworld_DGN_Entrance_Ancients_Ruins_Blocker_Door", Names(213));
+    }
 }

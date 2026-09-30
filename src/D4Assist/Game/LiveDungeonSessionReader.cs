@@ -28,11 +28,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly long _positionAddress;
     private readonly Func<int, bool> _readsFlags;
     private readonly int _playerActorSno;
-    private readonly Func<int, IReadOnlyList<PlacedMarker>>? _questMarkers;
+    private readonly Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>>? _questMarkers;
     private readonly ConversationAddresses? _conversations;
     private readonly uint _build;
     private readonly IReadOnlyList<MemoryRegion> _moduleData;
     private int[] _trackedQuests = [];
+    private List<TrackedQuest> _quests = [];
     private IReadOnlyList<PlacedMarker> _namedByQuests = [];
     private bool _actorFailureLogged;
     private AcdFlagReader? _flags;
@@ -40,7 +41,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
-        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers,
+        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>>? questMarkers,
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData)
     {
         (_conversations, _build, _moduleData) = (conversations, build, moduleData);
@@ -62,7 +63,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="questMarkers">The objects a quest's scripts name (QuestScriptMarkerReader.Markers); null ignores the tracked quest.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
-        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers = null,
+        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>>? questMarkers = null,
         ConversationAddresses? conversations = null)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
@@ -210,10 +211,29 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // A quest's marker and the actor it placed share a spot (live: the Darkened Way gate, 0.0 apart).
     private const float QuestMarkerReach = 2f;
 
-    // The objects the player's tracked quests name, re-resolved only when the tracked quests change.
+    // A tracked quest's phases (offline) and where its current phase is read (found in the module's data).
+    private sealed class TrackedQuest(int sno, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)> phases)
+    {
+        public int Sno { get; } = sno;
+        public IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)> Phases { get; } = phases;
+        public HashSet<uint> Uids { get; } = [.. phases.Select(p => p.PhaseUid)];
+        public long? PhaseAddress { get; set; }
+        public uint? Phase { get; set; }
+        public DateTime NextSearch { get; set; } = DateTime.MinValue;
+
+        // The current phase's objects; every phase's while the phase is unknown (a later step can then sound early).
+        public IEnumerable<PlacedMarker> Named =>
+            Phase is { } current ? Phases.Where(p => p.PhaseUid == current).SelectMany(p => p.Markers) : Phases.SelectMany(p => p.Markers);
+    }
+
+    // The phase pair can move (a new quest record); a failed search waits this long before the next scan of the module data.
+    private static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
+
+    // The objects the player's tracked quests name in their current phase (research/client-memory.md §4).
     private IReadOnlyList<PlacedMarker> NamedByTrackedQuests(IReadOnlyList<RActorRecord> records, AcdFlagReader flags)
     {
         if (_questMarkers is null || ReadPlayer() is not { } p) return _namedByQuests;
+        if (UpdateQuestPhases(log: true)) _namedByQuests = [.. _quests.SelectMany(q => q.Named)];
         var player = records.Where(r => r.ActorSno == _playerActorSno && r.AcdId != RActorRecord.NoAcd)
             .OrderBy(r => Vector2.DistanceSquared(new(r.Position.X, r.Position.Y), new(p.X, p.Y))).Select(r => (RActorRecord?)r).FirstOrDefault();
         if (player is not { } self) return _namedByQuests;
@@ -222,10 +242,36 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             .Select(name => values.TryGetValue(name, out uint sno) ? (int)sno : 0).Where(sno => sno > 0).Distinct().Order()];
         if (quests.SequenceEqual(_trackedQuests)) return _namedByQuests;
         _trackedQuests = quests;
-        _namedByQuests = [.. quests.SelectMany(_questMarkers)];
-        Console.WriteLine($"Quest tracked: {(quests.Length == 0 ? "none" : string.Join(", ", quests))}, {_namedByQuests.Count} object(s) named.");
+        _quests = [.. quests.Select(q => new TrackedQuest(q, _questMarkers(q)))];
+        UpdateQuestPhases(log: false);
+        _namedByQuests = [.. _quests.SelectMany(q => q.Named)];
+        Console.WriteLine($"Quest tracked: {(quests.Length == 0 ? "none" : string.Join(", ", quests))}, {_namedByQuests.Count} object(s) named{PhaseText()}.");
         return _namedByQuests;
     }
+
+    // True when a quest's phase changed.
+    private bool UpdateQuestPhases(bool log)
+    {
+        bool changed = false;
+        foreach (var quest in _quests)
+        {
+            uint? phase = quest.PhaseAddress is { } at ? QuestPhaseLocator.Read(_process, at, quest.Sno, quest.Uids) : null;
+            if (phase is null && DateTime.UtcNow >= quest.NextSearch)
+            {
+                quest.PhaseAddress = QuestPhaseLocator.Find(_process, _moduleData, quest.Sno, quest.Uids) is [var found, ..] ? found : null;
+                quest.NextSearch = DateTime.UtcNow + PhaseSearchInterval;
+                phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(_process, a, quest.Sno, quest.Uids) : null;
+            }
+            if (phase == quest.Phase) continue;
+            quest.Phase = phase;
+            changed = true;
+            if (log) Console.WriteLine($"Quest phase: {quest.Sno} {(phase is { } v ? $"at {v}" : "unknown")}, {quest.Named.Count()} object(s) named.");
+        }
+        return changed;
+    }
+
+    private string PhaseText() =>
+        string.Concat(_quests.Select(q => q.Phase is { } v ? $", phase {v}" : ", phase unknown"));
 
     public IReadOnlyList<TileState> ReadTilesViaFullScan() =>
         ToTileStates(new SceneScanner().Scan(_process, _candidates).Tiles);

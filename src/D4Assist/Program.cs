@@ -94,7 +94,8 @@ internal static class Program
         // ACD flags are read for gizmos (used) and NPCs (quest followers) only: monsters and the player carry hundreds of attributes.
         Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
-        Func<int, IReadOnlyList<PlacedMarker>> questMarkers = quest => { lock (cascGate) return questScripts.Markers(quest); };
+        Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>> questMarkers =
+            quest => { lock (cascGate) return questScripts.PhaseMarkers(quest); };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
         var conversationAddresses = new ConversationAddresses(

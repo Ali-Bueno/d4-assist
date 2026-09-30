@@ -98,13 +98,36 @@ Recovered fields (meta unless noted):
   sampled single-exit tiles the walkable box touches the edge of the exit — N ↔ X=0, S ↔ X=32, E ↔ Y=32, W ↔ Y=0).
   Scene-local box = (ix·32 + c2, iy·32 + c0, iz·32 + c1). Empty cells use the inverted ±FLT_MAX sentinel.
   Typical tile: a z=0 cell (floor, Z 0…1) and a z=−1 cell (Z −1.5…0).
-- Detail grid `unk_5d4c076` = `Type_5f1859b4` (73,808 B per cell): `m_cellId`, a hash equal to
-  `AICellData+64`, `m_detailGrid` and `m_detailGridWalkable` (4608 × u64 each), `m_slicesInternal`,
-  `m_slicesExtents`, AABBs. **Present only for DRLG tiles**: 30/30 sampled tiles have it; 10/10 open-world
-  and 22/30 other scenes carry only the compressed `m_cellBytes` (M, 70-scene sample).
-- `m_cellBytes` (≈3–30 KB per cell) is a compressed sparse-voxel brick DAG (17 u64 section offsets, 4×4×4
-  8-unit occupancy mask, 2×2 node hierarchy, unique-brick dictionaries; no floats), not a polygon navmesh.
-  Partly decoded (M/L); not needed where the detail grid exists.
+- Detail grid `unk_5d4c076` = `Type_5f1859b4` (73,808 B per cell): `m_cellId`, a hash (equal to
+  `AICellData+64` in only 653/2107 cells: pair by `m_cellId`), `m_detailGrid` and `m_detailGridWalkable`
+  (4608 × u64 each), `m_slicesInternal`, `m_slicesExtents`, AABBs. **Present only for DRLG tiles**; open-world
+  and static-world scenes (every layout 0/1 gameplay world, census 2026-09-30) carry only `m_cellBytes`.
+- `AICellData+48` (`unk_c225718`) = index into `m_cellBytes`; cells share blobs (H).
+
+### 4.1b `m_cellBytes` (decoded 2026-09-30, `D4Data.Readers.CellBytesDecoder`)
+
+Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both forms.
+- Blob: 0 bytes = no data. Header: 17 u64 section byte offsets (section i = [off_i, off_i+1), the last runs to the
+  end), then 4 u64: surface root mask, surface region count, free-space root mask, `1<<32 | free region count` (H).
+- Two trees of the same shape (H): **S = walkable surfaces** (sections: 1 blocks, 3 octant stream, 4 nodes,
+  5 leaf refs, 7 word dictionary) and **F = free (non-solid) space** (10, 11, 12, 13, 15). Sections 0, 2, 6, 8, 9,
+  14, 16 are region/graph metadata (roles L).
+- Only the 64 core levels (detail levels 4–67); margins aren't stored (H). Root mask: 4×4×4 blocks of 16³ voxels,
+  bit = 4·(by·4+bx)+bz.
+- Block entries (u64), one per root bit in bit order: bit 63 set = direct; clear = `count = e>>32` direct entries
+  from index `low32`. Direct entry: 11-bit octant-stream offset (u16 index) at bit 29 (S) / bit 36 (F) (H).
+- Octant stream (u16): 8-bit mask of the 8³ octants (bit = y + 2x + 4z), then one node index per set bit.
+  Node = (u16 first leaf, u16 mask of its 8 bricks of 4³, same bit order); leaves are consecutive (H).
+- Leaf ref u32: bit 31 set = dictionary index in the low bitlen(dictCount−1) bits; clear = OR of `r>>16` refs
+  from `r & 0xFFFF`. Dictionary word = one 4×4×4 brick in the detail u64 layout; core brick (zb, yb, xb) →
+  detail word (zb+1)·256 + yb·16 + xb (H).
+- F = exact complement of `m_detailGrid` on levels 4–67 (H, 2107/2107 cells, bit-exact).
+- S ⊆ `m_detailGridWalkable`; each S voxel tops a walkable run (H). `m_detailGridWalkable` itself isn't in the blob:
+  it also holds floor buried under walls/props and the scene's outermost voxel ring. Top-down, S covers 89.5% of
+  the walkable columns with no false ones (M); the missing ring is 0.5 units, inside the app's 1-unit map cells.
+- The app's walk map for scenes without detail grids = S columns, top-down (`SceneReader.SurfaceColumns`). Floors
+  at different heights merge in that projection (bridges, ledges); S keeps the heights for a later 2.5D map.
+- Reference decoder (Python) and validation harness: scratchpad of 2026-09-30 (`cb/dec.py`, `cbval`), not kept.
 
 ### 4.2 Detail voxel grid layout (H, validated on 104 tiles)
 
@@ -192,7 +215,7 @@ world-space markers for placed scenes. Samples (scratchpad, not repo):
    (read-only) or another non-invasive channel; none found in logs (they expose world name and layout-hash
    changes only).
 2. **Player pose** (world X/Y/Z, heading) — not in offline data or logs.
-3. Full `m_cellBytes` decode (needed only for non-tile scenes) and the Appearance collision meshes.
+3. ~~Full `m_cellBytes` decode~~ done (§4.1b); the Appearance collision meshes are still undecoded.
 4. World → tile-set mapping for a given dungeon (server-side); only observable via runtime scene SNOs.
 5. Whether a given `DGN_*` regenerates differently every run (layout hash evidence so far is from PIT/Limbo lines).
 6. Whether scenes are revealed all at once or progressively (per-scene `RevealSceneMessage` suggests streaming).

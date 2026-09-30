@@ -36,6 +36,19 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
         return sink;
     }
 
+    /// <summary>The top-level marker <paramref name="markerId"/> (Marker.nID) of a marker set, in the set's frame; null when absent.</summary>
+    public PlacedMarker? Find(int markerSetSno, int markerId)
+    {
+        if (store.Meta(MarkerSetGroup, markerSetSno) is not { } meta) return null;
+        var blob = schema.IsInPayload(MarkerSet, "tMarkerSet") ? store.Payload(MarkerSetGroup, markerSetSno) : meta;
+        if (blob is null) return null;
+        int nameField = schema.Offset(Marker, "snoname");
+        foreach (var m in blob.Array(schema.Offset(MarkerSet, "tMarkerSet"), schema.Size(Marker)))
+            if (blob.I32(m + schema.Offset(Marker, "nID")) == markerId)
+                return new PlacedMarker(blob.I32(m + nameField), blob.I32(m + nameField + sizeof(int)), LocalMatrix(blob, m).Translation);
+        return null;
+    }
+
     // Visits every non-prefab marker with its composed transform, expanding nested prefab marker sets.
     private void Walk(int markerSetSno, Matrix4x4 parent, int depth, Action<int, int, int, Matrix4x4> visit)
     {

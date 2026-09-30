@@ -23,33 +23,39 @@ public sealed class NavGridReader(TypeSchema schema)
     /// <summary>Walkable columns of every grid cell, in scene-local voxel coordinates (X, Y).</summary>
     public HashSet<(int X, int Y)> WalkableColumns(SnoBlob blob, int gridArray, float cellWidth, float cellHeight)
     {
+        var walkable = new HashSet<(int, int)>();
+        foreach (var cell in blob.Array(gridArray, schema.Size(Grid)))
+        {
+            var (ix, iy, _) = Conventions.DecodeCellId(blob.U64(cell + schema.Offset(Grid, "m_cellId")));
+            int grid = cell + schema.Offset(Grid, "m_detailGridWalkable");
+            AddWalkableColumns(w => blob.U64(grid + w * sizeof(ulong)), ix, iy, cellWidth, cellHeight, walkable);
+        }
+        return walkable;
+    }
+
+    /// <summary>Adds one cell's walkable columns from a grid in the detail word layout (e.g. CellBytesDecoder.Surfaces).</summary>
+    public void AddWalkableColumns(Func<int, ulong> word, int ix, int iy, float cellWidth, float cellHeight, HashSet<(int X, int Y)> walkable)
+    {
         int columns = (int)(cellWidth / VoxelSize), bricksPerRow = columns / BrickEdge;
         int wordsPerLayer = bricksPerRow * bricksPerRow;
         int words = (schema.Offset(Grid, "m_slicesInternal") - schema.Offset(Grid, "m_detailGridWalkable")) / sizeof(ulong);
         int levels = words / wordsPerLayer * BrickEdge;
         int margin = (levels - (int)(cellHeight / VoxelSize)) / 2; // levels duplicated from the cells below/above
 
-        var walkable = new HashSet<(int, int)>();
-        foreach (var cell in blob.Array(gridArray, schema.Size(Grid)))
+        for (int w = 0; w < words; w++)
         {
-            var (ix, iy, _) = Conventions.DecodeCellId(blob.U64(cell + schema.Offset(Grid, "m_cellId")));
-            int grid = cell + schema.Offset(Grid, "m_detailGridWalkable");
-            for (int w = 0; w < words; w++)
+            ulong bits = word(w);
+            if (bits == 0) continue;
+            int layer = w / wordsPerLayer, brick = w % wordsPerLayer;
+            int bx = brick % bricksPerRow, by = brick / bricksPerRow;
+            for (int n = 0; n < BrickEdge * BrickEdge; n++)
             {
-                ulong word = blob.U64(grid + w * sizeof(ulong));
-                if (word == 0) continue;
-                int layer = w / wordsPerLayer, brick = w % wordsPerLayer;
-                int bx = brick % bricksPerRow, by = brick / bricksPerRow;
-                for (int n = 0; n < BrickEdge * BrickEdge; n++)
-                {
-                    uint nibble = (uint)(word >> (n * BrickEdge)) & 0xF;
-                    if (nibble == 0 || !HasCoreLevel(nibble, layer * BrickEdge, margin, levels - margin)) continue;
-                    walkable.Add((ix * columns + bx * BrickEdge + n % ColumnsPerNibbleRow,
-                                  iy * columns + by * BrickEdge + n / ColumnsPerNibbleRow));
-                }
+                uint nibble = (uint)(bits >> (n * BrickEdge)) & 0xF;
+                if (nibble == 0 || !HasCoreLevel(nibble, layer * BrickEdge, margin, levels - margin)) continue;
+                walkable.Add((ix * columns + bx * BrickEdge + n % ColumnsPerNibbleRow,
+                              iy * columns + by * BrickEdge + n / ColumnsPerNibbleRow));
             }
         }
-        return walkable;
     }
 
     /// <summary>Top-down map: row r = X (north to south), column c = Y (west to east); '#' walkable.</summary>

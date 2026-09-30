@@ -19,10 +19,11 @@ public class QuestRouteTests
     // ---- world classification ----
 
     [Fact]
-    public void A_non_drlg_gameplay_world_is_overworld_when_reads_outside_dungeons_are_on()
+    public void The_open_world_is_overworld_and_other_story_areas_are_radar_only_when_reads_outside_dungeons_are_on()
     {
         Assert.Equal(WorldKind.Overworld, WorldClassifier.KindOf(1, World, null, outsideDungeons: true));
-        Assert.Equal(WorldKind.Overworld, WorldClassifier.KindOf(0, "Hellgate", null, outsideDungeons: true));
+        Assert.Equal(WorldKind.RadarOnly, WorldClassifier.KindOf(1, "Frac_Underworld", null, outsideDungeons: true));
+        Assert.Equal(WorldKind.RadarOnly, WorldClassifier.KindOf(0, "Hellgate", null, outsideDungeons: true));
     }
 
     [Theory]
@@ -44,6 +45,7 @@ public class QuestRouteTests
         Assert.Equal(WorldKind.Dungeon, WorldClassifier.KindOf(Conventions.LayoutDrlg, "DGN_Kehj_HakansRefuge", null, outsideDungeons: true));
         Assert.Equal(WorldKind.RadarOnly, WorldClassifier.KindOf(1, "Mercenary_Hideout", ["Mercenary_Hideout"], outsideDungeons: true));
         Assert.Equal(WorldKind.Other, WorldClassifier.KindOf(1, World, null, outsideDungeons: false));
+        Assert.Equal(WorldKind.Other, WorldClassifier.KindOf(1, "Frac_Underworld", null, outsideDungeons: false));
     }
 
     [Fact]

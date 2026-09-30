@@ -81,10 +81,10 @@ internal static class Program
 
         // CASC reads happen on several poll threads (walkability, actor classes, DPO quests) and the store isn't thread-safe.
         var cascGate = new object();
-        // Static-grid (radar-only) worlds get their tiles offline: the live CScene route only matches DRLG scenes.
+        // Static (radar-only) worlds get their tiles offline: the live CScene route only matches DRLG scenes.
         var staticTiles = new StaticWorldTiles(
-            worldSno => { lock (cascGate) return worldReader.Read(worldSno).Chunks; },
-            sceneSno => { lock (cascGate) return sceneReader.Read(sceneSno).TileSize; },
+            worldSno => { lock (cascGate) { var (info, chunks) = worldReader.Read(worldSno); return (info.GridSize, chunks); } },
+            sceneSno => { lock (cascGate) return sceneReader.Read(sceneSno).Walkability?.Map; },
             store.Name);
 
         bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
@@ -93,10 +93,12 @@ internal static class Program
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
         // ACD flags are read for gizmos (used) and NPCs (quest followers) only: monsters and the player carry hundreds of attributes.
         Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
+        var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+        Func<int, IReadOnlyList<PlacedMarker>> questMarkers = quest => { lock (cascGate) return questScripts.Markers(quest); };
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
-                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags),
+                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers),
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);

@@ -95,13 +95,13 @@ public sealed class AppConfig
     /// <summary>CoreTOC names of the actors that get a beacon loop; unknown names are logged and ignored.</summary>
     public string[] BeaconActorNames { get; set; } = ["X1_Undercity_WarpPad"];
 
-    /// <summary>Exact (case-sensitive) CoreTOC names of non-DRLG worlds where only the radar and actor loops run (no announcements, no guide).
-    /// Explicit, user-approved exception to "read memory only in a dungeon"; opt-in by this list. Default: the Mercenary den.</summary>
-    // Empty by default: the one candidate, the Mercenary den, ships no detailed walkable grid (README "RadarOnlyWorlds").
+    /// <summary>Exact (case-sensitive) CoreTOC names of extra non-DRLG worlds where only the radar and actor loops run (no
+    /// announcements, no guide), e.g. the open world. Story areas outside the open world get this without being listed.</summary>
     public string[] RadarOnlyWorlds { get; set; } = [];
 
     /// <summary>Read the player and nearby actors outside dungeons too (overworld, towns, story areas), for the beacons and
-    /// objective loops there; no radar or announcements outside dungeons. User-approved 2026-09-29.</summary>
+    /// objective loops there, plus the radar in story areas outside the open world; no announcements outside dungeons.
+    /// User-approved 2026-09-29.</summary>
     public bool OutsideDungeonsEnabled { get; set; } = true;
 
     /// <summary>Lead through known campaign routes with the guide ping, e.g. from shelter to shelter in the desert sandstorm

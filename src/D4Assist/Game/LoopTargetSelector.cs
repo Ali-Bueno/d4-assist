@@ -10,8 +10,8 @@ public enum LoopKind { ExitBeacon, Objective, Door, Container }
 /// <param name="StopsWhenUsed">A used gizmo falls silent; beacons (the Undercity pad activates on approach) and NPCs never do.</param>
 public sealed record LoopTarget(LoopKind Kind, string Sound, LoopProfile Profile, string Reason, bool StopsWhenUsed = false);
 
-/// <summary>Maps each placed actor to its loop (or none): exit beacons (by SNO, or any portal in a dungeon), then dungeon
-/// objectives, then doors, chests and readables.</summary>
+/// <summary>Maps each placed actor to its loop (or none): exit beacons (by SNO, or any portal in a dungeon), then the
+/// quest's current gizmo and dungeon objectives, then doors, chests and readables.</summary>
 public sealed class LoopTargetSelector
 {
     /// <summary>Sound id of the beacon and objective loops (a WAV under Sounds/): the D2R quest-item loop.</summary>
@@ -70,6 +70,7 @@ public sealed class LoopTargetSelector
     public LoopTarget? Select(ActorState actor)
     {
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
+        if (_objectives is not null && actor.QuestStep) return _objectiveTargets[ObjectiveReason.Quest];
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
             return (_objectives.IsMonster(actor.ActorSno) ? _npcObjectiveTargets : _objectiveTargets)[reason];
         return _interactables?.Classify(actor.ActorSno) is { } thing && _interactableKinds.Contains(thing.Kind)

@@ -24,6 +24,7 @@ public sealed class ActorLoopBridge
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
     private Dictionary<uint, (ActorState Actor, LoopTarget Target)> _targets = [];
+    private readonly HashSet<uint> _loggedUnusable = [];
     private PlayerState? _lastPlayer;
 
     /// <param name="isUsed">True once an actor was used (lever pulled, chest opened): its loop stops if its target says so.
@@ -55,6 +56,7 @@ public sealed class ActorLoopBridge
     private void Reset(int worldSno, bool isDungeon)
     {
         _targets = [];
+        _loggedUnusable.Clear();
         _lastPlayer = null;
         _sightings?.Reset();
         _used?.Reset();
@@ -70,9 +72,14 @@ public sealed class ActorLoopBridge
             .Select(a => (Actor: a, Target: _selector.Select(a)))
             .Where(x => x.Target is not null)
             .GroupBy(x => x.Actor.Id).ToDictionary(g => g.Key, g => g.First());
-        var next = selected.Where(kv => !(kv.Value.Target!.StopsWhenUsed && _isUsed(kv.Value.Actor)))
+        // An unusable gizmo (quest-restricted, script-disabled) offers no interaction: silent until the game allows it.
+        var next = selected.Where(kv => !(kv.Value.Target!.StopsWhenUsed && (kv.Value.Actor.Unusable || _isUsed(kv.Value.Actor))))
             .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, kv.Value.Target!));
-        if (_log is not null) LogChanges(_targets, next, selected.Keys.ToHashSet());
+        if (_log is not null)
+            foreach (var (actor, target) in selected.Values.Where(x =>
+                         x.Target!.StopsWhenUsed && x.Actor.Unusable && !_targets.ContainsKey(x.Actor.Id) && _loggedUnusable.Add(x.Actor.Id)))
+                Log("silent", actor, target!, "unusable");
+        if (_log is not null) LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
         _targets = next;
     }
 
@@ -101,11 +108,11 @@ public sealed class ActorLoopBridge
 
     private void LogChanges(
         Dictionary<uint, (ActorState Actor, LoopTarget Target)> before, Dictionary<uint, (ActorState Actor, LoopTarget Target)> after,
-        HashSet<uint> stillPresent)
+        Dictionary<uint, ActorState> present)
     {
         foreach (var t in after.Where(t => !before.ContainsKey(t.Key)).Select(t => t.Value)) Log("started", t.Actor, t.Target, null);
         foreach (var t in before.Where(t => !after.ContainsKey(t.Key)).Select(t => t.Value))
-            Log("stopped", t.Actor, t.Target, stillPresent.Contains(t.Actor.Id) ? "used" : "gone");
+            Log("stopped", t.Actor, t.Target, !present.TryGetValue(t.Actor.Id, out var now) ? "gone" : now.Unusable ? "unusable" : "used");
     }
 
     private void Log(string what, ActorState a, LoopTarget target, string? cause)

@@ -71,6 +71,26 @@ public class BeaconTests
     }
 
     [Fact]
+    public void ActorFilter_AQuestGizmoOnTheMinimapOrNamedByTheTrackedQuestIsTheQuestStep_ElseItIsUnusable()
+    {
+        const string quest = D4Memory.Actors.AcdFlagReader.GizmoQuestRestricted, minimap = D4Memory.Actors.AcdFlagReader.MinimapActive;
+        var records = Enumerable.Range(1, 5).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        var flags = new Dictionary<uint, IReadOnlySet<string>>
+        {
+            [1] = new HashSet<string> { quest },                                               // the locked quest gate
+            [2] = new HashSet<string> { quest, minimap },                                      // the demon body to use
+            [3] = new HashSet<string> { D4Memory.Actors.AcdFlagReader.GizmoDisabledByScript },
+            [4] = new HashSet<string> { minimap },                                             // an elevator
+            [5] = new HashSet<string> { quest },                                               // the gate, once the quest names it
+        };
+
+        var actors = ActorFilter.Placed(records, r => flags.GetValueOrDefault(r.Id), namedByQuest: r => r.Id == 5);
+
+        Assert.Equal([true, false, true, false, false], actors.Select(a => a.Unusable));
+        Assert.Equal([false, true, false, false, true], actors.Select(a => a.QuestStep));
+    }
+
+    [Fact]
     public void ActorFilter_APreviousStateMarksTheActorChanged()
     {
         var used = Record(1, Vector3.One, placement: 0) with { PreviousState = 0x61 };

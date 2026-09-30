@@ -142,6 +142,33 @@ public class InteractableTests
     }
 
     [Fact]
+    public void Bridge_AnUnusableGizmoStaysSilentUntilTheGameAllowsIt()
+    {
+        var feed = new FakeFeed();
+        var player = LoopTestKit.Player();
+        _ = new ActorLoopBridge(feed, player, Selector(), Name);
+        feed.RaiseWorld(World);
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+
+        feed.RaiseActors(new ActorState(1, DoorSno, 1, 0, 0, Unusable: true), new ActorState(2, PrisonerSno, 0, 1, 0, Unusable: true));
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(1, player.ActiveCount); // the quest-restricted door is silent; NPC targets never stop
+
+        feed.RaiseActors(new ActorState(1, DoorSno, 1, 0, 0), new ActorState(2, PrisonerSno, 0, 1, 0));
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(2, player.ActiveCount);
+    }
+
+    [Fact]
+    public void Selector_TheQuestStepGetsTheQuestLoopWhateverItIs()
+    {
+        var target = Selector().Select(new ActorState(1, 99, 0, 0, 0, QuestStep: true)); // an unclassified gizmo
+
+        Assert.Equal((LoopKind.Objective, LoopTargetSelector.QuestItemSound, "quest", true),
+            (target!.Kind, target.Sound, target.Reason, target.StopsWhenUsed));
+    }
+
+    [Fact]
     public void Selector_OnlyGizmoTargetsStopWhenUsed()
     {
         var selector = Selector();

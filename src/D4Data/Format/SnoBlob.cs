@@ -90,5 +90,12 @@ public sealed class SnoBlob(byte[] bytes, int baseOffset = 0)
         return p == end ? elements : null;
     }
 
+    /// <summary>The raw bytes of a DT_VARIABLEARRAY of bytes whose descriptor is at <paramref name="off"/>.</summary>
+    public ReadOnlySpan<byte> ByteArray(int off)
+    {
+        var (data, size) = ArrayDescriptor(off);
+        return data <= 0 || size <= 0 ? [] : Span(data, size);
+    }
+
     private ReadOnlySpan<byte> Span(int off, int len) => bytes.AsSpan(baseOffset + off, len);
 }

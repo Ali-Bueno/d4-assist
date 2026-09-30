@@ -227,6 +227,34 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
 - A story door (`GizmoBlockout_GaleValley_NeyrelleDoor`) read `Gizmo_State` = 0 closed; once opened it held
   `Gizmo_State` = 1, `Gizmo_Has_Been_Operated` = 1 and a `Door_Timer`.
 - Real chests (`Chest_Open`, id 0x220, never seen set), levers and prisoners are not checked.
+- **Quest gizmos** (live 2026-09-30, Darkened Way, 2 samples, M): `Gizmo_Is_Quest_Restricted` (0x226) = 1 marks a gizmo
+  the quest controls, usable or not:
+  - the scripted entrance gate `Qst_Frac_Ancients_UnderWorld_LargeEntrance_Door_01_Dyn` (gizmo 0, the game offers no
+    interaction): quest-restricted, `Gizmo_State` = 0, **no** `MinimapActive`;
+  - the demon body `Frac_UnderWorld_OreHoist_HangingCorpse_FallenBrute_Dyn` (gizmo 57 switch, the quest's next step, the
+    player could use it): quest-restricted **and** `MinimapActive` = 1 (as are NPCs and an elevator nearby).
+  The app reads quest-restricted + minimap as the quest step (quest loop) and quest-restricted alone, or
+  `Gizmo_Disabled_By_Script` (0x222, by name only), as not usable yet (silent). The Neyrelle door the player opened
+  carried neither. `+0x140` doesn't separate them: a usable village door also starts at `0x4046D66`.
+  - **The gate unlocked with no trace:** once the quest advanced (tracked quest 889465 → 486210) the player could open
+    it, yet its attributes, `MinimapActive` (absent) and RActor words (`+0xA0` 0x10B) were unchanged, and the player's
+    ACD changed only `ManuallyTrackedQuestSNO`. So "quest-restricted off the minimap" is **not** "locked" for doors.
+  - At the opening (ACD watch): `Gizmo_Has_Been_Operated` → 1, `Gizmo_State` 0 → 1, `Door_Timer` added; ACD slot
+    `+0x518` 1 → 0 (0 on every other gizmo nearby: a closed-door flag, not "usable"), then `+0x258` 0x10 → 0 and
+    `+0x614` 7 → 0 about 2.6 s later.
+  Other candidates by name, unused: `Gizmo_Visibility_Is_Quest_Restricted` (0x227), `Untargetable` (0x160),
+  `Operatable` (0x315), `Disabled` (0x317). `D4MemScan acd --names <regex>` lists the table.
+- **Tracked quest:** the player's ACD holds `ManuallyTrackedQuestSNO` = the quest the player tracks (live: 889465
+  `QST_Frac_Underworld_01`, then 486210 `QST_Frac_Underworld_02` right after the body was used; `OverrideTrackedQuestSNO`
+  exists, never seen set). No per-phase attribute exists (`acd --names Quest|Phase`).
+- **Quest → gizmos (offline, H on the 3 live cases):** a quest's callbacks carry a `ScriptMessageMap` whose parameters and
+  event filters include `ScriptEventParamMarkerHandle` {`snoMarkerSet`, `nID`} naming a marker in a world layer set
+  `<World> (<Layer>)` (world space). `QST_Frac_Underworld_01` names the body (`…_LiftGetsFixed` #34), `_02` names the
+  gate (`Hub_Gate` #4), then the city dungeon blocker (`CityDGN_Closed` #4) and the blood petals; script event 32 on all of
+  them. The gate is placed twice (`Hub_Gate`, `Hub_Gate_Open`); the live actor kept one ACD across the unlock. Rule the
+  app applies (`QuestScriptMarkerReader`, `LiveDungeonSessionReader`): a quest-restricted gizmo is the quest step when on
+  the minimap or when the tracked quest names a marker of its SNO within 2 units; otherwise silent. Phase granularity is
+  unknown: a later step of the same quest (the city blocker) can sound early.
 - **Quest companions** (live 2026-09-30, `acd --match .` in Fractured Peaks): `NPC_QST_Neyrelle_Follower` and
   `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =
   525136 and `Pet_Type`; no other NPC in range had them. The app silences NPCs with `Follower_Quest` (`AcdFlagReader`).

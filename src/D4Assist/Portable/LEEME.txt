@@ -44,9 +44,11 @@ Cómo usarlo
 2. Abre D4Assist.exe, antes o después de abrir el juego. Dirá "Asistente de
    mazmorras activo".
 3. Juega normal. En las mazmorras (normales, de campaña, de expansión y de
-   pesadilla, Undercity y el Foso) funciona todo. Fuera de ellas solo suenan
-   los objetivos cercanos y la guía de refugios (ver abajo): sin radar ni
-   anuncios.
+   pesadilla, Undercity y el Foso) funciona todo. En las zonas fijas de la
+   historia (NUEVO, sin probar: la Vía Oscurecida, Tristram, los infiernos, la
+   guarida de mercenarios) suenan el radar y los objetivos, sin anuncios de
+   salas. En el mundo abierto solo suenan los objetivos cercanos y la guía de
+   refugios (ver abajo): allí ya ayuda la navegación asistida del juego.
 4. Para cerrarlo, cierra su ventana o pulsa Control+C en ella.
 
 Habla en el idioma de texto del juego: en español si el juego está en español
@@ -70,7 +72,10 @@ Qué hace
   mazmorras, y sobre los pétalos de sangre de la campaña. Los prisioneros
   suenan con el sonido de cadáver de D2R. Las palancas, los cofres y los
   pétalos se callan al usarlos; los prisioneros todavía no (se callan cuando el
-  juego los retira).
+  juego los retira). NUEVO: también suenan los objetos de la misión que sigues
+  (la que tienes marcada en el diario) cuando ya los puedes usar, por ejemplo
+  el demonio asesinado y la puerta de la Vía Oscurecida. Los que la misión aún
+  no deja usar no suenan.
 - NPCs (NUEVO): el toque de madera de D2R sobre el NPC más cercano, a menos de
   unos 15 metros. Suena más rápido cuanto más cerca está, a la izquierda o a la
   derecha según dónde esté, y más grave si está abajo en la pantalla. Suena
@@ -83,7 +88,8 @@ Qué hace
   libros, notas y carteles que se leen suenan a pergamino; los cadáveres que se
   registran o se examinan suenan a cadáver, como los prisioneros. Se oyen los 3
   más cercanos. Se oyen a unos 18 metros. Se callan al abrirlos o usarlos,
-  también los cadáveres.
+  también los cadáveres. Los que el juego aún no deja usar (por ejemplo una
+  puerta que abre la misión) no suenan hasta que se puedan usar.
 - Cinemáticas (NUEVO): al empezar una cinemática de vídeo se callan todos los
   sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
   hechas con el motor del juego todavía no se detectan.

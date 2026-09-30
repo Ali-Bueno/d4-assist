@@ -14,9 +14,9 @@ from several angles, **M** a few samples, **L** inference. Scratch programs:
   expected 96-unit chunk.
 - The quest's own callbacks (`DungeonObjectiveParser.QuestTokens`, [dungeon-objectives](dungeon-objectives.md) §2)
   name the actors that matter, the same way DPO quests do in dungeons.
-- The overworld scenes carry **coarse nav boxes only** (8–14 per scene, `WalkableArea` and `Map` null), as in
-  `Mercenary_Hideout`: `CascTileWalkability` returns null, so there is no path to follow and no radar there.
-  Guidance is a straight line to the target.
+- The overworld scenes ship no uncompressed detail grid, only the compressed `m_cellBytes` form, decoded since
+  2026-09-30 ([dungeon-data](dungeon-data.md) §4.1). The app still loads no walk grid for the open world (user: the
+  game's navigation assist covers it), so there is no path to follow; guidance is a straight line to the target.
 - Chunk `LevelAreaSno` is −1 on these chunks; the LevelArea isn't in the chunk data.
 
 ## 2. The desert sandstorm crossing with Meshif (user: act 3)

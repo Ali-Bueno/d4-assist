@@ -12,6 +12,22 @@ public sealed class AcdFlagReader
     /// <summary>Set on use and kept when the actor is re-created (live 2026-09-30: corpses, a herb, a sign, a door).</summary>
     public const string GizmoOperated = "Gizmo_Has_Been_Operated";
 
+    /// <summary>A gizmo the quest controls (live 2026-09-30, Darkened Way: a scripted gate not usable yet, and the demon body
+    /// that is the quest step); MinimapActive tells the two apart.</summary>
+    public const string GizmoQuestRestricted = "Gizmo_Is_Quest_Restricted";
+
+    /// <summary>Shown on the minimap (live 2026-09-30: the usable quest body, NPCs, an elevator; not the locked quest gate).</summary>
+    public const string MinimapActive = "MinimapActive";
+
+    /// <summary>A gizmo switched off by a game script; by name only, not seen set yet.</summary>
+    public const string GizmoDisabledByScript = "Gizmo_Disabled_By_Script";
+
+    /// <summary>The player's tracked quest SNO, chosen in the quest log (live 2026-09-30: follows the campaign quest as it advances).</summary>
+    public const string TrackedQuest = "ManuallyTrackedQuestSNO";
+
+    /// <summary>A tracked quest the game imposes over the player's choice; by name only, not seen set yet.</summary>
+    public const string OverrideTrackedQuest = "OverrideTrackedQuestSNO";
+
     /// <summary>The quest a companion NPC follows the player for (live 2026-09-30: Neyrelle and Vigo, and no other NPC).</summary>
     public const string FollowerQuest = "Follower_Quest";
 
@@ -40,9 +56,15 @@ public sealed class AcdFlagReader
     public IReadOnlyCollection<string> Known => _flags.Values;
 
     /// <summary>The flags set (nonzero) on the actor behind <paramref name="acdId"/> (an RActor's +0x0C); empty when its ACD is gone.</summary>
-    public IReadOnlySet<string> Read(uint acdId) =>
-        _acds.TryGet(acdId, out var acd)
-            ? AcdAttributeReader.Read(_reader, acd.AttributesAddress)
-                .Where(a => a.RawValue != 0 && _flags.ContainsKey(a.AttributeId)).Select(a => _flags[a.AttributeId]).ToHashSet()
-            : [];
+    public IReadOnlySet<string> Read(uint acdId) => Values(acdId).Keys.ToHashSet();
+
+    /// <summary>The raw values of the flags set (nonzero) on the actor behind <paramref name="acdId"/>; empty when its ACD is gone.</summary>
+    public IReadOnlyDictionary<string, uint> Values(uint acdId)
+    {
+        var values = new Dictionary<string, uint>();
+        if (!_acds.TryGet(acdId, out var acd)) return values;
+        foreach (var a in AcdAttributeReader.Read(_reader, acd.AttributesAddress))
+            if (a.RawValue != 0 && _flags.TryGetValue(a.AttributeId, out var name)) values[name] = a.RawValue;
+        return values;
+    }
 }

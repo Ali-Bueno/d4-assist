@@ -12,6 +12,8 @@ public sealed class SceneReader(SnoStore store, TypeSchema schema, MarkerReader 
     private const string Scene = "SceneDefinition";
     private const string PathData = "AIPathData";
     private const string Cell = "AICellData";
+    private const string CellBytes = "AICellBytes";
+    private const string CellBytesIndex = "unk_c225718"; // AICellData: index into m_cellBytes (cells share blobs)
 
     // Marker-set layers holding gameplay actors (entrances, portals, checkpoints); others are art/lighting/themes.
     private static readonly string[] GameplayLayers = ["Game", "Shared"];
@@ -74,10 +76,35 @@ public sealed class SceneReader(SnoStore store, TypeSchema schema, MarkerReader 
 
         // Voxel grids ship uncompressed for DRLG tiles; other scenes only carry the compressed m_cellBytes form.
         int grids = data + schema.Offset(PathData, "unk_5d4c076");
-        if (blob.ArrayDescriptor(grids).Size <= 0) return new Walkability(width, height, cells, null, null);
-        var columns = navGrid.WalkableColumns(blob, grids, width, height);
+        var columns = blob.ArrayDescriptor(grids).Size > 0 ? navGrid.WalkableColumns(blob, grids, width, height)
+            : SurfaceColumns(blob, data, width, height);
+        if (columns is null) return new Walkability(width, height, cells, null, null);
         float area = columns.Count * NavGridReader.VoxelSize * NavGridReader.VoxelSize;
         return new Walkability(width, height, cells, area, includeMap ? NavGridReader.Map(columns, MapExtent(columns, tile)) : null);
+    }
+
+    /// <summary>Walkable columns from the compressed m_cellBytes (the surfaces an agent stands on); null when the scene has none.</summary>
+    private HashSet<(int X, int Y)>? SurfaceColumns(SnoBlob blob, int data, float width, float height)
+    {
+        var blobs = blob.Array(data + schema.Offset(PathData, "m_cellBytes"), schema.Size(CellBytes)).ToList();
+        if (blobs.Count == 0) return null;
+        var surfaces = new Dictionary<int, ulong[]>(); // cells share blobs
+        var columns = new HashSet<(int X, int Y)>();
+        foreach (var c in blob.Array(data + schema.Offset(PathData, "m_cellData"), schema.Size(Cell)))
+        {
+            int index = blob.I32(c + schema.Offset(Cell, CellBytesIndex));
+            if (index < 0 || index >= blobs.Count) continue;
+            if (!surfaces.TryGetValue(index, out var grid))
+            {
+                try { grid = CellBytesDecoder.Surfaces(blob.ByteArray(blobs[index] + schema.Offset(CellBytes, "m_data"))); }
+                catch (ArgumentOutOfRangeException) { grid = []; } // malformed blob: that cell stays unwalkable
+                surfaces[index] = grid;
+            }
+            if (grid.Length == 0) continue;
+            var (ix, iy, _) = Conventions.DecodeCellId(blob.U64(c + schema.Offset(Cell, "m_cellId")));
+            navGrid.AddWalkableColumns(w => grid[w], ix, iy, width, height, columns);
+        }
+        return columns;
     }
 
     /// <summary>The tile footprint, grown to include walkable columns outside it.</summary>

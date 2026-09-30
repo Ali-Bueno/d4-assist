@@ -1,4 +1,6 @@
+using System.Numerics;
 using D4Assist.Navigation;
+using D4Data.Readers;
 using D4Memory.Actors;
 using D4Memory.Safety;
 using D4Memory.Scan;
@@ -25,15 +27,21 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly MenuScreenTracker? _menus;
     private readonly long _positionAddress;
     private readonly Func<int, bool> _readsFlags;
+    private readonly int _playerActorSno;
+    private readonly Func<int, IReadOnlyList<PlacedMarker>>? _questMarkers;
+    private int[] _trackedQuests = [];
+    private IReadOnlyList<PlacedMarker> _namedByQuests = [];
     private bool _actorFailureLogged;
     private AcdFlagReader? _flags;
     private bool _flagsMissing;
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
-        Func<int, bool> readsFlags)
+        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers)
     {
         _readsFlags = readsFlags;
+        _playerActorSno = playerActorSno;
+        _questMarkers = questMarkers;
         _process = process;
         _candidates = candidates;
         _offsets = offsets;
@@ -46,9 +54,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <summary>Throws InvalidOperationException with the reason when the process isn't running or can't be read, the
     /// module can't be located, or no live player record is in this world yet.</summary>
     /// <param name="readsFlags">True for an actor SNO whose ACD flags are read (gizmos and NPCs); null reads none.</param>
+    /// <param name="questMarkers">The objects a quest's scripts name (QuestScriptMarkerReader.Markers); null ignores the tracked quest.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
-        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null)
+        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<PlacedMarker>>? questMarkers = null)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
         string exePath = Path.Combine(installPath, ExecutableFileName);
@@ -81,7 +90,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         GameBuildOffsets? offsets = GameBuildOffsetsTable.TryGet(build, out var known) ? known : null;
         Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}" +
             (offsets is null ? " (unknown build: no rooms, radar or actor sounds)." : "."));
-        return new LiveDungeonSessionReader(process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false));
+        return new LiveDungeonSessionReader(
+            process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers);
     }
 
     // Which field stops the match: the log line stays the same while walking unless that changes.
@@ -155,8 +165,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (_offsets is { } offsets && RActorReader.TryRead(_process, _moduleBase, offsets, out var records))
         {
             var flags = FlagReader(offsets);
-            return ActorFilter.Placed(records, flags is null ? null
-                : r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null);
+            if (flags is null) return ActorFilter.Placed(records);
+            var named = NamedByTrackedQuests(records, flags);
+            return ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
+                r => named.Any(m => m.Sno == r.ActorSno && Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= QuestMarkerReach));
         }
 
         if (!_actorFailureLogged) // once per session: the route is either unknown for this build or not yet populated
@@ -165,6 +177,26 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             Console.WriteLine("Actor pool unavailable; beacons wait for it.");
         }
         return null;
+    }
+
+    // A quest's marker and the actor it placed share a spot (live: the Darkened Way gate, 0.0 apart).
+    private const float QuestMarkerReach = 2f;
+
+    // The objects the player's tracked quests name, re-resolved only when the tracked quests change.
+    private IReadOnlyList<PlacedMarker> NamedByTrackedQuests(IReadOnlyList<RActorRecord> records, AcdFlagReader flags)
+    {
+        if (_questMarkers is null || ReadPlayer() is not { } p) return _namedByQuests;
+        var player = records.Where(r => r.ActorSno == _playerActorSno && r.AcdId != RActorRecord.NoAcd)
+            .OrderBy(r => Vector2.DistanceSquared(new(r.Position.X, r.Position.Y), new(p.X, p.Y))).Select(r => (RActorRecord?)r).FirstOrDefault();
+        if (player is not { } self) return _namedByQuests;
+        var values = flags.Values(self.AcdId);
+        int[] quests = [.. new[] { AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest }
+            .Select(name => values.TryGetValue(name, out uint sno) ? (int)sno : 0).Where(sno => sno > 0).Distinct().Order()];
+        if (quests.SequenceEqual(_trackedQuests)) return _namedByQuests;
+        _trackedQuests = quests;
+        _namedByQuests = [.. quests.SelectMany(_questMarkers)];
+        Console.WriteLine($"Quest tracked: {(quests.Length == 0 ? "none" : string.Join(", ", quests))}, {_namedByQuests.Count} object(s) named.");
+        return _namedByQuests;
     }
 
     public IReadOnlyList<TileState> ReadTilesViaFullScan() =>

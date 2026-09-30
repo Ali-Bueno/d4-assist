@@ -11,8 +11,11 @@ public sealed record TileState(
 /// <param name="Yaw">Rotation about Z in radians, from +X towards +Y (the RActor quaternion).</param>
 /// <param name="Operated">The game marked it used: ACD Gizmo_Has_Been_Operated, or the blood petals' +0x4D4 (research/client-memory.md §4).</param>
 /// <param name="QuestFollower">A companion NPC following the player for a quest: ACD Follower_Quest (research/client-memory.md §4).</param>
+/// <param name="Unusable">The game doesn't let the player use this gizmo yet: a quest gizmo that isn't the quest step, or Gizmo_Disabled_By_Script.</param>
+/// <param name="QuestStep">A quest gizmo (Gizmo_Is_Quest_Restricted) on the minimap or named by the tracked quest's scripts.</param>
 public sealed record ActorState(
-    uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false, bool QuestFollower = false);
+    uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false,
+    bool QuestFollower = false, bool Unusable = false, bool QuestStep = false);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

@@ -8,12 +8,11 @@ namespace D4Data.Tests;
 public class DungeonObjectiveReaderRealDataTests
 {
     private const string WorldDefinition = "WorldDefinition";
-    private const string DefinitionsRelativePath = "data/definitions.json";
 
     [Fact]
     public void GuulrahnSlums_DpoQuestNamesItsSwitchesAndJailDoor()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var schema = TypeSchema.Load(definitions);
         var world = store.Resolve(schema.SnoGroup(WorldDefinition), "DGN_Step_GuulrahnSlums");
@@ -29,7 +28,7 @@ public class DungeonObjectiveReaderRealDataTests
     [Fact]
     public void Worldstone_WithoutDpo_UsesTheQuestNamedAfterTheWorld()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var schema = TypeSchema.Load(definitions);
         var world = store.Resolve(schema.SnoGroup(WorldDefinition), "S15_Triad_B_Worldstone");
@@ -44,7 +43,7 @@ public class DungeonObjectiveReaderRealDataTests
     [Fact]
     public void ActorDefinitionReader_ReturnsNullForAnIdOfAnotherType()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var schema = TypeSchema.Load(definitions);
         int world = store.Resolve(schema.SnoGroup(WorldDefinition), "DGN_Step_GuulrahnSlums"); // a garbage "actor" id from a pool
@@ -57,7 +56,7 @@ public class DungeonObjectiveReaderRealDataTests
     [Fact]
     public void ActorDefinitionReader_PlayerActorSnosCoverEveryClassAndSexOnly()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var schema = TypeSchema.Load(definitions);
 
@@ -71,7 +70,7 @@ public class DungeonObjectiveReaderRealDataTests
     [Fact]
     public void ConversationDefinitionReader_ReadsTheConvType()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var reader = new ConversationDefinitionReader(store, TypeSchema.Load(definitions));
 
@@ -84,7 +83,7 @@ public class DungeonObjectiveReaderRealDataTests
     [Fact]
     public void ConversationDefinitionReader_TellsNpcLinesFromHeroLines()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var reader = new ConversationDefinitionReader(store, TypeSchema.Load(definitions));
 
@@ -101,7 +100,7 @@ public class DungeonObjectiveReaderRealDataTests
     [Fact]
     public void WorldWithoutADpoQuest_HasNoObjectiveActors()
     {
-        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var schema = TypeSchema.Load(definitions);
 
@@ -111,13 +110,4 @@ public class DungeonObjectiveReaderRealDataTests
     }
 
     // Walks up from this source file, so a relocated build output still finds the repo's data folder.
-    private static string? FindDefinitions([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "")
-    {
-        for (var dir = new DirectoryInfo(Path.GetDirectoryName(sourceFile)!); dir is not null; dir = dir.Parent)
-        {
-            var candidate = Path.Combine(dir.FullName, DefinitionsRelativePath);
-            if (File.Exists(candidate)) return candidate;
-        }
-        return null;
-    }
 }

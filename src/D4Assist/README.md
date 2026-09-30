@@ -29,9 +29,11 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
 - Loops positional beacons at every portal in a dungeon and at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).
-- Outside dungeons (overworld, towns, story areas; user-approved 2026-09-29) opens the same read-only session for the
-  player position and the actor list only: no tiles, radar or announcements there (`WorldKind.Overworld`). Beacons,
-  objective sounds and the quest routes run there.
+- Outside dungeons (user-approved 2026-09-29) opens the same read-only session for the player position and the actor
+  list. In the open world (`Sanctuary_Eastern_Continent`: towns, roads) that is all: no tiles, radar or announcements
+  (`WorldKind.Overworld`); the game's own navigation assist covers it (user, 2026-09-30). Every other non-DRLG world is
+  a story area (the Darkened Way, Tristram, the hells, the Mercenary den) and gets the radar too (`WorldKind.RadarOnly`,
+  see `RadarOnlyWorlds`). Beacons, objective sounds and the quest routes run in both.
 - Leads through known campaign routes with the guide ping, e.g. shelter to shelter in the desert sandstorm quest with
   Meshif (`Game/QuestRouteBridge`, see Quest routes).
 
@@ -74,8 +76,8 @@ error. No key needs a machine-specific path.
 | `ExplorationGuideEnabled` | `true` | Automatic ping that leads to the nearest unexplored part of the dungeon (see Exploration guide). |
 | `ExplorationGuideInDungeons` | `false` | Guide default in dungeons other than the Undercity and the Pit (`X1_Undercity_*`, `PIT_*` always start on). `ExplorationGuideEnabled=false` removes the guide and the toggle entirely. |
 | `ExplorationGuideVolume` | `1.0` | Exploration ping volume, 0 to 1. |
-| `RadarOnlyWorlds` | `[]` | Exact (case-sensitive) CoreTOC names of non-DRLG worlds where the assistant also runs, **radar and actor loops only**: no room announcements, no exploration guide, no enter/leave speech. Their tiles come offline from the world's placed scenes (`Game/StaticWorldTiles`), not the live scene route. Explicit, user-approved exception to "read memory only in a dungeon" (STATUS); opt-in by this list, so a world not listed is never read. `--debug` logs the world kind. Empty by default: the Mercenary den (`Mercenary_Hideout`) was tried live 2026-09-28, but its scene ships only 6 coarse 32-unit walkable boxes, no detailed grid, so the radar has nothing to scan (`RADAR map: ... 1 without walkability`). |
-| `OutsideDungeonsEnabled` | `true` | Read the player and nearby actors outside dungeons too (every non-DRLG world except menus, loading screens, cinematics and test maps), for the beacons, objective sounds and quest routes there. No radar or announcements outside dungeons. `false` restores "memory only in a dungeon". |
+| `RadarOnlyWorlds` | `[]` | Exact (case-sensitive) CoreTOC names of extra non-DRLG worlds that run **radar and actor loops only**: no room announcements, no exploration guide, no enter/leave speech. Story areas (every non-DRLG world but the open world, menus and loading screens) get this mode without being listed when `OutsideDungeonsEnabled` is on, so the list only matters for the open world or with that switch off. Tiles come offline from the world's placed scenes (`Game/StaticWorldTiles`), not the live scene route; walkability from the scenes' compressed nav data (`D4Data.Readers.CellBytesDecoder`, research/dungeon-data.md §4.1). `--debug` logs the world kind. |
+| `OutsideDungeonsEnabled` | `true` | Read the player and nearby actors outside dungeons too (every non-DRLG world except menus, loading screens, cinematics and test maps), for the beacons, objective sounds and quest routes there, plus the radar in story areas outside the open world. No announcements outside dungeons. `false` restores "memory only in a dungeon". |
 | `QuestRoutesEnabled` | `true` | Lead through the known campaign routes (see Quest routes). Needs `OutsideDungeonsEnabled`. Uses the exploration ping's volume. |
 | `ObjectiveSoundsEnabled` | `true` | Play quest loops at dungeon objectives (see Objective sounds). |
 | `ObjectiveVolume` | `1.0` | Objective loop volume, 0 to 1. |
@@ -118,6 +120,12 @@ research/client-memory.md §4); else a chest's glow effect gone while the player
 state word; remembered by spot for the world visit, so a re-created actor stays silent). Chest kinds seen glowing are saved next to
 the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
+Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): one the game shows on the minimap
+(`MinimapActive`), or one the tracked quest's scripts name (the player's `ManuallyTrackedQuestSNO`, resolved offline by
+`D4Data.Readers.QuestScriptMarkerReader`), is the quest's current step and gets the quest loop whatever it is
+(`ActorState.QuestStep`, reason `quest`). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
+(`ActorState.Unusable`) and stays silent. `--debug` logs `Quest tracked: <sno>, N object(s) named.` on each change and
+`LOOP silent … cause=unusable` once per gizmo.
 
 ## Doors, chests and readables
 
@@ -159,7 +167,8 @@ A sound example lifts the pause while it plays.
 `*StartOpen*`, not used (`StateChanged`) and on the player's floor. The footprint is its `aabbBounds` box, turned by the
 RActor yaw, at least half a cell diagonal thick and one cell wider on each side. `DungeonRadarWorld` turns open floor
 under it into `RadarCell.Door`, so `PassageScanner` reads the ray as `Door` (D2R's two knocks) when the door stops it
-within the closing depth. `--debug` logs `RADAR door … ends=A/B` once per door; both ends should be `Blocked`, which
+within the closing depth. A quest-restricted door stays a door: nothing in memory says when the quest unlocks it
+(research/client-memory.md §4). `--debug` logs `RADAR door … ends=A/B` once per door; both ends should be `Blocked`, which
 means the yaw lays the door across its doorway.
 
 ## Cutscenes
@@ -180,7 +189,7 @@ the nearest NPC within 15 units, on every player poll. It repeats faster as the 
 - **Followers go quiet:** a quest companion following the player carries the ACD attribute `Follower_Quest`
   (`ActorState.QuestFollower`, research/client-memory.md §4) and never taps (user, 2026-09-30). `--debug` logs
   `NPC follows the player, silent`.
-- **No line of sight:** the overworld has no walk grid, so an NPC behind a wall taps too.
+- **No line of sight:** the open world loads no walk grid, so an NPC behind a wall taps too.
 - **Muting:** the cue gate mutes it like every cue.
 - **Log:** `--debug` logs `NPC tap: <name>` per target change.
 
@@ -207,7 +216,7 @@ mid-dungeon still knows nothing of the way already walked, and takes the arrival
 ## Quest routes
 
 `Game/QuestRouteBridge` leads through the campaign stretches listed in `Game/QuestRoute.cs` (`QuestRouteCatalog`). It uses
-the exploration guide's ping, aimed straight at the next point: overworld scenes have no detailed walkable grid, so there
+the exploration guide's ping, aimed straight at the next point: the open world's walk grid isn't loaded, so there
 is no path to follow. Each route is resolved offline at startup (`QuestRouteLoader`). Its points are the target actor's
 markers in the quest's subzone MarkerSet, and its start is the marker that set holds for the quest itself. The points
 are visited in the shortest walk from that start (`RouteOrder`). Data and reasoning:

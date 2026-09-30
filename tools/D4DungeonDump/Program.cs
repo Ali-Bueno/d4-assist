@@ -75,8 +75,8 @@ internal static class Program
             notes.Add("DRLG world: the layout is generated server-side, so client data holds no placed scenes. " +
                       "Placements arrive at runtime (RevealSceneMessage: snoScene + PRTransform); use --tileset/--scene to dump tile definitions.");
         notes.Add("Scene-local axes: X = south, Y = east, Z = up (engine compass N = -X, E = +Y). Units: world units.");
-        notes.Add("Walkability: coarse walkable box per 32-unit nav cell; for scenes shipping the 0.5-unit voxel grid (DRLG tiles) " +
-                  "also walkable area and, with --grid, a 1-unit top-down map ('#' walkable, rows north to south).");
+        notes.Add("Walkability: coarse walkable box per 32-unit nav cell, walkable area and, with --grid, a 1-unit top-down map " +
+                  "('#' walkable, rows north to south) from the 0.5-unit voxel grid (DRLG tiles) or the decoded m_cellBytes surfaces (other scenes).");
         return notes;
     }
 

@@ -92,9 +92,8 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
             foreach (var (name, record) in found) _records[name] = record;
             _needsScan = _records.Count == 0; // a partial result is kept; only an empty one retries
         }
-        log?.Invoke($"MENU located {string.Join(" ", MenuScreens.Watched.Select(n => Describe(n, found)))} in {(clock() - started).TotalMilliseconds:F0} ms");
+        var missing = names.Where(n => !found.ContainsKey(n)).Select(n => n.Replace(ScreenPrefix, "")).ToList();
+        log?.Invoke($"MENU located {found.Count}/{names.Count} screens in {(clock() - started).TotalMilliseconds:F0} ms" +
+            (missing.Count > 0 ? $"; missing {string.Join(" ", missing)}" : ""));
     }
-
-    private static string Describe(string name, Dictionary<string, long> found) =>
-        $"{name.Replace(ScreenPrefix, "")}={(found.TryGetValue(name, out long record) ? $"0x{record:X}" : "missing")}";
 }

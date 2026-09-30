@@ -89,6 +89,20 @@ public class ScreenRegistryReaderTests
         BinaryPrimitives.WriteInt64LittleEndian(table.AsSpan(offset + 16), value);
     }
 
+    [Theory]
+    [InlineData(0xE7010101u, true)] // live character panel, open: only the low byte toggles
+    [InlineData(0xE7010100u, false)]
+    [InlineData(0xFFFFFFFFu, null)] // freed record during a character switch (live 2026-09-30)
+    public void TryReadOpen_ReadsOnlyTheOpenByte(uint flagWord, bool? expected)
+    {
+        var record = Record(open: false);
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(FlagOffset), flagWord);
+        var memory = new FakeMemoryReader();
+        memory.AddRegion(RecordRegion, record, Private, ReadWrite);
+
+        Assert.Equal(expected, ScreenRegistryReader.TryReadOpen(memory, RecordRegion, Module));
+    }
+
     private static byte[] Record(bool open)
     {
         var data = new byte[0x100];

@@ -84,7 +84,7 @@ error. No key needs a machine-specific path.
 | `PauseCuesInCutscenes` | `true` | Silence every cue while a cutscene plays (see Cutscenes). |
 | `PauseCuesInBackground` | `true` | Silence every cue while the game window is not in the foreground, like D2R. The sound examples still play. |
 | `PauseCuesInConversations` | `true` | Silence every cue while the dialogue menu is open, while the conversation picked from it plays, while a story conversation plays and while an NPC talks to you without a menu. Your own character's lines never mute. |
-| `PauseCuesInMenus` | `true` | Silence every cue while a game menu (inventory, skills, map, pause, signs, Horadric shipments, vendor, artisans, stash) is open. |
+| `PauseCuesInMenus` | `true` | Silence every cue while a game menu is open: inventory, skills, map, pause, signs, Horadric shipments, vendor, artisans, stash and every other panel or full menu (`MenuScreens.Watched`, 85 screens). |
 | `RadarClosedDoorsEnabled` | `true` | A closed door sounds as a door in the radar (two knocks) instead of open floor. |
 | `BeaconActorNames` | `["X1_Undercity_WarpPad"]` | CoreTOC actor names that get a beacon; unknown names are logged once and ignored. |
 
@@ -135,8 +135,9 @@ room announcements. A closed door does not register as an obstacle yet.
   ([client-memory](../../research/client-memory.md) §5), mutes while the dialogue menu is open and while a
   conversation picked from it, any standard story conversation (`eConvType` 3) or any type 1 conversation with an NPC line
   plays. Barks, taunts and the hero's own lines never mute;
-- **menus**: `MenuMute`, fed by `GameSession.MenusRead`, mutes while any of the 7 watched screens (`MenuScreens.Watched`) is open:
-  character panel, main menu, signs, Horadric shipments, vendor, artisans, stash. `MenuScreenTracker` locates the screen
+- **menus**: `MenuMute`, fed by `GameSession.MenusRead`, mutes while any of the 85 watched screens (`MenuScreens.Watched`) is open:
+  character panel, main menu, signs, Horadric shipments, vendor, artisans, stash (seen live), every other side panel and the
+  full menus opened on purpose. `--debug` logs `MENU open: <screen>`. `MenuScreenTracker` locates the screen
   records by a background scan and retries after a miss.
 
 A sound example lifts the pause while it plays.

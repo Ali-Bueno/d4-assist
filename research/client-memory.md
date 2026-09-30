@@ -238,8 +238,15 @@ then watches the candidates live.
 | `screen_crafting_default` | artisans: blacksmith and occultist live (the name is generic) |
 | `screen_Stash_default` | stash |
 
-The app watches these 7 (`MenuScreens.Watched`); each was seen opening and closing live 2026-09-30 with a watcher that
-logged every registered screen's open bit. The tabs of the character panel (`screen_Mercenary_Default`,
+Each of these 7 was seen opening and closing live 2026-09-30 with a watcher that logged every registered screen's open
+bit (the occultist also uses `screen_crafting_default`). The app watches 85 screens (`MenuScreens.Watched`): these 7, every
+other side panel and the full menus opened on purpose. A side panel is a `<name>_Default` screen with Left/Right variants
+(split-screen layouts); the registry held 41 such screens, of which the HUD `ActionBar_Default` is left out. Left out too:
+screens seen open during normal play (Chat, SocialNotifications, ConversationSubtitle, GenericSkillTreeTest,
+StoreDetails_v2, Mailbox_Right, and after a character switch InGameLogout, WorldTiers, FollowerSwap, ModalRenameLoadout).
+- The open flag is one byte: real toggles change only it (`0xE7010100` ↔ `0xE7010101`, `0` ↔ `1`), and all 292 records
+  held 0 or 1 in play. During a character switch freed records read junk (`0xFFFFFFFF`, `0x876747B5`), so any other value
+  makes the record invalid. The tabs of the character panel (`screen_Mercenary_Default`,
 `screen_WarPlanActivities_Default`) open inside `screen_MenuPanel_Default`. `screen_InteractPopup` was open ~4 s during an
 interaction and is not watched.
 

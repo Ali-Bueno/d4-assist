@@ -26,8 +26,9 @@ public sealed class InteractableClassifier(Func<int, ActorDefinitionInfo?> defin
     // Lore books placed as chests (Generic_Lorebook_Chest_01_Dyn) read like books, not loot.
     private const string LorebookToken = "Lorebook";
     // A body on the ground sounds like one, whether you loot it or read it (user request 2026-09-29).
-    // "Dead" is left out: it also names quests (QST_Skov_DeadWeight_*).
-    private static readonly string[] BodyTokens = ["Corpse", "Remains", "Body"];
+    // "Dead" is left out: it also names quests (QST_Skov_DeadWeight_*). Hanged/Crucified name bodies read as signs
+    // (TWN_Frac_Yelesna_Sign_VampireHanged, TWN_Kehj_GeaKul_Sign_HangedMan, TWN_Kehj_Tarsarak_Sign_CrucifiedNpc).
+    private static readonly string[] BodyTokens = ["Corpse", "Remains", "Body", "Hanged", "Crucified"];
 
     private static readonly HashSet<int> ChestGizmos = [Conventions.GizmoChest, Conventions.GizmoRewardChest, Conventions.GizmoLockedChest];
 

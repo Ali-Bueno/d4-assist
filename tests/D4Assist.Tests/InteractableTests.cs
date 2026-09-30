@@ -10,7 +10,7 @@ public class InteractableTests
     private const int Gizmo = 2, NotGizmo = -1, Monster = Conventions.ActorTypeMonster;
     private const int DoorSno = 1, PortcullisSno = 2, BlockerSno = 3, StartOpenSno = 4, ChestSno = 5, RewardChestSno = 6, LockedChestSno = 7,
         SignSno = 8, LorebookChestSno = 9, BreakableSno = 10, PrisonerSno = 11, DpoDoorSno = 12, NpcSno = 13,
-        CorpseChestSno = 14, CorpseSignSno = 15, RemainsSignSno = 16;
+        CorpseChestSno = 14, CorpseSignSno = 15, RemainsSignSno = 16, HangedSignSno = 17;
     private const int World = 100;
     private const int BreakableContainerGizmo = 23;
 
@@ -31,6 +31,7 @@ public class InteractableTests
         [NpcSno] = ("Townsfolk", new(Monster, NotGizmo)),
         [CorpseChestSno] = ("corpse_knight_melee_frac", new(Gizmo, Conventions.GizmoChest)),
         [CorpseSignSno] = ("TWN_Frac_Margrave_Sign_MauledCorpse", new(Gizmo, Conventions.GizmoSign)),
+        [HangedSignSno] = ("TWN_Frac_Yelesna_Sign_VampireHanged", new(Gizmo, Conventions.GizmoSign)),
         [RemainsSignSno] = ("QST_Class_Spiritborn_Skeletal_Remains_Sign", new(Gizmo, Conventions.GizmoSign)),
     };
 
@@ -50,6 +51,7 @@ public class InteractableTests
     [InlineData(CorpseChestSno, InteractableKind.Chest, InteractableClassifier.CorpseSound)]
     [InlineData(CorpseSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
     [InlineData(RemainsSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
+    [InlineData(HangedSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
     public void Classify_NamesTheKindAndSound(int sno, InteractableKind kind, string sound) =>
         Assert.Equal(new Interactable(kind, sound), Classifier().Classify(sno));
 

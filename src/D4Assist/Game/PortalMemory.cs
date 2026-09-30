@@ -58,6 +58,24 @@ public sealed class PortalMemory
         lock (_gate) return [.. _portals.Select(p => new GuideDestination(p.Id, p.Position, p.Used ? 1 : 0))];
     }
 
+    /// <summary>Every portal seen here, to outlive a restart of the app.</summary>
+    public IReadOnlyList<SavedPortal> Export()
+    {
+        lock (_gate) return [.. _portals.Select(p => new SavedPortal(p.Sno, p.Name, p.Position.X, p.Position.Y, p.Used))];
+    }
+
+    /// <summary>Adds back the portals an earlier run saw in this instance; a used mark is never lost.</summary>
+    public void Restore(IEnumerable<SavedPortal> saved)
+    {
+        lock (_gate)
+            foreach (var s in saved)
+            {
+                var known = _portals.FirstOrDefault(p => p.Sno == s.Sno && Distance(p.Position, (s.X, s.Y)) <= SameSpotUnits);
+                if (known is null) _portals.Add(new Portal(s.Sno, s.Name, (s.X, s.Y)) { Used = s.Used });
+                else known.Used |= s.Used;
+            }
+    }
+
     private void Reset()
     {
         _portals.Clear();
@@ -110,3 +128,6 @@ public sealed class PortalMemory
 
     private static float Distance((float X, float Y) a, (float X, float Y) b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 }
+
+/// <summary>A remembered portal as ExplorationStore saves it.</summary>
+public sealed record SavedPortal(int Sno, string Name, float X, float Y, bool Used);

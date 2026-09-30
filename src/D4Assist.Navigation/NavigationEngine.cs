@@ -55,6 +55,12 @@ public sealed class NavigationEngine
     /// <summary>Feed the current loaded-tile window.</summary>
     public void OnTiles(IReadOnlyList<TileInput> tiles) => _map.AddOrUpdate(tiles);
 
+    /// <summary>Every tile seen and every explored tile, to outlive a restart of the app.</summary>
+    public ExplorationState ExportExploration() => new([.. _map.Tiles.Select(t => t.Input)], [.. _map.VisitedCells]);
+
+    /// <summary>Adds back what <see cref="ExportExploration"/> saved in this dungeon instance.</summary>
+    public void RestoreExploration(ExplorationState state) => _map.Restore(state.Tiles, state.Visited);
+
     /// <summary>Feed the live player position; may raise <see cref="Announce"/>.</summary>
     public void OnPlayer(PlayerInput player, TimeSpan now)
     {

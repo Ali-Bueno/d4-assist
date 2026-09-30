@@ -90,8 +90,21 @@ public class DungeonRadarWorldTests
         Assert.NotEqual(a, world.RoomAt(-16, 16));
     }
 
-    private static TileState Tile(int sno, float originX, float originY, uint node) =>
-        new(sno, $"tile{sno}", originX, originY, TileSize, TileSize, ExitMask: 0, NodeId: node, GroupId: node);
+    [Fact]
+    public void Doorways_NameTheRoomBeyond()
+    {
+        var world = new DungeonRadarWorld(_walkability);
+
+        world.UpdateTiles([Tile(SnoA, 0, 0, node: 1, exitMask: 2), Tile(SnoB, TileSize, 0, node: 2, exitMask: 1)]);
+
+        int a = world.RoomAt(5, 5), b = world.RoomAt(40, 16);
+        var fromA = Assert.Single(world.Doorways, d => d.Room == a);
+        Assert.Equal(b, fromA.Beyond);
+        Assert.Equal(TileSize, fromA.Centre.X); // on A's south edge
+    }
+
+    private static TileState Tile(int sno, float originX, float originY, uint node, int exitMask = 0) =>
+        new(sno, $"tile{sno}", originX, originY, TileSize, TileSize, ExitMask: exitMask, NodeId: node, GroupId: node);
 
     private sealed class FakeWalkability : ITileWalkability
     {

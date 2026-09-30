@@ -36,6 +36,9 @@ internal static class ActorsCommand
         int intervalMs = int.TryParse(reader.Get("--interval-ms"), out var i) ? i : DefaultIntervalMs;
         int watchSeconds = int.TryParse(reader.Get("--watch"), out var w) ? w : 0;
         var watchMatch = reader.Get("--match") is { } pattern ? new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase) : null;
+        // --words 0x1F4,0x4D4 adds slot words to the printed ones, to compare used and untouched gizmos in one snapshot.
+        int[] wordOffsets = [.. UseCandidateOffsets, .. (reader.Get("--words") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => Convert.ToInt32(w.Trim(), 16))];
 
         var (store, schema, install) = GameData.Open(reader);
         using (store)
@@ -72,7 +75,7 @@ internal static class ActorsCommand
             var lines = actors.Where(a => a.IsPlaced && a.Id != playerActor?.Id && IsFinite(a.Position))
                 .Select(a => ToLine(a, player.Position, store.Name(a.ActorSno), defs.Read(a.ActorSno)))
                 .Where(l => l.Distance <= range).OrderBy(l => l.Distance)
-                .Select(l => l.GizmoType >= 0 ? l with { UseWords = UseWords(process, l.SlotAddress) } : l).ToList();
+                .Select(l => l.GizmoType >= 0 ? l with { UseWords = UseWords(process, l.SlotAddress, wordOffsets) } : l).ToList();
             PrintAndSave(lines, range);
 
             if (watchSeconds > 0) Watch(process, module.Base, offsets, actors, lines, watchSeconds, intervalMs, watchMatch);
@@ -119,10 +122,10 @@ internal static class ActorsCommand
         ActorsWatch.Run(process, target, $"{pick.Name ?? "?"}, {pick.Distance:F1} units {pick.Direction}", pool.Stride, seconds, intervalMs);
     }
 
-    private static string UseWords(ProcessReader process, long slot)
+    private static string UseWords(ProcessReader process, long slot, int[] offsets)
     {
         var word = new byte[sizeof(uint)];
-        return string.Join(" ", UseCandidateOffsets.Select(o =>
+        return string.Join(" ", offsets.Select(o =>
             process.TryRead(slot + o, word, word.Length) ? $"+0x{o:X}={BitConverter.ToUInt32(word):X}" : $"+0x{o:X}=?"));
     }
 

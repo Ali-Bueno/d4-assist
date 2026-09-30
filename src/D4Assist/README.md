@@ -69,6 +69,8 @@ error. No key needs a machine-specific path.
 | `RadarVolume` | `1.0` | Radar cue volume, 0 to 1. |
 | `BeaconSoundsEnabled` | `true` | Play looping beacons at the `BeaconActorNames` actors (works with the radar off). |
 | `BeaconVolume` | `1.0` | Beacon loop volume, 0 to 1. |
+| `NpcSoundsEnabled` | `true` | D2R's friendly-NPC tap at the nearest NPC within 15 units, faster as it gets closer (see NPC sound). |
+| `NpcVolume` | `1.0` | NPC tap volume, 0 to 1. |
 | `ExplorationGuideEnabled` | `true` | Automatic ping that leads to the nearest unexplored part of the dungeon (see Exploration guide). |
 | `ExplorationGuideInDungeons` | `false` | Guide default in dungeons other than the Undercity and the Pit (`X1_Undercity_*`, `PIT_*` always start on). `ExplorationGuideEnabled=false` removes the guide and the toggle entirely. |
 | `ExplorationGuideVolume` | `1.0` | Exploration ping volume, 0 to 1. |
@@ -166,6 +168,18 @@ mixer renders silence, drops radar cues and guide pings, and holds its loops. Th
 ([runtime-signals](../../research/runtime-signals.md) §2), so the pause lifts on the next world change, or once the
 player has walked one map cell. `--debug` logs `CUTSCENE state …` and `CUES paused/resumed (cause)`.
 
+## NPC sound
+
+`Game/NpcCueBridge` plays D2R's friendly-NPC tap (`Audio/NpcCuePlayer`, a port of d2r-access `entity_cue_synth.cpp`) at
+the nearest NPC within 15 units, on every player poll. It repeats faster as the NPC gets closer: 450 ms at the edge,
+150 ms at contact. It is panned by screen side and pitched lower when the NPC is below the player.
+- **Which NPCs:** `Game/NpcClassifier` takes the fIsNPC monsters off the hostile team, including quest followers and
+  escorts. It leaves out hired mercenaries, cinematic stand-ins and prisoners, which have their own loop
+  ([dungeon-objectives](../../research/dungeon-objectives.md) §9).
+- **No line of sight:** the overworld has no walk grid, so an NPC behind a wall taps too.
+- **Muting:** the cue gate mutes it like every cue.
+- **Log:** `--debug` logs `NPC tap: <name>` per target change.
+
 ## Exploration guide
 
 `Game/ExplorationGuideBridge` asks the navigation engine's `ExplorationGuide` for a waypoint on every player poll
@@ -179,6 +193,12 @@ the last warp lands there and the run timer no longer matters (user request, 202
 In endgame worlds, when no unused portal is known and nothing is left to explore, the guide re-checks the dead ends that can host the exit pad
 (`Game/ExitCandidateScenes`: scenes named by MarkerSet layers `<scene> (X1_Undercity_AreaExits|BossExits)`), speaking "Salida no encontrada. Revisando los callejones." once per round; it stops when the beacon appears.
 `--debug` also logs the candidate count at startup, each round, and once per dungeon visit and actor SNO every gizmo or Portal/Warp/Exit/Beacon actor (`ACTOR seen:`, `Game/ActorSightingLog`).
+
+Restarting the app mid-dungeon keeps what the guide knows: `Game/ExplorationPersistence` saves the map, the explored tiles
+and the portals (with their used marks) on every tile poll to `d4assist-exploration.json` next to the exe, and restores them
+when the app starts in the same world, CWorldID and game process (start time), unless the saved tiles disagree with the
+loaded ones. Leaving the dungeon deletes the file. The log says `Exploration: restored …`. An app started for the first time
+mid-dungeon still knows nothing of the way already walked, and takes the arrival portal for a new one.
 
 ## Quest routes
 

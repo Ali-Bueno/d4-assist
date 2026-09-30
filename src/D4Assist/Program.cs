@@ -10,6 +10,7 @@ using D4Assist.Strings;
 using D4Data.Casc;
 using D4Data.Readers;
 using D4Data.Schema;
+using D4Memory.Safety;
 using D4Memory.Scan;
 
 namespace D4Assist;
@@ -117,10 +118,15 @@ internal static class Program
         }
 
         bool actorLoops = config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.LoopedInteractables().Count > 0;
-        bool needsOwnOutput = (actorLoops || config.ExplorationGuideEnabled || routesEnabled) && radarPlayer is null;
+        bool needsOwnOutput = (actorLoops || config.NpcSoundsEnabled || config.ExplorationGuideEnabled || routesEnabled) && radarPlayer is null;
         using IAudioOut? beaconOut = needsOwnOutput ? new WaveOutAudioOut() : null;
         beaconOut?.Start(mixer.Render);
         var portals = actorLoops ? StartLoops(session, mixer, config, store, schema, cascGate, debug, definitionOf, interactables) : null;
+        using var npcTap = config.NpcSoundsEnabled ? new NpcCuePlayer(mixer) { Volume = config.NpcVolume } : null;
+        if (npcTap is not null) StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
+        // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles and the portals.
+        _ = new ExplorationPersistence(
+            session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine);
         var cueGate = new CueGate(paused => mixer.Paused = paused, Console.WriteLine); // mute reasons always logged: testers' "no sound" reports
         session.TransitChanged += loading => cueGate.Set(CueMute.Loading, loading); // the loops would hang on their last positions
         if (config.PauseCuesInCutscenes) WatchCutscenes(logWatcher, session, cueGate, debug);
@@ -239,9 +245,20 @@ internal static class Program
             ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
-        var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add);
+        var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         _ = new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used);
         return new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
+    }
+
+    // Prisoners keep their own objective loop, so they never tap as well.
+    private static void StartNpcTap(
+        GameSession session, NpcCuePlayer tap, Func<int, ActorDefinitionInfo?> definitionOf, Func<int, string?> nameOf, bool debug)
+    {
+        var npcs = new NpcClassifier(definitionOf, nameOf);
+        var objectives = new ObjectiveClassifier(definitionOf, nameOf);
+        var none = new HashSet<int>();
+        _ = new NpcCueBridge(session, tap, a => npcs.IsNpc(a.ActorSno) && objectives.Classify(a.ActorSno, none) is null, nameOf,
+            debug ? Console.WriteLine : null);
     }
 
     private static void WatchCutscenes(WorldLogWatcher log, GameSession session, CueGate gate, bool debug)

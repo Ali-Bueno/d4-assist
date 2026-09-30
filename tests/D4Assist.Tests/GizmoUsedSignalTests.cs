@@ -55,6 +55,16 @@ public class GizmoUsedSignalTests
     }
 
     [Fact]
+    public void A_switch_whose_state_never_moves_is_used_once_operated()
+    {
+        var petals = new ActorState(1, SnowPileSno, 5, 5, 0);
+        _signal.Observe([petals], At(5));
+        Assert.False(_signal.IsUsed(petals));
+
+        Assert.True(_signal.IsUsed(petals with { Operated = true }));
+    }
+
+    [Fact]
     public void A_kind_known_from_an_earlier_run_judges_a_chest_first_seen_open()
     {
         var learned = new List<int>();

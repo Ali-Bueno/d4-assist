@@ -59,6 +59,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     public WorldKind CurrentWorldKind { get; private set; }
 
+    public string? CurrentInstance { get { lock (_gate) return _currentInstance; } }
+
     public event Action<int, string, bool>? WorldChanged;
     public event Action<IReadOnlyList<TileState>>? TilesUpdated;
     public event Action<PlayerState>? PlayerMoved;

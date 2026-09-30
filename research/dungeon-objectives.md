@@ -188,3 +188,46 @@ them as missing. Gizmos (`eType` 2): 22,725.
   altar and the soulshard get objective loops (monsters never do).
 - **Still to confirm live:** the real floor-exit actor names (`--debug` logs `PORTAL seen` and `ACTOR seen`), and the
   distance at which the player appears from the portal they came through (the 15-unit "used" radius).
+
+## 8. Story switches and quest corpses (offline, build 3.2.1.73552, 2026-09-30)
+
+- **Blood petals (H):** 26 actors are named `*BloodPetal*`. The interactable ones are switches (gizmo 57):
+  `Frac_Prologue_BloodPetals_NoSymbol` 1096320 (Nevesk), `Ancients_Prop_Lilith_BloodPetal` 761338,
+  `..._BloodPetal_Multifire` 991227 and `IGC_Prop_Lilith_BloodPetal_Persist` 1279804. `QST_Frac_LilithBlood_BloodPetals`
+  1457636 is a QuestChest (105), and the `QST_X2_Skov_*_Trigger_Sphere*` ones are triggers (44).
+- **No data field tells a story switch from a lever (H):** 1096320 matches `GizmoBlockout_Lever_A` field for field:
+  - dwFlags 14680072.
+  - No on-click effect and no operate power.
+  - `fSwitchCanOperateMultipleTimes` 1.
+  - It is placed by the prologue base MarkerSet, not by a quest `_Subzone_` set.
+
+  Candidate rules over the 847 gizmo-57 actors:
+
+  | Rule | Matches | Problem |
+  |---|---|---|
+  | dwFlags 0x800 | 22 (lootable villager corpses) | misses the petals |
+  | on-click effect | 111 | also hits generic props |
+  | `SoundGroup_QUE_*` on-click | 13 | too narrow |
+  | name `QST_`/`Prologue`/`Quest` | 226 | too broad |
+
+  The app therefore names them: `ObjectiveClassifier` makes a gizmo-57 `*BloodPetal*` an objective.
+- **Quest corpses (H):** 166 of the 954 chest gizmos (1) are bodies (`Corpse`/`Remains`/`Body`). Their marks:
+  - dwFlags 0x800 marks 126 (124 bodies).
+  - A `SoundGroup_QUE_*` on-click marks 131 (127 bodies); `Prologue_RitualCorpse_Decapitated` 652894 plays
+    `SoundGroup_QUE_FracPrologue_RitualCorpse_Interact`.
+  - No glow actor exists for them: the 8 `*chest*glow*` actors are chest VFX only.
+  - Nothing in the definition says "used", so the signal has to come from memory (client-memory.md §4).
+
+## 9. Friendly NPCs (offline, build 3.2.1.73552, 2026-09-30)
+
+- **Signal (H):** `ActorMonsterData.fIsNPC` (the block behind `ActorDefinition.ptMonsterData`) is 1 on 3498 of the 7510
+  eType-1 actors. It covers the prologue monk, Vani, Oswen, Lorath, Neyrelle, Donan, the `TWN_*` vendors, blacksmiths,
+  healers, followers, escorts and prisoners. Presence of `ptNPCData`/`ptVOData` and `dwFlags` separate nothing.
+- **Hostile stand-ins (H):** 188 fIsNPC actors are on `eDefaultTeam` 19, the hostile monsters' team, e.g.
+  `Monster_Frac_Prologue_Vani`. Friendly NPCs are on team 0 (neutral), 2 (friendly) or 1 (critters, prisoners).
+  `fIsNPC && team != 19` leaves 3310.
+- **Walk beside the player:** hired mercenaries (`snoMonsterFamily` `NPC_Mercenary`) and cinematic stand-ins (`IGC_*`).
+  The app leaves those out (`Game/NpcClassifier`), but keeps quest followers and escorts: some must be followed
+  (user, 2026-09-30).
+- **Not covered:** player summons, pets, mounts and ambient animals (fIsNPC 0).
+- **Live check:** `NPC_Frac_Prologue_Monk` was picked at 1.9 units in Nevesk (2026-09-30).

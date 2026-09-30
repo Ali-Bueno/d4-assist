@@ -52,6 +52,12 @@ public sealed class AppConfig
     /// <summary>Volume of the objective loops, 0 (silent) to 1 (full).</summary>
     public double ObjectiveVolume { get; set; } = 1.0;
 
+    /// <summary>Tap like D2R's friendly-NPC cue at the nearest NPC, faster as it gets closer.</summary>
+    public bool NpcSoundsEnabled { get; set; } = true;
+
+    /// <summary>Volume of the NPC tap, 0 (silent) to 1 (full).</summary>
+    public double NpcVolume { get; set; } = 1.0;
+
     /// <summary>Loop D2R's door sounds (wood, metal, stone) at nearby doors, the 2 nearest at once.</summary>
     public bool DoorSoundsEnabled { get; set; } = true;
 

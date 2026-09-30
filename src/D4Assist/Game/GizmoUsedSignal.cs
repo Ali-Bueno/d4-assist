@@ -7,7 +7,9 @@ namespace D4Assist.Game;
 /// </summary>
 /// <param name="knownGlowingKinds">Chest kinds already seen glowing in earlier runs (GlowingChestStore); null for none.</param>
 /// <param name="learned">Called once per chest kind newly seen glowing; null for none.</param>
-public sealed class GizmoUsedSignal(Func<int, string?> nameOf, IEnumerable<int>? knownGlowingKinds = null, Action<int>? learned = null)
+/// <param name="log">Debug sink naming each gizmo found used by the provisional operated mark; null when not debugging.</param>
+public sealed class GizmoUsedSignal(
+    Func<int, string?> nameOf, IEnumerable<int>? knownGlowingKinds = null, Action<int>? learned = null, Action<string>? log = null)
 {
     /// <summary>A glow belongs to the chest it sits on: live, 0.015 units from its centre.</summary>
     public const float OnChestUnits = 1f;
@@ -51,7 +53,11 @@ public sealed class GizmoUsedSignal(Func<int, string?> nameOf, IEnumerable<int>?
     {
         bool glowing = _glows.Any(g => Distance(g, (gizmo.X, gizmo.Y)) <= OnChestUnits);
         if (glowing && _glowingKinds.Add(gizmo.ActorSno)) learned?.Invoke(gizmo.ActorSno);
-        if (!_glowingKinds.Contains(gizmo.ActorSno)) return gizmo.StateChanged;
+        if (!_glowingKinds.Contains(gizmo.ActorSno))
+        {
+            if (!gizmo.StateChanged && gizmo.Operated) log?.Invoke($"USED by the operated mark (+0x4D4): {nameOf(gizmo.ActorSno)} at ({gizmo.X:F1},{gizmo.Y:F1})");
+            return gizmo.StateChanged || gizmo.Operated;
+        }
         return !glowing && _player is { } p && Distance((p.X, p.Y), (gizmo.X, gizmo.Y)) <= JudgeRangeUnits;
     }
 

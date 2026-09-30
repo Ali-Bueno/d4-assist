@@ -67,15 +67,22 @@ Qué hace
   metros; la plataforma de Undercity aparece a unos 20 o 30).
 - Objetivos: un sonido de misión en bucle sobre palancas, objetos que hay que
   llevar y sus pedestales, y cofres de misión, dentro y fuera de las
-  mazmorras. Los prisioneros suenan con el sonido de cadáver de D2R. Las
-  palancas y cofres se callan al usarlos; los prisioneros todavía no (se callan
-  cuando el juego los retira).
+  mazmorras, y sobre los pétalos de sangre de la campaña. Los prisioneros
+  suenan con el sonido de cadáver de D2R. Las palancas, los cofres y los
+  pétalos se callan al usarlos; los prisioneros todavía no (se callan cuando el
+  juego los retira).
+- NPCs (NUEVO): el toque de madera de D2R sobre el NPC más cercano, a menos de
+  unos 15 metros. Suena más rápido cuanto más cerca está, a la izquierda o a la
+  derecha según dónde esté, y más grave si está abajo en la pantalla. Suena
+  en los personajes con los que se habla, los vendedores y los que acompañan
+  en las misiones; no en los mercenarios.
 - Puertas, cofres y lecturas (NUEVO): los sonidos de D2R en bucle.
   Las puertas suenan a madera, metal (rejas, verjas, jaulas) o piedra; se oyen
   las 2 más cercanas. Los cofres, armeros y piedras sueltas suenan a cofre; los
   libros, notas y carteles que se leen suenan a pergamino; los cadáveres que se
   registran o se examinan suenan a cadáver, como los prisioneros. Se oyen los 3
-  más cercanos. Se oyen a unos 18 metros. Se callan al abrirlos o usarlos.
+  más cercanos. Se oyen a unos 18 metros. Se callan al abrirlos o usarlos,
+  salvo los cadáveres, que todavía siguen sonando.
 - Cinemáticas (NUEVO): al empezar una cinemática de vídeo se callan todos los
   sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
   hechas con el motor del juego todavía no se detectan.
@@ -136,10 +143,10 @@ Ajustes (archivo d4assist.json, se abre con el Bloc de notas)
 --------------------------------------------------------------
 - "Language": "auto" sigue al juego; "es" o "en" fuerzan un idioma.
 - "RadarVolume", "BeaconVolume", "ObjectiveVolume", "InteractableVolume",
-  "ExplorationGuideVolume": volumen de cada sonido, de 0 a 1.
+  "ExplorationGuideVolume", "NpcVolume": volumen de cada sonido, de 0 a 1.
   "InteractableVolume" es el de puertas, cofres y lecturas. El pitido de la
   guía de refugios usa "ExplorationGuideVolume".
-- "RadarEnabled", "BeaconSoundsEnabled", "ObjectiveSoundsEnabled",
+- "RadarEnabled", "BeaconSoundsEnabled", "ObjectiveSoundsEnabled", "NpcSoundsEnabled",
   "DoorSoundsEnabled", "ChestSoundsEnabled", "ReadableSoundsEnabled",
   "ExplorationGuideEnabled", "QuestRoutesEnabled", "PauseCuesInCutscenes",
   "PauseCuesInBackground", "PauseCuesInConversations", "PauseCuesInMenus",

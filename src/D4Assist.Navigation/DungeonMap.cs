@@ -11,7 +11,7 @@ public sealed class DungeonMap
     private readonly Dictionary<(int X, int Y), MapTile> _cellIndex = new();
     private readonly HashSet<(int X, int Y)> _visited = new();
 
-    /// <summary>Bumps whenever a tile is new or changed, or a tile is first visited — lets consumers cache derived data.</summary>
+    /// <summary>Bumps whenever a tile is new or changed, or a tile is first visited â€” lets consumers cache derived data.</summary>
     public int Version { get; private set; }
 
     /// <summary>Add or replace tiles from the latest loaded-window snapshot.</summary>
@@ -55,6 +55,17 @@ public sealed class DungeonMap
 
     /// <summary>True when the tile counts as explored: the player stood in it or saw it from a connected doorway (a tile, not merely a loaded one).</summary>
     public bool IsVisited(MapTile tile) => _visited.Contains((tile.CellX, tile.CellY));
+
+    /// <summary>The grid cells of every explored tile.</summary>
+    public IReadOnlyCollection<(int X, int Y)> VisitedCells => _visited;
+
+    /// <summary>Adds tiles and explored cells saved by an earlier run; a tile already known from the live window wins.</summary>
+    public void Restore(IReadOnlyList<TileInput> tiles, IEnumerable<(int X, int Y)> visited)
+    {
+        AddOrUpdate([.. tiles.Where(t => !_tilesByOrigin.ContainsKey((GridMath.CellIndex(t.OriginX), GridMath.CellIndex(t.OriginY))))]);
+        _visited.UnionWith(visited);
+        Version++;
+    }
 
     /// <summary>The tile covering a world position, or null when unseen/unloaded.</summary>
     public MapTile? TileAt(float worldX, float worldY) =>

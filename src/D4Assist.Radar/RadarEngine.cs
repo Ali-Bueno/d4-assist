@@ -64,6 +64,7 @@ public sealed class RadarEngine
 
         var grid = new LocalGrid(world, cellX, cellY, Settings.StructuralRadius);
         if (Settings.RemoveClutter) ClutterFilter.Apply(grid, Settings.ClutterSpan, Settings.BodyRadius);
+        var doorways = DoorwaysAround(world, world.RoomAt(cellX, cellY), motion);
 
         var cues = new List<RadarCue>();
         foreach (var ray in RadarRays.All)
@@ -71,7 +72,7 @@ public sealed class RadarEngine
             var sensor = _sensors[(int)ray];
             var axis = RadarRays.World(ray, Settings.Frame);
             var query = new PassageQuery(Settings.OpenDepth, Settings.CloseDepth, sensor.State, WayThrough,
-                Settings.LateralTolerance, Settings.PassageRadius);
+                Settings.LateralTolerance, Settings.PassageRadius, doorways);
             var passage = PassageScanner.Scan(grid, axis, query);
             passage = passage with { Unexplored = Qualify(passage, world) };
             if (sensor.Observe(passage, axis, motion, nowMs, _lastMoveMs) is { } kind)
@@ -87,8 +88,13 @@ public sealed class RadarEngine
     public static bool Qualify(Passage passage, IRadarWorld world)
     {
         if (!passage.Available || passage.Observed != RadarCueKind.Exit) return false;
+        if (passage.ViaDoorway && passage.CrossingRoom < 0) return true; // the doorway leads beyond the loaded tiles
         return passage.LeadsUnknown || (passage.CrossingRoom >= 0 && !world.IsVisited(passage.CrossingRoom));
     }
+
+    // The player's room's doorways, relative to the player like the scan's cells.
+    private static List<RadarDoorway> DoorwaysAround(IRadarWorld world, int room, RadarVector player) =>
+        room < 0 ? [] : [.. world.Doorways.Where(d => d.Room == room).Select(d => d with { Centre = d.Centre - player })];
 
     // Engine::TrackRoom (radar.cpp:49-70): on a room change the ray most against the crossing step is the way back.
     private void TrackRoom(IRadarWorld world, int cellX, int cellY, RadarVector motion, RadarVector travel)

@@ -28,7 +28,7 @@ left/right relative to D4 (D2R Left = (−,+), D4 Left = (+,−)), so its table 
 |---|---|
 | Blocked | proved route ≤ closing depth (7) |
 | Open | route ≥ opening depth (10), no room left, no unknown reached; inside the band (7, 10) the committed reading stands |
-| Exit | the route enters another room and clears its border by the doorway width (D2R maze rule), **or** it steps into unknown cells (beyond the loaded tiles) |
+| Exit | the route arrives within a doorway of the player's room: centre ahead within depth + doorway width and within half its width of the ray (D2R's level-exit rule, fed with RoomModel doorways), **or** it enters another room and clears its border by the doorway width (D2R maze rule), **or** it steps into unknown cells (beyond the loaded tiles) |
 | Door | unused: D4 doors are not read yet |
 
 Unexplored rides on Exit only: the room beyond was never stood in, or the route reaches unknown cells.
@@ -65,6 +65,11 @@ Unexplored rides on Exit only: the room beyond was never stood in, or the route 
 - **Point footprint.** D4's walk map is already per-position walkability, so cells are not dilated by a body;
   `BodySpan` keeps D2R's 3 only in the threshold formulas. With no footprint, the BFS refuses a diagonal step
   whose two orthogonal cells are both non-open (a zero-width gap D2R's cross body could not take either).
+- **Doorways are D2R's level exits.** `IRadarWorld.Doorways` holds every room's RoomModel openings (not the
+  fallback ones), each with the room beyond, and the scan's level-exit branch (radar_passage.cpp:73-84) tests the
+  player's room's doorways, using each doorway's own half-width as the side tolerance. The maze rule alone almost never
+  fired: a diagonal ray through a 14-unit doorway meets the far corridor's side wall before it clears the border by
+  10. In the 2026-09-30 log, Exit came only 1.5 to 4.5 cells from the door. A doorway leading into unloaded tiles is unexplored.
 - **Always a maze level:** D4 dungeons only; rooms are RoomModel rooms under ids that survive rebuilds.
 - **Poll-relative timings** follow D4's 100 ms poll (stationary confirm, maximum gap); wall-clock ones are kept.
 - **No collision kinds** in the clutter filter: every small blocked island is a candidate.
@@ -77,5 +82,5 @@ Unexplored rides on Exit only: the room beyond was never stood in, or the route 
 ## Not ported
 
 D2R-native readers (`native_*.cpp`), `radar.toml`, the beacon, the scanner, item/door/exit loops,
-`explored.dat` persistence, keyboard/console bindings, level-exit positions (`LevelExit`), the open-ground
+`explored.dat` persistence, keyboard/console bindings, level-exit positions (`LevelExit`; the branch is fed doorways instead), the open-ground
 frontier (`World::frontier`), velocity smoothing (only fed the Ctrl+T readout), and the audio revision counter.

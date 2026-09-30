@@ -87,3 +87,12 @@ on a 25 ms tick and plays through `AudioMixer.PlayGuide`, a 2-slot budget separa
 (neither steals from the other). Level 0.15 like D2R, times `RadarCuePlayer.LoudnessBoost` (same reason as the radar).
 `PlayArrived` is D2R's arrival confirmation (`beacon_audio.cpp:117`): the ping rising a fifth then an octave,
 60 ms gaps, centred; the next ping waits until it ends.
+
+## Friendly-NPC cue
+
+D2R's entity cue for friendly NPCs (`d2r-access/src/entity_cue_synth.cpp:12-18,62-94`, `entity_cues.cpp:41-43`,
+`entity_cues.h:14`): an 84 ms wooden tap (850 Hz partials + low-passed noise, `NpcCueSynth`) repeating every 450 ms
+at the range edge down to 150 ms at contact, linearly, silent beyond `RangeUnits` (default 15, D2R's 15 subtiles
+taken as D4 units). Pan is the unit screen `right` (D2R `entity_cue_synth.cpp:73`); screen-down lowers the pitch
+to 0.80 (`RearPitch`, line 13). `NpcCuePlayer.Aim(right, up, distance)` / `Silence()` mirror the guide ping and
+play through `AudioMixer.PlayEntity` (own 2-slot budget, silenced by `Paused`). Enemy swoops are not ported.

@@ -26,15 +26,16 @@ public static class Conventions
         (int)(cellId & CellXYMask) - CellXYBias,
         (int)(cellId >> CellZShift & CellZMask) - CellZBias);
 
-    // ActorDefinition.eType (+8): 1 = monster/NPC (has ptMonsterData / ptNPCData), 2 = gizmo. research/dungeon-objectives.md §3.
+    // ActorDefinition.eType (+8): 1 = monster/NPC (has ptMonsterData / ptNPCData), 2 = gizmo. research/dungeon-objectives.md ï¿½3.
     public const int ActorTypeMonster = 1;
     public const int ActorTypePlayer = 7;           // only the player-class actors (<class>M / <class>F)
+    public const int HostileTeam = 19;              // ActorDefinition.eDefaultTeam of hostile monsters, incl. hostile NPC stand-ins
 
     // ActorDefinition.eActorGizmoType (+392); each value is named after the data class at ptGizmoData
-    // (definitions.json has no enum strings). research/dungeon-objectives.md §3.
+    // (definitions.json has no enum strings). research/dungeon-objectives.md ï¿½3.
     public const int GizmoDoor = 0;                 // DoorGizmoData
     public const int GizmoChest = 1;                // ChestGizmoData
-    public const int GizmoPortal = 2;               // PortalGizmoData: dungeon portals, level transitions (research/dungeon-objectives.md §7)
+    public const int GizmoPortal = 2;               // PortalGizmoData: dungeon portals, level transitions (research/dungeon-objectives.md ï¿½7)
     public const int GizmoRewardChest = 19;         // data class unread; every actor is a *_Chest_Reward* event chest
     public const int GizmoSign = 98;                // SignGizmoData: lore books, notes, notices
     public const int GizmoLockedChest = 106;        // data class unread; mostly *_Chest_Rare_Locked_* key chests

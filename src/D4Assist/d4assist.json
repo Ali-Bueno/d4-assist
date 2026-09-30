@@ -11,6 +11,8 @@
   "BeaconVolume": 1.0,
   "ObjectiveSoundsEnabled": true,
   "ObjectiveVolume": 1.0,
+  "NpcSoundsEnabled": true,
+  "NpcVolume": 1.0,
   "DoorSoundsEnabled": true,
   "ChestSoundsEnabled": true,
   "ReadableSoundsEnabled": true,

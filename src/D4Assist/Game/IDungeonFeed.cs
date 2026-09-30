@@ -9,7 +9,8 @@ public sealed record TileState(
 /// <summary>One placed RActor (world coordinates), as exposed to the app.</summary>
 /// <param name="StateChanged">The actor's state moved at least once; for a gizmo, it was used (research/client-memory.md §4).</param>
 /// <param name="Yaw">Rotation about Z in radians, from +X towards +Y (the RActor quaternion).</param>
-public sealed record ActorState(uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0);
+/// <param name="Operated">The player operated it though its state never moved (blood petals; provisional, research/client-memory.md §4).</param>
+public sealed record ActorState(uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)
@@ -29,6 +30,9 @@ public interface IDungeonFeed
 
     /// <summary>The last world WorldChanged reported, for subscribers created after it fired (e.g. the startup world); null before any.</summary>
     (string Name, bool IsDungeon)? CurrentWorld { get; }
+
+    /// <summary>The current world's CWorldID from the log (research/runtime-signals.md §2); null when unknown.</summary>
+    string? CurrentInstance => null;
 
     /// <summary>True in a radar-only world (config RadarOnlyWorlds): radar and loops run, announcements and guide stay off.
     /// CurrentWorld/WorldChanged report IsDungeon=false there.</summary>

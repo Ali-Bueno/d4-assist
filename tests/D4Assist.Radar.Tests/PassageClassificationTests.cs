@@ -51,6 +51,45 @@ public class PassageClassificationTests
     }
 
     [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void RouteArrivingWithinADoorwayOfTheRoom_ReadsExit_WithoutClearingTheBorder(bool visited, bool unexplored)
+    {
+        // The same short route as above, now toward a known doorway of room 0 at x = 10 (radar_passage.cpp:73-84).
+        var world = FakeRadarWorld.Corridor(wallX: 16, secondRoomFromX: 10);
+        world.DoorwayList.Add(new RadarDoorway(new RadarVector(10, 2.5), 3, Room: 0, Beyond: 1));
+        if (visited) world.Visited.Add(1);
+
+        var sensor = Baseline(world, 2);
+
+        Assert.Equal(RadarCueKind.Exit, sensor.State);
+        Assert.Equal(unexplored, sensor.Unexplored);
+    }
+
+    [Theory]
+    [InlineData(10, 9, 0)] // off the ray line by more than half its width
+    [InlineData(10, 2.5, 1)] // a doorway of another room
+    public void DoorwaysOffTheRayOrOfAnotherRoom_AreIgnored(double x, double y, int room)
+    {
+        var world = FakeRadarWorld.Corridor(wallX: 16, secondRoomFromX: 10);
+        world.DoorwayList.Add(new RadarDoorway(new RadarVector(x, y), 3, room, Beyond: 2));
+
+        Assert.Equal(RadarCueKind.Open, Baseline(world, 2).State);
+    }
+
+    [Fact]
+    public void DoorwayIntoUnloadedTiles_ReadsUnexploredExit()
+    {
+        var world = FakeRadarWorld.Corridor(wallX: 16);
+        world.DoorwayList.Add(new RadarDoorway(new RadarVector(15, 2.5), 3, Room: 0, Beyond: -1));
+
+        var sensor = Baseline(world, 2);
+
+        Assert.Equal(RadarCueKind.Exit, sensor.State);
+        Assert.True(sensor.Unexplored);
+    }
+
+    [Theory]
     [InlineData(12)]
     [InlineData(4)] // within the closing depth: still never a wall
     public void RouteIntoUnknownCells_ReadsUnexploredExit(int unknownFromX)

@@ -10,7 +10,7 @@ public class ObjectiveTests
     private const int Monster = Conventions.ActorTypeMonster, Gizmo = 2, Prop = 3, NotGizmo = -1, DoorGizmo = 0;
     private const int PadSno = 1, MinibossSno = 2, LeverSno = 3, PrisonerNpcSno = 4, PrisonerSwitchSno = 5, DeadPrisonerCageSno = 6,
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
-        PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15;
+        PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -29,6 +29,7 @@ public class ObjectiveTests
         [DpoMonsterSno] = ("cannibal_brute_Unique", new(Monster, NotGizmo)),
         [PlainPropSno] = ("Plain_Prop", new(Prop, NotGizmo)),
         [PrisonerDoorSno] = ("DGN_Standard_Prisoner_Cage", new(Gizmo, DoorGizmo)),
+        [BloodPetalsSno] = ("Ancients_Prop_Lilith_BloodPetal", new(Gizmo, Conventions.GizmoSwitch)),
     };
 
     private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno };
@@ -46,6 +47,7 @@ public class ObjectiveTests
     [InlineData(PrisonerNpcSno, ObjectiveReason.Prisoner)]
     [InlineData(PrisonerSwitchSno, ObjectiveReason.Prisoner)]
     [InlineData(DpoSwitchSno, ObjectiveReason.Dpo)]
+    [InlineData(BloodPetalsSno, ObjectiveReason.Gizmo)] // a plain switch, known by name
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 

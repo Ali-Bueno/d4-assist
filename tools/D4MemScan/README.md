@@ -35,7 +35,7 @@ D4MemScan pose-context --in <file.json> [--out <file.focus.json>]
 D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>] [--snapshot-pointers <file> [--snapshot-count N --snapshot-every-ms M]]
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
-D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]
+D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
 ```
 
 `--install` defaults to `D:\games\battlenet\Diablo IV`. `--out`/default output paths land under `%TEMP%`, never
@@ -94,6 +94,7 @@ the repo.
    `--watch N` picks the nearest gizmo/prisoner actor (or, with `--match`, the nearest actor whose name matches) and, every `--interval-ms` (default 250) for N seconds, prints the
    4-byte words of its slot that changed (and slot free/reuse), to find the "used" signal while you free a prisoner or
    pull a lever.
+   `--words 0x4D4,0x1F4` prints those slot words too, next to the use words of every gizmo in the listing and JSON, to compare used and untouched gizmos in one snapshot.
 
 7. **`player --snapshot-pointers`** — depth-1 heap snapshot for UI-state searches (`Commands/PointerSnapshotWriter.cs`):
    - It keeps every word in the live module's writable data that points into readable memory, plus 0x400 bytes at each target.

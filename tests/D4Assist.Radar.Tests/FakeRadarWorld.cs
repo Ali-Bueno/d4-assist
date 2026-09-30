@@ -7,6 +7,8 @@ internal sealed class FakeRadarWorld(Func<int, int, RadarCell> cell, Func<int, i
 {
     public HashSet<int> Visited { get; } = [];
     public double TypicalOpeningWidth { get; set; }
+    public List<RadarDoorway> DoorwayList { get; } = [];
+    public IReadOnlyList<RadarDoorway> Doorways => DoorwayList;
 
     public RadarCell Cell(int x, int y) => cell(x, y);
     public int RoomAt(int x, int y) => room?.Invoke(x, y) ?? 0;

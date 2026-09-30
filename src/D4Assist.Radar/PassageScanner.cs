@@ -5,8 +5,10 @@ namespace D4Assist.Radar;
 /// <summary>What one scan needs besides the grid: D2R's PassageQuery (d2r-access src/radar.h:100-106).</summary>
 /// <param name="Committed">The sensor's confirmed reading: inside the hysteresis band it stands.</param>
 /// <param name="Radius">Passage window half-side, in cells (RadarSettings.PassageRadius).</param>
+/// <param name="Doorways">The player's room's doorways, centres relative to the player; null for none.</param>
 internal readonly record struct PassageQuery(
-    double OpenDepth, double CloseDepth, RadarCueKind? Committed, double WayThrough, double LateralTolerance, int Radius);
+    double OpenDepth, double CloseDepth, RadarCueKind? Committed, double WayThrough, double LateralTolerance, int Radius,
+    IReadOnlyList<RadarDoorway>? Doorways = null);
 
 /// <summary>
 /// The straight route along one ray and what it means: port of D2R ScanPassage (d2r-access
@@ -73,17 +75,25 @@ internal static class PassageScanner
             Depth = depth, OpenDepth = query.OpenDepth, CloseDepth = query.CloseDepth, Available = true,
             Crossing = crossing, CrossingRoom = crossingRoom, UnknownDepth = unknownDepth, Door = door,
         };
-        return passage with { Observed = Classify(passage, query) };
+        return Classify(passage, axis, query);
     }
 
-    private static RadarCueKind Classify(Passage passage, PassageQuery query)
+    private static Passage Classify(Passage passage, RadarVector axis, PassageQuery query)
     {
-        if (passage.LeadsUnknown) return RadarCueKind.Exit;
-        if (passage.Depth <= query.CloseDepth) return passage.Door ? RadarCueKind.Door : RadarCueKind.Blocked;
-        if (passage.Depth < query.OpenDepth && query.Committed is { } committed && committed.IsObstacle()) return committed;
-        // Another room entered and its border cleared by a doorway's width (radar_passage.cpp:93-106).
+        if (passage.LeadsUnknown) return passage with { Observed = RadarCueKind.Exit };
+        if (passage.Depth <= query.CloseDepth) return passage with { Observed = passage.Door ? RadarCueKind.Door : RadarCueKind.Blocked };
+        if (passage.Depth < query.OpenDepth && query.Committed is { } committed && committed.IsObstacle()) return passage with { Observed = committed };
+        // The route arrives within a doorway (radar_passage.cpp:73-84): D2R's level exits, fed with the room's doorways,
+        // which the diagonal rays rarely cross far enough to clear the border below.
+        foreach (var doorway in query.Doorways ?? [])
+        {
+            double ahead = axis.Dot(doorway.Centre), aside = Math.Abs(axis.Across(doorway.Centre));
+            if (ahead > 0 && ahead <= passage.Depth + query.WayThrough && aside <= doorway.Width / 2)
+                return passage with { Observed = RadarCueKind.Exit, CrossingRoom = doorway.Beyond, ViaDoorway = true };
+        }
+        // Another room entered and its border cleared by a doorway's width (radar_passage.cpp:85-86).
         var leaves = passage.Crossing >= 0 && passage.Depth >= passage.Crossing + query.WayThrough;
-        return leaves ? RadarCueKind.Exit : RadarCueKind.Open;
+        return passage with { Observed = leaves ? RadarCueKind.Exit : RadarCueKind.Open };
     }
 
     // A diagonal step between two non-open cells is a zero-width gap; D2R's cross body could not take it either.

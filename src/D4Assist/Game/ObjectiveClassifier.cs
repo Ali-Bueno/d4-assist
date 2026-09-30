@@ -14,6 +14,9 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     // Free-able prisoners are named DGN_NPC_<Region>_Prisoner_*; "Dead" excludes DGN_Standard_DeadPrisoner_*.
     private const string PrisonerToken = "Prisoner", DeadToken = "Dead";
 
+    // Story switches the game data can't tell from levers (research/dungeon-objectives.md §8): Lilith's blood petals.
+    private static readonly string[] QuestSwitchTokens = ["BloodPetal"];
+
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =
     [
@@ -47,8 +50,11 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
 
     private ObjectiveReason? FixedReason(int actorSno, ActorDefinitionInfo info)
     {
-        if (IsPrisoner(nameOf(actorSno), info)) return ObjectiveReason.Prisoner;
-        return AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
+        string? name = nameOf(actorSno);
+        if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
+        bool questSwitch = info.GizmoType == Conventions.GizmoSwitch && name is not null
+            && QuestSwitchTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
+        return questSwitch || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
     }
 
     private static bool IsPrisoner(string? name, ActorDefinitionInfo info) =>

@@ -2,8 +2,8 @@ using D4Assist.Audio;
 
 namespace D4Assist.Radar;
 
-/// <summary>One ray's scan: D2R's Radar::Passage (d2r-access src/radar.h:139-149) without the level-exit
-/// field, plus where the route meets unloaded cells.</summary>
+/// <summary>One ray's scan: D2R's Radar::Passage (d2r-access src/radar.h:139-149), its level-exit field
+/// reduced to <see cref="ViaDoorway"/>, plus where the route meets unloaded cells.</summary>
 public sealed record Passage
 {
     /// <summary>Proved connected route along the ray, in cells (up to the scan window).</summary>
@@ -21,8 +21,11 @@ public sealed record Passage
     /// <summary>Depth at which the route enters another room, or -1.</summary>
     public double Crossing { get; init; } = -1;
 
-    /// <summary>The room entered at <see cref="Crossing"/>, or -1.</summary>
+    /// <summary>The room entered at <see cref="Crossing"/>, or beyond the doorway that made the Exit; -1 when none or not loaded.</summary>
     public int CrossingRoom { get; init; } = -1;
+
+    /// <summary>The Exit comes from a doorway of the player's room on the route (D2R's level-exit rule).</summary>
+    public bool ViaDoorway { get; init; }
 
     /// <summary>Nearest depth at which the route steps into unknown cells, or -1 (D4: leads beyond the loaded tiles).</summary>
     public double UnknownDepth { get; init; } = -1;

@@ -8,13 +8,19 @@ namespace D4Data.Readers;
 /// <summary>The ActorDefinition fields that classify an actor (looked up by field name in definitions.json).</summary>
 /// <param name="BoundsCenter">aabbBounds centre, actor-local (a door: X = thin passage axis, Y = width).</param>
 /// <param name="BoundsHalfExtents">aabbBounds half-extents, actor-local.</param>
-public readonly record struct ActorDefinitionInfo(int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default);
+/// <param name="DefaultTeam">eDefaultTeam: 19 is the hostile monsters' team.</param>
+/// <param name="IsNpc">ActorMonsterData.fIsNPC: townsfolk, vendors, quest givers and followers (research/dungeon-objectives.md §9).</param>
+/// <param name="MonsterFamilySno">ActorMonsterData.snoMonsterFamily, or -1.</param>
+public readonly record struct ActorDefinitionInfo(
+    int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default,
+    int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1);
 
 /// <summary>Reads (and caches per SNO) <see cref="ActorDefinitionInfo"/> from ActorDefinition meta records.</summary>
 public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
 {
     private const string ActorDefinition = "ActorDefinition";
     private const string Aabb = "AABB";
+    private const string MonsterData = "ActorMonsterData";
 
     private readonly Dictionary<int, ActorDefinitionInfo?> _cache = [];
 
@@ -29,9 +35,23 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
             meta.I32(schema.Offset(ActorDefinition, "eType")),
             meta.I32(schema.Offset(ActorDefinition, "eActorGizmoType")),
             meta.Vec3(bounds + schema.Offset(Aabb, "wp")),
-            meta.Vec3(bounds + schema.Offset(Aabb, "wvExt")));
+            meta.Vec3(bounds + schema.Offset(Aabb, "wvExt")),
+            meta.I32(schema.Offset(ActorDefinition, "eDefaultTeam")));
+        if (info is { } read && MonsterDataOffset(meta!) is { } monster)
+            info = read with
+            {
+                IsNpc = meta!.I32(monster + schema.Offset(MonsterData, "fIsNPC")) != 0,
+                MonsterFamilySno = meta.I32(monster + schema.Offset(MonsterData, "snoMonsterFamily")),
+            };
         _cache[actorSno] = info;
         return info;
+    }
+
+    // Where the actor's ActorMonsterData block starts in its record, or null when it has none.
+    private int? MonsterDataOffset(SnoBlob meta)
+    {
+        var (data, size) = meta.ArrayDescriptor(schema.Offset(ActorDefinition, "ptMonsterData"));
+        return data > 0 && size >= schema.Size(MonsterData) && data + schema.Size(MonsterData) <= meta.Length ? data : null;
     }
 
     /// <summary>Every player-class actor SNO (one per class and sex), read from the data so a new class needs no code change.</summary>

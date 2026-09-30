@@ -26,6 +26,8 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
 
     public double TypicalOpeningWidth { get; private set; }
 
+    public IReadOnlyList<RadarDoorway> Doorways { get; private set; } = [];
+
     public int TileCount => _tiles.Count;
     public int RoomCount { get; private set; }
 
@@ -58,6 +60,7 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
         _cells = [];
         _rooms = [];
         _closedDoors = new HashSet<(int X, int Y)>();
+        Doorways = [];
         TypicalOpeningWidth = 0;
         RoomCount = TilesWithoutWalkability = 0;
     }
@@ -126,6 +129,16 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
                     _cells[i] = RadarCell.Open;
                     _rooms[i] = roomOf[tile];
                 }
+        Doorways = [.. rooms.SelectMany(r => r.Openings.Where(o => !o.UsedFallback && o.Width > 0).Select(o => Doorway(roomOf[r.Tiles[0]], o)))];
+    }
+
+    // The room beyond is read just past the doorway, inside the neighbouring tile.
+    private RadarDoorway Doorway(int room, RoomOpening opening)
+    {
+        var (nx, ny) = ExitMaskBits.Normal(opening.Side);
+        var (x, y) = (opening.Position.X + 1.5f * nx, opening.Position.Y + 1.5f * ny);
+        var beyond = RoomAt((int)MathF.Floor(x / CellSize), (int)MathF.Floor(y / CellSize));
+        return new RadarDoorway(new RadarVector(opening.Position.X / CellSize, opening.Position.Y / CellSize), opening.Width / CellSize, room, beyond);
     }
 
     private void FillFootprint(MapTile tile, int room, RadarCell state)

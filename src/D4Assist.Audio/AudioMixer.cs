@@ -20,6 +20,9 @@ public sealed class AudioMixer
     /// when the next starts), so radar cues can neither steal nor starve them.</summary>
     public const int MaxGuideVoices = 2;
 
+    /// <summary>Separate budget for the friendly-NPC tap (one at a time; the spare covers a tap still ringing).</summary>
+    public const int MaxEntityVoices = 2;
+
     // A single boosted cue peaks below this, so only overlapping cues are ever compressed.
     private const float LimiterKnee = 0.8f;
 
@@ -34,6 +37,7 @@ public sealed class AudioMixer
 
     private readonly List<Voice> _voices = [];
     private readonly List<Voice> _guideVoices = [];
+    private readonly List<Voice> _entityVoices = [];
     private readonly List<LoopVoice> _loops = [];
     private readonly object _lock = new();
     private long _nextStartOrder;
@@ -74,6 +78,21 @@ public sealed class AudioMixer
             _guideVoices.Add(voice);
         }
     }
+
+    /// <summary>Plays an entity cue on its own voice budget; when both slots are busy the older one is replaced.</summary>
+    public void PlayEntity(float[] samples, double gain, double pan)
+    {
+        if (_paused) return;
+        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, _nextStartOrder++);
+        lock (_lock)
+        {
+            if (_entityVoices.Count >= MaxEntityVoices) _entityVoices.RemoveAt(0);
+            _entityVoices.Add(voice);
+        }
+    }
+
+    /// <summary>Currently mixing entity-cue count, for diagnostics/tests.</summary>
+    public int ActiveEntityVoiceCount { get { lock (_lock) return _entityVoices.Count; } }
 
     /// <summary>Currently mixing loop count (fading-out loops included), for diagnostics/tests.</summary>
     public int ActiveLoopCount { get { lock (_lock) return _loops.Count; } }
@@ -119,7 +138,7 @@ public sealed class AudioMixer
         if (_paused)
         {
             Array.Clear(buffer, 0, sampleCount);
-            lock (_lock) { _voices.Clear(); _guideVoices.Clear(); _loops.RemoveAll(l => l.Stopping); }
+            lock (_lock) { _voices.Clear(); _guideVoices.Clear(); _entityVoices.Clear(); _loops.RemoveAll(l => l.Stopping); }
             return;
         }
         var mix = new float[sampleCount];
@@ -128,6 +147,7 @@ public sealed class AudioMixer
         {
             MixVoices(_voices, mix, frameCount);
             MixVoices(_guideVoices, mix, frameCount);
+            MixVoices(_entityVoices, mix, frameCount);
 
             for (int i = _loops.Count - 1; i >= 0; i--)
             {

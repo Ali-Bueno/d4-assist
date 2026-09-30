@@ -46,6 +46,16 @@ public sealed class NavigationBridge
         lock (_gate) return _engine.Guide.Step(player, exitMissing, destinations);
     }
 
+    public ExplorationState ExportExploration()
+    {
+        lock (_gate) return _engine.ExportExploration();
+    }
+
+    public void RestoreExploration(ExplorationState state)
+    {
+        lock (_gate) _engine.RestoreExploration(state);
+    }
+
     private void LogTilesIfChanged(IReadOnlyList<TileState> tiles)
     {
         if (!_diagnostics) return;

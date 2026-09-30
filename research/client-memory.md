@@ -165,6 +165,13 @@ had used had `+0x148 != 0` and the 4 untouched ones had 0, and it stayed that wa
 - **Doors:** a village door (`FracturedPeaksHU_Town_Door_02_dyn`) starts with state `0x4046D66` and `+0x148` 0. Once
   opened, it holds `+0x140 = 0x3EC7F2` and `+0x148 = 0x4046D66`; an identical closed door kept 0. The app's door loop
   stopped with `cause=used` at 1.3 units. The player cannot close that door again.
+- **Blood petals** (`Frac_Prologue_BloodPetals_NoSymbol`, a story switch, live 2026-09-30, one sample):
+  - `+0x140`/`+0x148` never moved.
+  - At the interaction, `+0x4D4` and `+0x4DC` went 0 → 0x211 and `+0x1F4` went 1.0 → 0.
+  - Of the 35 gizmos nearby, only the used petals had `+0x4D4 != 0`.
+  - `+0x1F4 = 0` is also on decor books and on a used door, so it is not a signal.
+  - The app treats `+0x4D4 != 0` as used (`ActorState.Operated`; `--debug` logs `USED by the operated mark`). This is
+    provisional: confirm it on a quest corpse. Interacting with corpses doesn't move their state word either.
 - Levers and switch prisoners are not checked yet.
 Noise when diffing a slot:
 - `+0x17C`/`+0x180` tick every frame, and `+0x234` is a timer.

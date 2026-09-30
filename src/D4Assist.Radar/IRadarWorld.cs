@@ -20,4 +20,10 @@ public interface IRadarWorld
 
     /// <summary>The dungeon's typical doorway width in cells (D2R Rooms::TypicalOpeningWidth), or 0 when unknown.</summary>
     double TypicalOpeningWidth { get; }
+
+    /// <summary>Every room's doorways, one entry per side (D2R Radar::World::exits, fed with room doorways instead of level exits).</summary>
+    IReadOnlyList<RadarDoorway> Doorways => [];
 }
+
+/// <summary>A doorway of <paramref name="Room"/>: its centre in cells, its width, and the room beyond (-1 when not loaded).</summary>
+public readonly record struct RadarDoorway(RadarVector Centre, double Width, int Room, int Beyond);

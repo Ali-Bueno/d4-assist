@@ -22,8 +22,14 @@ public sealed class NpcCuePlayer : IDisposable
     private bool _active;
     private double _right, _up, _distance, _nextDue, _lastAim;
 
+    // Floor for Rate so a zero or negative setting can't stall the schedule.
+    private const double MinRate = 0.05;
+
     /// <summary>User volume, 0..1.</summary>
     public double Volume { get; set; } = 1.0;
+
+    /// <summary>Repeat-speed multiplier: the interval between taps is divided by it.</summary>
+    public double Rate { get; set; } = 1.0;
 
     /// <summary>World units beyond which the NPC is silent.</summary>
     public double RangeUnits { get; set; } = DefaultRangeUnits;
@@ -70,9 +76,10 @@ public sealed class NpcCuePlayer : IDisposable
             if (!_active || now < _nextDue) return;
             if (now - _lastAim > StaleAimSeconds) { _active = false; return; }
             (right, up) = (_right, _up);
-            _nextDue = now + IntervalSeconds(_distance, RangeUnits);
+            _nextDue = now + IntervalSeconds(_distance, RangeUnits) / Math.Max(Rate, MinRate);
         }
 
+        if (Volume <= 0) return; // keeps its schedule, plays nothing
         double length = Math.Sqrt(right * right + up * up);
         double unitRight = length > 0 ? right / length : 0, unitUp = length > 0 ? up / length : 0;
         _mixer.PlayEntity(NpcCueSynth.Synthesize(NpcCueSynth.Pitch(unitUp)),

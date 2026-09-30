@@ -1,4 +1,5 @@
 using D4Assist.Audio;
+using D4Assist.Config;
 using D4Assist.Game;
 using D4Data.Format;
 using D4Data.Readers;
@@ -93,9 +94,9 @@ public class InteractableTests
     }
 
     [Fact]
-    public void Selector_InteractablesGetTheContainerProfileScaledByTheirVolume()
+    public void Selector_InteractablesGetTheContainerProfileAndTheirOwnCue()
     {
-        var selector = Selector(interactableVolume: 0.5);
+        var selector = Selector();
 
         var door = selector.Select(Placed(PortcullisSno));
         var chest = selector.Select(Placed(ChestSno));
@@ -104,7 +105,8 @@ public class InteractableTests
         Assert.Equal((LoopKind.Door, InteractableClassifier.MetalDoorSound, "door"), (door!.Kind, door.Sound, door.Reason));
         Assert.Equal((LoopKind.Container, InteractableClassifier.ChestSound, "chest"), (chest!.Kind, chest.Sound, chest.Reason));
         Assert.Equal((LoopKind.Container, InteractableClassifier.ScrollSound, "readable"), (sign!.Kind, sign.Sound, sign.Reason));
-        Assert.Equal(LoopProfiles.Container with { NearGain = LoopProfiles.Container.NearGain * 0.5 }, chest.Profile);
+        Assert.Equal(LoopProfiles.Container, chest.Profile);
+        Assert.Equal([SoundCue.Door, SoundCue.Chest, SoundCue.Readable], [door.Cue, chest.Cue, sign.Cue]);
     }
 
     [Fact]
@@ -117,13 +119,15 @@ public class InteractableTests
     }
 
     [Fact]
-    public void Selector_SkipsDisabledKinds()
+    public void Selector_CorpsesAndPointsOfInterestGetTheirOwnCues()
     {
-        var selector = Selector(kinds: new HashSet<InteractableKind> { InteractableKind.Chest });
+        var selector = Selector();
 
-        Assert.NotNull(selector.Select(Placed(ChestSno)));
-        Assert.Null(selector.Select(Placed(DoorSno)));
-        Assert.Null(selector.Select(Placed(SignSno)));
+        Assert.Equal(SoundCue.Corpse, selector.Select(Placed(CorpseChestSno))!.Cue);
+        Assert.Equal(SoundCue.Corpse, selector.Select(Placed(CorpseSignSno))!.Cue);
+        Assert.Equal(SoundCue.PointOfInterest, selector.Select(Placed(LookAtSno))!.Cue);
+        Assert.Equal(SoundCue.Prisoner, selector.Select(Placed(PrisonerSno))!.Cue);
+        Assert.Equal(SoundCue.QuestObjective, selector.Select(Placed(DpoDoorSno))!.Cue);
     }
 
     [Fact]
@@ -217,12 +221,11 @@ public class InteractableTests
 
     private static ActorState Placed(int sno) => new(1, sno, 0, 0, 0);
 
-    private static LoopTargetSelector Selector(double interactableVolume = 1, IReadOnlySet<InteractableKind>? kinds = null)
+    private static LoopTargetSelector Selector()
     {
         var selector = new LoopTargetSelector(
-            new HashSet<int>(), 1, new ObjectiveClassifier(Info, Name), 1,
-            world => world == World ? new HashSet<int> { DpoDoorSno } : new HashSet<int>(),
-            Classifier(), kinds, interactableVolume);
+            new HashSet<int>(), new ObjectiveClassifier(Info, Name),
+            world => world == World ? new HashSet<int> { DpoDoorSno } : new HashSet<int>(), Classifier());
         selector.SetWorld(World, isDungeon: true);
         return selector;
     }

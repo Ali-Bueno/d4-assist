@@ -8,7 +8,8 @@ public sealed record LoopProfile(double Reach, double NearGain, double Falloff);
 /// <param name="Right">World units to the right of the listener on screen.</param>
 /// <param name="Up">World units above the listener on screen (negative = below, i.e. behind).</param>
 /// <param name="Priority">Lower claims the loop budget first; ties go to the nearer source.</param>
-public readonly record struct LoopSource(string Key, string Sound, double Right, double Up, LoopProfile Profile, int Priority = 0);
+/// <param name="Rate">Repetitions per natural cycle of the sound (see <see cref="LoopVoice.Set"/>).</param>
+public readonly record struct LoopSource(string Key, string Sound, double Right, double Up, LoopProfile Profile, int Priority = 0, double Rate = 1.0);
 
 /// <summary>Named loop profiles. Port of d2r-access ground-item loops, src/ground_items.h and ground_items.cpp.</summary>
 public static class LoopProfiles
@@ -116,8 +117,8 @@ public sealed class SpatialLoopPlayer
 
             double pan = Pan(source.Right, source.Up), pitch = Pitch(source.Up);
             if (_playing.TryGetValue(source.Key, out var voice))
-                voice.Set(gain, pan, pitch);
-            else if (_mixer.StartLoop(samples, gain, pan, pitch) is { } started)
+                voice.Set(gain, pan, pitch, source.Rate);
+            else if (_mixer.StartLoop(samples, gain, pan, pitch, source.Rate) is { } started)
                 _playing[source.Key] = started;
             else
                 continue; // loop budget full; the nearer sources already hold it

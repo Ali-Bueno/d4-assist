@@ -1,6 +1,6 @@
 namespace D4Assist.Audio;
 
-/// <summary>A looping mono voice whose gain, pan and pitch ratio can change while it plays; owned by AudioMixer.</summary>
+/// <summary>A looping mono voice whose gain, pan, pitch ratio and repeat rate can change while it plays; owned by AudioMixer.</summary>
 public sealed class LoopVoice
 {
     // Same fade-in / retarget smoothing as the D2R loops (d2r-access src/item_audio.cpp:24, "approximately 80 ms").
@@ -8,28 +8,39 @@ public sealed class LoopVoice
     // A stopped loop is dropped once its faded gain falls below this (-80 dB), so stopping never clicks.
     private const double SilenceGain = 1e-4;
 
+    /// <summary>Repeat-rate bounds: repetitions per natural cycle of the sound (1 = back to back).</summary>
+    public const double MinRate = 0.05, MaxRate = 10;
+
+    // Overlap at MaxRate keeps about MaxRate repetitions sounding at once; one spare absorbs the spawn/drop boundary.
+    private const int MaxHeads = (int)MaxRate + 1;
+
     private static readonly double SmoothingPerFrame = 1 - Math.Exp(-1.0 / (SmoothingSeconds * AudioFormat.SampleRate));
 
     private readonly float[] _samples;
     private readonly AudioMixer _owner;
-    private double _position;
+    private readonly double[] _heads = new double[MaxHeads]; // read positions of the repetitions still sounding
+    private int _headCount = 1; // the first repetition starts immediately, at position 0
+    private double _cycle;
     private double _currentGain, _currentPan;
 
-    internal double TargetGain, TargetPan, TargetPitch;
+    internal double TargetGain, TargetPan, TargetPitch, TargetRate;
     internal bool Stopping;
 
-    internal LoopVoice(AudioMixer owner, float[] samples, double gain, double pan, double pitch)
+    internal LoopVoice(AudioMixer owner, float[] samples, double gain, double pan, double pitch, double rate)
     {
         _owner = owner;
         _samples = samples;
         TargetGain = gain;
         TargetPan = pan;
         TargetPitch = pitch;
+        TargetRate = ClampRate(rate);
         _currentPan = pan; // a new source appears at its place and only the gain fades in
     }
 
-    /// <summary>Thread-safe; takes effect smoothly. Pan is -1..1, pitch is a playback-rate ratio.</summary>
-    public void Set(double gain, double pan, double pitch) => _owner.UpdateLoop(this, gain, pan, pitch);
+    internal static double ClampRate(double rate) => Math.Clamp(rate, MinRate, MaxRate);
+
+    /// <summary>Thread-safe; gain and pan change smoothly. Pan is -1..1, pitch a playback-rate ratio, rate the repetitions per natural cycle.</summary>
+    public void Set(double gain, double pan, double pitch, double rate = 1.0) => _owner.UpdateLoop(this, gain, pan, pitch, rate);
 
     /// <summary>Fades the loop out and removes it from the mixer.</summary>
     public void Stop() => _owner.StopLoop(this);
@@ -45,18 +56,33 @@ public sealed class LoopVoice
             _currentGain += (TargetGain - _currentGain) * SmoothingPerFrame;
             _currentPan += (TargetPan - _currentPan) * SmoothingPerFrame;
 
-            int index = (int)_position;
-            double fraction = _position - index;
-            float a = _samples[index];
-            float b = _samples[index + 1 < length ? index + 1 : 0];
-            double sample = (a + (b - a) * fraction) * _currentGain * master;
+            double raw = 0;
+            for (int h = 0; h < _headCount; h++)
+            {
+                int index = (int)_heads[h];
+                double fraction = _heads[h] - index;
+                float a = _samples[index];
+                float b = index + 1 < length ? _samples[index + 1] : 0f; // a one-shot: past the end is silence
+                raw += a + (b - a) * fraction;
+            }
+            double sample = raw * _currentGain * master;
 
             // Equal-power pan, same law as the cues (d2r-access src/radar_synth.cpp:73).
             mix[frame * AudioFormat.Channels] += (float)(sample * Math.Sqrt((1 - _currentPan) / 2));
             mix[frame * AudioFormat.Channels + 1] += (float)(sample * Math.Sqrt((1 + _currentPan) / 2));
 
-            _position += TargetPitch;
-            if (_position >= length) _position -= length;
+            for (int h = _headCount - 1; h >= 0; h--)
+            {
+                _heads[h] += TargetPitch;
+                if (_heads[h] >= length) _heads[h] = _heads[--_headCount];
+            }
+
+            _cycle += TargetPitch * TargetRate;
+            if (_cycle >= length)
+            {
+                _cycle -= length;
+                if (_headCount < MaxHeads) _heads[_headCount++] = 0;
+            }
         }
     }
 }

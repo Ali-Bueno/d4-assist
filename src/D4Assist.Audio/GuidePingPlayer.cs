@@ -24,8 +24,17 @@ public sealed class GuidePingPlayer : IDisposable
     private bool _active;
     private double _right, _up, _remaining, _nextDue, _lastAim;
 
-    /// <summary>User volume, 0..1.</summary>
+    // Floor for Rate so a zero or negative setting can't stall the schedule.
+    private const double MinRate = 0.05;
+
+    /// <summary>User volume of the ping, 0..1.</summary>
     public double Volume { get; set; } = 1.0;
+
+    /// <summary>User volume of the arrival chime, 0..1.</summary>
+    public double ArrivalVolume { get; set; } = 1.0;
+
+    /// <summary>Repeat-speed multiplier: the interval between pings is divided by it.</summary>
+    public double Rate { get; set; } = 1.0;
 
     /// <param name="autoTick">False in tests, which drive <see cref="Tick"/> against an injected clock.</param>
     public GuidePingPlayer(AudioMixer mixer, Func<double>? nowSeconds = null, bool autoTick = true)
@@ -60,7 +69,7 @@ public sealed class GuidePingPlayer : IDisposable
     {
         var samples = GuidePingSynth.SynthesizeArrived();
         lock (_gate) _nextDue = Math.Max(_nextDue, _nowSeconds() + (double)samples.Length / AudioFormat.SampleRate);
-        _mixer.PlayGuide(samples, Volume * RadarCuePlayer.LoudnessBoost, pan: 0);
+        if (ArrivalVolume > 0) _mixer.PlayGuide(samples, ArrivalVolume * RadarCuePlayer.LoudnessBoost, pan: 0);
     }
 
     /// <summary>Plays one centred ping right away, outside the schedule (the sound examples, Ctrl+Alt+Shift+7).</summary>
@@ -76,9 +85,10 @@ public sealed class GuidePingPlayer : IDisposable
             if (!_active || now < _nextDue) return;
             if (now - _lastAim > StaleAimSeconds) { _active = false; return; }
             (right, up, remaining) = (_right, _up, _remaining);
-            _nextDue = now + IntervalSeconds(remaining);
+            _nextDue = now + IntervalSeconds(remaining) / Math.Max(Rate, MinRate);
         }
 
+        if (Volume <= 0) return; // keeps its schedule, plays nothing
         double length = Math.Sqrt(right * right + up * up);
         double unitRight = length > 0 ? right / length : 0, unitUp = length > 0 ? up / length : 0;
         _mixer.PlayGuide(

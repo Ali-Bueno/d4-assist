@@ -1,5 +1,21 @@
-D4 Dungeon Assist - versión de prueba 6 (29 de septiembre de 2026)
+D4 Dungeon Assist - versión de prueba 7 (30 de septiembre de 2026)
 ==================================================================
+
+Novedades de esta versión:
+- Ya no queda una consola abierta: el programa vive en la bandeja del sistema
+  (el área de notificación), desde donde se configura, se reinicia y se cierra.
+- Ventana de configuración: activar o desactivar cada sonido, su volumen y la
+  velocidad a la que se repiten los sonidos en bucle, por grupos o uno a uno,
+  con previsualización. Control+Alt+Shift+C la abre desde cualquier sitio.
+- Los ajustes de sonido del d4assist.json antiguo ya no se leen: si tenías
+  volúmenes cambiados, vuelve a ajustarlos en la ventana de configuración.
+- Solo suena lo que se puede usar: un objeto de misión que llevas en las manos
+  (por ejemplo el ídolo del glaciar) calla y suena el altar donde se deja; las
+  notas de misión suenan con el sonido de misión; las puertas ya abiertas no
+  suenan; el toque de personajes solo suena en los que tienen algo que decir o
+  hacer contigo.
+- Radar: las salidas hacia otra sala se oyen antes y las paredes que rozas ya
+  no cambian de pared a suelo a cada paso.
 
 Programa de accesibilidad para jugar las mazmorras de Diablo IV sin ver la
 pantalla. Funciona al lado del juego: no modifica el juego ni sus archivos.
@@ -24,14 +40,16 @@ Requisitos
 - NVDA o JAWS en marcha.
 - Mando de Xbox, DualSense o DualShock 4, por cable o Bluetooth (para la
   cruceta izquierda; el resto funciona sin mando).
-- Hecho para la versión 3.2.1 del juego. Si Blizzard actualiza el juego,
-  algunas funciones pueden dejar de funcionar hasta que se actualice el programa.
+- Hecho para la versión 3.2.2 del juego. El programa encuentra solo sus datos
+  tras las actualizaciones pequeñas; si una actualización grande cambia el
+  juego, algunas funciones pueden fallar hasta que se actualice el programa.
 
 
 Contenido de la carpeta
 -----------------------
 - D4Assist.exe: el programa.
-- d4assist.json: los ajustes (ver abajo).
+- d4assist.json: los ajustes. Se cambian desde la ventana de configuración
+  (ver abajo); no hace falta abrirlo.
 - LEEME.txt: este archivo.
 - d4assist-log.txt: el registro, se crea solo al abrir el programa (ver
   "Si algo no funciona").
@@ -44,14 +62,17 @@ Cómo usarlo
 -----------
 1. Descomprime la carpeta donde quieras.
 2. Abre D4Assist.exe, antes o después de abrir el juego. Dirá "Asistente de
-   mazmorras activo".
+   mazmorras activo". No abre ninguna ventana: se queda en la bandeja del
+   sistema (ver "Bandeja del sistema"). Si ya estaba abierto, un mensaje lo
+   avisa y no se abre otra copia.
 3. Juega normal. En las mazmorras (normales, de campaña, de expansión y de
    pesadilla, Undercity y el Foso) funciona todo. En las zonas fijas de la
    historia (NUEVO, sin probar: la Vía Oscurecida, Tristram, los infiernos, la
    guarida de mercenarios) suenan el radar y los objetivos, sin anuncios de
    salas. En el mundo abierto solo suenan los objetivos cercanos y la guía de
    refugios (ver abajo): allí ya ayuda la navegación asistida del juego.
-4. Para cerrarlo, cierra su ventana o pulsa Control+C en ella.
+4. Para cerrarlo, elige "Salir" en su menú de la bandeja del sistema. Dirá
+   "Asistente de mazmorras cerrado".
 
 Habla en el idioma de texto del juego: en español si el juego está en español
 (de España o latino) y en inglés con cualquier otro idioma.
@@ -150,32 +171,69 @@ juego:
   6 Sonido de misión, 7 Pitido de la guía, 8 Llegada.
 
 
-Ajustes (archivo d4assist.json, se abre con el Bloc de notas)
---------------------------------------------------------------
-- "Language": "auto" sigue al juego; "es" o "en" fuerzan un idioma.
-- "RadarVolume", "BeaconVolume", "ObjectiveVolume", "InteractableVolume",
-  "ExplorationGuideVolume", "NpcVolume": volumen de cada sonido, de 0 a 1.
-  "InteractableVolume" es el de puertas, cofres y lecturas. El pitido de la
-  guía de refugios usa "ExplorationGuideVolume".
-- "RadarEnabled", "BeaconSoundsEnabled", "ObjectiveSoundsEnabled", "NpcSoundsEnabled",
-  "DoorSoundsEnabled", "ChestSoundsEnabled", "ReadableSoundsEnabled",
-  "ExplorationGuideEnabled", "QuestRoutesEnabled", "PauseCuesInCutscenes",
-  "PauseCuesInBackground", "PauseCuesInConversations", "PauseCuesInMenus",
-  "RadarClosedDoorsEnabled": true activa y false desactiva cada función
-  ("QuestRoutesEnabled" es la guía de refugios; los "PauseCues..." son los
-  silencios en cinemáticas, fuera del juego, en conversaciones y con un
-  menú del juego abierto).
-- "OutsideDungeonsEnabled": false hace que el programa no lea nada fuera de las
-  mazmorras (sin objetivos ni guía de refugios fuera de ellas).
-- "ExplorationGuideInDungeons": true hace que la guía venga activada también en
-  las mazmorras normales.
-- "AutoAnnouncementsEnabled": false apaga los anuncios de salas.
-Si el programa no encuentra el juego, añade una línea como esta, con tu carpeta:
+Bandeja del sistema
+-------------------
+El programa pone un icono en la bandeja del sistema, junto al reloj. Con el
+teclado: Windows+B lleva a la bandeja; si el icono no está a la vista, está
+dentro de "Mostrar iconos ocultos" (Intro para abrirlo). El icono se llama
+"Diablo IV Dungeon Assist". Intro o la tecla de menú contextual sobre él
+abren su menú:
+- Configuración...: abre la ventana de configuración.
+- Reiniciar asistente: lo cierra y lo vuelve a abrir (dice "Reiniciando el
+  asistente"). Lo recordado de la mazmorra se conserva.
+- Salir: lo cierra.
+Control+Alt+Shift+C abre la configuración directamente, desde cualquier
+sitio, también con el juego delante.
+
+
+Configuración
+-------------
+La ventana tiene pestañas (Control+Tabulador pasa de una a otra) y en cada
+pestaña Tabulador recorre las opciones. Los cambios de sonido se oyen al
+momento en el juego. "Aceptar" guarda y cierra, "Aplicar" guarda sin cerrar,
+"Cancelar" (o Escape) deshace lo que no guardaste, y "Restaurar valores
+predeterminados" lo pone todo como venía.
+
+- Sonido general: el volumen maestro y la casilla "Previsualizar": si está
+  marcada, al mover un volumen o una velocidad suena ese sonido con el valor
+  nuevo, para ajustarlo a tu gusto.
+- Radar, Objetos, Misión y portales, Guía y personajes: cada pestaña tiene
+  primero el grupo entero (casilla para activarlo o desactivarlo, volumen
+  general y, si se repiten, velocidad general) y después cada sonido por
+  separado (casilla, volumen y velocidad). El volumen de cada sonido se
+  combina con el del grupo: con el grupo a 50 y el sonido a 50 suena más bajo
+  que con uno solo a 50.
+    - Radar: salida, suelo abierto, pared y puerta cerrada, y además el
+      volumen de cada dirección (delante, derecha, detrás, izquierda), que
+      afecta a todos los sonidos del radar de ese lado.
+    - Objetos: puertas, cofres, cadáveres, escritos y libros, y puntos para
+      mirar.
+    - Misión y portales: portales, objetivos de misión y prisioneros.
+    - Guía y personajes: el pitido de la guía (también el de la guía de
+      refugios), el sonido de llegada y el toque de los personajes con los que
+      se habla.
+- Los volúmenes van de 0 a 100. La velocidad es un porcentaje: 100 es la
+  normal, 200 el doble de rápido, 50 la mitad (de 25 a 300). Solo la tienen
+  los sonidos que se repiten; cambia cada cuánto se repiten, no el tono.
+- Teclas de los controles deslizantes: flecha arriba y abajo de 1 en 1,
+  derecha e izquierda de 5 en 5, Re Pág y Av Pág de 10 en 10, Inicio lleva al
+  máximo y Fin al mínimo.
+- General: idioma ("Automático" sigue al juego), orientación del radar, voz,
+  anuncios de salas, guía de exploración y si viene activada en las mazmorras
+  normales, guía de refugios, funcionar fuera de las mazmorras, puertas
+  cerradas en el radar, y cuándo se callan los sonidos (cinemáticas, juego en
+  segundo plano, conversaciones, menús). Estas opciones se aplican al
+  reiniciar el asistente: al guardarlas pregunta si quieres reiniciarlo ya.
+
+Todo se guarda en d4assist.json. Si el programa no encuentra el juego, abre
+ese archivo con el Bloc de notas y añade una línea como esta, con tu carpeta,
+justo después de la primera llave:
   "InstallPath": "C:\\Program Files (x86)\\Diablo IV",
 
 Si algo no funciona
 -------------------
 Cada vez que abres el programa escribe lo que pasa en d4assist-log.txt, en esta
 misma carpeta (el de la vez anterior queda como d4assist-log.old.txt). Si no
-suena nada o algo falla, cierra el programa y manda los dos archivos a quien te
-pasó el programa. No hace falta abrirlo con ninguna opción especial.
+suena nada o algo falla, cierra el programa (Salir, en la bandeja del sistema)
+y manda los dos archivos a quien te pasó el programa. No hace falta abrirlo con
+ninguna opción especial.

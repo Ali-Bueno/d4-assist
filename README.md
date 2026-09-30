@@ -17,6 +17,9 @@ next to the game (controller + NVDA through D4's third-party screen-reader optio
   nothing left to explore it leads to a portal seen earlier, preferring one the player has not come through.
 - **Campaign routes** outside dungeons: the same ping leads point by point through known story stretches, such as
   the shelters from the desert sandstorms on the way to Elias's palace with Meshif ("Refugio 1 de 3.").
+- **A settings window** from the notification-area icon (or Ctrl+Alt+Shift+C): every sound can be switched off, levelled
+  and, when it repeats, sped up or slowed down, per group or one by one, with a live preview; screen-reader friendly
+  standard controls. The app has no console window; the icon's menu also restarts and exits it.
 
 Works in every DRLG dungeon: normal, campaign, expansion and Nightmare dungeons, the Undercity and the Pit.
 Outside dungeons only the quest loops and the campaign routes run (no radar or announcements there). It never
@@ -48,7 +51,8 @@ dotnet test D4DungeonAssist.sln
 src\D4Assist\bin\Debug\net10.0-windows\win-x64\D4Assist.exe [--debug] [--no-speech] [--sound-test]
 ```
 
-Configuration lives in `d4assist.json` next to the exe; see [src/D4Assist/README.md](src/D4Assist/README.md).
+Configuration lives in `d4assist.json` next to the exe, edited from the settings window; see
+[src/D4Assist/README.md](src/D4Assist/README.md). Output goes to `d4assist-log.txt` next to the exe.
 
 Portable build for testers (no .NET install needed):
 

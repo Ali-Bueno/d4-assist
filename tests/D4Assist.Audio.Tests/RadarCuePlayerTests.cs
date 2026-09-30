@@ -34,12 +34,12 @@ public class RadarCuePlayerTests
     }
 
     [Fact]
-    public void Volume_ScalesThePlayedCue()
+    public void GainOf_ScalesThePlayedCue()
     {
         var loudMixer = new AudioMixer();
         var quietMixer = new AudioMixer();
-        using var loud = new RadarCuePlayer(new FakeAudioOut(), loudMixer) { Volume = 1.0 };
-        using var quiet = new RadarCuePlayer(new FakeAudioOut(), quietMixer) { Volume = 0.1 };
+        using var loud = new RadarCuePlayer(new FakeAudioOut(), loudMixer) { GainOf = (_, _) => 1.0 };
+        using var quiet = new RadarCuePlayer(new FakeAudioOut(), quietMixer) { GainOf = (_, _) => 0.1 };
 
         loud.Play(RadarCueKind.Exit, RadarRay.Up, unexplored: false);
         quiet.Play(RadarCueKind.Exit, RadarRay.Up, unexplored: false);
@@ -50,6 +50,45 @@ public class RadarCuePlayerTests
         quietMixer.Render(quietBuffer, frameCount: 4096);
 
         Assert.True(ChannelEnergy(loudBuffer, 0) > ChannelEnergy(quietBuffer, 0) * 3);
+    }
+
+    [Fact]
+    public void GainOf_IsAppliedPerKindAndRay()
+    {
+        var mixer = new AudioMixer();
+        using var player = new RadarCuePlayer(new FakeAudioOut(), mixer, () => 0.0)
+        {
+            GainOf = (kind, ray) => kind == RadarCueKind.Exit && ray == RadarRay.Up ? 0.0 : 1.0,
+        };
+
+        player.Play(RadarCueKind.Exit, RadarRay.Up, unexplored: false);
+        Assert.Equal(0, mixer.ActiveVoiceCount);
+        player.Play(RadarCueKind.Exit, RadarRay.Down, unexplored: false);
+        player.Play(RadarCueKind.Blocked, RadarRay.Up, unexplored: false);
+        Assert.Equal(2, mixer.ActiveVoiceCount);
+    }
+
+    [Fact]
+    public void ZeroGainCue_DoesNotReserveASchedulerSlot()
+    {
+        var mutedMixer = new AudioMixer();
+        var cleanMixer = new AudioMixer();
+        using var muted = new RadarCuePlayer(new FakeAudioOut(), mutedMixer, () => 0.0)
+        {
+            GainOf = (kind, _) => kind == RadarCueKind.Exit ? 0.0 : 1.0,
+        };
+        using var clean = new RadarCuePlayer(new FakeAudioOut(), cleanMixer, () => 0.0);
+
+        for (int i = 0; i < 5; i++) muted.Play(RadarCueKind.Exit, RadarRay.Up, unexplored: false);
+        muted.Play(RadarCueKind.Blocked, RadarRay.Left, unexplored: false);
+        clean.Play(RadarCueKind.Blocked, RadarRay.Left, unexplored: false);
+
+        var mutedBuffer = new short[8192];
+        var cleanBuffer = new short[8192];
+        mutedMixer.Render(mutedBuffer, frameCount: 4096);
+        cleanMixer.Render(cleanBuffer, frameCount: 4096);
+
+        Assert.Equal(cleanBuffer, mutedBuffer); // same start time: the muted cues took no slot
     }
 
     [Fact]

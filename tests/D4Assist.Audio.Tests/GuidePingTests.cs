@@ -173,4 +173,80 @@ public class GuidePingTests
 
         Assert.Equal(1.0, Listen(quiet).Left / (Listen(loud).Left * 0.25), 2);
     }
+
+    [Fact]
+    public void Rate_divides_the_interval_between_pings()
+    {
+        var (slowMixer, slow, slowClock) = Create();
+        var (fastMixer, fast, fastClock) = Create();
+        fast.Rate = 2.0;
+        slow.Aim(0, 1, GuidePingPlayer.FarDistanceUnits);
+        fast.Aim(0, 1, GuidePingPlayer.FarDistanceUnits);
+
+        slowClock.Now = 0; slow.Tick();
+        fastClock.Now = 0; fast.Tick();
+        slowClock.Now = 0.65; slow.Aim(0, 1, GuidePingPlayer.FarDistanceUnits); // due at 1.2 s
+        fastClock.Now = 0.65; fast.Aim(0, 1, GuidePingPlayer.FarDistanceUnits); // due at 0.6 s
+
+        Assert.True(Listen(slowMixer).Left > 0); // first tick's ping
+        Assert.True(Listen(fastMixer).Left > 0);
+        slow.Tick();
+        fast.Tick();
+        Assert.Equal(0, Listen(slowMixer).Left);
+        Assert.True(Listen(fastMixer).Left > 0);
+    }
+
+    [Fact]
+    public void Rate_at_or_below_zero_still_advances()
+    {
+        var (mixer, ping, clock) = Create();
+        ping.Rate = 0;
+        ping.Aim(0, 1, 0);
+        ping.Tick();
+        Listen(mixer);
+
+        clock.Now = 0.9;
+        ping.Aim(0, 1, 0);
+        ping.Tick();
+        Assert.Equal(0, Listen(mixer).Left); // guarded by a finite minimum, not an immediate repeat
+    }
+
+    [Fact]
+    public void Zero_volume_plays_nothing_but_keeps_the_schedule()
+    {
+        var (mixer, ping, clock) = Create();
+        ping.Volume = 0;
+        ping.Aim(0, 1, 0);
+        ping.Tick();
+        Assert.Equal(0, mixer.ActiveGuideVoiceCount);
+
+        ping.Volume = 1;
+        clock.Now = 0.05; // inside the 160 ms interval the silent tick already started
+        ping.Aim(0, 1, 0);
+        ping.Tick();
+        Assert.Equal(0, mixer.ActiveGuideVoiceCount);
+
+        clock.Now = 0.2;
+        ping.Aim(0, 1, 0);
+        ping.Tick();
+        Assert.Equal(1, mixer.ActiveGuideVoiceCount);
+    }
+
+    [Fact]
+    public void ArrivalVolume_scales_only_the_arrival_chime()
+    {
+        var (full, pingFull, _) = Create();
+        var (quiet, pingQuiet, _) = Create();
+        pingQuiet.ArrivalVolume = 0.25;
+        pingQuiet.Volume = 0; // the ping volume must not affect the chime
+        pingFull.PlayArrived();
+        pingQuiet.PlayArrived();
+
+        Assert.Equal(1.0, Listen(quiet).Left / (Listen(full).Left * 0.25), 2);
+
+        var (none, pingNone, _) = Create();
+        pingNone.ArrivalVolume = 0;
+        pingNone.PlayArrived();
+        Assert.Equal(0, none.ActiveGuideVoiceCount);
+    }
 }

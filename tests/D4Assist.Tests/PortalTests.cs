@@ -54,7 +54,7 @@ public class PortalTests
     [Fact]
     public void Portals_get_the_beacon_only_inside_dungeons()
     {
-        var selector = new LoopTargetSelector(new HashSet<int>(), 1.0, null, 1.0, _ => new HashSet<int>(), isPortal: Classifier.IsPortal);
+        var selector = new LoopTargetSelector(new HashSet<int>(), null, _ => new HashSet<int>(), isPortal: Classifier.IsPortal);
 
         selector.SetWorld(1, isDungeon: false);
         Assert.Null(selector.Select(Portal(1, 0, 0)));

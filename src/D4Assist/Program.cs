@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
 using D4Assist.Audio;
 using D4Assist.Config;
 using D4Assist.Game;
@@ -7,6 +10,7 @@ using D4Assist.Navigation;
 using D4Assist.Radar;
 using D4Assist.Speech;
 using D4Assist.Strings;
+using D4Assist.Ui;
 using D4Data.Casc;
 using D4Data.Readers;
 using D4Data.Schema;
@@ -17,7 +21,7 @@ namespace D4Assist;
 
 /// <summary>
 /// Companion app entry point: wires the config, PRISM speech sink, offline D4Data lookups and the
-/// GameSession state machine together, then runs until Ctrl+C. See README for setup/requirements.
+/// GameSession state machine together, then runs from the notification area until Exit. See README for setup/requirements.
 /// </summary>
 internal static class Program
 {
@@ -31,31 +35,42 @@ internal static class Program
     private const string QuestDefinitionType = "QuestDefinition";
     // data/definitions.json, embedded by D4Assist.csproj when it existed at build time; the default DefinitionsPath.
     private const string EmbeddedDefinitions = "definitions.json";
+    // Passed to the copy a restart starts, which then waits for this one to exit.
+    private const string RestartedFlag = "--restarted";
+    private static readonly TimeSpan RestartWait = TimeSpan.FromSeconds(30);
 
     private static int Main(string[] args)
     {
-        using var log = LogFile.Start(AppContext.BaseDirectory);
         if (args.Contains("--sound-test"))
+        {
+            using var testLog = LogFile.Start(AppContext.BaseDirectory);
             return SoundTestMode.Run(args.Contains("--no-speech"));
+        }
+        using var instance = SingleInstance.TryAcquire(args.Contains(RestartedFlag) ? RestartWait : TimeSpan.Zero);
+        if (instance is null)
+        {
+            var text = SettingsStrings.For(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "en" ? SpeechLanguage.English : SpeechLanguage.Spanish);
+            System.Windows.Forms.MessageBox.Show(text.AlreadyRunning, text.AppName);
+            return 1;
+        }
+        using var log = LogFile.Start(AppContext.BaseDirectory);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.Error.WriteLine($"Unhandled error: {e.ExceptionObject}");
 
         bool noSpeech = args.Contains("--no-speech");
         bool debug = args.Contains("--debug");
 
-        var config = AppConfig.Load(Path.Combine(AppContext.BaseDirectory, AppConfig.FileName));
+        var configPath = Path.Combine(AppContext.BaseDirectory, AppConfig.FileName);
+        AppConfig config;
+        try { config = AppConfig.Load(configPath); }
+        catch (Exception e) when (e is InvalidDataException or JsonException or IOException) { return Fail($"{AppConfig.FileName}: {e.Message}"); }
         var installPath = config.ResolveInstallPath(Directory.Exists, () => SnoStore.TryLocateInstall(out var found) ? found : null);
         if (installPath is null)
-        {
-            Console.Error.WriteLine($"Diablo IV install not found. Set InstallPath in {AppConfig.FileName}. See README.md.");
-            return 1;
-        }
+            return Fail($"Diablo IV install not found. Set InstallPath in {AppConfig.FileName}. See README.md.");
         var definitionsPath = config.ResolveDefinitionsPath(AppContext.BaseDirectory);
         if (definitionsPath is null ? !HasEmbeddedDefinitions() : !File.Exists(definitionsPath))
-        {
-            Console.Error.WriteLine(definitionsPath is null
+            return Fail(definitionsPath is null
                 ? $"This build has no embedded definitions.json (data/definitions.json was missing). Set DefinitionsPath in {AppConfig.FileName}. See README.md."
                 : $"{definitionsPath} not found. Set DefinitionsPath in {AppConfig.FileName}. See README.md.");
-            return 1;
-        }
 
         var language = new LanguageSetting();
         using var logWatcher = new WorldLogWatcher(installPath);
@@ -116,24 +131,22 @@ internal static class Program
         Func<int, ActorDefinitionInfo?> definitionOf = sno => { lock (cascGate) return actorDefinitions.Read(sno); };
         var interactables = new InteractableClassifier(definitionOf, store.Name);
 
+        // Every cue runs whatever the sound settings say: a switched-off cue is only silent, so the settings window turns it back on live.
+        var liveSound = new LiveSoundMix(SoundMix.From(config.Sound));
         var mixer = new AudioMixer();
-        using var radarPlayer = config.RadarEnabled
-            ? new RadarCuePlayer(new WaveOutAudioOut(), mixer) { Frame = config.RadarFrame, Volume = config.RadarVolume }
-            : null;
-        if (radarPlayer is not null)
+        var loopSounds = LoadLoopSounds();
+        using var radarPlayer = new RadarCuePlayer(new WaveOutAudioOut(), mixer)
         {
-            var radarSettings = new RadarSettings { Frame = config.RadarFrame, PollMs = GameSession.DefaultPlayerPollIntervalMs };
-            var doors = config.RadarClosedDoorsEnabled ? new DoorObstacles(interactables, definitionOf) : null;
-            _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug, doors);
-        }
+            Frame = config.RadarFrame, GainOf = (kind, ray) => liveSound.Current.RadarGain(kind, ray),
+        };
+        var radarSettings = new RadarSettings { Frame = config.RadarFrame, PollMs = GameSession.DefaultPlayerPollIntervalMs };
+        var doors = config.RadarClosedDoorsEnabled ? new DoorObstacles(interactables, definitionOf) : null;
+        _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug, doors);
 
-        bool actorLoops = config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.LoopedInteractables().Count > 0;
-        bool needsOwnOutput = (actorLoops || config.NpcSoundsEnabled || config.ExplorationGuideEnabled || routesEnabled) && radarPlayer is null;
-        using IAudioOut? beaconOut = needsOwnOutput ? new WaveOutAudioOut() : null;
-        beaconOut?.Start(mixer.Render);
-        var portals = actorLoops ? StartLoops(session, mixer, config, store, schema, cascGate, debug, definitionOf, interactables) : null;
-        using var npcTap = config.NpcSoundsEnabled ? new NpcCuePlayer(mixer) { Volume = config.NpcVolume } : null;
-        if (npcTap is not null) StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
+        var portals = loopSounds is null ? null : StartLoops(
+            session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, cue => liveSound.Current.Level(cue));
+        using var npcTap = new NpcCuePlayer(mixer);
+        StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles and the portals.
         _ = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine);
@@ -167,9 +180,17 @@ internal static class Program
 
         // Created after the NavigationBridge so each poll marks the tile visited before the guide reads it.
         // The exploration guide (dungeons) and the quest routes (overworld) share one ping and D-pad left.
-        using var guidePing = config.ExplorationGuideEnabled || routesEnabled
-            ? new GuidePingPlayer(mixer) { Volume = config.ExplorationGuideVolume }
-            : null;
+        using var guidePing = config.ExplorationGuideEnabled || routesEnabled ? new GuidePingPlayer(mixer) : null;
+        void ApplySound(SoundMix mix)
+        {
+            mixer.MasterVolume = mix.Master;
+            (npcTap.Volume, npcTap.Rate) = mix.Level(SoundCue.Npc);
+            if (guidePing is null) return;
+            (guidePing.Volume, guidePing.Rate) = mix.Level(SoundCue.GuidePing);
+            guidePing.ArrivalVolume = mix.Level(SoundCue.GuideArrival).Gain;
+        }
+        ApplySound(liveSound.Current);
+        liveSound.Changed += ApplySound;
         // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
         using var xboxPad = guidePing is not null ? new XInputPad() : null;
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
@@ -190,7 +211,7 @@ internal static class Program
         // Sound examples on Ctrl+Alt+Shift+1..8, to show the cues without a fight's noise.
         var demo = new SoundDemo(
             speech, digit => AppStrings.For(language.Current).SoundExamples[digit - 1], radarPlayer, mixer,
-            LoadLoopSounds()?.GetValueOrDefault(LoopTargetSelector.QuestItemSound), LoopProfiles.Quest.NearGain * config.ObjectiveVolume, guidePing,
+            loopSounds?.GetValueOrDefault(LoopTargetSelector.QuestItemSound), LoopProfiles.Quest.NearGain, guidePing,
             cueGate.Example);
         using var hotkeys = new DemoHotkeys(SoundDemo.ExampleCount);
         hotkeys.DigitPressed += demo.Play;
@@ -213,11 +234,46 @@ internal static class Program
             speech.Speak(AppStrings.For(language.Current).WaitingForGame, interrupt: false);
         }
 
-        Console.WriteLine("D4 Dungeon Assist running. Press Ctrl+C to exit.");
+        // The settings window edits a copy of the last saved config; the sound part plays live, the rest applies on restart.
+        var savedConfig = config.Clone();
+        var preview = new CuePreview(mixer, loopSounds, config.RadarFrame);
         using var exit = new ManualResetEventSlim();
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; exit.Set(); };
+        bool restart = false;
+        using var tray = new TrayApp(SettingsStrings.For(language.Current), () =>
+        {
+            var visit = new SettingsSession(savedConfig, configPath, liveSound);
+            var window = new SettingsForm(visit, SettingsStrings.For(language.Current), preview);
+            window.FormClosed += (_, _) => savedConfig = visit.Saved;
+            return window;
+        });
+        tray.ExitRequested += exit.Set;
+        tray.RestartRequested += () => { restart = true; exit.Set(); };
+        tray.Start();
+
+        Console.WriteLine("D4 Dungeon Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings.");
         exit.Wait();
+        var farewell = AppStrings.For(language.Current);
+        speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true);
+        if (restart) StartAnotherCopy(args);
         return 0;
+    }
+
+    /// <summary>Logs a startup error and shows it: with no console window it would otherwise go unseen.</summary>
+    private static int Fail(string message)
+    {
+        Console.Error.WriteLine(message);
+        System.Windows.Forms.MessageBox.Show(message, SettingsStrings.Spanish.AppName,
+            System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+        return 1;
+    }
+
+    // The new copy waits for this one's single-instance slot, so it starts once this one has exited.
+    private static void StartAnotherCopy(string[] args)
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, WorkingDirectory = AppContext.BaseDirectory };
+        foreach (var arg in args.Where(a => a != RestartedFlag)) start.ArgumentList.Add(arg);
+        start.ArgumentList.Add(RestartedFlag);
+        Process.Start(start);
     }
 
     private static bool HasEmbeddedDefinitions() => typeof(Program).Assembly.GetManifestResourceInfo(EmbeddedDefinitions) is not null;
@@ -234,26 +290,22 @@ internal static class Program
         catch (InvalidDataException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
     }
 
-    /// <summary>Starts the actor loops; returns the memory of the portals they found, or null when the loop sounds are missing.</summary>
-    private static PortalMemory? StartLoops(
-        GameSession session, AudioMixer mixer, AppConfig config, SnoStore store, TypeSchema schema, object cascGate, bool debug,
-        Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables)
+    /// <summary>Starts the actor loops, levelled live by <paramref name="levelOf"/>; returns the memory of the portals they found.</summary>
+    private static PortalMemory StartLoops(
+        GameSession session, AudioMixer mixer, Dictionary<string, float[]> sounds, AppConfig config, SnoStore store, TypeSchema schema,
+        object cascGate, bool debug, Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables,
+        Func<SoundCue, CueLevel> levelOf)
     {
-        if (LoadLoopSounds() is not { } sounds) return null;
-
         int actorGroup = schema.SnoGroup(ActorDefinitionType);
-        var beaconSnos = config.BeaconSoundsEnabled
-            ? BeaconTargets.Resolve(
-                config.BeaconActorNames, name => store.Resolve(actorGroup, name),
-                name => Console.WriteLine($"Beacon actor '{name}' is not in CoreTOC; ignored."))
-            : new HashSet<int>();
+        var beaconSnos = BeaconTargets.Resolve(
+            config.BeaconActorNames, name => store.Resolve(actorGroup, name),
+            name => Console.WriteLine($"Beacon actor '{name}' is not in CoreTOC; ignored."));
 
         var dpo = new DungeonObjectiveReader(store, schema);
-        var objectives = config.ObjectiveSoundsEnabled ? new ObjectiveClassifier(definitionOf, store.Name) : null;
-        var portalRule = config.BeaconSoundsEnabled ? new PortalClassifier(definitionOf, store.Name) : null;
+        var objectives = new ObjectiveClassifier(definitionOf, store.Name);
+        var portalRule = new PortalClassifier(definitionOf, store.Name);
         var selector = new LoopTargetSelector(
-            beaconSnos, config.BeaconVolume, objectives, config.ObjectiveVolume, world => { lock (cascGate) return dpo.ActorSnos(world); },
-            interactables, config.LoopedInteractables(), config.InteractableVolume, portalRule is null ? null : portalRule.IsPortal);
+            beaconSnos, objectives, world => { lock (cascGate) return dpo.ActorSnos(world); }, interactables, portalRule.IsPortal);
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name), start.IsDungeon); // app started mid-dungeon
 
         var player = new SpatialLoopPlayer(mixer, sounds);
@@ -262,7 +314,8 @@ internal static class Program
             : null;
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
-        _ = new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used);
+        _ = new ActorLoopBridge(
+            session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
         return new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
     }
 

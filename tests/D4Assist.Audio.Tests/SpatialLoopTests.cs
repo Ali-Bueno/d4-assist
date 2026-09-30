@@ -199,4 +199,23 @@ public class SpatialLoopTests
         mixer.Render(buffer, 1000);
         Assert.True(buffer[^1] > 0);
     }
+
+    [Fact]
+    public void Source_rate_is_passed_to_the_loop()
+    {
+        var (mixer, player) = Create();
+        player.Update([new LoopSource("a", Sound, Right: 0, Up: 0, Linear, Rate: 0.5)]);
+        Settle(mixer); // 48000 frames = 50 periods of 960
+
+        var buffer = new short[960 * AudioFormat.Channels]; // one period: sound (480), then equal silence
+        mixer.Render(buffer, 960);
+
+        Assert.True(buffer[2 * 100] > 0);
+        Assert.Equal(0, buffer[2 * 700]);
+
+        player.Update([new LoopSource("a", Sound, Right: 0, Up: 0, Linear, Rate: 1.0)]);
+        Settle(mixer);
+        mixer.Render(buffer, 960);
+        Assert.True(buffer[2 * 700] > 0);
+    }
 }

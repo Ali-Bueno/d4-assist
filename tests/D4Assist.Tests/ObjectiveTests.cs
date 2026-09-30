@@ -1,4 +1,5 @@
 using D4Assist.Audio;
+using D4Assist.Config;
 using D4Assist.Game;
 using D4Data.Format;
 using D4Data.Readers;
@@ -89,18 +90,18 @@ public class ObjectiveTests
     [Fact]
     public void Selector_ExitPadKeepsTheBeaconProfile_ObjectivesGetTheQuestProfile()
     {
-        var selector = Selector(beaconVolume: 0.5, objectiveVolume: 0.25);
+        var selector = Selector();
         selector.SetWorld(WorldA, isDungeon: true);
 
         var pad = selector.Select(Placed(PadSno));
         var objective = selector.Select(Placed(CarryableSno));
 
         Assert.Equal(LoopKind.ExitBeacon, pad!.Kind);
-        Assert.Equal(LoopProfiles.Beacon.NearGain * 0.5, pad.Profile.NearGain);
-        Assert.Equal(LoopProfiles.Beacon.Reach, pad.Profile.Reach);
+        Assert.Equal(LoopProfiles.Beacon, pad.Profile);
+        Assert.Equal(SoundCue.Portal, pad.Cue);
         Assert.Equal(LoopKind.Objective, objective!.Kind);
-        Assert.Equal(LoopProfiles.Quest.NearGain * 0.25, objective.Profile.NearGain);
-        Assert.Equal(LoopProfiles.Quest.Reach, objective.Profile.Reach);
+        Assert.Equal(LoopProfiles.Quest, objective.Profile);
+        Assert.Equal(SoundCue.QuestObjective, objective.Cue);
         Assert.Equal("gizmo", objective.Reason);
         Assert.Equal("dpo", selector.Select(Placed(DpoSwitchSno))!.Reason);
         Assert.Null(selector.Select(Placed(MinibossSno)));
@@ -121,7 +122,7 @@ public class ObjectiveTests
     [Fact]
     public void Selector_WithoutObjectivesLoopsOnlyTheBeacon()
     {
-        var selector = new LoopTargetSelector(new HashSet<int> { PadSno }, 1, objectives: null, 1, Dpo);
+        var selector = new LoopTargetSelector(new HashSet<int> { PadSno }, objectives: null, Dpo);
         selector.SetWorld(WorldA, isDungeon: true);
 
         Assert.NotNull(selector.Select(Placed(PadSno)));
@@ -243,8 +244,7 @@ public class ObjectiveTests
 
     private static ActorState Placed(int sno) => new(1, sno, 0, 0, 0);
 
-    private static LoopTargetSelector Selector(double beaconVolume = 1, double objectiveVolume = 1) =>
-        new(new HashSet<int> { PadSno }, beaconVolume, Classifier(), objectiveVolume, Dpo);
+    private static LoopTargetSelector Selector() => new(new HashSet<int> { PadSno }, Classifier(), Dpo);
 
     private static (FakeFeed Feed, SpatialLoopPlayer Player, ActorLoopBridge Bridge) CreateBridge(
         Func<ActorState, bool>? isUsed = null, Action<string>? log = null)

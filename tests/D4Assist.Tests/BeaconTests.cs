@@ -193,7 +193,7 @@ public class BeaconTests
     {
         var feed = new FakeFeed();
         var player = LoopTestKit.Player();
-        var selector = new LoopTargetSelector(new HashSet<int> { PadSno }, 1.0, objectives: null, 1.0, _ => new HashSet<int>());
+        var selector = new LoopTargetSelector(new HashSet<int> { PadSno }, objectives: null, _ => new HashSet<int>());
         var bridge = new ActorLoopBridge(feed, player, selector, sno => sno == PadSno ? "Pad" : null, log: log);
         return (feed, player, bridge);
     }

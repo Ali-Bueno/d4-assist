@@ -116,4 +116,38 @@ public class NpcCueTests
         npc.Tick();
         Assert.Equal((0, 0), Listen(mixer));
     }
+
+    [Fact]
+    public void Rate_divides_the_interval_between_taps()
+    {
+        var (slowMixer, slow, slowClock) = Create();
+        var (fastMixer, fast, fastClock) = Create();
+        fast.Rate = 2.0;
+        slow.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits); // 450 ms apart
+        fast.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits); // 225 ms apart
+        slow.Tick();
+        fast.Tick();
+        Listen(slowMixer);
+        Listen(fastMixer);
+
+        slowClock.Now = fastClock.Now = 0.3;
+        slow.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits);
+        fast.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits);
+        slow.Tick();
+        fast.Tick();
+
+        Assert.Equal(0, slowMixer.ActiveEntityVoiceCount);
+        Assert.Equal(1, fastMixer.ActiveEntityVoiceCount);
+    }
+
+    [Fact]
+    public void Zero_volume_plays_nothing()
+    {
+        var (mixer, npc, _) = Create();
+        npc.Volume = 0;
+        npc.Aim(0, 1, 5);
+        npc.Tick();
+
+        Assert.Equal(0, mixer.ActiveEntityVoiceCount);
+    }
 }

@@ -1,6 +1,6 @@
 # D4Assist
 
-The Diablo IV Dungeon Assist companion app: a standalone, read-only .NET console app that speaks dungeon
+The Diablo IV Dungeon Assist companion app: a standalone, read-only .NET app, living in the notification area, that speaks dungeon
 entry/exit and (once wired up further) tile/position state through a screen reader while you play. It never
 injects into or writes to the game process — see `src/D4Memory`'s safety policy, which this app reuses as-is.
 
@@ -69,31 +69,47 @@ error. No key needs a machine-specific path.
 | `AutoAnnouncementsEnabled` | `true` | Speak the dungeon enter/leave lines automatically. |
 | `Language` | `"auto"` | `"auto"` follows the game's text locale (`Current Text Locale` in FenrisDebug.txt: `es*` = Spanish, anything else = English; Spanish until a locale is seen); `"es"` / `"en"` force one. Anything else is a startup error. `--debug` logs the choice and changes. |
 | `InterruptOnContextChange` | `true` | `interrupt=true` on those announcements (CLAUDE.md §9: interrupt only on context change). |
-| `RadarEnabled` | `true` | Play the reactive radar cues while in a dungeon. |
 | `RadarFrame` | `"Cardinal"` | `"Cardinal"` (stick up/right/down/left) or `"Diagonal"` (along the dungeon's axes). |
-| `RadarVolume` | `1.0` | Radar cue volume, 0 to 1. |
-| `BeaconSoundsEnabled` | `true` | Play looping beacons at the `BeaconActorNames` actors (works with the radar off). |
-| `BeaconVolume` | `1.0` | Beacon loop volume, 0 to 1. |
-| `NpcSoundsEnabled` | `true` | D2R's friendly-NPC tap at the nearest NPC within 15 units, faster as it gets closer (see NPC sound). |
-| `NpcVolume` | `1.0` | NPC tap volume, 0 to 1. |
 | `ExplorationGuideEnabled` | `true` | Automatic ping that leads to the nearest unexplored part of the dungeon (see Exploration guide). |
 | `ExplorationGuideInDungeons` | `false` | Guide default in dungeons other than the Undercity and the Pit (`X1_Undercity_*`, `PIT_*` always start on). `ExplorationGuideEnabled=false` removes the guide and the toggle entirely. |
-| `ExplorationGuideVolume` | `1.0` | Exploration ping volume, 0 to 1. |
 | `RadarOnlyWorlds` | `[]` | Exact (case-sensitive) CoreTOC names of extra non-DRLG worlds that run **radar and actor loops only**: no room announcements, no exploration guide, no enter/leave speech. Story areas (every non-DRLG world but the open world, menus and loading screens) get this mode without being listed when `OutsideDungeonsEnabled` is on, so the list only matters for the open world or with that switch off. Tiles come offline from the world's placed scenes (`Game/StaticWorldTiles`), not the live scene route; walkability from the scenes' compressed nav data (`D4Data.Readers.CellBytesDecoder`, research/dungeon-data.md §4.1). `--debug` logs the world kind. |
 | `OutsideDungeonsEnabled` | `true` | Read the player and nearby actors outside dungeons too (every non-DRLG world except menus, loading screens, cinematics and test maps), for the beacons, objective sounds and quest routes there, plus the radar in story areas outside the open world. No announcements outside dungeons. `false` restores "memory only in a dungeon". |
-| `QuestRoutesEnabled` | `true` | Lead through the known campaign routes (see Quest routes). Needs `OutsideDungeonsEnabled`. Uses the exploration ping's volume. |
-| `ObjectiveSoundsEnabled` | `true` | Play quest loops at dungeon objectives (see Objective sounds). |
-| `ObjectiveVolume` | `1.0` | Objective loop volume, 0 to 1. |
-| `DoorSoundsEnabled` | `true` | Loop D2R's door sounds at the 2 nearest doors (see Doors, chests and readables). |
-| `ChestSoundsEnabled` | `true` | Loop D2R's chest sound at chests and other lootable containers. |
-| `ReadableSoundsEnabled` | `true` | Loop D2R's scroll sound at lore books, notes, notices and "look" spots. |
-| `InteractableVolume` | `1.0` | Door, chest and readable loop volume, 0 to 1. |
+| `QuestRoutesEnabled` | `true` | Lead through the known campaign routes (see Quest routes). Needs `OutsideDungeonsEnabled`. Uses the guide ping's sound settings. |
 | `PauseCuesInCutscenes` | `true` | Silence every cue while a cutscene plays (see Cutscenes). |
 | `PauseCuesInBackground` | `true` | Silence every cue while the game window is not in the foreground, like D2R. The sound examples still play. |
 | `PauseCuesInConversations` | `true` | Silence every cue while the dialogue menu is open, while the conversation picked from it plays, while a story conversation plays and while an NPC talks to you without a menu. Your own character's lines never mute. |
 | `PauseCuesInMenus` | `true` | Silence every cue while a game menu is open: inventory, skills, map, pause, signs, Horadric shipments, vendor, artisans, stash and every other panel or full menu (`MenuScreens.Watched`, 85 screens). |
 | `RadarClosedDoorsEnabled` | `true` | A closed door sounds as a door in the radar (two knocks) instead of open floor. |
 | `BeaconActorNames` | `["X1_Undercity_WarpPad"]` | CoreTOC actor names that get a beacon; unknown names are logged once and ignored. |
+| `Sound` | *(everything on, 100)* | The settings window's sound tabs (see Settings window): `MasterVolume`, `Preview`, and per group (`Groups`: `Radar`, `Objects`, `Quest`, `Guide`, `Characters`) and per cue (`Cues`: the `Config/SoundCue` names) an `Enabled` switch, a `Volume` (0–100) and a repeat `Speed` (25–300 %, repeating cues only). Missing or unknown entries are ignored in favour of the defaults. |
+
+Files from before 2026-09-30 carry flat sound fields (`RadarEnabled`, `RadarVolume`, `BeaconVolume`, `DoorSoundsEnabled`…); they are no longer read, so those sounds start at their defaults.
+
+## Notification area and settings window
+
+The app has no console window: it puts an icon ("D4") in the notification area (`Ui/TrayApp`, its own STA thread). Enter,
+a click or the context-menu key on the icon opens its menu: **Settings…**, **Restart assistant**, **Exit** (speaks
+"Asistente de mazmorras cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere. A second copy refuses to start
+(`SingleInstance`, a session mutex) and says where the running one is; a restart starts a new copy with `--restarted`, which
+waits for the old one to exit. Startup errors (no install, bad `d4assist.json`) show a message box as well as the log.
+
+The settings window (`Ui/SettingsForm`, standard Win32 controls, so NVDA reads every tab, check box, slider and group box)
+has one tab per sound group plus **Sound** (master volume, preview switch) and **General**:
+- Each group and each cue has a check box (on/off), a volume slider and, for the repeating cues (object and quest loops, the
+  guide ping, the NPC tap), a speed slider. A cue's gain is group × cue, each volume squared (`Config/SoundMix`: 50 sounds
+  about half as loud); speeds multiply. The radar tab also has one volume per direction (front = screen up), which scales
+  every radar sound from that side. Changes play live (`Config/LiveSoundMix`) and are saved by OK/Apply; Cancel or closing
+  restores the saved sound.
+- Sliders (`Ui/CueSlider`, user request 2026-09-30): Up/Down ±1, Right/Left ±5, Page Up/Down ±10, Home 100 (the top),
+  End 0 (the bottom). Screen readers get a trackbar's value from the MSAA proxy (WinForms' UIA value pattern included), which
+  reports the position as a percentage of the range it queries (`TBM_GETRANGEMIN/MAX`): a 25–300 speed at 100 read "27".
+  `CueSlider` answers that query as 0–100 (WinForms never sends it), so the proxy reads the number itself ([companion-app-winforms](../../reference/ui-accessibility/companion-app-winforms.md)).
+- With **Preview** on, the cue plays at its new level 150 ms after the last change (`Ui/CuePreview`, the mixer's own preview
+  voice, audible although the game is in the background); a repeating cue plays two to six times at its speed.
+- Speed changes the time between repetitions, never the pitch: the object and quest loops overlap or space out their copies
+  (`D4Assist.Audio.LoopVoice` rate), the guide ping and NPC tap divide their interval.
+- **General** holds the other options (language, radar orientation, speech, announcements, guide, routes, outside dungeons,
+  closed doors, cue pauses). They take effect on restart; saving a change there offers to restart now.
 
 ## Beacons
 
@@ -262,6 +278,7 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
   2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per
   direction up/right/down/left), 6 the quest loop twice, 7 the guide ping three times, 8 the arrival chime. One example
   at a time. `Input/DemoHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
+- **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 
 ## Command-line flags
 
@@ -270,12 +287,19 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
   (side, position, width, path length, `entry`), and one `RADAR` line per confirmed radar reading
   change (direction, reading, unexplored, player position) and per rebuilt radar map.
 - `--sound-test` — speak and play every radar cue in every direction, without the game.
+- `--restarted` — added by the tray's Restart: wait up to 30 s for the previous copy to exit instead of refusing to start.
+
+Output goes to `d4assist-log.txt` (there is no console window).
 
 ## Layout
 
 - `Speech/` — `ISpeechSink` (the single sink, CLAUDE.md §9), `PrismSpeechSink` (Prismatoid), `ConsoleSpeechSink`.
-- `Strings/` — `AppStrings`, every app-level spoken string in one place (one instance per language).
-- `Config/` — `AppConfig` (`d4assist.json` loading).
+- `Strings/` — `AppStrings`, every app-level spoken string in one place (one instance per language); `SettingsStrings`,
+  the tray menu and settings window text.
+- `Config/` — `AppConfig` (`d4assist.json` loading and saving), the sound settings (`SoundSettings`, `SoundCatalog`,
+  `SoundMix`/`LiveSoundMix`) and `SettingsSession` (one visit to the settings window).
+- `Ui/` — `TrayApp` (notification-area icon, menu, settings hotkey), `SettingsForm`, `CueSlider`, `CuePreview`.
+- `SingleInstance.cs` — one running copy per Windows session.
 - `Game/` — `WorldLogWatcher`, `WorldClassifier`, the `GameSession` state machine
   (`WaitingForGame -> Idle -> InDungeon`), `IDungeonFeed`/`TileState`/`PlayerState`, and
   `LiveDungeonSessionReader` (the production `IDungeonSessionReader`, built on `D4Memory`), the radar's

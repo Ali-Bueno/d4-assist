@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using D4Assist.Audio;
+using D4Assist.Config;
 using D4Assist.Navigation;
 
 namespace D4Assist.Game;
@@ -16,6 +17,7 @@ public sealed class ActorLoopBridge
     private readonly SpatialLoopPlayer _player;
     private readonly LoopTargetSelector _selector;
     private readonly Func<ActorState, bool> _isUsed;
+    private readonly Func<SoundCue, CueLevel> _levelOf;
     private readonly GizmoUsedSignal? _used;
     private readonly Func<int, string?> _nameOf;
     private readonly Action<string>? _log;
@@ -32,12 +34,14 @@ public sealed class ActorLoopBridge
     /// <param name="log">Debug sink for loop start/stop lines; null when not debugging.</param>
     /// <param name="sightings">Debug log of gizmo and portal-like actors; null when not debugging.</param>
     /// <param name="usedSignal">The default "used" signal when <paramref name="isUsed"/> is null; null builds one with no known chest kinds.</param>
+    /// <param name="levelOf">Live gain and repeat rate of each settings cue; a zero gain silences that cue. Null = full.</param>
     public ActorLoopBridge(
         IDungeonFeed feed, SpatialLoopPlayer player, LoopTargetSelector selector, Func<int, string?> nameOf,
         Func<ActorState, bool>? isUsed = null, Action<string>? log = null, ActorSightingLog? sightings = null,
-        GizmoUsedSignal? usedSignal = null)
+        GizmoUsedSignal? usedSignal = null, Func<SoundCue, CueLevel>? levelOf = null)
     {
         _player = player;
+        _levelOf = levelOf ?? (_ => CueLevel.Full);
         _selector = selector;
         _nameOf = nameOf;
         _used = isUsed is null ? usedSignal ?? new GizmoUsedSignal(nameOf) : null;
@@ -84,13 +88,16 @@ public sealed class ActorLoopBridge
         _targets = next;
     }
 
+    // Switched-off cues are dropped before the per-kind cap, so a silent chest never takes a corpse's voice.
     private void OnPlayer(PlayerState p)
     {
         _lastPlayer = p;
         _player.Update([.. _targets.Values
+            .Select(t => (t.Actor, t.Target, Level: _levelOf(t.Target.Cue)))
+            .Where(t => t.Level.Gain > 0)
             .GroupBy(t => t.Target.Kind)
             .SelectMany(kind => kind.OrderBy(t => Sq(t.Actor.X - p.X) + Sq(t.Actor.Y - p.Y)).Take(MaxVoices(kind.Key)))
-            .Select(t => ToSource(t.Actor, t.Target, p))]);
+            .Select(t => ToSource(t.Actor, t.Target, t.Level, p))]);
     }
 
     /// <summary>How many loops of one kind may sound at once (the nearest ones).</summary>
@@ -101,10 +108,11 @@ public sealed class ActorLoopBridge
         _ => AudioMixer.MaxLoopVoices,
     };
 
-    private static LoopSource ToSource(ActorState actor, LoopTarget target, PlayerState p)
+    private static LoopSource ToSource(ActorState actor, LoopTarget target, CueLevel level, PlayerState p)
     {
         var (right, up) = ScreenDirections.ToScreen(actor.X - p.X, actor.Y - p.Y);
-        return new LoopSource(actor.Id.ToString(), target.Sound, right, up, target.Profile, Priority: (int)target.Kind);
+        var profile = target.Profile with { NearGain = target.Profile.NearGain * level.Gain };
+        return new LoopSource(actor.Id.ToString(), target.Sound, right, up, profile, Priority: (int)target.Kind, Rate: level.Rate);
     }
 
     private void LogChanges(

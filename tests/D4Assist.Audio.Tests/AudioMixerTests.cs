@@ -122,4 +122,77 @@ public class AudioMixerTests
 
         Assert.Equal(0, mixer.ActiveVoiceCount);
     }
+
+    [Fact]
+    public void Preview_PlaysWhilePaused()
+    {
+        var mixer = new AudioMixer { Paused = true };
+        mixer.PlayPreview(Tone(100, 0.5f), gain: 1.0, pan: 0.0);
+
+        var buffer = new short[200];
+        Assert.Equal(1, mixer.ActivePreviewVoiceCount);
+        mixer.Render(buffer, frameCount: 100);
+
+        Assert.True(buffer[0] > 0);
+    }
+
+    [Fact]
+    public void PausedRender_StillSilencesTheOtherVoices()
+    {
+        var mixer = new AudioMixer();
+        mixer.Play(Tone(1000), gain: 1.0, pan: 0.0);
+        mixer.PlayGuide(Tone(1000), gain: 1.0, pan: 0.0);
+        mixer.Paused = true;
+
+        var buffer = new short[200];
+        mixer.Render(buffer, frameCount: 100);
+
+        Assert.All(buffer, sample => Assert.Equal(0, sample));
+        Assert.Equal(0, mixer.ActiveVoiceCount);
+        Assert.Equal(0, mixer.ActiveGuideVoiceCount);
+    }
+
+    [Fact]
+    public void NewPreview_ReplacesTheOneStillPlaying()
+    {
+        var mixer = new AudioMixer();
+        mixer.PlayPreview(Tone(1000, 0.2f), gain: 1.0, pan: 0.0);
+        mixer.PlayPreview(Tone(1000, 0.4f), gain: 1.0, pan: 0.0);
+
+        var buffer = new short[200];
+        mixer.Render(buffer, frameCount: 100);
+
+        Assert.Equal(1, mixer.ActivePreviewVoiceCount);
+        Assert.InRange(buffer[0], 0.4 * Math.Sqrt(0.5) * short.MaxValue - 5, 0.4 * Math.Sqrt(0.5) * short.MaxValue + 5); // the second alone, not a sum
+    }
+
+    [Fact]
+    public void StopPreview_CutsItOff()
+    {
+        var mixer = new AudioMixer();
+        mixer.PlayPreview(Tone(1000), gain: 1.0, pan: 0.0);
+        mixer.StopPreview();
+
+        var buffer = new short[200];
+        mixer.Render(buffer, frameCount: 100);
+
+        Assert.Equal(0, mixer.ActivePreviewVoiceCount);
+        Assert.Equal(0, buffer[0]);
+    }
+
+    [Fact]
+    public void Preview_FollowsMasterVolume()
+    {
+        var loud = new AudioMixer { MasterVolume = 1.0 };
+        var quiet = new AudioMixer { MasterVolume = 0.5 };
+        loud.PlayPreview(Tone(100, 0.4f), gain: 1.0, pan: 0.0);
+        quiet.PlayPreview(Tone(100, 0.4f), gain: 1.0, pan: 0.0);
+
+        var loudBuffer = new short[200];
+        var quietBuffer = new short[200];
+        loud.Render(loudBuffer, frameCount: 100);
+        quiet.Render(quietBuffer, frameCount: 100);
+
+        Assert.InRange(quietBuffer[0], loudBuffer[0] / 2 - 1, loudBuffer[0] / 2 + 1);
+    }
 }

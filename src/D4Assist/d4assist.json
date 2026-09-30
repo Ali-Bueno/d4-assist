@@ -3,27 +3,142 @@
   "SpeechEnabled": true,
   "AutoAnnouncementsEnabled": true,
   "InterruptOnContextChange": true,
-  "RadarEnabled": true,
-  "RadarClosedDoorsEnabled": true,
-  "RadarVolume": 1.0,
   "RadarFrame": "Cardinal",
-  "BeaconSoundsEnabled": true,
-  "BeaconVolume": 1.0,
-  "ObjectiveSoundsEnabled": true,
-  "ObjectiveVolume": 1.0,
-  "NpcSoundsEnabled": true,
-  "NpcVolume": 1.0,
-  "DoorSoundsEnabled": true,
-  "ChestSoundsEnabled": true,
-  "ReadableSoundsEnabled": true,
-  "InteractableVolume": 1.0,
+  "RadarClosedDoorsEnabled": true,
   "PauseCuesInCutscenes": true,
   "PauseCuesInBackground": true,
   "PauseCuesInConversations": true,
   "PauseCuesInMenus": true,
   "ExplorationGuideEnabled": true,
   "ExplorationGuideInDungeons": false,
-  "ExplorationGuideVolume": 1.0,
   "OutsideDungeonsEnabled": true,
-  "QuestRoutesEnabled": true
+  "QuestRoutesEnabled": true,
+  "Sound": {
+    "MasterVolume": 100,
+    "Preview": true,
+    "Groups": {
+      "Radar": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Objects": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Quest": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Guide": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Characters": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      }
+    },
+    "Cues": {
+      "RadarExit": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarOpen": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarWall": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarDoor": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarFront": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarRight": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarBack": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "RadarLeft": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Door": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Chest": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Corpse": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Readable": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "PointOfInterest": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Portal": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "QuestObjective": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Prisoner": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "GuidePing": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "GuideArrival": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      },
+      "Npc": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
+      }
+    }
+  }
 }

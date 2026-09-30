@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using D4Assist.Audio;
-using D4Assist.Game;
 using D4Assist.Navigation;
 
 namespace D4Assist.Config;
@@ -31,54 +30,11 @@ public sealed class AppConfig
     /// <summary>"auto" follows the game's text language (FenrisDebug.txt); "es" or "en" forces one.</summary>
     public string Language { get; set; } = AutoLanguage;
 
-    /// <summary>Master volume for the D2R-ported radar cues (D4Assist.Audio), 0 (silent) to 1 (full, already boosted over D2R — RadarCuePlayer.LoudnessBoost).</summary>
-    public double RadarVolume { get; set; } = 1.0;
-
-    /// <summary>Play the reactive radar (D4Assist.Radar) while in a dungeon.</summary>
-    public bool RadarEnabled { get; set; } = true;
-
     /// <summary>Closed doors sound as doors in the radar (two knocks, like D2R) instead of open floor.</summary>
     public bool RadarClosedDoorsEnabled { get; set; } = true;
 
-    /// <summary>Play looping positional beacons (D4Assist.Audio.SpatialLoopPlayer), e.g. at the next-floor portal.</summary>
-    public bool BeaconSoundsEnabled { get; set; } = true;
-
-    /// <summary>Volume of the beacon loops, 0 (silent) to 1 (full).</summary>
-    public double BeaconVolume { get; set; } = 1.0;
-
-    /// <summary>Play looping quest sounds at dungeon objectives: prisoners, switches, carryables and their receptacles, quest chests.</summary>
-    public bool ObjectiveSoundsEnabled { get; set; } = true;
-
-    /// <summary>Volume of the objective loops, 0 (silent) to 1 (full).</summary>
-    public double ObjectiveVolume { get; set; } = 1.0;
-
-    /// <summary>Tap like D2R's friendly-NPC cue at the nearest NPC, faster as it gets closer.</summary>
-    public bool NpcSoundsEnabled { get; set; } = true;
-
-    /// <summary>Volume of the NPC tap, 0 (silent) to 1 (full).</summary>
-    public double NpcVolume { get; set; } = 1.0;
-
-    /// <summary>Loop D2R's door sounds (wood, metal, stone) at nearby doors, the 2 nearest at once.</summary>
-    public bool DoorSoundsEnabled { get; set; } = true;
-
-    /// <summary>Loop D2R's chest sound at nearby chests and other lootable containers (racks, corpses, loose stones).</summary>
-    public bool ChestSoundsEnabled { get; set; } = true;
-
-    /// <summary>Loop D2R's scroll sound at nearby readables (lore books, notes, notices).</summary>
-    public bool ReadableSoundsEnabled { get; set; } = true;
-
-    /// <summary>Volume of the door, chest and readable loops, 0 (silent) to 1 (full).</summary>
-    public double InteractableVolume { get; set; } = 1.0;
-
-    /// <summary>The interactable kinds whose loops are on.</summary>
-    public IReadOnlySet<InteractableKind> LoopedInteractables()
-    {
-        var kinds = new HashSet<InteractableKind>();
-        if (DoorSoundsEnabled) kinds.Add(InteractableKind.Door);
-        if (ChestSoundsEnabled) kinds.Add(InteractableKind.Chest);
-        if (ReadableSoundsEnabled) kinds.UnionWith([InteractableKind.Readable, InteractableKind.PointOfInterest]);
-        return kinds;
-    }
+    /// <summary>Every sound cue's switch, volume and repeat speed, plus the master volume (the settings window's sound tabs).</summary>
+    public SoundSettings Sound { get; set; } = new();
 
     /// <summary>Silence every sound cue while a game cutscene plays (from its start in FenrisDebug.txt until the world changes or you walk).</summary>
     public bool PauseCuesInCutscenes { get; set; } = true;
@@ -114,14 +70,16 @@ public sealed class AppConfig
     /// <summary>Guide default in dungeons other than the Undercity and the Pit (those default on); D-pad left toggles it in-game.</summary>
     public bool ExplorationGuideInDungeons { get; set; } = false;
 
-    /// <summary>Volume of the exploration ping, 0 (silent) to 1 (full).</summary>
-    public double ExplorationGuideVolume { get; set; } = 1.0;
-
     /// <summary>"Cardinal" (the stick's up/right/down/left, D2R's default) or "Diagonal" (along the engine axes).</summary>
     [JsonConverter(typeof(JsonStringEnumConverter<RadarFrame>))]
     public RadarFrame RadarFrame { get; set; } = RadarFrame.Cardinal;
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // keeps install paths readable
+    };
 
     /// <summary>The configured install folder when it exists, else the located one; null when neither is found.</summary>
     public string? ResolveInstallPath(Func<string, bool> directoryExists, Func<string?> locate) =>
@@ -140,8 +98,33 @@ public sealed class AppConfig
         var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path), JsonOptions)
             ?? throw new InvalidDataException($"{path} did not contain a valid config.");
         config.ForcedLanguage(); // validate now so a bad value fails at startup
+        config.Sound ??= new SoundSettings();
         return config;
     }
+
+    /// <summary>Writes the whole config (every sound entry listed), replacing the file only once the new one is complete.</summary>
+    public void Save(string path)
+    {
+        Sound.Complete();
+        string temporary = path + ".tmp";
+        File.WriteAllText(temporary, ToJson());
+        File.Move(temporary, path, overwrite: true);
+    }
+
+    /// <summary>An independent copy, e.g. the settings window's working copy.</summary>
+    public AppConfig Clone() => JsonSerializer.Deserialize<AppConfig>(ToJson(), JsonOptions)!;
+
+    /// <summary>True when every option but the sound section matches: those other options take effect on restart.</summary>
+    public bool SameStartupOptions(AppConfig other) => WithoutSound().ToJson() == other.WithoutSound().ToJson();
+
+    private AppConfig WithoutSound()
+    {
+        var copy = Clone();
+        copy.Sound = new SoundSettings();
+        return copy;
+    }
+
+    private string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
 
     /// <summary>The language forced by <see cref="Language"/>, or null for "auto".</summary>
     public SpeechLanguage? ForcedLanguage() => Language.Trim().ToLowerInvariant() switch

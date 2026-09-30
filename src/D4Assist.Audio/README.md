@@ -96,3 +96,10 @@ at the range edge down to 150 ms at contact, linearly, silent beyond `RangeUnits
 taken as D4 units). Pan is the unit screen `right` (D2R `entity_cue_synth.cpp:73`); screen-down lowers the pitch
 to 0.80 (`RearPitch`, line 13). `NpcCuePlayer.Aim(right, up, distance)` / `Silence()` mirror the guide ping and
 play through `AudioMixer.PlayEntity` (own 2-slot budget, silenced by `Paused`). Enemy swoops are not ported.
+
+## Settings knobs (per-cue volume, repeat speed, preview)
+
+- `RadarCuePlayer.GainOf(kind, ray)` replaces the old single volume; a cue with gain <= 0 is skipped before it reserves a scheduler slot.
+- `GuidePingPlayer.Volume` / `ArrivalVolume` / `Rate` and `NpcCuePlayer.Volume` / `Rate`: `Rate` divides the repeat interval; volume 0 keeps the schedule but plays nothing.
+- `LoopSource.Rate` / `LoopVoice.Set(..., rate)`: repetitions per natural cycle (1 = back to back, 0.5 = equal silence between, 2 = overlapping); implemented with overlap-added play heads, clamped to `LoopVoice.MinRate`..`MaxRate`.
+- `AudioMixer.PlayPreview` / `StopPreview`: one dedicated voice that also plays while `Paused`; `CueRepeat.Render` builds a repeating-cue preview buffer.

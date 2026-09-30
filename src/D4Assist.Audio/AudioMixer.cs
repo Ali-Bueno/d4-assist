@@ -38,6 +38,7 @@ public sealed class AudioMixer
     private readonly List<Voice> _voices = [];
     private readonly List<Voice> _guideVoices = [];
     private readonly List<Voice> _entityVoices = [];
+    private readonly List<Voice> _previewVoices = []; // at most one
     private readonly List<LoopVoice> _loops = [];
     private readonly object _lock = new();
     private long _nextStartOrder;
@@ -94,14 +95,34 @@ public sealed class AudioMixer
     /// <summary>Currently mixing entity-cue count, for diagnostics/tests.</summary>
     public int ActiveEntityVoiceCount { get { lock (_lock) return _entityVoices.Count; } }
 
+    /// <summary>Currently mixing preview count (0 or 1), for diagnostics/tests.</summary>
+    public int ActivePreviewVoiceCount { get { lock (_lock) return _previewVoices.Count; } }
+
+    /// <summary>Plays a settings-window preview on its own single voice, replacing one still playing; audible even while <see cref="Paused"/>.</summary>
+    public void PlayPreview(float[] samples, double gain, double pan)
+    {
+        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, _nextStartOrder++);
+        lock (_lock)
+        {
+            _previewVoices.Clear();
+            _previewVoices.Add(voice);
+        }
+    }
+
+    /// <summary>Cuts the preview off, if one is playing.</summary>
+    public void StopPreview()
+    {
+        lock (_lock) _previewVoices.Clear();
+    }
+
     /// <summary>Currently mixing loop count (fading-out loops included), for diagnostics/tests.</summary>
     public int ActiveLoopCount { get { lock (_lock) return _loops.Count; } }
 
     /// <summary>Starts a looping voice, or returns null when the loop budget is full or the sound is empty.</summary>
-    public LoopVoice? StartLoop(float[] samples, double gain, double pan, double pitch = 1.0)
+    public LoopVoice? StartLoop(float[] samples, double gain, double pan, double pitch = 1.0, double rate = 1.0)
     {
         if (samples.Length == 0) return null;
-        var loop = new LoopVoice(this, samples, Math.Max(0, gain), Math.Clamp(pan, -1.0, 1.0), Math.Max(0.01, pitch));
+        var loop = new LoopVoice(this, samples, Math.Max(0, gain), Math.Clamp(pan, -1.0, 1.0), Math.Max(0.01, pitch), LoopVoice.ClampRate(rate));
         lock (_lock)
         {
             if (_loops.Count >= MaxLoopVoices) return null;
@@ -110,7 +131,7 @@ public sealed class AudioMixer
         return loop;
     }
 
-    internal void UpdateLoop(LoopVoice loop, double gain, double pan, double pitch)
+    internal void UpdateLoop(LoopVoice loop, double gain, double pan, double pitch, double rate)
     {
         lock (_lock)
         {
@@ -118,6 +139,7 @@ public sealed class AudioMixer
             loop.TargetGain = Math.Max(0, gain);
             loop.TargetPan = Math.Clamp(pan, -1.0, 1.0);
             loop.TargetPitch = Math.Max(0.01, pitch);
+            loop.TargetRate = LoopVoice.ClampRate(rate);
         }
     }
 
@@ -135,25 +157,27 @@ public sealed class AudioMixer
     public void Render(short[] buffer, int frameCount)
     {
         int sampleCount = frameCount * AudioFormat.Channels;
-        if (_paused)
-        {
-            Array.Clear(buffer, 0, sampleCount);
-            lock (_lock) { _voices.Clear(); _guideVoices.Clear(); _entityVoices.Clear(); _loops.RemoveAll(l => l.Stopping); }
-            return;
-        }
         var mix = new float[sampleCount];
 
         lock (_lock)
         {
-            MixVoices(_voices, mix, frameCount);
-            MixVoices(_guideVoices, mix, frameCount);
-            MixVoices(_entityVoices, mix, frameCount);
-
-            for (int i = _loops.Count - 1; i >= 0; i--)
+            if (_paused)
             {
-                _loops[i].MixInto(mix, frameCount, MasterVolume);
-                if (_loops[i].Faded) _loops.RemoveAt(i);
+                _voices.Clear(); _guideVoices.Clear(); _entityVoices.Clear(); _loops.RemoveAll(l => l.Stopping);
             }
+            else
+            {
+                MixVoices(_voices, mix, frameCount);
+                MixVoices(_guideVoices, mix, frameCount);
+                MixVoices(_entityVoices, mix, frameCount);
+
+                for (int i = _loops.Count - 1; i >= 0; i--)
+                {
+                    _loops[i].MixInto(mix, frameCount, MasterVolume);
+                    if (_loops[i].Faded) _loops.RemoveAt(i);
+                }
+            }
+            MixVoices(_previewVoices, mix, frameCount);
         }
 
         for (int i = 0; i < sampleCount; i++)

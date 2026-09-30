@@ -2,8 +2,8 @@ namespace D4Assist.Audio;
 
 /// <summary>
 /// Wires the direction model, the deterministic cue synth and the mixer together, and owns the audio
-/// output's lifetime. <see cref="Frame"/> and <see cref="Volume"/> are the only runtime knobs (frame
-/// toggle, master radar volume — see AppConfig.RadarVolume); everything else is the fixed cue design
+/// output's lifetime. <see cref="Frame"/> and <see cref="GainOf"/> are the only runtime knobs (frame
+/// toggle, per-cue user gain); everything else is the fixed cue design
 /// ported from D2R.
 /// </summary>
 public sealed class RadarCuePlayer : IRadarCuePlayer, IDisposable
@@ -19,8 +19,8 @@ public sealed class RadarCuePlayer : IRadarCuePlayer, IDisposable
 
     public RadarFrame Frame { get; set; } = RadarFrame.Cardinal; // D2R default since 2026-09-25
 
-    /// <summary>User volume, 0 (silent) to 1 (full = <see cref="LoudnessBoost"/> over D2R's level).</summary>
-    public double Volume { get; set; } = 1.0;
+    /// <summary>User gain per cue kind and ray, 0 (muted) to 1 (full = <see cref="LoudnessBoost"/> over D2R's level).</summary>
+    public Func<RadarCueKind, RadarRay, double> GainOf { get; set; } = (_, _) => 1.0;
 
     /// <param name="nowSeconds">Clock for cue scheduling; tests inject one, the app uses a Stopwatch.</param>
     public RadarCuePlayer(IAudioOut audioOut, AudioMixer? mixer = null, Func<double>? nowSeconds = null)
@@ -34,10 +34,12 @@ public sealed class RadarCuePlayer : IRadarCuePlayer, IDisposable
 
     public void Play(RadarCueKind kind, RadarRay ray, bool unexplored)
     {
+        double gain = GainOf(kind, ray) * LoudnessBoost;
+        if (gain <= 0) return; // muted: must not hold a scheduler slot
         var samples = RadarCueSynth.Synthesize(kind, RadarDirectionModel.Vertical(ray, Frame), unexplored);
         var delay = _scheduler.Reserve(_nowSeconds(), (double)samples.Length / AudioFormat.SampleRate);
         if (delay is not { } seconds) return; // too stale to be useful (CueScheduler.MaxStartDelaySeconds)
-        _mixer.Play(WithLeadingSilence(samples, seconds), Volume * LoudnessBoost, RadarDirectionModel.Pan(ray, Frame), kind.Priority());
+        _mixer.Play(WithLeadingSilence(samples, seconds), gain, RadarDirectionModel.Pan(ray, Frame), kind.Priority());
     }
 
     // Delays a cue inside the mixer by prepending silence, so queued cues keep their slot without a timer thread.

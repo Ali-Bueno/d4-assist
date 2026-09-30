@@ -73,7 +73,11 @@ Unexplored rides on Exit only: the room beyond was never stood in, or the route 
 - **Always a maze level:** D4 dungeons only; rooms are RoomModel rooms under ids that survive rebuilds.
 - **Poll-relative timings** follow D4's 100 ms poll (stationary confirm, maximum gap); wall-clock ones are kept.
 - **No collision kinds** in the clutter filter: every small blocked island is a candidate.
-- Cues of one poll play together through the Audio mixer; D2R's `CueQueue` played them one after another.
+- **A committed wall gives way to floor only when the floor holds one lane to either side.** The band is scanned again
+  shifted one lane (`PassageScanner.LaneSpacing`) left and right; if either shift still meets an obstacle, the wall
+  stands, as it does inside the depth band. Walls and exits are never held back. The band is anchored to the player's
+  cell, so a wall grazing its edge flipped the reading with every cell walked sideways (2026-09-30 log: five Left cues
+  in 20 s along one diagonal wall). Replayed over that session's path: 128 cues down to 87, the same 7 exits.
 - **The wall memory follows the wall.** The retreat gate's frontier is refreshed on every poll while the confirmed
   wall is within closing depth, and a silent-baseline wall sets it too; D2R set it only when a wall was announced.
   Backing away from a wall the player started beside, or walked along for more than `BoundaryRange`, no longer reads

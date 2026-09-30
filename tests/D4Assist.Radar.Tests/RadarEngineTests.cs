@@ -64,5 +64,32 @@ public class RadarEngineTests
         Assert.Equal(expected, engine.Sensor(RadarRay.Right).State);
     }
 
+    [Fact]
+    public void AWallEndingInsideTheBand_IsAnnouncedOnce_NotAtEveryCellSideways()
+    {
+        var engine = Diagonal();
+        var world = FakeRadarWorld.Field((x, y) => x == 6 && y <= 2); // from y = 1 it covers the whole centre band
+        var cues = new List<RadarCueKind>();
+        long now = 0;
+        foreach (var y in new[] { 2.5, 1.5, 2.5, 1.5, 2.5, 1.5 })
+            for (var poll = 0; poll < 4; poll++)
+                cues.AddRange(engine.Tick(world, 0.5, y, now += PollMs).Where(c => c.Ray == RadarRay.Right).Select(c => c.Kind));
+
+        Assert.Equal([RadarCueKind.Blocked], cues);
+    }
+
+    [Fact]
+    public void FloorClearOfTheWallOneLaneEitherSide_EndsTheWall()
+    {
+        var engine = Diagonal();
+        var world = FakeRadarWorld.Field((x, y) => x == 6 && y <= 2);
+        long now = 0;
+        engine.Tick(world, 0.5, 1.5, now); // wall baseline
+        var cues = new List<RadarCue>();
+        for (var poll = 0; poll < 4; poll++) cues.AddRange(engine.Tick(world, 0.5, 3.5, now += PollMs));
+
+        Assert.Contains(cues, c => c.Ray == RadarRay.Right && c.Kind == RadarCueKind.Open);
+    }
+
     private static RadarEngine Diagonal() => new(new RadarSettings { Frame = RadarFrame.Diagonal });
 }

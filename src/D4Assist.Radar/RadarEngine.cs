@@ -75,6 +75,9 @@ public sealed class RadarEngine
                 Settings.LateralTolerance, Settings.PassageRadius, doorways);
             var passage = PassageScanner.Scan(grid, axis, query);
             passage = passage with { Unexplored = Qualify(passage, world) };
+            if (sensor.State is { } committed && committed.IsObstacle() && passage.Observed == RadarCueKind.Open
+                && Wavers(grid, axis, query))
+                passage = passage with { Observed = committed, Unexplored = sensor.Unexplored };
             if (sensor.Observe(passage, axis, motion, nowMs, _lastMoveMs) is { } kind)
                 cues.Add(new RadarCue(ray, kind, sensor.LastCueUnexplored));
         }
@@ -90,6 +93,14 @@ public sealed class RadarEngine
         if (!passage.Available || passage.Observed != RadarCueKind.Exit) return false;
         if (passage.ViaDoorway && passage.CrossingRoom < 0) return true; // the doorway leads beyond the loaded tiles
         return passage.LeadsUnknown || (passage.CrossingRoom >= 0 && !world.IsVisited(passage.CrossingRoom));
+    }
+
+    // D4 deviation (user, 2026-09-30): a committed wall gives way to floor only when the floor holds one lane to either side
+    // too. The band is anchored to the player's cell, so a wall grazing its edge otherwise flips with every cell walked.
+    private static bool Wavers(LocalGrid grid, RadarVector axis, PassageQuery query)
+    {
+        var lane = PassageScanner.LaneSpacing(axis);
+        return new[] { -lane, lane }.Any(offset => PassageScanner.Scan(grid, axis, query with { Offset = offset }).Observed?.IsObstacle() == true);
     }
 
     // The player's room's doorways, relative to the player like the scan's cells.

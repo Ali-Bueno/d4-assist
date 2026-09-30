@@ -6,9 +6,10 @@ namespace D4Assist.Radar;
 /// <param name="Committed">The sensor's confirmed reading: inside the hysteresis band it stands.</param>
 /// <param name="Radius">Passage window half-side, in cells (RadarSettings.PassageRadius).</param>
 /// <param name="Doorways">The player's room's doorways, centres relative to the player; null for none.</param>
+/// <param name="Offset">Sideways shift of the band's centre line, in cells (RadarVector.Across units).</param>
 internal readonly record struct PassageQuery(
     double OpenDepth, double CloseDepth, RadarCueKind? Committed, double WayThrough, double LateralTolerance, int Radius,
-    IReadOnlyList<RadarDoorway>? Doorways = null);
+    IReadOnlyList<RadarDoorway>? Doorways = null, double Offset = 0);
 
 /// <summary>
 /// The straight route along one ray and what it means: port of D2R ScanPassage (d2r-access
@@ -45,7 +46,7 @@ internal static class PassageScanner
                 if (advance < 0 || (head == 0 && advance <= 0)) continue;
                 var next = (X: current.X + step.X, Y: current.Y + step.Y);
                 var at = new RadarVector(next.X, next.Y);
-                if (Math.Abs(axis.Across(at)) > query.LateralTolerance) continue;
+                if (Math.Abs(axis.Across(at) - query.Offset) > query.LateralTolerance) continue;
                 if (Math.Max(Math.Abs(next.X), Math.Abs(next.Y)) > query.Radius) continue; // the window only caps the reach
                 var cell = grid.Cell(next.X, next.Y);
                 var projection = axis.Dot(at);
@@ -77,6 +78,10 @@ internal static class PassageScanner
         };
         return Classify(passage, axis, query);
     }
+
+    /// <summary>Sideways distance between two neighbouring lanes of cells along the axis: 1 along a grid axis, 0.71 on a diagonal.</summary>
+    public static double LaneSpacing(RadarVector axis) =>
+        Steps.Select(s => Math.Abs(axis.Across(new RadarVector(s.X, s.Y)))).Where(d => d > 1e-9).Min();
 
     private static Passage Classify(Passage passage, RadarVector axis, PassageQuery query)
     {

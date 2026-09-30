@@ -174,7 +174,7 @@ public class InteractableTests
             new HashSet<int>(), 1, new ObjectiveClassifier(Info, Name), 1,
             world => world == World ? new HashSet<int> { DpoDoorSno } : new HashSet<int>(),
             Classifier(), kinds, interactableVolume);
-        selector.SetWorld(World);
+        selector.SetWorld(World, isDungeon: true);
         return selector;
     }
 }

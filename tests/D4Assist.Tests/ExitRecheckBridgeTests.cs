@@ -38,12 +38,15 @@ public class ExitRecheckBridgeTests
         public bool Beacon;
         public List<bool> Asked = [];
         public List<string> Log = [];
+        public List<GuideDestination> Destinations = [];
         public LanguageSetting Language = new();
 
         public Rig(string world = "X1_Undercity_Test")
         {
             var ping = new GuidePingPlayer(new AudioMixer(), () => 0, autoTick: false);
-            _ = new ExplorationGuideBridge(Feed, (_, missing) => { Asked.Add(missing); return Step; }, ping, Speech, () => Beacon, Log.Add, language: Language);
+            _ = new ExplorationGuideBridge(
+                Feed, (_, missing, _) => { Asked.Add(missing); return Step; }, ping, Speech, () => Beacon, Log.Add, language: Language,
+                destinations: () => Destinations);
             Feed.RaiseWorld(world);
         }
     }
@@ -84,6 +87,31 @@ public class ExitRecheckBridgeTests
 
         Assert.True(endgame.Asked.Single());
         Assert.Empty(normal.Asked); // guide is off in normal dungeons by default
+    }
+
+    [Fact]
+    public void A_known_unused_portal_replaces_the_recheck()
+    {
+        var rig = new Rig("PIT_Test");
+        rig.Destinations.Add(new GuideDestination("pad", (40, 0), 0));
+        rig.Feed.RaisePlayer();
+
+        Assert.False(rig.Asked.Single());
+    }
+
+    [Theory]
+    [InlineData(0, "Todo explorado. Te llevo a un portal.")]
+    [InlineData(1, "Todo explorado. Te llevo al portal por el que llegaste.")]
+    public void Turning_to_a_portal_is_spoken_once(int tier, string expected)
+    {
+        var rig = new Rig("PIT_Test");
+        rig.Destinations.Add(new GuideDestination("p", (40, 0), tier));
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Destination, "p", (40, 0)), (40, 0), 40);
+
+        rig.Feed.RaisePlayer();
+        rig.Feed.RaisePlayer();
+
+        Assert.Equal(expected, rig.Speech.Spoken.Single().Text);
     }
 
     [Fact]

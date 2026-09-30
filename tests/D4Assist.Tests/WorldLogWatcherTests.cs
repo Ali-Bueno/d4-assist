@@ -7,7 +7,7 @@ public class WorldLogWatcherTests
     private const string Marker = "[Game] Client entered world | world: ";
 
     [Fact]
-    public void ReadLastWorldNameAtStartup_ReturnsTheMostRecentEntry()
+    public void ReadLastWorldAtStartup_ReturnsTheMostRecentEntry()
     {
         string dir = MakeTempInstallDir();
         File.WriteAllText(Path.Combine(dir, WorldLogWatcher.LogFileName),
@@ -15,17 +15,17 @@ public class WorldLogWatcherTests
 
         using var watcher = new WorldLogWatcher(dir);
 
-        Assert.Equal("DGN_Hawe_HeathensKeep", watcher.ReadLastWorldNameAtStartup());
+        Assert.Equal(new WorldEntry("DGN_Hawe_HeathensKeep", null), watcher.ReadLastWorldAtStartup());
     }
 
     [Fact]
-    public void ReadLastWorldNameAtStartup_ReturnsNullWhenTheLogDoesNotExistYet()
+    public void ReadLastWorldAtStartup_ReturnsNullWhenTheLogDoesNotExistYet()
     {
         string dir = MakeTempInstallDir();
 
         using var watcher = new WorldLogWatcher(dir);
 
-        Assert.Null(watcher.ReadLastWorldNameAtStartup());
+        Assert.Null(watcher.ReadLastWorldAtStartup());
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class WorldLogWatcherTests
 
         using var watcher = new WorldLogWatcher(dir);
         var seen = new List<string>();
-        watcher.WorldChanged += seen.Add;
+        watcher.WorldChanged += world => seen.Add(world.Name);
 
         File.AppendAllText(path, $"{Marker}DGN_Naha_SleeplessHollow\n");
         watcher.PollOnce();
@@ -74,7 +74,7 @@ public class WorldLogWatcherTests
 
         using var watcher = new WorldLogWatcher(dir);
         var seen = new List<string>();
-        watcher.WorldChanged += seen.Add;
+        watcher.WorldChanged += world => seen.Add(world.Name);
 
         File.AppendAllText(path, $"{Marker}DGN_Partial"); // no trailing newline yet
         watcher.PollOnce();
@@ -94,7 +94,7 @@ public class WorldLogWatcherTests
 
         using var watcher = new WorldLogWatcher(dir);
         var seen = new List<string>();
-        watcher.WorldChanged += seen.Add;
+        watcher.WorldChanged += world => seen.Add(world.Name);
         watcher.PollOnce(); // establishes position at end of the padded content (no new lines since construction)
         Assert.Empty(seen);
 
@@ -103,6 +103,18 @@ public class WorldLogWatcherTests
         watcher.PollOnce();
 
         Assert.Equal(["DGN_Hawe_HeathensKeep"], seen);
+    }
+
+    [Fact]
+    public void WorldChanged_CarriesTheInstanceId()
+    {
+        string dir = MakeTempInstallDir();
+        File.WriteAllText(Path.Combine(dir, WorldLogWatcher.LogFileName),
+            $"I 2026.09.29 17:09:32.600574 59490 {Marker}S15_Triad_B_Worldstone | CWorldID: 1048578\n");
+
+        using var watcher = new WorldLogWatcher(dir);
+
+        Assert.Equal(new WorldEntry("S15_Triad_B_Worldstone", "1048578"), watcher.ReadLastWorldAtStartup());
     }
 
     private static string MakeTempInstallDir()

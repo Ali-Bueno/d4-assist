@@ -86,7 +86,10 @@ internal static class Program
             sceneSno => { lock (cascGate) return sceneReader.Read(sceneSno).TileSize; },
             store.Name);
 
-        var menuScreens = config.PauseCuesInMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
+        bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
+        // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
+        bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
+        var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens),
@@ -113,13 +116,13 @@ internal static class Program
             _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug, doors);
         }
 
-        bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
         bool actorLoops = config.BeaconSoundsEnabled || config.ObjectiveSoundsEnabled || config.LoopedInteractables().Count > 0;
         bool needsOwnOutput = (actorLoops || config.ExplorationGuideEnabled || routesEnabled) && radarPlayer is null;
         using IAudioOut? beaconOut = needsOwnOutput ? new WaveOutAudioOut() : null;
         beaconOut?.Start(mixer.Render);
-        var loops = actorLoops ? StartLoops(session, mixer, config, store, schema, cascGate, debug, definitionOf, interactables) : null;
+        var portals = actorLoops ? StartLoops(session, mixer, config, store, schema, cascGate, debug, definitionOf, interactables) : null;
         var cueGate = new CueGate(paused => mixer.Paused = paused, Console.WriteLine); // mute reasons always logged: testers' "no sound" reports
+        session.TransitChanged += loading => cueGate.Set(CueMute.Loading, loading); // the loops would hang on their last positions
         if (config.PauseCuesInCutscenes) WatchCutscenes(logWatcher, session, cueGate, debug);
         using var focus = config.PauseCuesInBackground ? new GameWindowFocus(cueGate) : null;
         if (config.PauseCuesInConversations)
@@ -131,11 +134,13 @@ internal static class Program
             session.ConversationRead += talk.OnSnapshot;
             session.WorldChanged += (_, _, _) => talk.Reset();
         }
-        if (config.PauseCuesInMenus)
+        MenuMute? menus = null;
+        if (watchMenus)
         {
-            var menus = new MenuMute(muted => cueGate.Set(CueMute.Menu, muted), debug ? Console.WriteLine : null);
-            session.MenusRead += menus.OnScreens;
-            session.WorldChanged += (_, _, _) => menus.Reset();
+            var watcher = new MenuMute(open => { if (config.PauseCuesInMenus) cueGate.Set(CueMute.Menu, open); }, debug ? Console.WriteLine : null);
+            session.MenusRead += watcher.OnScreens;
+            session.WorldChanged += (_, _, _) => watcher.Reset();
+            menus = watcher;
         }
 
         // Created after the NavigationBridge so each poll marks the tile visited before the guide reads it.
@@ -146,11 +151,14 @@ internal static class Program
         // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
         using var xboxPad = guidePing is not null ? new XInputPad() : null;
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
-        var pad = xboxPad is not null && sonyPad is not null ? new CombinedPad([xboxPad, sonyPad]) : null;
+        // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide.
+        var pad = xboxPad is not null && sonyPad is not null
+            ? new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null)
+            : null;
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
-                session, navigation.NextGuideStep, guidePing, speech, () => loops?.HasTarget(LoopKind.ExitBeacon) ?? false, debug ? Console.WriteLine : null,
-                pad, config.ExplorationGuideInDungeons, language);
+                session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
+                pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
@@ -204,7 +212,8 @@ internal static class Program
         catch (InvalidDataException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
     }
 
-    private static ActorLoopBridge? StartLoops(
+    /// <summary>Starts the actor loops; returns the memory of the portals they found, or null when the loop sounds are missing.</summary>
+    private static PortalMemory? StartLoops(
         GameSession session, AudioMixer mixer, AppConfig config, SnoStore store, TypeSchema schema, object cascGate, bool debug,
         Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables)
     {
@@ -219,16 +228,20 @@ internal static class Program
 
         var dpo = new DungeonObjectiveReader(store, schema);
         var objectives = config.ObjectiveSoundsEnabled ? new ObjectiveClassifier(definitionOf, store.Name) : null;
+        var portalRule = config.BeaconSoundsEnabled ? new PortalClassifier(definitionOf, store.Name) : null;
         var selector = new LoopTargetSelector(
             beaconSnos, config.BeaconVolume, objectives, config.ObjectiveVolume, world => { lock (cascGate) return dpo.ActorSnos(world); },
-            interactables, config.LoopedInteractables(), config.InteractableVolume);
-        if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name)); // app started mid-dungeon
+            interactables, config.LoopedInteractables(), config.InteractableVolume, portalRule is null ? null : portalRule.IsPortal);
+        if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name), start.IsDungeon); // app started mid-dungeon
 
         var player = new SpatialLoopPlayer(mixer, sounds);
         var sightings = debug
             ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;
-        return new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings);
+        var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
+        var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add);
+        _ = new ActorLoopBridge(session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used);
+        return new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
     }
 
     private static void WatchCutscenes(WorldLogWatcher log, GameSession session, CueGate gate, bool debug)

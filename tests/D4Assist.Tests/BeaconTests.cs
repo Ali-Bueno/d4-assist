@@ -161,8 +161,8 @@ public class BeaconTests
 
     private sealed class SingleWorldSource(string name) : IWorldNameSource
     {
-        public event Action<string>? WorldChanged { add { } remove { } }
-        public string? ReadLastWorldNameAtStartup() => name;
+        public event Action<WorldEntry>? WorldChanged { add { } remove { } }
+        public WorldEntry? ReadLastWorldAtStartup() => new(name, null);
     }
 
     private sealed class DungeonClassifier : IWorldClassifier

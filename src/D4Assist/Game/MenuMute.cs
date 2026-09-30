@@ -6,7 +6,7 @@ public sealed class MenuMute(Action<bool> setMuted, Action<string>? log = null)
     private readonly object _gate = new();
     private IReadOnlyList<string>? _last;
 
-    public bool IsMuted { get; private set; }
+    public bool AnyOpen { get; private set; }
 
     public void OnScreens(IReadOnlyList<string> open)
     {
@@ -31,8 +31,8 @@ public sealed class MenuMute(Action<bool> setMuted, Action<string>? log = null)
 
     private void Set(bool muted)
     {
-        if (muted == IsMuted) return;
-        IsMuted = muted;
+        if (muted == AnyOpen) return;
+        AnyOpen = muted;
         setMuted(muted);
     }
 }

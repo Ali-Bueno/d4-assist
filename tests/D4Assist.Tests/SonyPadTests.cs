@@ -84,6 +84,23 @@ public class SonyPadTests
         Assert.Equal(2, presses);
     }
 
+    [Fact]
+    public void GatedPad_SwallowsPressesWhileAMenuIsOpen()
+    {
+        var source = new FakePad();
+        bool menuOpen = true;
+        int presses = 0, swallowed = 0;
+        var pad = new GatedPad(source, () => menuOpen, () => swallowed++);
+        pad.DpadLeftPressed += () => presses++;
+
+        source.Press();
+        Assert.Equal((0, 1), (presses, swallowed));
+
+        menuOpen = false;
+        source.Press();
+        Assert.Equal((1, 1), (presses, swallowed));
+    }
+
     private sealed class FakePad : IGuideTogglePad
     {
         public event Action? DpadLeftPressed;

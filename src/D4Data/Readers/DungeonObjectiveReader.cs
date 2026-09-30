@@ -3,7 +3,7 @@ using D4Data.Schema;
 
 namespace D4Data.Readers;
 
-/// <summary>The actor SNOs a dungeon's DPO objective quest names, from the world SNO (research/dungeon-objectives.md §1-2).</summary>
+/// <summary>The actor SNOs a dungeon's DPO objective quest names (or, without one, the quest named after the world), from the world SNO (research/dungeon-objectives.md §1-2, §7).</summary>
 public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
 {
     private const string GlobalDefinition = "GlobalDefinition", QuestDefinition = "QuestDefinition", ActorDefinition = "ActorDefinition";
@@ -19,12 +19,21 @@ public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
         if (_cache.TryGetValue(worldSno, out var cached)) return cached;
         var actors = new HashSet<int>();
         int actorGroup = schema.SnoGroup(ActorDefinition), questGroup = schema.SnoGroup(QuestDefinition);
-        if (WorldQuests().TryGetValue(worldSno, out var quests))
-            foreach (int quest in quests)
-                if (store.Meta(questGroup, quest) is { } blob)
-                    foreach (var (group, id) in DungeonObjectiveParser.QuestTokens(blob, _layout))
-                        if (group == actorGroup) actors.Add(id);
+        int[] quests = WorldQuests().TryGetValue(worldSno, out var dpo) ? dpo : QuestNamedAfter(worldSno, questGroup);
+        foreach (int quest in quests)
+            if (store.Meta(questGroup, quest) is { } blob)
+                foreach (var (group, id) in DungeonObjectiveParser.QuestTokens(blob, _layout))
+                    if (group == actorGroup) actors.Add(id);
         return _cache[worldSno] = actors;
+    }
+
+    // Worlds without a DPO entry (seasonal ones such as S15_Triad_B_Worldstone) name their quest after the world
+    // (research/dungeon-objectives.md §7).
+    private int[] QuestNamedAfter(int worldSno, int questGroup)
+    {
+        if (store.Name(worldSno) is not { } name) return [];
+        try { return [store.Resolve(questGroup, name)]; }
+        catch (ArgumentException) { return []; }
     }
 
     private Dictionary<int, int[]> WorldQuests()

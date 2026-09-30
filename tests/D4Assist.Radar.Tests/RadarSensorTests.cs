@@ -89,6 +89,33 @@ public class RadarSensorTests
     }
 
     [Fact]
+    public void BackingAwayFromABaselineWall_DoesNotReadOpen()
+    {
+        const int wall = 5;
+        Walk(0, 0, Scan(RadarCueKind.Blocked, wall)); // silent baseline: the wall was never announced
+
+        Assert.All(Retreat(wall, from: 0, to: -8, startMs: 0), Assert.Null);
+        Assert.Equal(RadarCueKind.Open, _sensor.State);
+        Assert.Equal(RadarHold.Retreat, _sensor.Hold);
+    }
+
+    [Fact]
+    public void BackingAwayAfterWalkingAlongTheWall_DoesNotReadOpen()
+    {
+        const int wall = 20;
+        Walk(0, 0, Scan(RadarCueKind.Open, wall));
+        Walk(100, 13, Scan(RadarCueKind.Blocked, wall - 13));
+        Assert.Equal(RadarCueKind.Blocked, Walk(200, 14, Scan(RadarCueKind.Blocked, wall - 14)));
+
+        long now = 200;
+        var along = Settings.BoundaryRange + 10; // past the range around the point where the wall was announced
+        for (var y = 1; y <= along; y++) Move(now += 100, 14, y, Scan(RadarCueKind.Blocked, wall - 14));
+
+        Assert.All(Retreat(wall, from: 13, to: 5, startMs: now, y: along), Assert.Null);
+        Assert.Equal(RadarHold.Retreat, _sensor.Hold);
+    }
+
+    [Fact]
     public void RouteReachingPastTheWall_StillSoundsAfterARetreat()
     {
         Walk(0, 0, Scan(RadarCueKind.Open, 20));
@@ -99,7 +126,22 @@ public class RadarSensorTests
         Assert.Equal(RadarCueKind.Exit, Walk(400, 12, Scan(RadarCueKind.Exit, 26)));
     }
 
-    private RadarCueKind? Walk(long now, double x, Passage scan) => _sensor.Observe(scan, Axis, new RadarVector(x, 0), now, lastMoveMs: now);
+    // Steps back along the axis one cell per poll from a wall at x = wall; inside the band the scan keeps the wall.
+    private List<RadarCueKind?> Retreat(int wall, int from, int to, long startMs, double y = 0)
+    {
+        var cues = new List<RadarCueKind?>();
+        for (var x = from; x >= to; x--)
+        {
+            var depth = wall - x;
+            var reading = depth < Settings.OpenDepth ? RadarCueKind.Blocked : RadarCueKind.Open;
+            cues.Add(Move(startMs += 100, x, y, Scan(reading, depth)));
+        }
+        return cues;
+    }
+
+    private RadarCueKind? Walk(long now, double x, Passage scan) => Move(now, x, 0, scan);
+
+    private RadarCueKind? Move(long now, double x, double y, Passage scan) => _sensor.Observe(scan, Axis, new RadarVector(x, y), now, lastMoveMs: now);
 
     private RadarCueKind? Stand(long now, Passage scan) => _sensor.Observe(scan, Axis, new RadarVector(0, 0), now, lastMoveMs: 0);
 

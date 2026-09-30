@@ -12,6 +12,7 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
 {
     public const string LogFileName = "FenrisDebug.txt";
     private const string EnteredWorldMarker = "[Game] Client entered world | world: ";
+    private const string InstanceMarker = "| CWorldID: ";
     private const string CutsceneStateMarker = "[Game] ptCutscene->m_eCutsceneState: ";
 
     // World transitions are infrequent (dungeon entry/exit); no need to react faster than this.
@@ -23,8 +24,8 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
     private long _position;
     private bool _disposed;
 
-    /// <summary>Raised once per "Client entered world" line seen after startup, with the world's name.</summary>
-    public event Action<string>? WorldChanged;
+    /// <summary>Raised once per "Client entered world" line seen after startup, with the world's name and instance.</summary>
+    public event Action<WorldEntry>? WorldChanged;
 
     /// <summary>Raised once per "Current Text Locale" line seen after startup, with the locale (e.g. "enUS").</summary>
     public event Action<string>? TextLocaleChanged;
@@ -40,15 +41,15 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
     }
 
     /// <summary>The last "Client entered world" line already in the file — the world to assume at startup.</summary>
-    public string? ReadLastWorldNameAtStartup() => ReadLastMatch(ExtractWorldName);
+    public WorldEntry? ReadLastWorldAtStartup() => ReadLastMatch(ExtractWorldEntry);
 
     /// <summary>The last "Current Text Locale" line already in the file — the game's language at startup.</summary>
     public string? ReadLastTextLocaleAtStartup() => ReadLastMatch(GameLocale.ExtractTextLocale);
 
-    private string? ReadLastMatch(Func<string, string?> extract)
+    private T? ReadLastMatch<T>(Func<string, T?> extract) where T : class
     {
         if (!File.Exists(_path)) return null;
-        string? last = null;
+        T? last = null;
         foreach (var line in File.ReadLines(_path))
             if (extract(line) is { } match) last = match;
         return last;
@@ -86,13 +87,16 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
         foreach (var line in complete.Split('\n'))
         {
             if (GameLocale.ExtractTextLocale(line) is { } locale) TextLocaleChanged?.Invoke(locale);
-            if (ExtractWorldName(line) is { } name) WorldChanged?.Invoke(name);
+            if (ExtractWorldEntry(line) is { } world) WorldChanged?.Invoke(world);
             if (ExtractCutsceneState(line) is { } state) CutsceneStateChanged?.Invoke(state);
         }
         return Encoding.UTF8.GetByteCount(complete);
     }
 
     internal static string? ExtractWorldName(string line) => WordAfter(line, EnteredWorldMarker);
+
+    internal static WorldEntry? ExtractWorldEntry(string line) =>
+        ExtractWorldName(line) is { } name ? new WorldEntry(name, WordAfter(line, InstanceMarker)) : null;
 
     internal static string? ExtractCutsceneState(string line) => WordAfter(line, CutsceneStateMarker);
 

@@ -27,6 +27,21 @@ public class DungeonObjectiveReaderRealDataTests
     }
 
     [Fact]
+    public void Worldstone_WithoutDpo_UsesTheQuestNamedAfterTheWorld()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var world = store.Resolve(schema.SnoGroup(WorldDefinition), "S15_Triad_B_Worldstone");
+
+        var actors = new DungeonObjectiveReader(store, schema).ActorSnos(world);
+
+        // research/dungeon-objectives.md §7: S15_Arreat_Summit_Altar_A_Gizmo, S15_TriadB_QST_Soulshard.
+        Assert.Contains(2647200, actors);
+        Assert.Contains(2671217, actors);
+    }
+
+    [Fact]
     public void ActorDefinitionReader_ReturnsNullForAnIdOfAnotherType()
     {
         if (!SnoStore.TryLocateInstall(out var install) || FindDefinitions() is not { } definitions) return;

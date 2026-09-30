@@ -116,6 +116,64 @@ public class GameSessionTests
     }
 
     [Fact]
+    public void WarpInsideTheSameInstance_KeepsTheWorldAndReopensTheSession()
+    {
+        var (feed, session, events, transit, opens) = TransitSession();
+
+        feed.Raise(DungeonName, "1048578");
+        feed.Raise(GameSession.TransitWorldName, "1572864");
+        Assert.Equal(SessionState.Idle, session.State);
+        feed.Raise(DungeonName, "1048578");
+
+        Assert.Equal([DungeonName], events);
+        Assert.Equal([true, false], transit);
+        Assert.Equal(2, opens());
+        Assert.Equal(SessionState.InDungeon, session.State);
+    }
+
+    [Fact]
+    public void SameWorldInANewInstanceAfterLoading_IsANewWorld()
+    {
+        var (feed, _, events, transit, _) = TransitSession();
+
+        feed.Raise(DungeonName, "524290");
+        feed.Raise(GameSession.TransitWorldName, "524288");
+        feed.Raise(DungeonName, "1048578");
+
+        Assert.Equal([DungeonName, DungeonName], events);
+        Assert.Equal([true, false], transit);
+    }
+
+    [Fact]
+    public void LoadingIntoAnotherWorld_SkipsTheLoadingWorld()
+    {
+        var (feed, _, events, transit, _) = TransitSession();
+
+        feed.Raise(DungeonName, "524290");
+        feed.Raise(GameSession.TransitWorldName, "524288");
+        feed.Raise(OverworldName, "524289");
+
+        Assert.Equal([DungeonName, OverworldName], events);
+        Assert.Equal([true, false], transit);
+    }
+
+    private static (FakeWorldNameSource Feed, GameSession Session, List<string> Events, List<bool> Transit, Func<int> Opens) TransitSession()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier()
+            .Map(DungeonName, DungeonSno, isDungeon: true)
+            .Map(OverworldName, OverworldSno, isDungeon: false)
+            .Map(GameSession.TransitWorldName, 2, isDungeon: false);
+        int opens = 0;
+        var session = NewSession(feed, classifier, (_, _) => { opens++; return new FakeDungeonSessionReader(); });
+        var events = new List<string>();
+        var transit = new List<bool>();
+        session.WorldChanged += (_, name, _) => events.Add(name);
+        session.TransitChanged += transit.Add;
+        return (feed, session, events, transit, () => opens);
+    }
+
+    [Fact]
     public void OpenSessionReturningNull_StaysIdleInstead_OfInDungeon()
     {
         var feed = new FakeWorldNameSource();
@@ -352,10 +410,10 @@ public class GameSessionTests
 
     private sealed class FakeWorldNameSource : IWorldNameSource
     {
-        public event Action<string>? WorldChanged;
+        public event Action<WorldEntry>? WorldChanged;
         public string? StartupWorld { get; set; }
-        public string? ReadLastWorldNameAtStartup() => StartupWorld;
-        public void Raise(string worldName) => WorldChanged?.Invoke(worldName);
+        public WorldEntry? ReadLastWorldAtStartup() => StartupWorld is { } name ? new WorldEntry(name, null) : null;
+        public void Raise(string worldName, string? instance = null) => WorldChanged?.Invoke(new WorldEntry(worldName, instance));
     }
 
     private sealed class FakeClassifier : IWorldClassifier

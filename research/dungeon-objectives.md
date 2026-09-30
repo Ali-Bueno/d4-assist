@@ -148,6 +148,43 @@ them as missing. Gizmos (`eType` 2): 22,725.
 
   Rotate by the placement quaternion (RActor +0x750, [client-memory](client-memory.md) §4).
   `ActorCollisionData` holds the same default cylinder for every door, so it is useless here.
-- **Live "used" state:** unknown for every kind. Candidates to diff with `D4MemScan actors --watch`: the
-  quaternion (a door that swings), actor removal (blockers vanish about 10 s after opening), and the unmapped
-  RActor slot words. Gizmo state is probably an ACD attribute; the ACD attribute values are obfuscated.
+- **Live "used" state:** RActor `+0x148 != 0` for clickies (snow piles, backpacks) and doors
+  ([client-memory](client-memory.md) §4). **Real chests don't show it** (live 2026-09-30, `ProtoDunKeep_Chest_01`
+  356000, `D4MemScan actors --watch` while opening): `+0x140`/`+0x148` stayed `0x4046D66`/0. Instead, a closed chest
+  carries a glow effect actor 0.015 units from its centre (`vfx_genericChestGlow_hardpointLight_square` 1357946 and
+  `fxKit_chest_genericWedgeRectangular_glow` 1839569), and the game removes it on opening. The game data has 8 such
+  actors (`*chest*glow*`, eType 3), referenced only by particles, marker sets and appearances, never by a chest's
+  ActorDefinition: the server spawns them, so the kinds that glow are learned live and saved (`d4assist-chests.json`).
+- **Re-creation:** chests left the actor list at 16–18 units and came back at ~15 under a new id (same slot, new
+  generation), with their state words reset. The app therefore remembers a used gizmo by SNO + spot for the world
+  visit (`Game/GizmoUsedSignal`).
+- Levers, switch prisoners and blockers: still unchecked (blockers vanish about 10 s after opening).
+
+## 7. Portals, level transitions and the Worldstone (offline, build 3.2.1.73552, 2026-09-30)
+
+- **Portal class (H):** `eActorGizmoType` 2 = `PortalGizmoData`: 227 actors, 209 named `*Portal*`. Switch-type
+  pads (gizmo 57) do the same job: `X1_Undercity_WarpPad`, `First_Khazra_WarpPad_*`, `TWR_ExitPortalSwitch`,
+  `S14_DRLG_Chamber_PortalSwitch_Exit`. The app's rule (`Game/PortalClassifier`): gizmo 2, or gizmo 57 named
+  `*Portal*`/`*WarpPad*`, never `*TownPortal*` (`Portal_Quest_TownPortal` 470136 is gizmo 2).
+- **No destination to tell "on" from "back" (H):** `CommonPortalGizmoData` (PortalGizmoData +208) holds
+  `eWorldToChoose` +16, `snoSpecifiedWorld` +20, `snoPortalDestLevelArea` +24, `dwEntranceNameToFind` +28.
+  117 portals use 7 (generic, e.g. `Portal_Dungeon_Generic` 152702, `Prefab_Portal_Dungeon_Generic` 1839980) and
+  the dynamic ones use 0 with world −1: the server resolves both. Markers carry no destination either. The app
+  therefore calls a portal "used" when the player appeared or vanished within 15 units of it (`Game/PortalMemory`).
+- **Where generic portals sit:** `Prefab_Portal_Dungeon_Generic` in the tile layers of 180 `*_Entrance_01`
+  tiles, `Portal_Dungeon_Generic` in 39 more, and about 30 POI, boss-room and arena tiles.
+- **`S15_Triad_B_Worldstone` (2638399, H):** one DRLG world with five DRLG level areas (`S15_Triad_B_Worldstone`
+  2638402 and `_01`–`_04`) plus `_01_Boss`, `_03_Boss`, `_04_Boss`. The floor warps stay inside the world
+  ([runtime-signals](runtime-signals.md) §2) and no floor-to-floor portal actor is placed in client data (M: most
+  likely a generic portal placed by the server). Preset tiles `Triad_B_ThroneRoom_*` and
+  `Triad_B_WorldStoneChamber_*` hold only start and checkpoint markers. `S15_WorldStoneChamber_Entrance` 2609366
+  (gizmo 2) is placed by marker set `S15_TriadB_WaveEvent` 2608075 (quest 2608081, level area `_04`): the throne →
+  chamber portal most likely appears with the wave event (M). After Baal, `S15_Triad_B_Boss_QST` 2671537 places
+  `S15_Portal_ToLibrary` 2669439 (gizmo 57).
+- **Objectives without DPO (H):** the world has no `zone_progress` entry. Its quest is named after it
+  (`S15_Triad_B_Worldstone`, 31/2638473): `S15_Arreat_Summit_Altar_A_Gizmo` 2647200 (the Ancients' altar, floor 01),
+  the Ancients Korlic 2679638, Madawc 2679640 and Talic 2679642, Baal `S15_Triad_B_Boss_QST` 2671540,
+  `S15_TriadB_QST_Soulshard` 2671217 and Tal Rasha 2671529. `DungeonObjectiveReader` falls back to that quest, so the
+  altar and the soulshard get objective loops (monsters never do).
+- **Still to confirm live:** the real floor-exit actor names (`--debug` logs `PORTAL seen` and `ACTOR seen`), and the
+  distance at which the player appears from the portal they came through (the 15-unit "used" radius).

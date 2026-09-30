@@ -51,7 +51,7 @@ public class ExplorationGuideBridgeTests
         public Rig(bool guideInDungeons = false)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
-            _ = new ExplorationGuideBridge(Feed, (_, _) => Step, Ping, Speech, () => BeaconActive, Log.Add, Pad, guideInDungeons);
+            _ = new ExplorationGuideBridge(Feed, (_, _, _) => Step, Ping, Speech, () => BeaconActive, Log.Add, Pad, guideInDungeons);
             Feed.RaiseWorld();
         }
 
@@ -74,7 +74,7 @@ public class ExplorationGuideBridgeTests
         var mixer = new AudioMixer();
         var ping = new GuidePingPlayer(mixer, () => 0, autoTick: false);
         var step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Frontier, "a", (-10, 10)), (-10, 10), 50);
-        _ = new ExplorationGuideBridge(feed, (_, _) => step, ping, new FakeSpeech(), () => false);
+        _ = new ExplorationGuideBridge(feed, (_, _, _) => step, ping, new FakeSpeech(), () => false);
 
         feed.RaisePlayer();
         ping.Tick();

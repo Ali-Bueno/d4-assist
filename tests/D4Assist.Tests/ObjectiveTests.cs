@@ -80,7 +80,7 @@ public class ObjectiveTests
     public void Selector_ExitPadKeepsTheBeaconProfile_ObjectivesGetTheQuestProfile()
     {
         var selector = Selector(beaconVolume: 0.5, objectiveVolume: 0.25);
-        selector.SetWorld(WorldA);
+        selector.SetWorld(WorldA, isDungeon: true);
 
         var pad = selector.Select(Placed(PadSno));
         var objective = selector.Select(Placed(CarryableSno));
@@ -100,10 +100,10 @@ public class ObjectiveTests
     public void Selector_SetWorldRebuildsTheAllowList()
     {
         var selector = Selector();
-        selector.SetWorld(WorldA);
+        selector.SetWorld(WorldA, isDungeon: true);
         Assert.NotNull(selector.Select(Placed(DpoSwitchSno)));
 
-        selector.SetWorld(WorldB);
+        selector.SetWorld(WorldB, isDungeon: true);
 
         Assert.Null(selector.Select(Placed(DpoSwitchSno)));
     }
@@ -112,7 +112,7 @@ public class ObjectiveTests
     public void Selector_WithoutObjectivesLoopsOnlyTheBeacon()
     {
         var selector = new LoopTargetSelector(new HashSet<int> { PadSno }, 1, objectives: null, 1, Dpo);
-        selector.SetWorld(WorldA);
+        selector.SetWorld(WorldA, isDungeon: true);
 
         Assert.NotNull(selector.Select(Placed(PadSno)));
         Assert.Null(selector.Select(Placed(CarryableSno)));

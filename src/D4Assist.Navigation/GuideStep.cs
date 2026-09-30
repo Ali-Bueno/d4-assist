@@ -2,7 +2,11 @@ namespace D4Assist.Navigation;
 
 public enum GuideStatus { Unknown, Guiding, AllExplored, Rechecking }
 
-public enum GuideTargetKind { UnvisitedTile, Frontier, ExitCandidate }
+public enum GuideTargetKind { UnvisitedTile, Frontier, ExitCandidate, Destination }
+
+/// <summary>A known point to lead to once nothing is left to explore (e.g. a portal seen earlier).</summary>
+/// <param name="Tier">Lower tiers win: the guide picks among the reachable destinations of the lowest tier.</param>
+public sealed record GuideDestination(string Id, (float X, float Y) Position, int Tier = 0);
 
 /// <param name="Id">Stable identity across recomputes (a tile cell, or an exit's tile/side/position).</param>
 /// <param name="Position">World point to reach: where the route enters the tile, or the frontier opening.</param>

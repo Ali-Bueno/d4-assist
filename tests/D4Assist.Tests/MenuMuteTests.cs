@@ -20,10 +20,10 @@ public class MenuMuteTests
 
         mute.OnScreens([]);
         mute.OnScreens([Main]);
-        Assert.True(mute.IsMuted);
+        Assert.True(mute.AnyOpen);
         mute.OnScreens([]);
 
-        Assert.False(mute.IsMuted);
+        Assert.False(mute.AnyOpen);
         Assert.Equal([true, false], applied);
         Assert.Equal(["MENU closed", $"MENU open: {Main}", "MENU closed"], logs);
     }

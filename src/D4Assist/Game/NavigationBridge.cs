@@ -41,9 +41,9 @@ public sealed class NavigationBridge
     }
 
     /// <summary>The exploration guide's next step for a live player position (serialized with the feed handlers).</summary>
-    public GuideStep NextGuideStep(PlayerInput player, bool exitMissing = false)
+    public GuideStep NextGuideStep(PlayerInput player, bool exitMissing = false, IReadOnlyList<GuideDestination>? destinations = null)
     {
-        lock (_gate) return _engine.Guide.Step(player, exitMissing);
+        lock (_gate) return _engine.Guide.Step(player, exitMissing, destinations);
     }
 
     private void LogTilesIfChanged(IReadOnlyList<TileState> tiles)

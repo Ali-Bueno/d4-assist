@@ -9,8 +9,8 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Feeds the exploration guide's waypoint to the guide ping on every player poll and tile update. Toggled by D-pad left (off outside endgame worlds by default). Chimes on
-/// each target reached, yields to the beacon while it has a target, stays off in Undercity's boss room, and
-/// speaks once when nothing is left to explore.
+/// each target reached, yields to the beacon while an unused portal is in sight, stays off in Undercity's boss room, and
+/// once nothing is left to explore leads to the portals seen earlier (PortalMemory) or says so once.
 /// </summary>
 public sealed class ExplorationGuideBridge
 {
@@ -18,7 +18,8 @@ public sealed class ExplorationGuideBridge
     // CoreTOC scenes: Cave_Bug_, ZigIn_Kurast_ and ProtoDun_Flooded_FLEX_POI_BossRoom_Undercity (research/dungeon-objectives.md §5).
     public const string UndercityBossRoomSuffix = "_FLEX_POI_BossRoom_Undercity";
 
-    private readonly Func<PlayerInput, bool, GuideStep> _step;
+    private readonly Func<PlayerInput, bool, IReadOnlyList<GuideDestination>, GuideStep> _step;
+    private readonly Func<IReadOnlyList<GuideDestination>> _destinations;
     private readonly GuidePingPlayer _ping;
     private readonly ISpeechSink _speech;
     private readonly LanguageSetting _language;
@@ -31,25 +32,29 @@ public sealed class ExplorationGuideBridge
     private PlayerInput? _player;
     private string? _loggedTargetId;
     private bool _announcedAllExplored;
+    private string? _announcedDestination;
     private int _announcedRound;
     private bool _inBossRoom;
     private bool _muted = true;
     private int _arrivals;
 
-    /// <param name="step">Asks the navigation engine for the next guide step; the flag asks it to re-check exit candidates when nothing is left to explore (NavigationBridge.NextGuideStep).</param>
-    /// <param name="beaconActive">True while the beacon has a target (ActorLoopBridge.HasTarget(LoopKind.ExitBeacon)).</param>
+    /// <param name="step">Asks the navigation engine for the next guide step; the flag asks it to re-check exit candidates when nothing is left to explore,
+    /// the list is where to lead after that (NavigationBridge.NextGuideStep).</param>
+    /// <param name="beaconActive">True while an unused portal's beacon is in sight (PortalMemory.FreshInSight).</param>
     /// <param name="pad">D-pad left toggles the guide for the current kind of dungeon; null for no toggle.</param>
     /// <param name="guideInDungeons">Default outside the endgame worlds (config ExplorationGuideInDungeons).</param>
     /// <param name="language">Spoken language; null means Spanish.</param>
     /// <param name="log">Debug sink for target-change and toggle lines; null when not debugging.</param>
+    /// <param name="destinations">Portals seen in this dungeon, unused ones in tier 0 (PortalMemory.Destinations); null for none.</param>
     public ExplorationGuideBridge(
-        IDungeonFeed feed, Func<PlayerInput, bool, GuideStep> step, GuidePingPlayer ping, ISpeechSink speech,
+        IDungeonFeed feed, Func<PlayerInput, bool, IReadOnlyList<GuideDestination>, GuideStep> step, GuidePingPlayer ping, ISpeechSink speech,
         Func<bool> beaconActive, Action<string>? log = null, IGuideTogglePad? pad = null, bool guideInDungeons = false,
-        LanguageSetting? language = null)
+        LanguageSetting? language = null, Func<IReadOnlyList<GuideDestination>>? destinations = null)
     {
         _language = language ?? new LanguageSetting();
         _switch = new GuideSwitch(guideInDungeons);
         _step = step;
+        _destinations = destinations ?? (() => []);
         _ping = ping;
         _speech = speech;
         _beaconActive = beaconActive;
@@ -79,6 +84,7 @@ public sealed class ExplorationGuideBridge
         _player = null;
         _loggedTargetId = null;
         _announcedAllExplored = false;
+        _announcedDestination = null;
         _announcedRound = 0;
         _inBossRoom = false;
         _muted = true;
@@ -98,7 +104,10 @@ public sealed class ExplorationGuideBridge
         if (!_switch.InDungeon) return; // outside dungeons the shared ping belongs to the quest routes (QuestRouteBridge)
         if (_player is null || !_switch.IsOn || _inBossRoom || _beaconActive()) { _ping.Silence(); _muted = true; return; }
 
-        var step = _step(_player, _switch.IsEndgame); // the beacon check above means no exit is known
+        var destinations = _destinations();
+        // An unused portal already seen is the floor exit: lead back to it instead of re-checking dead ends.
+        bool exitMissing = _switch.IsEndgame && !destinations.Any(d => d.Tier == 0);
+        var step = _step(_player, exitMissing, destinations);
         // Targets reached while muted (e.g. beside the exit pad) must not chime late when guiding resumes.
         if (step.Arrivals > _arrivals && !_muted) _ping.PlayArrived();
         _arrivals = Math.Max(_arrivals, step.Arrivals);
@@ -110,6 +119,7 @@ public sealed class ExplorationGuideBridge
                 goto case GuideStatus.Guiding;
             case GuideStatus.Guiding:
                 LogTargetChange(step);
+                AnnounceDestination(step, destinations);
                 var (right, up) = ScreenDirections.ToScreen(step.Waypoint.X - _player.X, step.Waypoint.Y - _player.Y);
                 _ping.Aim(right, up, step.RemainingLength);
                 break;
@@ -124,6 +134,16 @@ public sealed class ExplorationGuideBridge
                 _ping.Silence(); // off the known grid: nothing to lead by
                 break;
         }
+    }
+
+    // Once per portal the guide turns to: a new one leads on, a used one leads back the way the player came.
+    private void AnnounceDestination(GuideStep step, IReadOnlyList<GuideDestination> destinations)
+    {
+        if (step.Target is not { Kind: GuideTargetKind.Destination } target || target.Id == _announcedDestination) return;
+        _announcedDestination = target.Id;
+        bool back = destinations.FirstOrDefault(d => d.Id == target.Id)?.Tier > 0;
+        var strings = AppStrings.For(_language.Current);
+        _speech.Speak(back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
     }
 
     private void AnnounceRound(GuideStep step)

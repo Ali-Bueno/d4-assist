@@ -69,6 +69,10 @@ Unexplored rides on Exit only: the room beyond was never stood in, or the route 
 - **Poll-relative timings** follow D4's 100 ms poll (stationary confirm, maximum gap); wall-clock ones are kept.
 - **No collision kinds** in the clutter filter: every small blocked island is a candidate.
 - Cues of one poll play together through the Audio mixer; D2R's `CueQueue` played them one after another.
+- **The wall memory follows the wall.** The retreat gate's frontier is refreshed on every poll while the confirmed
+  wall is within closing depth, and a silent-baseline wall sets it too; D2R set it only when a wall was announced.
+  Backing away from a wall the player started beside, or walked along for more than `BoundaryRange`, no longer reads
+  Open: nothing new opened (user, 2026-09-30).
 
 ## Not ported
 

@@ -5,9 +5,9 @@ namespace D4Assist.Radar;
 /// <summary>Why the last confirmed change did not sound (D2R Sensor::hold, diagnostics only).</summary>
 public enum RadarHold { None, Retreat, WayBack, Unchanged, Interval }
 
-/// <summary>A wall the player was warned about, anchored in the world (d2r-access src/radar.h:150-157).</summary>
+/// <summary>The wall last seen within closing depth, anchored in the world (d2r-access src/radar.h:150-157).</summary>
 /// <param name="Projection">The wall's position along the ray axis.</param>
-/// <param name="Origin">Where the player stood when it was announced.</param>
+/// <param name="Origin">Where the player stood when it was last seen there.</param>
 public readonly record struct Frontier(double Projection, RadarVector Origin);
 
 /// <summary>
@@ -79,12 +79,21 @@ public sealed class RadarSensor(RadarSettings settings)
         {
             var travelled = motion.DistanceTo(_candidateOrigin) >= settings.ConfirmDistance;
             var stationary = nowMs - lastMoveMs >= settings.StoppedMs && nowMs - _candidateSince >= settings.StationaryConfirmMs;
-            if (travelled || stationary) Confirm(passage, axis, motion);
+            if (travelled || stationary) Confirm(passage);
         }
+        TrackWall(passage, axis, motion);
         return Deliver(axis, motion, nowMs);
     }
 
-    private void Confirm(Passage passage, RadarVector axis, RadarVector motion)
+    // D4 deviation (user, 2026-09-30): the wall memory follows the wall while it is still within closing depth, so a
+    // baseline wall, or one walked along past BoundaryRange, still gates a retreat. Frozen once the player backs away.
+    private void TrackWall(Passage passage, RadarVector axis, RadarVector motion)
+    {
+        if (State is { } state && state.IsObstacle() && passage.Observed == state && passage.Depth <= passage.CloseDepth)
+            Frontier = new Frontier(motion.Dot(axis) + passage.Depth, motion);
+    }
+
+    private void Confirm(Passage passage)
     {
         State = passage.Observed;
         Unexplored = passage.Unexplored;
@@ -92,7 +101,6 @@ public sealed class RadarSensor(RadarSettings settings)
         _deferred = State; // replaces any older change still waiting
         _deferredUnexplored = Unexplored;
         Hold = RadarHold.None;
-        if (State is { } state && state.IsObstacle()) Frontier = new Frontier(motion.Dot(axis) + passage.Depth, motion);
         if (State != RadarCueKind.Exit) WayBack = false;
     }
 

@@ -61,8 +61,10 @@ Qué hace
 - Radar: sonidos cortos hacia arriba, abajo, izquierda y derecha. Un tono agudo
   indica una salida, un golpe grave una pared, dos golpes una puerta y un soplo
   suave espacio abierto (hacia arriba sube, hacia abajo baja).
-- Baliza de salida en Undercity: un sonido en bucle en la plataforma que lleva
-  al siguiente piso. Se oye cuando estás a unos 20 o 30 metros.
+- Balizas de salida (NUEVO): dentro de las mazmorras, un sonido en bucle en
+  cada portal (la salida de la mazmorra, los portales entre pisos, la
+  plataforma de Undercity). Se oye cuando el portal está cerca (unos 60
+  metros; la plataforma de Undercity aparece a unos 20 o 30).
 - Objetivos: un sonido de misión en bucle sobre palancas, objetos que hay que
   llevar y sus pedestales, y cofres de misión, dentro y fuera de las
   mazmorras. Los prisioneros suenan con el sonido de cadáver de D2R. Las
@@ -94,12 +96,19 @@ Qué hace
   puerta cerrada suena con los dos golpes de puerta; al abrirla, como salida.
 - Guía de exploración: un pitido que te lleva a la zona sin explorar más
   cercana, siguiendo el camino. Suena más rápido cuanto más cerca estás y toca
-  tres notas al llegar. Cuando aparece la salida de Undercity deja sonar la
-  baliza. Si ya no queda nada por explorar dice "Todo explorado".
+  tres notas al llegar. Cuando aparece un portal nuevo (uno por el que no has
+  llegado) deja sonar su baliza. Si ya no queda nada por explorar te lleva a
+  un portal nuevo que ya hayas oído ("Todo explorado. Te llevo a un portal"),
+  o, si no hay, al portal por el que llegaste. Si no hay ninguno dice "Todo
+  explorado".
+    - Recuerda lo explorado aunque saltes de zona dentro de la misma mazmorra
+      (por ejemplo, entre los pisos de la Piedra del Mundo).
     - Viene activada en Undercity y en el Foso y desactivada en las demás
       mazmorras.
     - Cruceta hacia la IZQUIERDA la activa o la desactiva (dice "Guía activada"
-      o "Guía desactivada"). En el juego ese botón no hace nada.
+      o "Guía desactivada"). En el juego ese botón no hace nada. Con el
+      inventario, el mapa u otro menú abierto no la toca: ahí la cruceta es
+      del menú.
     - En la sala del jefe de Undercity se apaga sola.
     - En Undercity, si ya no queda nada por explorar y la salida no ha
       aparecido, dice "Salida no encontrada. Revisando los callejones" y te

@@ -23,6 +23,10 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public const int NoWorldSno = -1;
     public const string GameLostWorldName = "(game closed)";
 
+    /// <summary>The loading world between two others: a warp inside one dungeon passes through it back into the same
+    /// instance (the Undercity boss room, the Worldstone's sections; research/runtime-signals.md §2).</summary>
+    public const string TransitWorldName = "Limbo";
+
     private readonly IWorldClassifier _classifier;
     private readonly Func<int, IReadOnlySet<int>, IDungeonSessionReader?> _openSession;
     private readonly IReadOnlySet<int> _sceneSnos;
@@ -41,6 +45,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private string? _lastOpenFailure;
     private IDungeonSessionReader? _session;
     private int _currentWorldSno = -1;
+    private string? _currentInstance;
+    private bool _inTransit;
     private readonly HashSet<string> _reportedPollFailures = [];
     private bool _fallbackScanTriggered;
 
@@ -57,6 +63,10 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public event Action<IReadOnlyList<TileState>>? TilesUpdated;
     public event Action<PlayerState>? PlayerMoved;
     public event Action<IReadOnlyList<ActorState>>? ActorsUpdated;
+
+    /// <summary>True while loading through <see cref="TransitWorldName"/> out of a read world; the bridges keep their
+    /// state (no WorldChanged) until the next world shows whether it is the same instance.</summary>
+    public event Action<bool>? TransitChanged;
 
     /// <summary>The dialogue menu and playing conversations, read at the player-poll rate while a memory session is open.</summary>
     public event Action<ConversationSnapshot>? ConversationRead;
@@ -84,11 +94,12 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         _openRetryIntervalMs = openRetryIntervalMs;
 
         feed.WorldChanged += OnWorldChanged;
-        if (feed.ReadLastWorldNameAtStartup() is { } lastWorld) OnWorldChanged(lastWorld);
+        if (feed.ReadLastWorldAtStartup() is { } lastWorld) OnWorldChanged(lastWorld);
     }
 
-    private void OnWorldChanged(string worldName)
+    private void OnWorldChanged(WorldEntry entry)
     {
+        string worldName = entry.Name;
         (int WorldSno, WorldKind Kind) classified;
         try { classified = _classifier.Classify(worldName); }
         catch (ArgumentException) { return; } // world name not in CoreTOC; ignore rather than crash the loop
@@ -96,8 +107,23 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         lock (_gate)
         {
             bool firstWorld = State == SessionState.WaitingForGame;
-            if (!firstWorld && classified.WorldSno == _currentWorldSno) return; // diff-gate
+            if (!firstWorld && CurrentWorldKind != WorldKind.Other && string.Equals(worldName, TransitWorldName, StringComparison.OrdinalIgnoreCase))
+            {
+                BeginTransitLocked();
+                return;
+            }
+            bool afterTransit = _inTransit;
+            _inTransit = false;
+            if (afterTransit && classified.WorldSno == _currentWorldSno && entry.Instance is not null && entry.Instance == _currentInstance)
+            {
+                Console.WriteLine($"World: back in {worldName} (same instance), keeping its map.");
+                EnterDungeonLocked(CurrentWorldKind);
+                Raise("transit", TransitChanged, h => h(false));
+                return;
+            }
+            if (!firstWorld && !afterTransit && classified.WorldSno == _currentWorldSno) return; // diff-gate
             _currentWorldSno = classified.WorldSno;
+            _currentInstance = entry.Instance;
 
             LeaveDungeonLocked();
             bool isDungeon = classified.Kind == WorldKind.Dungeon;
@@ -109,7 +135,17 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             CurrentWorldRadarOnly = radarOnly;
             Raise("world", WorldChanged, h => h(classified.WorldSno, worldName, isDungeon));
             if (reads) EnterDungeonLocked(classified.Kind);
+            if (afterTransit) Raise("transit", TransitChanged, h => h(false));
         }
+    }
+
+    private void BeginTransitLocked()
+    {
+        if (_inTransit) return;
+        _inTransit = true;
+        LeaveDungeonLocked();
+        State = SessionState.Idle;
+        Raise("transit", TransitChanged, h => h(true));
     }
 
     private void EnterDungeonLocked(WorldKind kind)

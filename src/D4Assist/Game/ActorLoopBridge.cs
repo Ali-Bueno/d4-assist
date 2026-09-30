@@ -16,6 +16,7 @@ public sealed class ActorLoopBridge
     private readonly SpatialLoopPlayer _player;
     private readonly LoopTargetSelector _selector;
     private readonly Func<ActorState, bool> _isUsed;
+    private readonly GizmoUsedSignal? _used;
     private readonly Func<int, string?> _nameOf;
     private readonly Action<string>? _log;
     private readonly ActorSightingLog? _sightings;
@@ -26,21 +27,24 @@ public sealed class ActorLoopBridge
     private PlayerState? _lastPlayer;
 
     /// <param name="isUsed">True once an actor was used (lever pulled, chest opened): its loop stops if its target says so.
-    /// Default: the live gizmo state signal (<see cref="ActorState.StateChanged"/>).</param>
+    /// Default: <see cref="GizmoUsedSignal"/> (chest glow, else the gizmo state word, remembered by spot).</param>
     /// <param name="log">Debug sink for loop start/stop lines; null when not debugging.</param>
     /// <param name="sightings">Debug log of gizmo and portal-like actors; null when not debugging.</param>
+    /// <param name="usedSignal">The default "used" signal when <paramref name="isUsed"/> is null; null builds one with no known chest kinds.</param>
     public ActorLoopBridge(
         IDungeonFeed feed, SpatialLoopPlayer player, LoopTargetSelector selector, Func<int, string?> nameOf,
-        Func<ActorState, bool>? isUsed = null, Action<string>? log = null, ActorSightingLog? sightings = null)
+        Func<ActorState, bool>? isUsed = null, Action<string>? log = null, ActorSightingLog? sightings = null,
+        GizmoUsedSignal? usedSignal = null)
     {
         _player = player;
         _selector = selector;
         _nameOf = nameOf;
-        _isUsed = isUsed ?? (a => a.StateChanged);
+        _used = isUsed is null ? usedSignal ?? new GizmoUsedSignal(nameOf) : null;
+        _isUsed = isUsed ?? _used!.IsUsed;
         _log = log;
         _sightings = sightings;
 
-        feed.WorldChanged += (sno, _, _) => { lock (_gate) Reset(sno); };
+        feed.WorldChanged += (sno, _, isDungeon) => { lock (_gate) Reset(sno, isDungeon); };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
         feed.PlayerMoved += p => { lock (_gate) OnPlayer(p); };
     }
@@ -48,18 +52,20 @@ public sealed class ActorLoopBridge
     /// <summary>True while an actor of <paramref name="kind"/> has been detected in the current dungeon.</summary>
     public bool HasTarget(LoopKind kind) { lock (_gate) return _targets.Values.Any(t => t.Target.Kind == kind); }
 
-    private void Reset(int worldSno)
+    private void Reset(int worldSno, bool isDungeon)
     {
         _targets = [];
         _lastPlayer = null;
         _sightings?.Reset();
+        _used?.Reset();
         _player.StopAll();
-        _selector.SetWorld(worldSno);
+        _selector.SetWorld(worldSno, isDungeon);
     }
 
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
         _sightings?.Note(actors, _lastPlayer);
+        _used?.Observe(actors, _lastPlayer);
         var selected = actors
             .Select(a => (Actor: a, Target: _selector.Select(a)))
             .Where(x => x.Target is not null)

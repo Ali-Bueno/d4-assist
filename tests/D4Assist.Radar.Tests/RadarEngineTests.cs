@@ -41,7 +41,8 @@ public class RadarEngineTests
         var world = FakeRadarWorld.Corridor(wallX: 60, secondRoomFromX: 20);
         var backCues = new List<RadarCue>();
         long now = 0;
-        for (var x = 2; x <= 24; x++)
+        // Starts past the opening depth from the back wall: a wall behind would drop the crossing as a retreat first.
+        for (var x = 12; x <= 24; x++)
             backCues.AddRange(engine.Tick(world, x + 0.5, 2.5, now += PollMs).Where(c => c.Ray == RadarRay.Left && x >= 20));
 
         var back = engine.Sensor(RadarRay.Left);

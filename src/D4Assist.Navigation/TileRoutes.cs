@@ -15,6 +15,8 @@ internal sealed class TileRoutes
 
     public IEnumerable<TileNode> Reached => _arrivals.Keys;
 
+    public bool Reaches(TileNode node) => _arrivals.ContainsKey(node);
+
     public float LengthTo(TileNode node) => _arrivals[node].Length;
 
     /// <summary>The point where the shortest route enters <paramref name="node"/> (the player's own position for the start).</summary>

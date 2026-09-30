@@ -163,6 +163,50 @@ public class ExplorationGuideTests
     }
 
     [Fact]
+    public void Destinations_wait_until_nothing_is_left_to_explore()
+    {
+        var map = Map(Tile(0, 0, E), Tile(0, 1, W));
+        Visit(map, (0, 0));
+        GuideDestination[] portal = [new("portal", (Half, Half), 0)];
+
+        Assert.Equal(GuideTargetKind.UnvisitedTile, new ExplorationGuide(map).Step(Centre(0, 0), destinations: portal).Target!.Kind);
+
+        Visit(map, (0, 1));
+        var step = new ExplorationGuide(map).Step(Centre(0, 1), destinations: portal);
+        Assert.Equal(GuideStatus.Guiding, step.Status);
+        Assert.Equal("portal", step.Target!.Id);
+    }
+
+    [Fact]
+    public void The_lowest_reachable_tier_wins_and_reaching_it_never_falls_back_a_tier()
+    {
+        var map = Map(Tile(0, 0, E), Tile(0, 1, W | E), Tile(0, 2, W));
+        Visit(map, (0, 0), (0, 1), (0, 2));
+        var guide = new ExplorationGuide(map);
+        var back = new GuideDestination("back", (Half, Half), 1);
+        var on = new GuideDestination("on", (Half, 2 * 32 + Half), 0);
+        var elsewhere = new GuideDestination("cut-off", (9 * 32 + Half, Half), 0); // no loaded tile there
+
+        Assert.Equal("on", guide.Step(Centre(0, 1), destinations: [back, on, elsewhere]).Target!.Id);
+
+        var atThePortal = guide.Step(Centre(0, 2), destinations: [back, on, elsewhere]);
+        Assert.Equal(GuideStatus.AllExplored, atThePortal.Status);
+        Assert.Equal(1, atThePortal.Arrivals);
+    }
+
+    [Fact]
+    public void A_used_portal_leads_when_it_is_the_only_one()
+    {
+        var map = Map(Tile(0, 0, E), Tile(0, 1, W));
+        Visit(map, (0, 0), (0, 1));
+
+        var step = new ExplorationGuide(map).Step(Centre(0, 1), destinations: [new("back", (Half, Half), 1)]);
+
+        Assert.Equal("back", step.Target!.Id);
+        Assert.Equal((Half, 32f), step.Waypoint); // through the doorway into the portal's tile
+    }
+
+    [Fact]
     public void An_exit_whose_far_side_never_loads_stops_being_a_target_once_reached()
     {
         var map = Map(Tile(0, 0, E));

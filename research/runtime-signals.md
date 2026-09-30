@@ -41,6 +41,14 @@ file changed at 09:50, after a session logged `enUS` at 03:53). It is unknown wh
 spoken language. The app reads it at startup, and the log's `Current Text Locale` line wins once the game starts.
 
 `Limbo`, `FrontendStartup` and `Sanctuary_Eastern_Continent` are loading/overworld worlds, not dungeons.
+
+**Warps inside one dungeon** go `<world> → Limbo → <same world>` with the **same CWorldID**, after an
+`Intro portal to exterior Subzone '<the dungeon's own subzone>'` line: the Undercity boss-room warp
+(`X1_Undercity_SnakeTemple_03`, 524291 twice, 2026-09-29 04:00) and five warps in `S15_Triad_B_Worldstone`
+(1048578, 2026-09-29 17:09–17:34). Undercity floors are separate worlds (`_01`/`_02`/`_03`, new CWorldIDs).
+A new instance of the same dungeon gets a new CWorldID (524290 then 1048578 for two runs of the Worldstone),
+but ids are reused across worlds, so the app treats a return as the same instance only when `Limbo` alone lies
+between the two entries (`GameSession.TransitWorldName`): it keeps the map and mutes cues while loading.
 DiabloDungeonTimer uses exactly this (FileSystemWatcher + poll, `LogMonitorService.cs:88-89`).
 **No log line carries player coordinates**, and there are no quest/objective/death categories.
 

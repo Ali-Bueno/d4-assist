@@ -28,7 +28,7 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   `CUES muted/unmuted` reason.
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
-- Loops positional beacons at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).
+- Loops positional beacons at every portal in a dungeon and at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).
 - Outside dungeons (overworld, towns, story areas; user-approved 2026-09-29) opens the same read-only session for the
   player position and the actor list only: no tiles, radar or announcements there (`WorldKind.Overworld`). Beacons,
   objective sounds and the quest routes run there.
@@ -92,10 +92,16 @@ error. No key needs a machine-specific path.
 
 While in a dungeon the RActor pool (`D4Memory.Actors`) is read every 500 ms (`GameSession.PollActorsOnce`);
 `ActorLoopBridge` (with `LoopTargetSelector`) picks the actors named in `BeaconActorNames` (resolved to SNOs through CoreTOC at startup) and,
+inside dungeons, every portal (`Game/PortalClassifier`: portal gizmos, warp pads and portal switches, never town portals;
+[dungeon-objectives](../../research/dungeon-objectives.md) §7) and,
 on every player update, loops the quest-item sound (embedded in `D4Assist.Audio`) at each one, panned and faded by its offset in screen axes
 (`ScreenDirections.ToScreen`). The loops share the radar's mixer/output and stop on any world change. If the
 actor pool is unavailable the app logs it once and the beacons stay silent. `--debug` logs a `BEACON` line when
 a target appears or disappears (`LOOP started/stopped`).
+
+`Game/PortalMemory` keeps every portal seen in the dungeon instance (also across warps inside it) and marks the ones the
+player appeared or vanished within 15 units of as used: they lead back, the others lead on. `--debug` logs `PORTAL seen`
+(with its distance and whether it was arrived by) and `PORTAL went through / arrived by`.
 
 ## Objective sounds
 
@@ -104,8 +110,10 @@ objectives: actors the world's DPO quest names (`D4Data` `DungeonObjectiveReader
 `DPO_*` quest callbacks) minus monsters, plus every carryable, carryable receptacle, quest switch and quest chest, and
 free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor). Rules and data:
 [dungeon-objectives](../../research/dungeon-objectives.md). The exit pads keep the beacon profile and are the only loops that
-mute the exploration guide. A loop stops when its actor leaves the placed list; the "used" signal is unknown, so
-`ActorLoopBridge` takes a `isUsed` predicate (default never) for it. `--debug` logs one `LOOP started/stopped` line
+mute the exploration guide. A loop stops when its actor leaves the placed list, or when the gizmo was used
+(`Game/GizmoUsedSignal`: a chest's glow effect gone while the player is within 10 units, else the RActor state word;
+remembered by spot for the world visit, so a re-created actor stays silent). Chest kinds seen glowing are saved next to
+the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
 
 ## Doors, chests and readables
@@ -161,13 +169,14 @@ player has walked one map cell. `--debug` logs `CUTSCENE state …` and `CUES pa
 ## Exploration guide
 
 `Game/ExplorationGuideBridge` asks the navigation engine's `ExplorationGuide` for a waypoint on every player poll
-and tile update and aims `GuidePingPlayer` at it (no buttons). It mutes while `ActorLoopBridge.HasTarget(LoopKind.ExitBeacon)` (the exit pad
-takes over), stops on a world change, and when every reachable part is visited stays silent and speaks
-"Todo explorado." once per dungeon (`interrupt=false`). `--debug` logs one `GUIDE` line per target change and per toggle.
+and tile update and aims `GuidePingPlayer` at it (no buttons). It mutes while an unused portal is in sight (`PortalMemory.FreshInSight`: its
+beacon takes over), stops on a world change, and when every reachable part is visited leads to the portals seen earlier:
+the reachable unused ones, or else the ones already used ("Todo explorado. Te llevo a un portal." / "... al portal por el que
+llegaste."). Reaching the last of them, or having none, it stays silent and speaks "Todo explorado." once per dungeon (`interrupt=false`). `--debug` logs one `GUIDE` line per target change and per toggle.
 Each target reached plays the arrival chime (a target reached while the beacon leads never chimes late). Once a
 Undercity boss-room tile (`*_FLEX_POI_BossRoom_Undercity`) loads, the guide stays off until the world changes:
 the last warp lands there and the run timer no longer matters (user request, 2026-09-28).
-In endgame worlds, when no exit beacon target exists and nothing is left to explore, the guide re-checks the dead ends that can host the exit pad
+In endgame worlds, when no unused portal is known and nothing is left to explore, the guide re-checks the dead ends that can host the exit pad
 (`Game/ExitCandidateScenes`: scenes named by MarkerSet layers `<scene> (X1_Undercity_AreaExits|BossExits)`), speaking "Salida no encontrada. Revisando los callejones." once per round; it stops when the beacon appears.
 `--debug` also logs the candidate count at startup, each round, and once per dungeon visit and actor SNO every gizmo or Portal/Warp/Exit/Beacon actor (`ACTOR seen:`, `Game/ActorSightingLog`).
 
@@ -196,7 +205,8 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
 
 - **D-pad left** (any XInput controller, or a DualSense / DualShock 4 over USB or Bluetooth) — toggles the exploration guide for the current kind of world (Undercity and
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
-  it mutes and unmutes a leading quest route the same way, and otherwise does nothing. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
+  it mutes and unmutes a leading quest route the same way, and otherwise does nothing. Ignored while a game menu is open
+  (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`). `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
   D2R mod's `input_direction.cpp`); the game still receives every press. PlayStation pads never reach XInput, so
   `Input/SonyHidPad` reads their HID input reports (shared, read-only handle; rescans every 3 s for pads plugged in
   later; logs `Pad: … connected` or why it can't open one) and `Input/CombinedPad` drops a second copy of the same

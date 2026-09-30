@@ -35,6 +35,8 @@ internal static class ConversationsCommand
             var data = ModuleLocator.WritableRegionsAt(process.ImageRegions(), module.Base);
             var layout = GameBuildOffsetsTable.ConversationLayout;
 
+            if (reader.Has("--menu-probe")) { MenuProbe(process, data, range, IsConversation, Name); return 0; }
+
             long? playing = null, menu = null;
             string last = "";
             var clock = Stopwatch.StartNew();
@@ -70,5 +72,37 @@ internal static class ConversationsCommand
             }
         }
         return 0;
+    }
+
+    // Loose dialogue-menu search, for when the strict one fails: any data pointer followed by a count 1..32 whose array,
+    // at some stride and field offset, holds at least one conversation SNO. Prints every candidate.
+    private static void MenuProbe(ProcessReader process, IReadOnlyList<D4Memory.Scan.MemoryRegion> data, ModuleRange module,
+        Func<int, bool> isConversation, Func<int, string> name)
+    {
+        int[] strides = [0x8, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38, 0x40, 0x48, 0x50, 0x60];
+        var buffer = new byte[D4Memory.Scan.RegionWindows.DefaultWindowBytes];
+        int shown = 0;
+        foreach (var region in data)
+            foreach (var (address, window) in D4Memory.Scan.RegionWindows.ReadRegion(process, region, buffer))
+            {
+                var bytes = window.ToArray();
+                for (int i = (int)((8 - address % 8) % 8); i + 12 <= bytes.Length; i += 8)
+                {
+                    ulong ptr = BitConverter.ToUInt64(bytes, i);
+                    uint count = BitConverter.ToUInt32(bytes, i + 8);
+                    if (ptr is < 0x10000 or > 0x7FFF_FFFF_0000 || module.Contains((long)ptr) || count is 0 or > 32) continue;
+                    var array = new byte[(int)count * 0x60];
+                    if (!process.TryRead((long)ptr, array, array.Length)) continue;
+                    foreach (int stride in strides)
+                        for (int field = 0; field + 4 <= stride; field += 4)
+                        {
+                            var snos = Enumerable.Range(0, (int)count).Select(e => BitConverter.ToInt32(array, e * stride + field)).ToList();
+                            if (!snos.Any(isConversation)) continue;
+                            if (shown++ < 5000)
+                                Console.WriteLine($"RVA 0x{address + i - module.Base:X} count {count} stride 0x{stride:X} field 0x{field:X}: {string.Join(", ", snos.Select(name))}");
+                        }
+                }
+            }
+        Console.WriteLine($"{shown} candidate(s).");
     }
 }

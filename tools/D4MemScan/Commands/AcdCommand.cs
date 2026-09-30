@@ -23,6 +23,7 @@ internal static class AcdCommand
 
     /// <summary>RActor +0x0C value of a client-only actor, which has no ACD.</summary>
     private const uint NoAcdId = 0xFFFFFFFF;
+    private const uint MaxAttributeId = 0x1000; // the live table held ids up to 0x571
 
     private sealed record AcdLine(
         float Distance, string Direction, int ActorSno, string? Name, int? GizmoType, uint RActorId, uint AcdId,
@@ -35,6 +36,9 @@ internal static class AcdCommand
         int intervalMs = int.TryParse(reader.Get("--interval-ms"), out var i) ? i : DefaultIntervalMs;
         int watchSeconds = int.TryParse(reader.Get("--watch"), out var w) ? w : 0;
         var match = reader.Get("--match") is { } pattern ? new Regex(pattern, RegexOptions.IgnoreCase) : null;
+        int[] slotWords = reader.Get("--slot-words") is { } words
+            ? [.. words.Split(',').Select(w => Convert.ToInt32(w.Trim().Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16))]
+            : [];
 
         var (store, schema, install) = GameData.Open(reader);
         using (store)
@@ -56,6 +60,13 @@ internal static class AcdCommand
                 return 1;
             }
             var names = new AttributeNameTable(process, module.Base, offsets.Acd);
+            if (reader.Get("--names") is { } namePattern)
+            {
+                var nameMatch = new Regex(namePattern, RegexOptions.IgnoreCase);
+                for (uint id = 0; id < MaxAttributeId; id++)
+                    if (names.NameOf(id) is { } name && nameMatch.IsMatch(name)) Console.WriteLine($"0x{id:X3} {name}");
+                return 0;
+            }
             var defs = new ActorDefinitionReader(store, schema);
 
             // Without --match: every gizmo (eActorGizmoType >= 0), the actors whose "used" state is wanted.
@@ -73,8 +84,12 @@ internal static class AcdCommand
                 if (!acds.TryGet(actor.AcdId, out var acd)) { missing++; continue; }
                 if (acd.RActorId != actor.Id || acd.ActorSno != actor.ActorSno) { disagree++; continue; }
                 var delta = actor.Position - player.Position;
+                var attributes = new SortedDictionary<string, string>(AcdWatch.Attributes(process, names, acd));
+                var word = new byte[sizeof(uint)];
+                foreach (int off in slotWords)
+                    attributes[$"+0x{off:X}"] = process.TryRead(acd.SlotAddress + off, word, word.Length) ? $"0x{BitConverter.ToUInt32(word):X}" : "?";
                 lines.Add(new AcdLine(delta.Length(), ScreenDirections.Bin(delta.X, delta.Y).ToString(), actor.ActorSno, name, def?.GizmoType,
-                    actor.Id, acd.Id, acd.SlotAddress, new SortedDictionary<string, string>(AcdWatch.Attributes(process, names, acd))));
+                    actor.Id, acd.Id, acd.SlotAddress, attributes));
                 records.Add(acd);
             }
             if (candidates.Count > 0)

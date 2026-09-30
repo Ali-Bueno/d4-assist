@@ -36,7 +36,7 @@ D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--in
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
-D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>]
+D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
 ```
 
 `--install` defaults to `D:\games\battlenet\Diablo IV`. `--out`/default output paths land under `%TEMP%`, never
@@ -114,6 +114,8 @@ the repo.
      attribute added, changed or removed, and the slot words that changed. It stops when the ACD leaves the pool.
    - Example, the "used" test on a corpse: `acd --defs data/definitions.json --match Corpse --range 5 --watch 60`, then
      use the corpse. `Gizmo_Has_Been_Operated: (absent) -> 1` is the expected line.
+   - `--names <regex>` lists the game's attribute names (with ids) matching the pattern instead, e.g. `--names Gizmo`.
+   - `--slot-words 518,258` adds those u32 words of each ACD slot to its line (`+0x518=…`).
 
 ## Layout
 

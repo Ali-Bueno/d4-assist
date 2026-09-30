@@ -36,12 +36,16 @@ public static class MenuScreens
     /// <summary>Stash (live 2026-09-30).</summary>
     public const string Stash = "screen_Stash_default";
 
+    /// <summary>Assigning a skill to a button, a submenu of the skills panel that closes the panel (live 2026-09-30, pad).</summary>
+    public const string SkillAssignment = "screen_ActionBar_Left";
+
     // The other side panels, not yet opened live. The game lays out each panel as a "<name>_Default" screen plus Left/Right
-    // variants; this is every such screen in the registry (292 screens, 2026-09-30) except the HUD action bar, plus
-    // WarPlans (no _Default variant). `--debug` names each screen as it opens.
+    // variants; this is every such screen in the registry (292 screens, 2026-09-30), plus WarPlans (no _Default variant).
+    // The ActionBar family is the skill assignment, not the HUD bar: its screens stay closed in play. `--debug` names each
+    // screen as it opens.
     private static readonly string[] OtherPanels =
     [
-        "screen_Abilities_Default", "screen_Armory_Default", "screen_Board_Select_Default", "screen_deathmenu_default",
+        "screen_Abilities_Default", "screen_ActionBar_Default", "screen_ActionBar_Right", "screen_Armory_Default", "screen_Board_Select_Default", "screen_deathmenu_default",
         "screen_deathmenu_hardcore_default", "screen_DruidSkills_Default", "screen_DruidSpirit_Panel_Default",
         "screen_Glyph_Upgrade_V2_Default", "screen_Inventory_default", "screen_Mercenary_Default",
         "screen_NecromancerMechanic_Default", "screen_PaladinMechanic_Default", "screen_PlayerProfile2_Default",
@@ -74,7 +78,7 @@ public static class MenuScreens
     ];
 
     public static readonly IReadOnlyList<string> Watched =
-        [CharacterPanel, MainMenu, Sign, Mailbox, Vendor, Crafting, Stash, .. OtherPanels, .. OtherMenus];
+        [CharacterPanel, MainMenu, Sign, Mailbox, Vendor, Crafting, Stash, SkillAssignment, .. OtherPanels, .. OtherMenus];
 }
 
 /// <summary>Finds the heap screen registry by scan and reads each screen's open flag (research/client-memory.md §5).</summary>

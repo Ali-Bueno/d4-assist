@@ -237,11 +237,13 @@ then watches the candidates live.
 | `screen_Shop_default` | vendor (buy/sell) |
 | `screen_crafting_default` | artisans: blacksmith and occultist live (the name is generic) |
 | `screen_Stash_default` | stash |
+| `screen_ActionBar_Left` | assigning a skill to a button (pad); the skills panel closes while it is open |
 
-Each of these 7 was seen opening and closing live 2026-09-30 with a watcher that logged every registered screen's open
-bit (the occultist also uses `screen_crafting_default`). The app watches 85 screens (`MenuScreens.Watched`): these 7, every
+Each of these 8 was seen opening and closing live 2026-09-30 with a watcher that logged every registered screen's open
+bit (the occultist also uses `screen_crafting_default`). The app watches 88 screens (`MenuScreens.Watched`): these 8, every
 other side panel and the full menus opened on purpose. A side panel is a `<name>_Default` screen with Left/Right variants
-(split-screen layouts); the registry held 41 such screens, of which the HUD `ActionBar_Default` is left out. Left out too:
+(split-screen layouts, though `ActionBar_Left` opened alone in single player); the registry held 41 such screens. The
+`ActionBar` family is the skill assignment, not the HUD bar: its screens stay closed in play. Left out too:
 screens seen open during normal play (Chat, SocialNotifications, ConversationSubtitle, GenericSkillTreeTest,
 StoreDetails_v2, Mailbox_Right, and after a character switch InGameLogout, WorldTiers, FollowerSwap, ModalRenameLoadout).
 - The open flag is one byte: real toggles change only it (`0xE7010100` ↔ `0xE7010101`, `0` ↔ `1`), and all 292 records

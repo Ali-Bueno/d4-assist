@@ -59,24 +59,23 @@ public class NpcTests
         Assert.Equal(1, mixer.ActiveEntityVoiceCount);
     }
 
-    [Theory]
-    [InlineData(8, 0)]  // walks toward the player: a companion following, silent
-    [InlineData(12, 1)] // walks away: leading the way, it keeps sounding
-    public void An_npc_that_follows_the_player_is_silent_and_one_that_leads_is_not(float endX, int voices)
+    [Fact]
+    public void A_quest_companion_following_the_player_is_silent()
     {
         var feed = new FakeFeed();
         var mixer = new AudioMixer();
         double now = 0;
         using var tap = new NpcCuePlayer(mixer, () => now, autoTick: false);
-        _ = new NpcCueBridge(feed, tap, a => Classifier.IsNpc(a.ActorSno), _ => null, nowSeconds: () => now);
+        _ = new NpcCueBridge(feed, tap, a => Classifier.IsNpc(a.ActorSno), _ => null);
 
-        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
-        feed.RaiseActors(new ActorState(1, FollowerSno, 10, 0, 0));
-        now = 1;
-        feed.RaiseActors(new ActorState(1, FollowerSno, endX, 0, 0));
+        feed.RaiseActors(new ActorState(1, FollowerSno, 2, 0, 0, QuestFollower: true));
         feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
         tap.Tick();
+        Assert.Equal(0, mixer.ActiveEntityVoiceCount);
 
-        Assert.Equal(voices, mixer.ActiveEntityVoiceCount);
+        feed.RaiseActors(new ActorState(1, FollowerSno, 2, 0, 0, QuestFollower: false)); // the quest let it go
+        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
+        tap.Tick();
+        Assert.Equal(1, mixer.ActiveEntityVoiceCount);
     }
 }

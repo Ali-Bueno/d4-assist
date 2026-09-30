@@ -91,12 +91,12 @@ internal static class Program
         // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
         bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
-        // Only gizmos get the ACD "used" read: monsters and the player carry hundreds of attributes.
-        Func<int, bool> isGizmo = sno => { lock (cascGate) return actorDefinitions.Read(sno)?.GizmoType >= 0; };
+        // ACD flags are read for gizmos (used) and NPCs (quest followers) only: monsters and the player carry hundreds of attributes.
+        Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
-                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, isGizmo),
+                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags),
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);

@@ -227,6 +227,10 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
 - A story door (`GizmoBlockout_GaleValley_NeyrelleDoor`) read `Gizmo_State` = 0 closed; once opened it held
   `Gizmo_State` = 1, `Gizmo_Has_Been_Operated` = 1 and a `Door_Timer`.
 - Real chests (`Chest_Open`, id 0x220, never seen set), levers and prisoners are not checked.
+- **Quest companions** (live 2026-09-30, `acd --match .` in Fractured Peaks): `NPC_QST_Neyrelle_Follower` and
+  `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =
+  525136 and `Pet_Type`; no other NPC in range had them. The app silences NPCs with `Follower_Quest` (`AcdFlagReader`).
+  Still to see: an escort the player must follow (the Vessel of Hatred light carrier).
 
 ## 5. UI state: conversations and menus (live 2026-09-29)
 

@@ -10,7 +10,9 @@ public sealed record TileState(
 /// <param name="StateChanged">The actor's state moved at least once; for a gizmo, it was used (research/client-memory.md §4).</param>
 /// <param name="Yaw">Rotation about Z in radians, from +X towards +Y (the RActor quaternion).</param>
 /// <param name="Operated">The game marked it used: ACD Gizmo_Has_Been_Operated, or the blood petals' +0x4D4 (research/client-memory.md §4).</param>
-public sealed record ActorState(uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false);
+/// <param name="QuestFollower">A companion NPC following the player for a quest: ACD Follower_Quest (research/client-memory.md §4).</param>
+public sealed record ActorState(
+    uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false, bool QuestFollower = false);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

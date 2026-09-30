@@ -210,7 +210,9 @@ them as missing. Gizmos (`eType` 2): 22,725.
   | `SoundGroup_QUE_*` on-click | 13 | too narrow |
   | name `QST_`/`Prologue`/`Quest` | 226 | too broad |
 
-  The app therefore names them: `ObjectiveClassifier` makes a gizmo-57 `*BloodPetal*` an objective.
+  The app therefore goes by name: `ObjectiveClassifier` makes a gizmo 57 an objective when its name holds `QST_`,
+  `Quest`, `Prologue` or `BloodPetal` (e.g. `Frac_Prologue_RitualBonfire` 669960, the prologue brazier). A switch is
+  always interactable, so the 226 name matches are quest switches rather than false positives.
 - **Quest corpses (H):** 166 of the 954 chest gizmos (1) are bodies (`Corpse`/`Remains`/`Body`). Their marks:
   - dwFlags 0x800 marks 126 (124 bodies).
   - A `SoundGroup_QUE_*` on-click marks 131 (127 bodies); `Prologue_RitualCorpse_Decapitated` 652894 plays

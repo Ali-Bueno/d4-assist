@@ -14,8 +14,9 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     // Free-able prisoners are named DGN_NPC_<Region>_Prisoner_*; "Dead" excludes DGN_Standard_DeadPrisoner_*.
     private const string PrisonerToken = "Prisoner", DeadToken = "Dead";
 
-    // Story switches the game data can't tell from levers (research/dungeon-objectives.md §8): Lilith's blood petals.
-    private static readonly string[] QuestSwitchTokens = ["BloodPetal"];
+    // Story switches the game data can't tell from levers (research/dungeon-objectives.md §8): named for their quest,
+    // the prologue, or Lilith's blood petals.
+    private static readonly string[] QuestSwitchTokens = ["QST_", "Quest", "Prologue", "BloodPetal"];
 
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =

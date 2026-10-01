@@ -46,6 +46,7 @@ public sealed record SettingsStrings
     public required string AutoAnnouncements { get; init; }
     public required string InterruptOnContextChange { get; init; }
     public required string RadarClosedDoors { get; init; }
+    public required string LiveBarriers { get; init; }
     public required string ExplorationGuide { get; init; }
     public required string ExplorationGuideInDungeons { get; init; }
     public required string QuestRoutes { get; init; }
@@ -130,6 +131,7 @@ public sealed record SettingsStrings
         AutoAnnouncements = "Anunciar salas y mazmorras automáticamente",
         InterruptOnContextChange = "Interrumpir la voz al entrar o salir de una mazmorra",
         RadarClosedDoors = "Puertas cerradas en el radar",
+        LiveBarriers = "Barreras de las mazmorras en el radar y la guía",
         ExplorationGuide = "Guía de exploración (cruceta izquierda la activa y desactiva)",
         ExplorationGuideInDungeons = "Guía activada al entrar en mazmorras normales (en la Ciudad Subterránea y el Pozo siempre empieza activada)",
         QuestRoutes = "Rutas de misión (refugios de la tormenta de arena)",
@@ -215,6 +217,7 @@ public sealed record SettingsStrings
         AutoAnnouncements = "Announce rooms and dungeons automatically",
         InterruptOnContextChange = "Interrupt speech when entering or leaving a dungeon",
         RadarClosedDoors = "Closed doors in the radar",
+        LiveBarriers = "Dungeon barriers in the radar and the guide",
         ExplorationGuide = "Exploration guide (D-pad left turns it on and off)",
         ExplorationGuideInDungeons = "Guide on when entering ordinary dungeons (in the Undercity and the Pit it always starts on)",
         QuestRoutes = "Quest routes (sandstorm shelters)",

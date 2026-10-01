@@ -23,6 +23,8 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
     private RadarCell[] _cells = [];
     private int[] _rooms = [];
     private IReadOnlySet<(int X, int Y)> _closedDoors = new HashSet<(int X, int Y)>();
+    // Set from the actor poll thread (BarrierBridge); a whole set is swapped in, never changed in place.
+    private volatile IReadOnlySet<(int X, int Y)> _barriers = new HashSet<(int X, int Y)>();
 
     public double TypicalOpeningWidth { get; private set; }
 
@@ -34,12 +36,17 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
     /// <summary>Tiles whose cells read Unknown: no walk map, or a yaw off the 90-degree grid.</summary>
     public int TilesWithoutWalkability { get; private set; }
 
-    /// <summary>A closed door turns walkable floor into a Door cell; walls stay walls.</summary>
+    /// <summary>A closed door turns walkable floor into a Door cell, a standing barrier into a wall; walls stay walls.</summary>
     public RadarCell Cell(int x, int y)
     {
         var cell = TryIndex(x, y, out var i) ? _cells[i] : RadarCell.Unknown;
-        return cell == RadarCell.Open && _closedDoors.Contains((x, y)) ? RadarCell.Door : cell;
+        if (cell != RadarCell.Open) return cell;
+        if (_barriers.Contains((x, y))) return RadarCell.Blocked;
+        return _closedDoors.Contains((x, y)) ? RadarCell.Door : cell;
     }
+
+    /// <summary>Replaces the standing barrier cells (BarrierObstacles), in radar cell coordinates.</summary>
+    public void SetBarriers(IReadOnlySet<(int X, int Y)> cells) => _barriers = cells;
 
     /// <summary>Replaces the closed-door cells (DoorObstacles), in radar cell coordinates.</summary>
     public void SetClosedDoors(IReadOnlySet<(int X, int Y)> cells) => _closedDoors = cells;
@@ -60,6 +67,7 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
         _cells = [];
         _rooms = [];
         _closedDoors = new HashSet<(int X, int Y)>();
+        _barriers = new HashSet<(int X, int Y)>();
         Doorways = [];
         TypicalOpeningWidth = 0;
         RoomCount = TilesWithoutWalkability = 0;

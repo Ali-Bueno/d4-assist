@@ -21,7 +21,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     private readonly ProcessReader _process;
     private readonly CandidateIndex _candidates;
-    private readonly GameBuildOffsets? _offsets;
+    private GameBuildOffsets? _offsets;
+    private DateTime _nextSceneRecordCheck = DateTime.MinValue;
     private readonly long _moduleBase;
     private readonly ModuleRange _module;
     private readonly MenuScreenTracker? _menus;
@@ -79,11 +80,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="worldQuests">The quests with markers in a world or in the scenes placed in it so far
     /// (QuestScriptMarkerReader.QuestsWithMarkersIn), followed when the player tracks none; null for none.</param>
     /// <param name="health">Told whether the addresses, rooms, actors, attributes and menus read; null checks nothing.</param>
+    /// <param name="isActorSno">True for an actor SNO the game files hold; with it the structure layout is checked live
+    /// (LayoutDiscovery), null keeps it as known.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
         MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
         ConversationAddresses? conversations = null, Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests = null,
-        ReadHealth? health = null)
+        ReadHealth? health = null, Func<int, bool>? isActorSno = null)
     {
         ProcessReader process;
         using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
@@ -133,6 +136,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             $"(of {string.Join(", ", modules.Select(m => $"0x{m.Base:X}"))}), game build 0x{build:X8}, {addresses}" +
             (offsets is null ? " (no rooms, radar walls or actor sounds)." : "."));
         health?.Report(ReadCheck.Addresses, offsets is not null, addresses);
+        if (offsets is not null && isActorSno is not null) offsets = LayoutFor(process, liveModule, build, offsets, found, isActorSno);
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
             conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, worldQuests, health);
@@ -153,6 +157,27 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         }
         return (null, playerModule, string.Join("; ", misses));
     }
+
+    // The structure layout holds for the whole build: checked once per build and copy, when the pools could be read.
+    private static readonly Dictionary<(uint Build, long Base), GameBuildOffsets> CheckedLayouts = [];
+
+    private static GameBuildOffsets LayoutFor(
+        ProcessReader process, ModuleRange module, uint build, GameBuildOffsets offsets, PlayerRecordHit player, Func<int, bool> isActorSno)
+    {
+        lock (CheckedLayouts)
+        {
+            if (CheckedLayouts.TryGetValue((build, module.Base), out var known)) return known;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var checkedOffsets = LayoutDiscovery.CheckLive(
+                process, module.Base, offsets, player.Position, player.ActorSno, isActorSno, out string report, out bool conclusive);
+            Console.WriteLine($"Layout: {report} ({clock.ElapsedMilliseconds} ms).");
+            if (conclusive) CheckedLayouts[(build, module.Base)] = checkedOffsets;
+            return checkedOffsets;
+        }
+    }
+
+    // A scene record that moved in its slot, found by LayoutDiscovery the first time the route reads no room.
+    private static readonly Dictionary<(uint Build, long Base), int> SceneRecordOffsets = [];
 
     // The addresses hold for the whole build, so they are searched once per build and module copy and kept for later sessions.
     private static readonly Dictionary<(uint Build, long Base), GameBuildOffsets> DiscoveredByBuild = [];
@@ -217,9 +242,25 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     public IReadOnlyList<TileState>? ReadTilesViaRoute()
     {
         if (_offsets is not { } offsets) return null;
+        lock (SceneRecordOffsets)
+            if (SceneRecordOffsets.TryGetValue((_build, _moduleBase), out int recordOffset) && recordOffset != offsets.SceneRecordOffset)
+                _offsets = offsets = offsets with { SceneRecordOffset = recordOffset };
         bool read = SceneRouteReader.TryRead(_process, _moduleBase, offsets, _candidates, out var hits);
+        if (read && hits.Count == 0 && DateTime.UtcNow >= _nextSceneRecordCheck) CheckSceneRecord(offsets);
         _health?.Report(ReadCheck.Rooms, read && hits.Count > 0, read ? "the scene route holds no known room" : "the scene route is unreadable");
         return read ? ToTileStates(hits) : null;
+    }
+
+    // While the route reads no room, every SceneRecordCheckInterval: a scene record that moved in its slot is found again.
+    private static readonly TimeSpan SceneRecordCheckInterval = TimeSpan.FromSeconds(10);
+
+    private void CheckSceneRecord(GameBuildOffsets offsets)
+    {
+        _nextSceneRecordCheck = DateTime.UtcNow + SceneRecordCheckInterval;
+        if (LayoutDiscovery.CheckSceneRecordLive(_process, _moduleBase, offsets, _candidates) is not { } found) return;
+        if (found == offsets.SceneRecordOffset) return;
+        Console.WriteLine($"Layout: scene record MOVED 0x{offsets.SceneRecordOffset:X} -> 0x{found:X}.");
+        lock (SceneRecordOffsets) SceneRecordOffsets[(_build, _moduleBase)] = found;
     }
 
     public ConversationSnapshot? ReadConversation()

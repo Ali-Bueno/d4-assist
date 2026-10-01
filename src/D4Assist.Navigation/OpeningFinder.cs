@@ -23,15 +23,17 @@ public static class OpeningFinder
     /// are 9-16 units wide).</summary>
     public const int MinOpeningCells = 2;
 
-    public static List<RoomOpening> Find(DungeonMap map, IReadOnlyList<MapTile> members, HashSet<MapTile> memberSet, ITileWalkability? walkability)
+    /// <param name="blocked">Live barriers: a passage they cover narrows to its free part, or closes.</param>
+    public static List<RoomOpening> Find(
+        DungeonMap map, IReadOnlyList<MapTile> members, HashSet<MapTile> memberSet, ITileWalkability? walkability, BlockedCells? blocked = null)
     {
         var candidates = new List<((int, int) NeighbourCell, RoomOpening Opening)>();
 
         foreach (var tile in members)
             foreach (var side in ExitMaskBits.SidesOf(tile.Input.ExitMask))
             {
-                var runs = TryFindRuns(tile, side, walkability);
-                if (runs is null || runs.Count == 0)
+                var runs = TryFindRuns(tile, side, walkability, blocked);
+                if (runs is null)
                 {
                     AddCandidate(map, memberSet, candidates, side,
                         ExitMaskBits.EdgeMidpoint(tile.Input, side),
@@ -47,7 +49,7 @@ public static class OpeningFinder
         // preset room's outer wall (Triad_B_ThroneRoom pieces: offline 15, live 7) that guess would invent exits.
         foreach (var tile in members)
             foreach (var side in ExitMaskBits.SidesOf(tile.Input.AuthoredExitMask & ~tile.Input.ExitMask))
-                foreach (var (position, width) in TryFindRuns(tile, side, walkability) ?? [])
+                foreach (var (position, width) in TryFindRuns(tile, side, walkability, blocked) ?? [])
                     AddCandidate(map, memberSet, candidates, side, position, width, usedFallback: false);
 
         // Several runs can lead to the same neighbour cell (e.g. grid noise next to the real
@@ -77,14 +79,23 @@ public static class OpeningFinder
         return (position.X + nx * (GridMath.CellSize / 2f), position.Y + ny * (GridMath.CellSize / 2f));
     }
 
-    /// <summary>Null when walkability is unavailable or the tile's yaw isn't axis-aligned (fall back).</summary>
-    private static List<((float X, float Y) Position, float Width)>? TryFindRuns(MapTile tile, ExitSide worldSide, ITileWalkability? walkability)
+    /// <summary>Null when walkability is unavailable, the tile's yaw isn't axis-aligned, or the static map has no passage there (fall
+    /// back). Barriers narrow or close the passages found, never turning a closed one into that fallback.</summary>
+    private static List<((float X, float Y) Position, float Width)>? TryFindRuns(
+        MapTile tile, ExitSide worldSide, ITileWalkability? walkability, BlockedCells? blocked)
     {
         if (walkability is null || !walkability.TryGet(tile.Input.SceneSno, out var grid)) return null;
         var turns = TileRotation.QuarterTurns(tile.Input.YawDegrees);
         if (turns < 0) return null;
 
         var localSide = TileRotation.RotateSide(worldSide, (4 - turns) % 4);
+        var runs = Runs(grid, tile, localSide, turns);
+        if (runs.Count == 0) return null;
+        return blocked?.Mask(tile, grid, turns) is { } open ? Runs(open, tile, localSide, turns) : runs;
+    }
+
+    private static List<((float X, float Y) Position, float Width)> Runs(WalkGrid grid, MapTile tile, ExitSide localSide, int turns)
+    {
         var runs = new List<((float X, float Y) Position, float Width)>();
         foreach (var (start, length) in BoundaryRuns(grid, tile, localSide))
         {

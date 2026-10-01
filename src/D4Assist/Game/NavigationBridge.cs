@@ -47,6 +47,12 @@ public sealed class NavigationBridge
         lock (_gate) return _engine.Guide.Step(player, exitMissing, destinations, objectives);
     }
 
+    /// <summary>Live barriers the guide routes around, as 1-unit world cells; an equal set is a no-op (ExplorationGuide.SetBlockedCells).</summary>
+    public void SetBlockedCells(IReadOnlySet<(int X, int Y)> cells)
+    {
+        lock (_gate) _engine.Guide.SetBlockedCells(cells);
+    }
+
     public ExplorationState ExportExploration()
     {
         lock (_gate) return _engine.ExportExploration();

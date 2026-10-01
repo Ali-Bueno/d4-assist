@@ -57,7 +57,10 @@ internal static class ActorsCommand
                 Console.Error.WriteLine("No live player record found.");
                 return 1;
             }
-            if (Offsets.Discover(process, module) is not { } offsets) return 1;
+            // The game maps its image twice; the game object can be in another copy than the player record.
+            var (discovered, objectModule) = Offsets.DiscoverAny(process, exePath);
+            if (discovered is not { } offsets) return 1;
+            module = objectModule;
             if (!RActorReader.TryRead(process, module.Base, offsets, out var actors))
             {
                 Console.Error.WriteLine("RActor route unavailable (container header unreadable or inconsistent).");

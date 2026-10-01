@@ -178,6 +178,7 @@ public sealed class SettingsForm : Form
             Check(_text.AutoAnnouncements, () => Config.AutoAnnouncementsEnabled, v => Config.AutoAnnouncementsEnabled = v),
             Check(_text.InterruptOnContextChange, () => Config.InterruptOnContextChange, v => Config.InterruptOnContextChange = v),
             Check(_text.RadarClosedDoors, () => Config.RadarClosedDoorsEnabled, v => Config.RadarClosedDoorsEnabled = v),
+            Check(_text.LiveBarriers, () => Config.LiveBarriersEnabled, v => Config.LiveBarriersEnabled = v),
             Check(_text.ExplorationGuide, () => Config.ExplorationGuideEnabled, v => Config.ExplorationGuideEnabled = v),
             Check(_text.ExplorationGuideInDungeons, () => Config.ExplorationGuideInDungeons, v => Config.ExplorationGuideInDungeons = v),
             Check(_text.QuestRoutes, () => Config.QuestRoutesEnabled, v => Config.QuestRoutesEnabled = v),

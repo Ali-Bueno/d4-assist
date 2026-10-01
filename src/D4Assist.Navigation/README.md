@@ -81,6 +81,13 @@ a candidate is re-checked once the player is within `SeenRadiusUnits` of its cen
 Objectives: `Step(..., objectives: points)` leads to the reachable points of the lowest tier (`GuideTargetKind.Objective`)
 before any exploring; a point on an unloaded or cut-off tile waits. The caller drops points reached or done; one dropped
 within `DestinationArrivalUnits` of the player is an arrival.
+Live barriers: `SetBlockedCells(cells)` (1-unit world cells, `BlockedCells`; the host lays them from live actors, e.g. a wall
+that stands until a monster dies) are unwalkable everywhere the guide reads the walk map: `OpeningFinder` narrows a passage to
+its free part or closes it (never a midpoint fallback), and `RoomWalkGrid` leaves them out of the look-ahead path. A tile whose
+floor loses cells is split into its 4-connected floor regions (`TileRegions`), one graph node each; openings and room-internal
+crossings join only the regions their cells touch. The player starts in the region holding (or nearest) their position, an
+unexplored tile counts when any of its regions is reached, and an objective or portal needs its own point's region. The set is
+compared by content (a fresh equal set is free); a different one rebuilds the graph, and `Reset` clears it.
 
 ## D2R correspondence
 

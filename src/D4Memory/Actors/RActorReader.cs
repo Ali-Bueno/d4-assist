@@ -24,19 +24,6 @@ public static class RActorReader
     /// <summary>Placement flag of an actor placed in the world; UI/paper-doll copies hold -1.</summary>
     public const int PlacedValue = 0;
 
-    // Field offsets from the slot start (research/client-memory.md §4, RActor slot table).
-    private const int AcdIdOffset = 0x0C;
-    private const int PreviousStateOffset = 0x148;
-    private const int ActorSnoOffset = 0x5B8;
-    private const int QuaternionOffset = 0x750;
-    private const int PositionOffset = 0x760;
-    private const int WorldIdOffset = 0x7A4;
-    private const int SceneIdOffset = 0x7A8;
-    private const int PlacementOffset = 0x7AC;
-
-    /// <summary>Bytes read per slot: everything up to and including the placement field.</summary>
-    private const int RecordBytes = PlacementOffset + sizeof(int);
-
     /// <summary>Reads every occupied, readable RActor slot. False when the pool route is unavailable; never throws.</summary>
     public static bool TryRead(
         IMemoryReader reader, long moduleBase, GameBuildOffsets offsets, out IReadOnlyList<RActorRecord> actors)
@@ -44,28 +31,29 @@ public static class RActorReader
         actors = [];
         if (!PoolContainer.TryOpen(reader, moduleBase, offsets, offsets.Actor, out var pool)) return false;
 
+        // The fields come from the layout (research/client-memory.md §4), checked live by LayoutDiscovery.
+        var fields = offsets.ActorFields;
         var records = new List<RActorRecord>();
-        var buffer = new byte[RecordBytes];
+        var buffer = new byte[fields.RecordBytes];
         foreach (var (slot, id) in pool.OccupiedSlots())
         {
             if (!reader.TryRead(slot, buffer, buffer.Length)) continue;
-            records.Add(Parse(buffer, slot, id));
+            records.Add(Parse(buffer, slot, id, fields));
         }
         actors = records;
         return true;
     }
 
-    private static RActorRecord Parse(ReadOnlySpan<byte> slot, long address, uint id) => new(
+    private static RActorRecord Parse(ReadOnlySpan<byte> slot, long address, uint id, RActorFields f) => new(
         address, id,
-        AcdId: U32(slot, AcdIdOffset),
-        ActorSno: I32(slot, ActorSnoOffset),
-        Position: new Vector3(F32(slot, PositionOffset), F32(slot, PositionOffset + 4), F32(slot, PositionOffset + 8)),
-        Rotation: new Quaternion(
-            F32(slot, QuaternionOffset), F32(slot, QuaternionOffset + 4), F32(slot, QuaternionOffset + 8), F32(slot, QuaternionOffset + 12)),
-        WorldId: U32(slot, WorldIdOffset),
-        SceneId: U32(slot, SceneIdOffset),
-        Placement: I32(slot, PlacementOffset),
-        PreviousState: U32(slot, PreviousStateOffset));
+        AcdId: U32(slot, f.AcdId),
+        ActorSno: I32(slot, f.ActorSno),
+        Position: new Vector3(F32(slot, f.Position), F32(slot, f.Position + 4), F32(slot, f.Position + 8)),
+        Rotation: new Quaternion(F32(slot, f.Rotation), F32(slot, f.Rotation + 4), F32(slot, f.Rotation + 8), F32(slot, f.Rotation + 12)),
+        WorldId: U32(slot, f.WorldId),
+        SceneId: U32(slot, f.SceneId),
+        Placement: I32(slot, f.Placement),
+        PreviousState: U32(slot, f.PreviousState));
 
     private static uint U32(ReadOnlySpan<byte> b, int o) => BinaryPrimitives.ReadUInt32LittleEndian(b.Slice(o, 4));
     private static int I32(ReadOnlySpan<byte> b, int o) => BinaryPrimitives.ReadInt32LittleEndian(b.Slice(o, 4));

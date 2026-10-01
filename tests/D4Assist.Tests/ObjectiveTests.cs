@@ -13,7 +13,7 @@ public class ObjectiveTests
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
-        TumorSno = 28, MummySno = 29, TumorPieceSno = 30;
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -47,6 +47,7 @@ public class ObjectiveTests
         [TumorSno] = ("Frac_Cursed_Tumor_01_Corner_2x2_01_Multistage", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [MummySno] = ("MageHalls_Prop_Mummy_Mage_Any_1x1_01_Multistage", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [TumorPieceSno] = ("Frac_Cursed_Tumor_Core_01_Dyn", new(Gizmo, 48)),
+        [PlainMonsterSno] = ("werewolf_warg_phys", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
     };
 
     // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
@@ -76,12 +77,13 @@ public class ObjectiveTests
     [InlineData(AkaratOrbSno, ObjectiveReason.AkaratLight)]
     [InlineData(VesselSno, ObjectiveReason.WardBreaker)]   // before the QST_ name rule
     [InlineData(TumorSno, ObjectiveReason.Destructible)]   // a hostile structure a quest asks the player to break
+    [InlineData(MinibossSno, ObjectiveReason.KillTarget)]  // a monster the dungeon's objective asks the player to kill
+    [InlineData(DpoMonsterSno, ObjectiveReason.KillTarget)]
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 
     [Theory]
-    [InlineData(MinibossSno)]         // kill target in the DPO list
-    [InlineData(DpoMonsterSno)]
+    [InlineData(PlainMonsterSno)]     // a monster the DPO doesn't name
     [InlineData(LeverSno)]            // switch that is neither a prisoner nor in the list
     [InlineData(DeadPrisonerCageSno)] // dead prisoner, not eType 1 / switch
     [InlineData(PrisonerDoorSno)]     // door gizmo, not a switch or NPC
@@ -128,7 +130,8 @@ public class ObjectiveTests
         Assert.Equal(SoundCue.QuestObjective, objective.Cue);
         Assert.Equal("gizmo", objective.Reason);
         Assert.Equal("dpo", selector.Select(Placed(DpoSwitchSno))!.Reason);
-        Assert.Null(selector.Select(Placed(MinibossSno)));
+        Assert.Equal("killtarget", selector.Select(Placed(MinibossSno))!.Reason);
+        Assert.False(selector.Select(Placed(MinibossSno))!.StopsWhenUsed); // loops until it dies and leaves the actor list
     }
 
     [Fact]

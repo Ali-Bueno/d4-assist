@@ -37,6 +37,17 @@ public static class TileRotation
         _ => (y, -x),
     };
 
+    /// <summary>World point of a tile-local point: turned by <paramref name="turns"/>, then placed at the tile's origin.</summary>
+    internal static (float X, float Y) ToWorld(TileInput tile, (float X, float Y) local, int turns)
+    {
+        var (rx, ry) = Rotate(local.X, local.Y, turns);
+        return (tile.OriginX + rx, tile.OriginY + ry);
+    }
+
+    /// <summary>The inverse of <see cref="ToWorld"/>.</summary>
+    internal static (float X, float Y) ToLocal(TileInput tile, (float X, float Y) world, int turns) =>
+        Rotate(world.X - tile.OriginX, world.Y - tile.OriginY, -turns);
+
     /// <summary>
     /// The world-facing side after rotating a tile whose exit sides are authored in local axes by
     /// <paramref name="turns"/> quarter turns. Cycle derived from <see cref="Rotate"/> applied to each

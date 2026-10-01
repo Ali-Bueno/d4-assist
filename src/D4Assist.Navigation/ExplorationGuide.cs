@@ -38,6 +38,8 @@ public sealed class ExplorationGuide
     private readonly HashSet<string> _rechecked = [];
     private readonly HashSet<string> _held = [];
     private int _recheckVersion;
+    private BlockedCells _blocked = BlockedCells.None;
+    private int _blockedVersion;
     private int _round = 1;
     private bool _rechecking;
     private bool _cachedExitMissing;
@@ -45,10 +47,12 @@ public sealed class ExplorationGuide
 
     private TileGraph? _graph;
     private int _graphVersion = -1;
+    private int _graphBlocked = -1;
     private Candidate? _current;
     private GuideStep? _cached;
     private (float X, float Y) _cachedPlayer;
     private int _cachedVersion = -1;
+    private int _cachedBlocked = -1;
     private int _cachedSpent = -1;
     private string _cachedDestinations = "";
 
@@ -60,7 +64,16 @@ public sealed class ExplorationGuide
         _isExitCandidate = isExitCandidate ?? (_ => false);
     }
 
-    /// <summary>Forget the current target and every dead exit. Call on dungeon change.</summary>
+    /// <summary>Live barriers to route around (1-unit world cells, see <see cref="BlockedCells"/>); empty for none. Compared by content, so
+    /// the caller may pass a fresh set every poll: only a different set rebuilds the routes.</summary>
+    public void SetBlockedCells(IReadOnlySet<(int X, int Y)> cells)
+    {
+        if (_blocked.Cells.SetEquals(cells)) return;
+        _blocked = new BlockedCells(cells);
+        _blockedVersion++;
+    }
+
+    /// <summary>Forget the current target, every dead exit and the barriers. Call on dungeon change.</summary>
     public void Reset()
     {
         _spentFrontiers.Clear();
@@ -70,6 +83,7 @@ public sealed class ExplorationGuide
         _recheckVersion = 0;
         _round = 1;
         _rechecking = false;
+        _blocked = BlockedCells.None;
         _graph = null;
         _graphVersion = -1;
         _current = null;
@@ -99,7 +113,7 @@ public sealed class ExplorationGuide
         var destinationKey = string.Join(";", destinations.Concat(objectives).Select(d => $"{d.Id}:{d.Tier}")) + $"|{_reachedDestinations.Count}";
 
         var here = (player.X, player.Y);
-        if (_cached is not null && _cachedVersion == _map.Version && _cachedSpent == _spentFrontiers.Count &&
+        if (_cached is not null && _cachedVersion == _map.Version && _cachedBlocked == _blockedVersion && _cachedSpent == _spentFrontiers.Count &&
             _cachedRecheck == _recheckVersion && _cachedExitMissing == exitMissing && _cachedDestinations == destinationKey &&
             TileRoutes.Distance(here, _cachedPlayer) <= RoomRouteCache.RecomputeThresholdUnits)
             return _cached;
@@ -107,6 +121,7 @@ public sealed class ExplorationGuide
         _cached = Compute(graph, tile, player, exitMissing, destinations, objectives);
         _cachedPlayer = here;
         _cachedVersion = _map.Version;
+        _cachedBlocked = _blockedVersion;
         _cachedSpent = _spentFrontiers.Count;
         _cachedRecheck = _recheckVersion;
         _cachedExitMissing = exitMissing;
@@ -116,10 +131,11 @@ public sealed class ExplorationGuide
 
     private TileGraph CurrentGraph()
     {
-        if (_graph is null || _graphVersion != _map.Version)
+        if (_graph is null || _graphVersion != _map.Version || _graphBlocked != _blockedVersion)
         {
-            _graph = TileGraph.Build(_map, _walkability);
+            _graph = TileGraph.Build(_map, _walkability, _blocked);
             _graphVersion = _map.Version;
+            _graphBlocked = _blockedVersion;
         }
         return _graph;
     }
@@ -128,8 +144,8 @@ public sealed class ExplorationGuide
         TileGraph graph, MapTile tile, PlayerInput player, bool exitMissing, IReadOnlyList<GuideDestination> destinations,
         IReadOnlyList<GuideDestination> objectives)
     {
-        var start = graph.NodeAt(tile)!;
         var here = (player.X, player.Y);
+        var start = graph.NodeAt(tile, here)!;
         var routes = TileRoutes.From(start, here);
 
         var objectiveCandidates = TierCandidates(graph, routes, objectives, GuideTargetKind.Objective, _ => true);
@@ -181,7 +197,7 @@ public sealed class ExplorationGuide
     {
         var reachable = new List<(GuideDestination Destination, TileNode Node)>();
         foreach (var d in points)
-            if (_map.TileAt(d.Position.X, d.Position.Y) is { } tile && graph.NodeAt(tile) is { } node && routes.Reaches(node))
+            if (_map.TileAt(d.Position.X, d.Position.Y) is { } tile && graph.NodeAt(tile, d.Position) is { } node && routes.Reaches(node))
                 reachable.Add((d, node));
         if (reachable.Count == 0) return [];
         int tier = reachable.Min(r => r.Destination.Tier);
@@ -192,11 +208,12 @@ public sealed class ExplorationGuide
 
     private IEnumerable<Candidate> Candidates(TileRoutes routes, TileNode start)
     {
+        var nearest = NearestPerTile(routes).ToHashSet();
         foreach (var node in routes.Reached)
         {
             if (!_map.IsVisited(node.Tile))
             {
-                if (node != start)
+                if (node.Tile != start.Tile && nearest.Contains(node))
                     yield return new Candidate(
                         new GuideTarget(GuideTargetKind.UnvisitedTile, $"tile:{node.Tile.CellX},{node.Tile.CellY}", routes.EntryPoint(node)),
                         routes.LengthTo(node), node, null);
@@ -212,7 +229,7 @@ public sealed class ExplorationGuide
     // Reachable exit-candidate tiles not yet passed this round; when the round just ended a new one starts over every candidate.
     private List<Candidate> RecheckCandidates(TileRoutes routes, PlayerInput player)
     {
-        var all = routes.Reached.Where(n => _isExitCandidate(n.Tile.Input.SceneSno)).ToList();
+        var all = NearestPerTile(routes).Where(n => _isExitCandidate(n.Tile.Input.SceneSno)).ToList();
         var pending = all.Where(n => !_rechecked.Contains(RecheckId(n.Tile))).ToList();
         if (pending.Count == 0 && all.Count > 0)
         {
@@ -231,6 +248,10 @@ public sealed class ExplorationGuide
         return pending.Select(n => new Candidate(
             new GuideTarget(GuideTargetKind.ExitCandidate, RecheckId(n.Tile), routes.EntryPoint(n)), routes.LengthTo(n), n, null)).ToList();
     }
+
+    // One reached node per tile: a tile split by a barrier counts once, through its nearest reached region.
+    private static IEnumerable<TileNode> NearestPerTile(TileRoutes routes) =>
+        routes.Reached.GroupBy(n => n.Tile).Select(g => g.MinBy(routes.LengthTo)!);
 
     // Passing within SeenRadiusUnits of a candidate's centre re-checks it; a held one re-arms once the player walks away.
     private void MarkRechecked(TileGraph graph, PlayerInput player)
@@ -261,7 +282,7 @@ public sealed class ExplorationGuide
     // Heads for the first opening that leaves the player's room; a target inside the room is the route's last hop.
     private (float X, float Y) Waypoint(List<RouteHop> hops, float total, PlayerInput player, out float remaining)
     {
-        var room = RoomModel.TryGetRoom(_map, player.X, player.Y, out var found, _walkability) ? found : null;
+        var room = RoomModel.TryGetRoom(_map, player.X, player.Y, out var found, _walkability, _blocked) ? found : null;
         var roomTiles = room?.Tiles.Select(TileGraph.Key).ToHashSet() ?? [];
         var hop = hops.FirstOrDefault(h => h.To is null || !roomTiles.Contains(TileGraph.Key(h.To.Tile))) ?? hops[^1];
         if (room is null)
@@ -279,7 +300,7 @@ public sealed class ExplorationGuide
     // a wall) is explored once the player is within SeenRadiusUnits of its centre. Big tiles still need entering.
     private void MarkSeenNeighbours(TileGraph graph, MapTile tile, PlayerInput player)
     {
-        if (graph.NodeAt(tile) is not { } node) return;
+        if (graph.NodeAt(tile, (player.X, player.Y)) is not { } node) return;
         foreach (var hop in node.Hops)
         {
             if (hop.To is not { } next || _map.IsVisited(next.Tile)) continue;

@@ -19,7 +19,8 @@ internal static class Program
         "       D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.json>]\n" +
         "       D4MemScan pose-context --in <file.json> [--out <file.focus.json>]\n" +
         "       D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]\n" +
-        "       D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]";
+        "       D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]\n" +
+        "       D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]";
 
     private static int Main(string[] args)
     {
@@ -35,6 +36,7 @@ internal static class Program
                 "player" => PlayerCommand.Run(rest),
                 "actors" => ActorsCommand.Run(rest),
                 "acd" => AcdCommand.Run(rest),
+                "layout" => LayoutCommand.Run(rest),
                 "pose-snapshot" => PoseSnapshotCommand.Run(rest),
                 "pose-filter" => PoseFilterCommand.Run(rest),
                 "pose-context" => PoseContextCommand.Run(rest),

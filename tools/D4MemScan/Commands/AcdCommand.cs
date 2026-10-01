@@ -49,7 +49,9 @@ internal static class AcdCommand
 
             using var process = ProcessReader.OpenDiabloIv();
             if (!PlayerRecordLocator.TryLocateLive(process, store, schema, exePath, worldSno, out var module, out var player)) return 1;
-            if (Offsets.Discover(process, module) is not { Acd: not null } offsets)
+            // The game maps its image twice; the game object can be in another copy than the player record.
+            (var discovered, module) = Offsets.DiscoverAny(process, exePath);
+            if (discovered is not { Acd: not null } offsets)
             {
                 Console.WriteLine("ACD addresses not found for this build.");
                 return 1;

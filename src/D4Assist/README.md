@@ -136,7 +136,8 @@ player appeared or vanished within 15 units of as used: they lead back, the othe
 
 The same bridge loops the quest sound (never spoken, positional, D2R quest profile at full near gain) at the dungeon's
 objectives: actors the world's DPO quest names (`D4Data` `DungeonObjectiveReader`: world SNO, Global `zone_progress`,
-`DPO_*` quest callbacks) minus monsters, plus every carryable (on the ground; the copy in the player's hands, with no
+`DPO_*` quest callbacks; a monster it names is a kill target, reason `killtarget`, such as Maulwood's sentinel; other
+monsters stay silent), plus every carryable (on the ground; the copy in the player's hands, with no
 ACD, stays silent), carryable receptacle (a quest-locked one only while the player holds a carryable it takes; other quest steps
 wait meanwhile), quest
 switch and quest chest, switches and notes named for a quest (`QST_`, `Quest`, `Prologue`), and
@@ -228,6 +229,16 @@ under it into `RadarCell.Door`, so `PassageScanner` reads the ray as `Door` (D2R
 within the closing depth. A quest-restricted door stays a door: nothing in memory says when the quest unlocks it
 (research/client-memory.md §4). `--debug` logs `RADAR door … ends=A/B` once per door; both ends should be `Blocked`, which
 means the yaw lays the door across its doorway.
+
+## Barriers in the radar and the guide
+
+`Game/BarrierObstacles` lays every barrier wall a dungeon raises on the 1-unit grid: a non-gizmo actor named
+`*barrierWall*` with a box (the door footprint, turned by its yaw). It stays blocked while the client drops it far away,
+and is dropped once the player is within 20 units of its spot without it: the game removes the wall when its objective is
+done (live, Maulwood). `Game/BarrierBridge` hands the cells to `NavigationBridge.SetBlockedCells` (the guide splits a tile
+the wall crosses into regions and never routes through it, src/D4Assist.Navigation/README.md) and to
+`DungeonRadarWorld.SetBarriers` (wall cells). The log always says `BARRIER standing …` and `BARRIER gone …`. Config
+`LiveBarriersEnabled` (research/dungeon-objectives.md §13).
 
 ## Cutscenes
 

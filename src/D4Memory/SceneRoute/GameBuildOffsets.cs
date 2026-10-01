@@ -23,11 +23,48 @@ public sealed record PoolLayout(
 /// <param name="ContainerBehindPointer">True when G+ContainerOffset holds a pointer to the container pointer (the ACD pool).</param>
 public sealed record PoolParameters(long ContainerOffset, int StrideBase, bool ContainerBehindPointer = false);
 
+/// <summary>Field offsets inside an RActor slot (research/client-memory.md §4). Rotation, position, world, scene and
+/// placement form one block, so they follow the position at fixed distances.</summary>
+/// <param name="AcdId">u32: the actor's ACD id, or 0xFFFFFFFF for a client-only actor.</param>
+/// <param name="PreviousState">u32: the gizmo state before the current one; 0 until the gizmo is used once.</param>
+/// <param name="ActorSno">i32: the actor SNO.</param>
+/// <param name="Position">3 × f32: the world position.</param>
+public sealed record RActorFields(int AcdId, int PreviousState, int ActorSno, int Position)
+{
+    /// <summary>Build 3.2.x (offline RE, live since 2026-09-28).</summary>
+    public static readonly RActorFields Known = new(AcdId: 0x0C, PreviousState: 0x148, ActorSno: 0x5B8, Position: 0x760);
+
+    public int Rotation => Position - 0x10;
+    public int WorldId => Position + 0x44;
+    public int SceneId => Position + 0x48;
+    public int Placement => Position + 0x4C;
+
+    /// <summary>Bytes to read per slot: up to the last field.</summary>
+    public int RecordBytes => new[] { AcdId, PreviousState, ActorSno, Placement }.Max() + sizeof(int);
+}
+
+/// <summary>Field offsets inside an ACD slot (research/client-memory.md §4, live 2026-09-30).</summary>
+/// <param name="RActorId">u32: the id of the actor's RActor.</param>
+/// <param name="ActorSno">i32: the actor SNO (the RActor's too).</param>
+/// <param name="Position">3 × f32: the world position (the RActor's too).</param>
+/// <param name="Attributes">u64: pointer to the attribute container.</param>
+public sealed record AcdFields(int RActorId, int ActorSno, int Position, int Attributes)
+{
+    public static readonly AcdFields Known = new(RActorId: 0x14, ActorSno: 0x50, Position: 0x7C, Attributes: 0x2A0);
+
+    /// <summary>Bytes to read per slot: up to the last field.</summary>
+    public int RecordBytes => new[] { RActorId + sizeof(int), ActorSno + sizeof(int), Position + 12, Attributes + sizeof(long) }.Max();
+}
+
 /// <summary>ACD pool and attribute descriptor table (research/client-memory.md §4, live 2026-09-30).</summary>
 /// <param name="AttributeTableRva">RVA of the attribute descriptor array; entry i describes attribute id i.</param>
 /// <param name="AttributeStride">Bytes per descriptor.</param>
 /// <param name="AttributeNameOffset">Offset of a descriptor's pointer to its ASCII name.</param>
-public sealed record AcdOffsets(PoolParameters Pool, long AttributeTableRva, int AttributeStride, int AttributeNameOffset);
+public sealed record AcdOffsets(PoolParameters Pool, long AttributeTableRva, int AttributeStride, int AttributeNameOffset)
+{
+    /// <summary>The slot's fields; checked live by LayoutDiscovery.</summary>
+    public AcdFields Fields { get; init; } = AcdFields.Known;
+}
 
 /// <summary>
 /// The build-specific RVAs/offsets the static routes (research/client-memory.md §1, §4) need, keyed by the
@@ -44,7 +81,14 @@ public sealed record GameBuildOffsets(
     PoolParameters Actor,
     long CSceneVtableRva,
     ConversationOffsets? Conversation = null,
-    AcdOffsets? Acd = null);
+    AcdOffsets? Acd = null)
+{
+    /// <summary>The RActor slot's fields; checked live by LayoutDiscovery.</summary>
+    public RActorFields ActorFields { get; init; } = RActorFields.Known;
+
+    /// <summary>Where a scene slot's CScene record starts (its snoScene, the matcher's `a`); checked live by LayoutDiscovery.</summary>
+    public int SceneRecordOffset { get; init; } = SceneRouteReader.SnoSceneOffsetInSlot;
+}
 
 /// <summary>The structure layout the game's memory is read with; the addresses in it are found per build.</summary>
 public static class GameBuildOffsetsTable

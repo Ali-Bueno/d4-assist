@@ -13,15 +13,6 @@ public readonly record struct AcdRecord(long SlotAddress, uint Id, uint RActorId
 /// <summary>Reads ACD slots through the pool route `[[G+0xAB0]]` (research/client-memory.md §4, live 2026-09-30).</summary>
 public sealed class AcdReader
 {
-    // Field offsets from the slot start (research/client-memory.md §4, ACD slot).
-    private const int RActorIdOffset = 0x14;
-    private const int ActorSnoOffset = 0x50;
-    private const int PositionOffset = 0x7C;
-    private const int AttributesPointerOffset = 0x2A0;
-
-    /// <summary>Bytes read per slot: everything up to and including the attribute container pointer.</summary>
-    private const int RecordBytes = AttributesPointerOffset + sizeof(long);
-
     private readonly IMemoryReader _reader;
     private readonly long _moduleBase;
     private readonly GameBuildOffsets _offsets;
@@ -66,13 +57,14 @@ public sealed class AcdReader
     private bool TryRead(long slot, uint id, out AcdRecord record)
     {
         record = default;
-        var buffer = new byte[RecordBytes];
+        var f = _offsets.Acd!.Fields; // from the layout (research/client-memory.md §4), checked live by LayoutDiscovery
+        var buffer = new byte[f.RecordBytes];
         if (!_reader.TryRead(slot, buffer, buffer.Length)) return false;
         record = new AcdRecord(slot, id,
-            RActorId: BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(RActorIdOffset)),
-            ActorSno: BinaryPrimitives.ReadInt32LittleEndian(buffer.AsSpan(ActorSnoOffset)),
-            Position: new Vector3(F32(buffer, PositionOffset), F32(buffer, PositionOffset + 4), F32(buffer, PositionOffset + 8)),
-            AttributesAddress: BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(AttributesPointerOffset)));
+            RActorId: BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(f.RActorId)),
+            ActorSno: BinaryPrimitives.ReadInt32LittleEndian(buffer.AsSpan(f.ActorSno)),
+            Position: new Vector3(F32(buffer, f.Position), F32(buffer, f.Position + 4), F32(buffer, f.Position + 8)),
+            AttributesAddress: BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(f.Attributes)));
         return true;
     }
 

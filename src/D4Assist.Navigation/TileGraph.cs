@@ -1,6 +1,6 @@
 namespace D4Assist.Navigation;
 
-/// <summary>A tile with the openings that leave it; <see cref="To"/> is null for an opening into never-loaded space (a frontier).</summary>
+/// <summary>A tile, or one floor region of a tile split by a barrier, with the openings that leave it; <see cref="To"/> is null for an opening into never-loaded space (a frontier).</summary>
 internal sealed class TileNode(MapTile tile)
 {
     public MapTile Tile { get; } = tile;
@@ -13,40 +13,80 @@ internal readonly record struct TileHop(RoomOpening Opening, TileNode? To);
 /// The known tiles as a graph: nodes are tiles, edges are their exit openings (real walkable gaps, via
 /// OpeningFinder) that land on another known tile. Exit bits are assumed symmetric — only the side that
 /// carries the bit gets an edge. Touching tiles of one room (RoomModel) are always linked, because preset
-/// rooms' live exit masks can omit their internal sides (research/client-memory.md §1).
+/// rooms' live exit masks can omit their internal sides (research/client-memory.md §1). A tile that live
+/// barriers split is one node per floor region (TileRegions), joined only where its floor meets the crossing.
 /// </summary>
 internal sealed class TileGraph
 {
-    private readonly Dictionary<(int, int), TileNode> _nodes = [];
+    private const float HalfCell = BlockedCells.CellSizeUnits / 2f;
 
-    public IReadOnlyCollection<TileNode> Nodes => _nodes.Values;
+    private readonly Dictionary<(int, int), TileRegions> _tiles = [];
 
-    public TileNode? NodeAt(MapTile tile) => _nodes.GetValueOrDefault(Key(tile));
+    public IEnumerable<TileNode> Nodes => _tiles.Values.SelectMany(t => t.Nodes);
+
+    /// <summary>The node of <paramref name="tile"/> holding <paramref name="point"/>, or nearest to it when a barrier splits the tile.</summary>
+    public TileNode? NodeAt(MapTile tile, (float X, float Y) point) => _tiles.GetValueOrDefault(Key(tile))?.At(point);
 
     public static (int, int) Key(MapTile tile) => (tile.CellX, tile.CellY);
 
-    public static TileGraph Build(DungeonMap map, ITileWalkability? walkability)
+    public static TileGraph Build(DungeonMap map, ITileWalkability? walkability, BlockedCells? blocked = null)
     {
+        blocked ??= BlockedCells.None;
         var graph = new TileGraph();
-        foreach (var tile in map.Tiles) graph._nodes[Key(tile)] = new TileNode(tile);
+        foreach (var tile in map.Tiles) graph._tiles[Key(tile)] = TileRegions.Build(tile, walkability, blocked);
 
-        foreach (var node in graph._nodes.Values)
-            foreach (var opening in OpeningFinder.Find(map, [node.Tile], [node.Tile], walkability))
+        foreach (var near in graph._tiles.Values)
+            foreach (var opening in OpeningFinder.Find(map, [near.Tile], [near.Tile], walkability, blocked))
             {
                 var probe = OpeningFinder.Probe(opening.Side, opening.Position);
                 var neighbour = opening.Unexplored ? null : map.TileAt(probe.X, probe.Y);
-                node.Hops.Add(new TileHop(opening, neighbour is null ? null : graph.NodeAt(neighbour)));
+                var far = neighbour is null ? null : graph._tiles.GetValueOrDefault(Key(neighbour));
+                foreach (var (from, to, crossing) in Contacts(near, far, opening))
+                    from.Hops.Add(new TileHop(crossing, to));
             }
 
-        foreach (var room in graph._nodes.Values.GroupBy(n => n.Tile.Input.NodeId))
-            foreach (var from in room)
-                foreach (var to in room)
-                    if (from != to && RoomModel.Adjacent(from.Tile, to.Tile) && !from.Hops.Any(h => h.To == to))
-                        from.Hops.Add(new TileHop(SharedEdge(from.Tile, to.Tile), to));
+        foreach (var room in graph._tiles.Values.GroupBy(t => t.Tile.Input.NodeId))
+            foreach (var near in room)
+                foreach (var far in room)
+                    if (near != far && RoomModel.Adjacent(near.Tile, far.Tile))
+                        foreach (var (from, to, crossing) in Contacts(near, far, SharedEdge(near.Tile, far.Tile)))
+                            if (!from.Hops.Any(h => h.To == to)) from.Hops.Add(new TileHop(crossing, to));
         return graph;
     }
 
-    // Crossing between two touching tiles of one room: the middle of their shared edge.
+    // The nodes a crossing joins (far null: a frontier). Unsplit tiles meet across the whole crossing; with a split side each
+    // cell along it pairs the regions on either side, a barrier cell pairs nothing, and every pair crosses at its own part.
+    private static IEnumerable<(TileNode From, TileNode? To, RoomOpening Crossing)> Contacts(TileRegions near, TileRegions? far, RoomOpening crossing)
+    {
+        if (!near.IsSplit && far is not { IsSplit: true })
+        {
+            yield return (near.Nodes[0], far?.Nodes[0], crossing);
+            yield break;
+        }
+
+        var normal = ExitMaskBits.Normal(crossing.Side);
+        var along = (MathF.Abs(normal.Y), MathF.Abs(normal.X));
+        int count = Math.Max(1, (int)MathF.Round(crossing.Width / BlockedCells.CellSizeUnits));
+        var points = Enumerable.Range(0, count)
+            .Select(i => Offset(crossing.Position, along, (i + 0.5f) * crossing.Width / count - crossing.Width / 2f)).ToList();
+        var froms = near.Along([.. points.Select(p => Offset(p, normal, -HalfCell))], Offset(crossing.Position, normal, -HalfCell));
+        var tos = far?.Along([.. points.Select(p => Offset(p, normal, HalfCell))], Offset(crossing.Position, normal, HalfCell));
+        var pairs = Enumerable.Range(0, count)
+            .Where(i => froms[i] is not null && (tos is null || tos[i] is not null))
+            .GroupBy(i => (From: froms[i]!, To: tos?[i]))
+            .ToList();
+        foreach (var pair in pairs)
+            yield return (pair.Key.From, pair.Key.To, pairs.Count == 1 ? crossing : crossing with
+            {
+                Position = (pair.Average(i => points[i].X), pair.Average(i => points[i].Y)),
+                Width = pair.Count() * crossing.Width / count,
+            });
+    }
+
+    private static (float X, float Y) Offset((float X, float Y) point, (float X, float Y) direction, float distance) =>
+        (point.X + direction.X * distance, point.Y + direction.Y * distance);
+
+    // Crossing between two touching tiles of one room: the middle of their shared edge, as wide as the edge they share.
     private static RoomOpening SharedEdge(MapTile from, MapTile to)
     {
         var a = from.Input;
@@ -54,11 +94,11 @@ internal sealed class TileGraph
         if (b.OriginX >= a.OriginX + a.SizeX || a.OriginX >= b.OriginX + b.SizeX)
         {
             bool south = b.OriginX >= a.OriginX + a.SizeX;
-            float y = (MathF.Max(a.OriginY, b.OriginY) + MathF.Min(a.OriginY + a.SizeY, b.OriginY + b.SizeY)) / 2f;
-            return new RoomOpening(south ? ExitSide.South : ExitSide.North, (south ? b.OriginX : a.OriginX, y), Unexplored: false);
+            float low = MathF.Max(a.OriginY, b.OriginY), high = MathF.Min(a.OriginY + a.SizeY, b.OriginY + b.SizeY);
+            return new RoomOpening(south ? ExitSide.South : ExitSide.North, (south ? b.OriginX : a.OriginX, (low + high) / 2f), Unexplored: false, high - low);
         }
         bool east = b.OriginY >= a.OriginY + a.SizeY;
-        float x = (MathF.Max(a.OriginX, b.OriginX) + MathF.Min(a.OriginX + a.SizeX, b.OriginX + b.SizeX)) / 2f;
-        return new RoomOpening(east ? ExitSide.East : ExitSide.West, (x, east ? b.OriginY : a.OriginY), Unexplored: false);
+        float left = MathF.Max(a.OriginX, b.OriginX), right = MathF.Min(a.OriginX + a.SizeX, b.OriginX + b.SizeX);
+        return new RoomOpening(east ? ExitSide.East : ExitSide.West, ((left + right) / 2f, east ? b.OriginY : a.OriginY), Unexplored: false, right - left);
     }
 }

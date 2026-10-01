@@ -8,7 +8,8 @@ namespace D4Assist.Navigation;
 /// </summary>
 public static class RoomWalkGrid
 {
-    public static WalkGrid? Build(IReadOnlyList<MapTile> members, ITileWalkability? walkability)
+    /// <param name="blocked">Live barriers, left unwalkable.</param>
+    public static WalkGrid? Build(IReadOnlyList<MapTile> members, ITileWalkability? walkability, BlockedCells? blocked = null)
     {
         if (walkability is null) return null;
 
@@ -18,7 +19,7 @@ public static class RoomWalkGrid
             if (!walkability.TryGet(tile.Input.SceneSno, out var grid)) continue;
             var turns = TileRotation.QuarterTurns(tile.Input.YawDegrees);
             if (turns < 0) continue; // non-axis rotation: unsupported, leave unwalkable
-            tileGrids.Add((tile, grid, turns));
+            tileGrids.Add((tile, blocked?.Mask(tile, grid, turns) ?? grid, turns));
         }
         if (tileGrids.Count == 0) return null;
 

@@ -33,6 +33,9 @@ public sealed class AppConfig
     /// <summary>Closed doors sound as doors in the radar (two knocks, like D2R) instead of open floor.</summary>
     public bool RadarClosedDoorsEnabled { get; set; } = true;
 
+    /// <summary>Barrier walls a dungeon raises until its objective is done block the radar and the guide's routes while they stand.</summary>
+    public bool LiveBarriersEnabled { get; set; } = true;
+
     /// <summary>Every sound cue's switch, volume and repeat speed, plus the master volume (the settings window's sound tabs).</summary>
     public SoundSettings Sound { get; set; } = new();
 

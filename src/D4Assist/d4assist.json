@@ -5,6 +5,7 @@
   "InterruptOnContextChange": true,
   "RadarFrame": "Cardinal",
   "RadarClosedDoorsEnabled": true,
+  "LiveBarriersEnabled": true,
   "PauseCuesInCutscenes": true,
   "PauseCuesInBackground": true,
   "PauseCuesInConversations": true,

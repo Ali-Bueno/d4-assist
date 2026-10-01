@@ -369,3 +369,32 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
 - **App rule** (`ObjectiveClassifier`, reason `destructible`): a hostile non-gizmo `*_Multistage` actor some quest names gets
   the quest loop; it falls silent once it has no ACD (destroyed). Live: two tumors looped (`reason=destructible`) and
   stopped as `gone` within seconds of being broken. Not yet heard: the other nine.
+
+## 13. Barrier walls and the targets that open them (offline + live, 2026-10-01)
+
+Live case: `DGN_Frac_Maulwood` (SNO 486082), objective "kill the sentinel to release the barrier". The guide kept leading
+the player to unexplored ground behind a bone wall near the entrance, because the floor under it is baked walkable.
+
+- **DPO** `DPO_Frac_Maulwood` 598972 names two kill targets (event 0, H): `bandit_ambusher_female_fire_unique_DGN_Frac_Maulwood`
+  1393337 (phase 76, the sentinel the player fought; a unique elite named after the dungeon) and the structure monster
+  `DRLG_Structure_Skeleton_SkeletalConstruct_Snow_Thick` 1045720 (phases 63 and 91; eType 1, team 19, family
+  `Global_Structure`). No objective text is readable offline (the StringLists are empty in this install).
+- **Census (H):** 147 DPO quests, 185 distinct kill targets (event 0): 115 named `*unique*`, 33 `*miniboss*`; 41 dungeons have a
+  `DRLG_Structure_*` target. Only `DRLG_Structure_ProtoDunCrypt_SentinelStatues` (LubansRest) is named *Sentinel*.
+- **No live mark (live, H):** the sentinel's ACD attributes differ from ordinary monsters' only by fight state
+  (`Summoner_ID`, `Last_Time_Inflicted_Damage`, power effect sizes); nothing says "objective". What tells it apart is the DPO.
+  A `Symbol_Quest_Proxy` actor stood 14 units away; its role is unknown.
+- **The barrier:** three live actors at (48.6,-101): `DRLGKit_fxKit_harmless_barrierWall_bone_01` 726308 (eType 4, ptCollData
+  present, collision shape box, nav behaviour 1, aabbBounds centre (0,0,2.5) half-extents (0.5,3,3.5): a wall 1 thick, 6
+  wide, 7 tall) plus two pure effects without collision, `fxKit_harmless_persistentBarrier_B` 571328 and
+  `fxKit_bone_barrierWall_bonewall_frags` 684342. No quest names any of them and no Maulwood marker set places them: the
+  server spawns the wall and nothing in client data links it to its target (L for any other link).
+- **Opening (live, H):** after the sentinel died, the player stood 6 units from the spot with the start locations listed 9
+  units away: all three barrier actors were gone. So "listed" means standing.
+- **Other barriers (offline, H):** 52 `*barrierWall*` actors (demonic 27 marker sets, fog 13, spirits 9, blood 6, bone 5, Khazra
+  raid 18) share the same box (0.5,3,3.5) or (0.5,3,3); `OWV_Skeleton_BoneWallSpawner` (111 sets) are ambush walls.
+- **App rules:** `ObjectiveClassifier` makes a monster the world's DPO names an objective (reason `KillTarget`, quest loop,
+  a guide target once heard); other monsters stay silent. `BarrierObstacles` lays every non-gizmo `*barrierWall*` with a box
+  on the 1-unit grid (the door footprint, rotated by yaw), remembers it while the client drops it far away, and drops it once
+  the player is within 20 units of its spot without it; `BarrierBridge` hands the cells to the guide's routes
+  (`NavigationBridge.SetBlockedCells`) and to the radar (wall cells).

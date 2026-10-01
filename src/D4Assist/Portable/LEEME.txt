@@ -28,6 +28,13 @@ Cambios desde la versión de prueba 7
   propia mazmorra (por ejemplo el libro de la Cámara Horádrica).
 - Sonidos nuevos: braseros espirituales de Undercity, barreras protectoras y
   objetos de los combates contra jefes (ver "Qué hace").
+- Barreras de las mazmorras: cuando una mazmorra cierra un paso con una
+  barrera hasta que matas a alguien (por ejemplo la centinela de Maulwood), la
+  guía ya no te lleva a lo que queda detrás y el radar la oye como pared. Al
+  abrirse, la guía vuelve a contar con ese lado.
+- Lo que el objetivo de la mazmorra pide matar (una élite, una estructura)
+  suena con el sonido de misión, y la guía te lleva a ello cuando ya lo
+  oíste.
 
 
 AVISO IMPORTANTE: RIESGO
@@ -109,7 +116,14 @@ Qué hace
   la que está en curso en esa mazmorra) cuando ya los puedes usar, por
   ejemplo el demonio asesinado y la puerta de la Vía Oscurecida, el libro de
   la Cámara Horádrica o los tumores del odio que hay que romper (se callan al
-  destruirlos). Los que la misión aún no deja usar no suenan.
+  destruirlos). Los que la misión aún no deja usar no suenan. Lo que el
+  objetivo de la mazmorra pide matar (por ejemplo la centinela de Maulwood o
+  un constructo de huesos) también suena con el sonido de misión hasta que
+  muere; los demás monstruos nunca suenan.
+- Barreras de las mazmorras: un muro que cierra un paso hasta que cumples el
+  objetivo suena como pared en el radar, y la guía no te lleva a lo que queda
+  detrás. Cuando el juego la quita y pasas cerca, vuelve a contar con ese
+  lado.
 - Braseros espirituales de la Ciudad Subterránea: suenan con su propio sonido
   hasta que los usas, para subir la sintonía.
 - Barreras protectoras en combates contra jefes: cuando un aliado levanta una
@@ -263,9 +277,10 @@ predeterminados" lo pone todo como venía.
 - General: idioma ("Automático" sigue al juego), orientación del radar, voz,
   anuncios de salas, guía de exploración y si viene activada en las mazmorras
   normales, guía de refugios, funcionar fuera de las mazmorras, puertas
-  cerradas en el radar, y cuándo se callan los sonidos (cinemáticas, juego en
-  segundo plano, conversaciones, menús). Estas opciones se aplican al
-  reiniciar el asistente: al guardarlas pregunta si quieres reiniciarlo ya.
+  cerradas en el radar, barreras de las mazmorras, y cuándo se callan los
+  sonidos (cinemáticas, juego en segundo plano, conversaciones, menús). Estas
+  opciones se aplican al reiniciar el asistente: al guardarlas pregunta si
+  quieres reiniciarlo ya.
 
 Todo se guarda en d4assist.json. Si el programa no encuentra el juego, abre
 ese archivo con el Bloc de notas y añade una línea como esta, con tu carpeta,

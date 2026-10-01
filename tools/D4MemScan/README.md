@@ -41,6 +41,7 @@ D4MemScan gizmos --defs <definitions.json> --type <eActorGizmoType> [--install <
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
 D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
+D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]
 ```
 
 `--install` defaults to `D:\games\battlenet\Diablo IV`. `--out`/default output paths land under `%TEMP%`, never
@@ -125,6 +126,12 @@ the repo.
     record in the heap screen registry (`D4Memory.Ui.ScreenRegistryReader`, `research/client-memory.md` §5), prints the
     open ones, then every open/close with its time for `--watch` seconds (default 120, every 200 ms). About 35 s to
     start. Use it to see which screens a game state opens, e.g. a cutscene or a new panel.
+
+12. **`layout`** — checks the structure layout against the live game (`D4Memory.SceneRoute.LayoutDiscovery`,
+    `research/client-memory.md` §6) twice: with the known layout (each field "as known" on a build it fits; after a game
+    update it names any field that moved and where to), then with every field shifted by `--shift` (default 0x10), which
+    must read MOVED back to the real offsets. Live 2026-10-01 (town, 239 RActors, 121 ACDs): all seven fields found back
+    in 56 ms. `layout --defs data/definitions.json`.
 
 11. **`conversations`** — searches the module data for the playing-conversation list and the dialogue menu
     (`D4Memory.Ui.ConversationDiscovery`) every 2 s until both are found, then prints their contents on each change. Talk

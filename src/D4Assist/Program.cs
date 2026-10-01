@@ -98,6 +98,8 @@ internal static class Program
         var sceneSnos = store.AllEntries(schema.SnoGroup(SceneDefinitionType)).Select(e => e.Id).ToHashSet();
         var actorDefinitions = new ActorDefinitionReader(store, schema);
         var playerActorSnos = actorDefinitions.PlayerActorSnos();
+        // Every actor SNO the game files hold: the live layout check (LayoutDiscovery) tells a real SNO field by it.
+        var actorSnos = store.AllEntries(schema.SnoGroup(ActorDefinitionType)).Select(e => e.Id).ToHashSet();
         if (debug) Console.WriteLine($"Player actors: {playerActorSnos.Count}.");
 
         // CASC reads happen on several poll threads (walkability, actor classes, DPO quests) and the store isn't thread-safe.
@@ -129,7 +131,7 @@ internal static class Program
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
-                worldQuests, health),
+                worldQuests, health, actorSnos.Contains),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -152,7 +154,12 @@ internal static class Program
         };
         var radarSettings = new RadarSettings { Frame = config.RadarFrame, PollMs = GameSession.DefaultPlayerPollIntervalMs };
         var doors = config.RadarClosedDoorsEnabled ? new DoorObstacles(interactables, definitionOf) : null;
-        _ = new RadarBridge(session, new DungeonRadarWorld(walkability), radarPlayer, radarSettings, diagnostics: debug, doors);
+        var radarWorld = new DungeonRadarWorld(walkability);
+        _ = new RadarBridge(session, radarWorld, radarPlayer, radarSettings, diagnostics: debug, doors);
+        // Barrier walls a dungeon raises until its objective is done: walls for the radar and the guide while they stand.
+        if (config.LiveBarriersEnabled)
+            _ = new BarrierBridge(session, new BarrierObstacles(store.Name, definitionOf, Console.WriteLine),
+                cells => { navigation.SetBlockedCells(cells); radarWorld.SetBarriers(cells); });
 
         var loopMemory = loopSounds is null ? null : StartLoops(
             session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, cue => liveSound.Current.Level(cue));

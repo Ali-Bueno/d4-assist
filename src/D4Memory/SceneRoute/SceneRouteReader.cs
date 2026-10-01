@@ -11,10 +11,11 @@ namespace D4Memory.SceneRoute;
 /// </summary>
 public static class SceneRouteReader
 {
-    // Field offsets inside one pool slot, relative to the slot's own start (not `a`/snoScene) — see
-    // research/client-memory.md §1, step 3-4.
-    private const int VtableOffsetInSlot = 0x158;
+    // Where the CScene record starts inside a pool slot (its snoScene, `a`), relative to the slot's own start — see
+    // research/client-memory.md §1, step 3-4. Build 3.2.x; the layout carries the live-checked value (SceneRecordOffset).
     public const int SnoSceneOffsetInSlot = 0x168;
+    // The record's vtable sits just before it.
+    private const int VtableBeforeRecord = 0x10;
 
     /// <summary>
     /// Reads every occupied, validated slot of the live CScene pool. Returns false (route unavailable) on
@@ -33,10 +34,10 @@ public static class SceneRouteReader
 
         foreach (var (slot, _) in pool.OccupiedSlots())
         {
-            if (!PoolContainer.TryReadU64(reader, slot + VtableOffsetInSlot, out ulong vtable)) continue;
+            if (!PoolContainer.TryReadU64(reader, slot + offsets.SceneRecordOffset - VtableBeforeRecord, out ulong vtable)) continue;
             if (offsets.CSceneVtableRva != 0 && vtable != expectedVtable) continue; // inconsistent slot; skip it, not the whole route
 
-            long snoSceneAddress = slot + SnoSceneOffsetInSlot;
+            long snoSceneAddress = slot + offsets.SceneRecordOffset;
             if (!reader.TryRead(snoSceneAddress - CSceneRecordMatcher.RecordBytesBefore, window, window.Length)) continue;
             if (CSceneRecordMatcher.TryMatchAt(window, CSceneRecordMatcher.RecordBytesBefore, candidates, out var hit))
                 hits.Add(hit with { Address = snoSceneAddress });

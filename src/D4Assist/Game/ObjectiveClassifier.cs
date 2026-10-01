@@ -4,7 +4,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -57,7 +57,11 @@ public sealed class ObjectiveClassifier(
     {
         if (TraitsOf(actorSno) is not { } traits) return null;
         if (traits.Fixed is { } reason) return reason;
-        return !traits.IsMonster && dpoActors.Contains(actorSno) ? ObjectiveReason.Dpo : null;
+        if (!dpoActors.Contains(actorSno)) return null;
+        // A monster the DPO names is a target the dungeon's objective asks the player to kill, which the game's objective
+        // tracker shows: a unique elite or a structure (live 2026-10-01, Maulwood: the sentinel that holds a barrier).
+        // Other monsters stay silent.
+        return traits.IsMonster ? ObjectiveReason.KillTarget : ObjectiveReason.Dpo;
     }
 
     /// <summary>True for gizmos, the only actors a "used" signal applies to: monsters, NPCs and effects change state as they

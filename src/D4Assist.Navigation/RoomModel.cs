@@ -11,11 +11,13 @@ namespace D4Assist.Navigation;
 public static class RoomModel
 {
     /// <summary>The room covering a world position, or false if no loaded tile covers it.</summary>
-    public static bool TryGetRoom(DungeonMap map, float worldX, float worldY, out Room room, ITileWalkability? walkability = null)
+    /// <param name="blocked">Live barriers, closed in the room's openings and walk grid.</param>
+    public static bool TryGetRoom(
+        DungeonMap map, float worldX, float worldY, out Room room, ITileWalkability? walkability = null, BlockedCells? blocked = null)
     {
         var tile = map.TileAt(worldX, worldY);
         if (tile is null) { room = null!; return false; }
-        room = BuildRoomAt(map, tile, walkability);
+        room = BuildRoomAt(map, tile, walkability, blocked: blocked);
         return true;
     }
 
@@ -32,7 +34,8 @@ public static class RoomModel
         return rooms;
     }
 
-    private static Room BuildRoomAt(DungeonMap map, MapTile seed, ITileWalkability? walkability, HashSet<MapTile>? visited = null)
+    private static Room BuildRoomAt(
+        DungeonMap map, MapTile seed, ITileWalkability? walkability, HashSet<MapTile>? visited = null, BlockedCells? blocked = null)
     {
         var sameNode = map.Tiles.Where(t => t.Input.NodeId == seed.Input.NodeId).ToList();
         var members = CollectComponent(seed, sameNode, visited ?? new HashSet<MapTile>());
@@ -41,8 +44,8 @@ public static class RoomModel
         var anchor = members.OrderBy(t => t.Input.OriginX).ThenBy(t => t.Input.OriginY).First();
         var key = new RoomKey(anchor.Input.OriginX, anchor.Input.OriginY, true);
 
-        var openings = OpeningFinder.Find(map, members, memberSet, walkability);
-        return new Room(key, members, openings, RoomWalkGrid.Build(members, walkability));
+        var openings = OpeningFinder.Find(map, members, memberSet, walkability, blocked);
+        return new Room(key, members, openings, RoomWalkGrid.Build(members, walkability, blocked));
     }
 
     // BFS over same-NodeId tiles, connecting only tiles whose footprints actually touch.

@@ -461,6 +461,23 @@ tries discovery in each copy (the player's first), and reads the player record, 
 quest phases from the copy that holds G. Unknown: whether the view's pages are the same memory under another protection
 (the writable-region filter would then hide them) or a stale copy.
 
+**Structure layout check** (`D4Memory/SceneRoute/LayoutDiscovery.cs`, 2026-10-01): the slot fields live in the layout
+(`GameBuildOffsets.ActorFields`, `AcdOffsets.Fields`, `SceneRecordOffset`) instead of reader constants. At the first session
+of a build (per image copy) the app reads the RActor and ACD pools and checks each field by an invariant, keeping the known
+offset when it passes and searching the slot only when it fails:
+- RActor position and actor SNO: the slot holding the player record's position (within 1 unit) and the player's SNO; a
+  searched SNO offset must hold real actor SNOs in ≥ 80 % of slots; a searched position prefers a unit quaternion 0x10 before
+  it and placement 0 at +0x4C (rotation, world, scene and placement follow the position at fixed distances).
+- RActor ACD id ↔ ACD RActor id: the player's RActor must lead to an ACD that leads back; a search tries the 8 RActor
+  offsets most often holding a live ACD id against every ACD offset (never the pools' own id at +0x08).
+- ACD actor SNO and position: ≥ 80 % of the linked pairs agree with the RActor's.
+- ACD attribute container: the player's ACD pointer whose container holds ≥ 5 attributes with a name in the game's table.
+- Scene record start (`a`): checked when the scene route reads no room (every 10 s at most): the offset where
+  `CSceneRecordMatcher` accepts a slot's record.
+- Not checked: the RActor gizmo state (+0x148), G's container offsets, the pool header, the CScene record's own fields, the
+  attribute map layout. The log line `Layout: … as known` or `… MOVED 0x… -> 0x…` reports each field. Unit tests rebuild
+  slots with every field moved and find them.
+
 **Self-check** (`Game/ReadHealth.cs`): the session reports each read: player record found, G found, a scene-route read
 with ≥ 1 room, the player's own RActor (its SNO, with an ACD id, ≤ 5 units from the player record) among the actors, all
 ACD attribute names found, the screens located. The first success per run logs `Self-check: <read> ok.`; a read that never

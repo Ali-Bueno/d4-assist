@@ -1,0 +1,184 @@
+using D4Assist.Navigation;
+
+namespace D4Assist.Navigation.Tests;
+
+public class BarrierGuideTests
+{
+    private const int E = ExitMaskBits.East, W = ExitMaskBits.West;
+    private const float Half = GridMath.CellSize / 2f;
+    private const int FloorFrom = 13, FloorTo = 18; // corridor floor: local rows (X) 13-18, along the whole tile
+    private const int BarrierTile = 5;
+
+    private static TileInput Tile(int cy, int mask) => new(1, "t", 0, cy * 32, 32, 32, mask, (uint)(1000 + cy), 0);
+
+    private static PlayerInput Centre(int cy) => new(Half, cy * 32 + Half, 0);
+
+    private static FakeTileWalkability CorridorFloor()
+    {
+        var cells = new bool[32, 32];
+        for (var r = FloorFrom; r <= FloorTo; r++)
+            for (var c = 0; c < 32; c++) cells[r, c] = true;
+        return new FakeTileWalkability().Add(1, new WalkGrid(1f, 0f, 0f, 32, 32, cells));
+    }
+
+    // Seven corridor tiles along +Y: 0 unexplored at the west end (112 away), 1-5 explored with the player in 4, 6 unexplored at the east end (48 away).
+    private static (DungeonMap Map, ExplorationGuide Guide) Corridor(ITileWalkability? walkability = null, params int[] alsoVisited)
+    {
+        var map = new DungeonMap();
+        map.AddOrUpdate([Tile(0, E), .. Enumerable.Range(1, 5).Select(cy => Tile(cy, W | E)), Tile(6, W)]);
+        foreach (var cy in Enumerable.Range(1, 5).Concat(alsoVisited)) map.MarkVisited(Half, cy * 32 + Half);
+        return (map, new ExplorationGuide(map, walkability ?? CorridorFloor()));
+    }
+
+    // A wall straight across the corridor floor at world Y = y.
+    private static HashSet<(int X, int Y)> WallAcross(int y) => [.. Enumerable.Range(FloorFrom, FloorTo - FloorFrom + 1).Select(x => (x, y))];
+
+    private static (int X, int Y) CellOf(float x, float y) => ((int)MathF.Floor(x), (int)MathF.Floor(y));
+
+    [Fact]
+    public void A_barrier_splitting_a_corridor_tile_cuts_off_the_tiles_beyond_until_it_opens()
+    {
+        var (_, guide) = Corridor();
+        Assert.Equal("tile:0,6", guide.Step(Centre(4)).Target!.Id);
+
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5)); // five units into the tile, as live
+        var cutOff = guide.Step(Centre(4));
+        Assert.Equal(GuideStatus.Guiding, cutOff.Status);
+        Assert.Equal("tile:0,0", cutOff.Target!.Id);
+
+        guide.SetBlockedCells(new HashSet<(int X, int Y)>());
+        Assert.Equal("tile:0,6", guide.Step(Centre(4)).Target!.Id);
+    }
+
+    [Fact]
+    public void Ground_left_only_behind_a_barrier_is_all_explored()
+    {
+        var (_, guide) = Corridor(alsoVisited: 0);
+        Assert.Equal("tile:0,6", guide.Step(Centre(4)).Target!.Id);
+
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5));
+
+        Assert.Equal(GuideStatus.AllExplored, guide.Step(Centre(4)).Status);
+    }
+
+    [Theory]
+    [InlineData(6 * 32 - 1)] // the explored tile's own doorway cells
+    [InlineData(6 * 32)]     // the cells just across it, in the unexplored tile
+    public void A_barrier_over_a_doorway_closes_it(int y)
+    {
+        var (_, guide) = Corridor();
+
+        guide.SetBlockedCells(WallAcross(y));
+
+        Assert.Equal("tile:0,0", guide.Step(Centre(4)).Target!.Id);
+    }
+
+    [Fact]
+    public void A_barrier_over_a_doorway_leaves_no_opening_and_over_part_of_one_leaves_the_free_part()
+    {
+        var map = new DungeonMap();
+        map.AddOrUpdate([Tile(BarrierTile, W | E)]);
+        var tile = map.Tiles.Single();
+        var walkability = CorridorFloor();
+        int edge = (BarrierTile + 1) * 32 - 1;
+
+        var closed = OpeningFinder.Find(map, [tile], [tile], walkability, new BlockedCells(WallAcross(edge)));
+        Assert.DoesNotContain(closed, o => o.Side == ExitSide.East);
+        Assert.Contains(closed, o => o.Side == ExitSide.West);
+
+        var narrowed = OpeningFinder.Find(map, [tile], [tile], walkability, new BlockedCells([(FloorFrom, edge), (FloorFrom + 1, edge)]));
+        var east = Assert.Single(narrowed, o => o.Side == ExitSide.East);
+        Assert.Equal(4f, east.Width);
+        Assert.Equal((17f, edge + 1f), east.Position);
+        Assert.False(east.UsedFallback);
+    }
+
+    [Fact]
+    public void An_objective_behind_a_barrier_waits_for_a_reachable_one()
+    {
+        var (_, guide) = Corridor();
+        GuideDestination[] objectives = [new("behind", (Half, BarrierTile * 32 + 20), 0), new("open", (Half, Half), 0)];
+
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5)); // the "behind" point is in the same tile, past the wall
+        Assert.Equal("open", guide.Step(Centre(4), objectives: objectives).Target!.Id);
+
+        guide.SetBlockedCells(new HashSet<(int X, int Y)>());
+        Assert.Equal("behind", guide.Step(Centre(4), objectives: objectives).Target!.Id);
+    }
+
+    // One open 32x32 room with its exit east (Y = 32); a wall across it at Y = 16 leaves a gap at X 26-31.
+    private static readonly HashSet<(int X, int Y)> RoomWall = [.. Enumerable.Range(0, 26).Select(x => (x, 16))];
+
+    private static (DungeonMap Map, FakeTileWalkability Walkability) OpenRoom()
+    {
+        var cells = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++) cells[r, c] = true;
+        var map = new DungeonMap();
+        map.AddOrUpdate([new TileInput(1, "room", 0, 0, 32, 32, E, 7, 0)]);
+        map.MarkVisited(Half, Half);
+        return (map, new FakeTileWalkability().Add(1, new WalkGrid(1f, 0f, 0f, 32, 32, cells)));
+    }
+
+    [Fact]
+    public void The_room_path_goes_around_a_barrier_never_through_it()
+    {
+        var (map, walkability) = OpenRoom();
+
+        var grid = RoomWalkGrid.Build([.. map.Tiles], walkability, new BlockedCells(RoomWall))!;
+
+        Assert.True(RoomPathfinder.TryFindPath(grid, (16.5f, 4.5f), [(16, 29)], out var path, out _));
+        Assert.All(path, p => Assert.DoesNotContain(CellOf(p.X, p.Y), RoomWall));
+        Assert.Contains(path, p => p.X > 26f);
+    }
+
+    [Fact]
+    public void The_look_ahead_heads_for_the_gap_and_never_crosses_the_barrier()
+    {
+        var (map, walkability) = OpenRoom();
+        var guide = new ExplorationGuide(map, walkability);
+        var player = new PlayerInput(16.5f, 4.5f, 0);
+        var straight = guide.Step(player);
+
+        guide.SetBlockedCells(RoomWall);
+        var step = guide.Step(player);
+
+        Assert.Equal(GuideTargetKind.Frontier, step.Target!.Kind);
+        Assert.True(step.Waypoint.X > 25f, $"waypoint {step.Waypoint} is not toward the gap");
+        Assert.True(step.RemainingLength > straight.RemainingLength, $"route {step.RemainingLength} not longer than the straight {straight.RemainingLength}");
+        for (var t = 0f; t <= 1f; t += 1f / 512)
+        {
+            var (x, y) = (player.X + (step.Waypoint.X - player.X) * t, player.Y + (step.Waypoint.Y - player.Y) * t);
+            Assert.DoesNotContain(CellOf(x, y), RoomWall);
+        }
+    }
+
+    [Fact]
+    public void The_same_barriers_again_reuse_the_routes_and_new_ones_rebuild_them()
+    {
+        var walkability = new CountingWalkability(CorridorFloor());
+        var (_, guide) = Corridor(walkability);
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5));
+        var first = guide.Step(Centre(4));
+        var lookups = walkability.Lookups;
+
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5)); // a fresh set with the same cells
+        Assert.Same(first, guide.Step(Centre(4)));
+        Assert.Equal(lookups, walkability.Lookups);
+
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 6));
+        Assert.Equal(first.Target, guide.Step(Centre(4)).Target);
+        Assert.True(walkability.Lookups > lookups, "a different set must rebuild the routes");
+    }
+
+    private sealed class CountingWalkability(ITileWalkability inner) : ITileWalkability
+    {
+        public int Lookups { get; private set; }
+
+        public bool TryGet(int sceneSno, out WalkGrid grid)
+        {
+            Lookups++;
+            return inner.TryGet(sceneSno, out grid);
+        }
+    }
+}

@@ -2,7 +2,7 @@ First release of **Diablo 4 Assist**, an accessibility companion for blind playe
 
 > **Risk:** the program reads the game's memory (read only: it never writes to the game or injects anything). Blizzard could still consider it against its terms of service. Use it at your own risk.
 
-**Download** `D4Assist-0.1.0.zip`, unzip it anywhere and run `D4Assist.exe`. It lives in the notification area. The full guide in Spanish is `LEEME.txt` inside the zip; see the [README](https://github.com/Ali-Bueno/d4-assist#readme) in English.
+**Download** `D4Assist-0.1.0.zip`, unzip it anywhere and run `D4Assist.exe`. It lives in the notification area. The full guide is `README.txt` inside the zip, and the [README](https://github.com/Ali-Bueno/d4-assist#readme) here.
 
 ### What it does
 - Spoken room announcements with exits as stick directions.
@@ -23,4 +23,5 @@ Report problems in [Issues](https://github.com/Ali-Bueno/d4-assist/issues), atta
 
 ---
 
-**En español:** primera versión de Diablo 4 Assist, un asistente de accesibilidad para jugar a Diablo IV sin ver la pantalla. Descarga `D4Assist-0.1.0.zip`, descomprímelo y abre `D4Assist.exe`. Todas las instrucciones están en `LEEME.txt`, dentro del zip. **Aviso:** lee la memoria del juego (solo lectura); úsalo bajo tu propia responsabilidad. Los problemas, en [Issues](https://github.com/Ali-Bueno/d4-assist/issues), con los dos archivos de registro adjuntos.
+**En español:** primera versión de Diablo 4 Assist, un asistente de accesibilidad para jugar a Diablo IV sin ver la pantalla. Descarga `D4Assist-0.1.0.zip`, descomprímelo y abre `D4Assist.exe`. Las instrucciones completas están en `README.txt` (en inglés), dentro del zip. **Aviso:** lee la memoria del juego (solo lectura); úsalo bajo tu propia responsabilidad. Los problemas, en [Issues](https://github.com/Ali-Bueno/d4-assist/issues), con los dos archivos de registro adjuntos.
+

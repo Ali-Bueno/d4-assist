@@ -1,10 +1,8 @@
 # Diablo 4 Assist
 
-Diablo 4 already comes with screen reader support, and for menus and text it does the job. But once you're
-inside a dungeon you're pretty much on your own: where are the exits, where did I already go, where's that lever or
-that prisoner, how do I get out of here. That's what this is for. It's not a replacement for the game's accessibility,
-just a complement for the parts that aren't accessible. It runs next to the game, talks through your screen reader
-(NVDA or JAWS) and plays sounds that come from wherever things are around you.
+This is a companion for Diablo 4 that adds navigation cues for dungeons, quests, objects, characters and boss
+fights. It runs next to the game, talks through your screen reader (NVDA or JAWS) and plays sounds that come from
+wherever things are around you.
 
 ## About the ban risk
 

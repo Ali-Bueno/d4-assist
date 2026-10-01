@@ -83,8 +83,8 @@ Left on the D-pad turns the guide on and off.
 ## Known issues
 
 If you open the program in the middle of a dungeon, the first room it announces is called the entrance even if it isn't.
-And from act 2 on there will be things that don't make a sound yet. I tested everything through act 1, the Undercity and
-the Pit.
+I've tried to give a sound to everything that needs one, but some things might still be missing it. If you find one, let
+me know.
 
 ## If something's not working
 

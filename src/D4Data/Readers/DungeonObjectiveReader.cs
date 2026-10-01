@@ -12,6 +12,7 @@ public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
     private readonly DpoLayout _layout = DpoLayout.From(schema);
     private readonly Dictionary<int, IReadOnlySet<int>> _cache = [];
     private Dictionary<int, int[]>? _worldQuests;
+    private HashSet<int>? _questActors;
 
     /// <summary>Empty for a world without a DPO quest, or when the Global record is unreadable.</summary>
     public IReadOnlySet<int> ActorSnos(int worldSno)
@@ -25,6 +26,19 @@ public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
                 foreach (var (group, id) in DungeonObjectiveParser.QuestTokens(blob, _layout))
                     if (group == actorGroup) actors.Add(id);
         return _cache[worldSno] = actors;
+    }
+
+    /// <summary>Every actor SNO some quest's callbacks name (arSnonameTokens), over all quests (~3,700, ~0.1 s; built once).</summary>
+    public IReadOnlySet<int> ActorsNamedByAnyQuest()
+    {
+        if (_questActors is not null) return _questActors;
+        int actorGroup = schema.SnoGroup(ActorDefinition), questGroup = schema.SnoGroup(QuestDefinition);
+        var actors = new HashSet<int>();
+        foreach (var (quest, _) in store.AllEntries(questGroup))
+            if (store.Meta(questGroup, quest) is { } blob)
+                foreach (var (group, id) in DungeonObjectiveParser.QuestTokens(blob, _layout))
+                    if (group == actorGroup) actors.Add(id);
+        return _questActors = actors;
     }
 
     // Worlds without a DPO entry (seasonal ones such as S15_Triad_B_Worldstone) name their quest after the world

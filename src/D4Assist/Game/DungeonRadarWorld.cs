@@ -197,5 +197,5 @@ public sealed class DungeonRadarWorld(ITileWalkability walkability) : IRadarWorl
     private static (int X, int Y) TileKey(float originX, float originY) => (GridMath.CellIndex(originX), GridMath.CellIndex(originY));
 
     private static TileInput ToInput(TileState t) =>
-        new(t.SceneSno, t.Name, t.OriginX, t.OriginY, t.SizeX, t.SizeY, t.ExitMask, t.NodeId, t.GroupId, t.YawDegrees);
+        new(t.SceneSno, t.Name, t.OriginX, t.OriginY, t.SizeX, t.SizeY, t.ExitMask, t.NodeId, t.GroupId, t.YawDegrees, t.AuthoredExitMask);
 }

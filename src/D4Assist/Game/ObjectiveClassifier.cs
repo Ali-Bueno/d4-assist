@@ -4,12 +4,14 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
 /// <param name="nameOf">CoreTOC name of a SNO.</param>
-public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definition, Func<int, string?> nameOf)
+/// <param name="namedByAnyQuest">True for an actor SNO some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest); null for none.</param>
+public sealed class ObjectiveClassifier(
+    Func<int, ActorDefinitionInfo?> definition, Func<int, string?> nameOf, Func<int, bool>? namedByAnyQuest = null)
 {
     // Free-able prisoners are named DGN_NPC_<Region>_Prisoner_*; "Dead" excludes DGN_Standard_DeadPrisoner_*.
     private const string PrisonerToken = "Prisoner", DeadToken = "Dead";
@@ -33,6 +35,11 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     // The Horadric Guardian's four vessels (QST_Skov_Skartara_WardBreakerShrine_Kulle/Rasha/Fahd/Cain), one per sigil: the
     // one matching the barrier's symbol breaks it, again at every barrier (research/dungeon-objectives.md §11).
     private const string WardBreakerToken = "WardBreakerShrine";
+
+    // Structures broken by attacking them are hostile monster-type actors named *_Multistage (walls, barricades, totems; 184 in
+    // build 3.2.2). The 10 a quest names must go for the story to go on: the hatred tumors of the Ancient Mausoleum
+    // (Frac_Cursed_Tumor_01_Corner_2x2_01_Multistage), cracked walls, cocoons, a demon gate (research/dungeon-objectives.md §12).
+    private const string DestructibleToken = "_Multistage";
 
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =
@@ -87,10 +94,16 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
             return ObjectiveReason.WardBreaker;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(EnticementToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.Enticement;
+        if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
         return questNamed || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
     }
+
+    private bool IsQuestDestructible(int actorSno, string? name, ActorDefinitionInfo info) =>
+        info.GizmoType < 0 && info.DefaultTeam == Conventions.HostileTeam
+        && name?.Contains(DestructibleToken, StringComparison.OrdinalIgnoreCase) == true
+        && namedByAnyQuest?.Invoke(actorSno) == true;
 
     private static bool IsPrisoner(string? name, ActorDefinitionInfo info) =>
         name is not null

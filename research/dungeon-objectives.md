@@ -351,3 +351,21 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
   the vessels as reusable (silent only while locked). **Live check:** do the four vessels' ACD flags
   (`Gizmo_Disabled_By_Script`, quest restriction, `MinimapActive`) single out the matching one? `--debug` logs it as
   `LOOP stopped … cause=unusable` / `started`. No barrier loop yet (size unknown, 4–6 L).
+
+## 12. Structures to break: hatred tumors (offline + live, 2026-10-01)
+
+- **Live** (`CSD_Frac_Underworld_AncientMausoleum`, user: "son esenciales para avanzar"): a hatred tumor is
+  `Frac_Cursed_Tumor_01_Corner_2x2_01_Multistage` (actor 1185647), eType 1 (monster), no gizmo, team 19 (hostile), monster
+  family `Default`; its ACD has monster hit points (1.5) and no quest or minimap flag. Around it stand its breakable pieces
+  `Frac_Cursed_Tumor_{Core,Base,Skirt,Tube,Zit,Small,Pus}_*_Dyn` (gizmo 48, destroyable, no ACD). **Destroyed**, the tumor
+  stays in the actor list (it moved to a new RActor id) with **no ACD**; only client remains are left.
+- **Offline** (build 3.2.2): 184 actors are named `*_Multistage`; the hostile ones are structures broken by attacking them
+  (walls, barricades, doors, totems, blood boils, rubble, props such as Mage Halls mummies). Only **10** are named by a quest's
+  callbacks (`arSnonameTokens`, all 3,733 quests read in ~0.1 s): the tumor (`QST_Frac_Underworld2_02`,
+  `CSD_VGN_AncientMausoleum_CentralChamberLogic`, `QST_X2_Skov_Philios_Mindscape_01`), the Wardstone altar, Bishibosh's altar,
+  the Temple of the Death Speaker's pillar bridge, Elias's door, the Sodden Pact remains, the Prologue Hollow Growth, the
+  S07 gnarled cocoon, the Skartara sphinx cracked wall and the S11 Azmodan demon gate. No quest was tracked when the tumor
+  was met, so the tracked quest can't be the test.
+- **App rule** (`ObjectiveClassifier`, reason `destructible`): a hostile non-gizmo `*_Multistage` actor some quest names gets
+  the quest loop; it falls silent once it has no ACD (destroyed). Live: two tumors looped (`reason=destructible`) and
+  stopped as `gone` within seconds of being broken. Not yet heard: the other nine.

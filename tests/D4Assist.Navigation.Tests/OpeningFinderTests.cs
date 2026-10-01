@@ -78,6 +78,26 @@ public class OpeningFinderTests
     }
 
     [Fact]
+    public void Authored_side_the_live_mask_leaves_out_opens_only_where_the_floor_reaches_it()
+    {
+        // The Ancient Mausoleum's central chamber (live 14, offline 15): its floor runs north into the next tile.
+        var input = new TileInput(9, "chamber", 0, 0, 32, 32, ExitMaskBits.South, 1, 1,
+            AuthoredExitMask: ExitMaskBits.North | ExitMaskBits.South | ExitMaskBits.East);
+        var (tile, map, members) = SingleTileRoom(input);
+        var cells = new bool[32, 32];
+        for (var c = 10; c < 20; c++) cells[0, c] = true;  // north edge open
+        for (var c = 10; c < 20; c++) cells[31, c] = true; // south edge open
+        var walkability = new FakeTileWalkability().Add(9, new WalkGrid(1f, 0f, 0f, 32, 32, cells));
+
+        var openings = OpeningFinder.Find(map, [tile], members, walkability);
+
+        var north = Assert.Single(openings, o => o.Side == ExitSide.North);
+        Assert.False(north.UsedFallback);
+        Assert.Single(openings, o => o.Side == ExitSide.South);
+        Assert.DoesNotContain(openings, o => o.Side == ExitSide.East); // a walled authored side gets no edge-midpoint guess
+    }
+
+    [Fact]
     public void Two_runs_on_the_same_32_unit_side_de_duplicate_to_one_opening()
     {
         var input = new TileInput(4, "two-runs", 0, 0, 32, 32, ExitMaskBits.North, 1, 1);

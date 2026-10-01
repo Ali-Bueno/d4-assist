@@ -6,6 +6,8 @@ namespace D4Assist.Game;
 /// Remembers the objective loops heard in the current dungeon (quest steps, dungeon objectives) so the exploration guide
 /// can lead back to one out of earshot. One that falls silent near the player is done; one the player reached waits until
 /// another objective is done (a key found may open the door visited earlier) or the guide is switched on again.
+/// The places the active quest's current phase names (a trigger to walk into: "chase Lilith") lead in the quest tier too,
+/// until the phase moves on.
 /// </summary>
 public sealed class ObjectiveMemory
 {
@@ -19,11 +21,11 @@ public sealed class ObjectiveMemory
     // A placed gizmo never moves; a re-created actor (new id) lands on the same spot.
     private const float SameSpotUnits = 1f;
 
-    private sealed class Objective(int sno, string name, (float X, float Y) position)
+    private sealed class Objective(int sno, string name, (float X, float Y) position, string kind = "objective")
     {
         public int Sno { get; } = sno;
         public string Name { get; } = name;
-        public string Id { get; } = $"objective:{sno}:{MathF.Round(position.X)},{MathF.Round(position.Y)}";
+        public string Id { get; } = $"{kind}:{sno}:{MathF.Round(position.X)},{MathF.Round(position.Y)}";
         public (float X, float Y) Position { get; set; } = position;
         public uint ActorId { get; set; }
         public bool Quest { get; set; }
@@ -35,6 +37,7 @@ public sealed class ObjectiveMemory
     private readonly Action<string>? _log;
     private readonly object _gate = new();
     private readonly List<Objective> _objectives = [];
+    private readonly List<Objective> _places = [];
     private (float X, float Y)? _player;
 
     /// <param name="log">Debug sink for sightings, arrivals and completions; null when not debugging.</param>
@@ -42,7 +45,7 @@ public sealed class ObjectiveMemory
     {
         _nameOf = nameOf;
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _player = null; } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
@@ -50,7 +53,40 @@ public sealed class ObjectiveMemory
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
-            return [.. _objectives.Where(o => o.Pending && !o.Reached).Select(o => new GuideDestination(o.Id, o.Position, o.Quest ? QuestTier : DungeonTier))];
+            return [.. _places.Concat(_objectives).Where(o => o.Pending && !o.Reached)
+                .Select(o => new GuideDestination(o.Id, o.Position, o.Quest ? QuestTier : DungeonTier))];
+    }
+
+    /// <summary>Takes the places the active quests' current phases name (GameSession.QuestPlacesRead, every actor poll).</summary>
+    public void ObservePlaces(IReadOnlyList<QuestPlace> places)
+    {
+        lock (_gate)
+        {
+            var named = new HashSet<Objective>();
+            foreach (var place in places)
+            {
+                var objective = _places.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
+                if (objective is null)
+                {
+                    objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y), "quest-place")
+                        { Quest = true };
+                    _places.Add(objective);
+                    Log("seen (quest place)", objective);
+                }
+                else if (!objective.Pending)
+                {
+                    objective.Pending = true;
+                    Log("named again", objective);
+                }
+                named.Add(objective);
+            }
+            foreach (var objective in _places.Where(o => o.Pending && !named.Contains(o)))
+            {
+                objective.Pending = false;
+                objective.Reached = false;
+                Log("done (phase moved on)", objective);
+            }
+        }
     }
 
     /// <summary>Takes the objective actors looping now (ActorLoopBridge.ObjectivesLooping, every actor poll).</summary>
@@ -89,7 +125,7 @@ public sealed class ObjectiveMemory
 
     private void RearmReached()
     {
-        foreach (var objective in _objectives.Where(o => o.Reached))
+        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached))
         {
             objective.Reached = false;
             Log("re-armed", objective);
@@ -99,7 +135,8 @@ public sealed class ObjectiveMemory
     private void OnPlayer((float X, float Y) here)
     {
         _player = here;
-        foreach (var objective in _objectives.Where(o => o.Pending && !o.Reached && Distance(o.Position, here) <= ExplorationGuide.DestinationArrivalUnits))
+        foreach (var objective in _places.Concat(_objectives)
+                     .Where(o => o.Pending && !o.Reached && Distance(o.Position, here) <= ExplorationGuide.DestinationArrivalUnits))
         {
             objective.Reached = true;
             Log("reached", objective);

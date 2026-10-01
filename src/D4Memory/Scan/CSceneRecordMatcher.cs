@@ -33,6 +33,9 @@ public static class CSceneRecordMatcher
     private const int OffsetWorldPosition = 96;
     private const int OffsetLocalAabb = 136;      // 6x float32: center xyz, half-extent xyz
     private const int OffsetWorldAabb = 160;      // 6x float32: center xyz, half-extent xyz
+    // A copy of the tile hash and exit mask on ordinary tiles; another cell's on a large flexible POI piece
+    // (Ancients_Blood_FLEX_POI_Underworld_01, 96x128: a-48 0xFFFCFFFE / a-44 6, here 0xFFFAFFFC / 14 — live pool dump
+    // 2026-10-01), so they are bounds for the record size only, never checked.
     private const int OffsetTileHashCopy = 416;
     private const int OffsetExitMaskCopy = 420;
 
@@ -97,15 +100,13 @@ public static class CSceneRecordMatcher
         if (BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(off + OffsetHasDrlgInfoFlag, sizeof(uint))) != 1) return false;
 
         int exitMask = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(off + OffsetExitMask, sizeof(int)));
-        int exitMaskCopy = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(off + OffsetExitMaskCopy, sizeof(int)));
-        // The live mask is the exits this placement actually uses: equal to the offline mask on ordinary DRLG
-        // tiles, but a strict subset on pieces of a large preset room (Triad_B_ThroneRoom_N02_E03_DGN: offline
-        // 15, live 7 — live pool dump 2026-09-28). An exit the scene doesn't have offline is still a mismatch.
-        if ((exitMask & ~candidate.ExitMask) != 0 || exitMask != exitMaskCopy) return false;
+        // The live mask equals the offline one on ordinary DRLG tiles, is a strict subset on pieces of a large
+        // preset room (Triad_B_ThroneRoom_N02_E03_DGN: offline 15, live 7 — live pool dump 2026-09-28) and a
+        // superset on a flexible POI room (Mage_Halls_FLEX_POI_HoradricVault_01: offline 9 = N+W, live 15, with
+        // filler beyond E — live pool dump 2026-10-01). The tile reports the exits both agree on.
+        exitMask &= candidate.ExitMask;
 
         uint tileHash = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(off + OffsetTileHash, sizeof(uint)));
-        uint tileHashCopy = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(off + OffsetTileHashCopy, sizeof(uint)));
-        if (tileHash != tileHashCopy) return false;
 
         ulong vtable = BinaryPrimitives.ReadUInt64LittleEndian(buffer.Slice(off + OffsetVtable, sizeof(ulong)));
         bool formulaMatches = tileHash == FormulaHash(wp);

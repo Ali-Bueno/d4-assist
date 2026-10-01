@@ -28,4 +28,7 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>True while an in-engine cinematic plays; null while the player's state is unreadable.</summary>
     bool? ReadCinematic() => null;
+
+    /// <summary>The places the active quests' current phases name, as of the last actor read; null when unknown.</summary>
+    IReadOnlyList<QuestPlace>? ReadQuestPlaces() => null;
 }

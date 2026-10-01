@@ -28,6 +28,28 @@ public static class QuestPhaseLocator
         return [.. found];
     }
 
+    /// <summary>For each of <paramref name="quests"/> (quest SNO → its phase UIDs) with a pair in <paramref name="data"/>, the
+    /// lowest address of its phase word: one pass for every quest in progress (a quest no longer in progress has no pair).</summary>
+    public static IReadOnlyDictionary<int, long> FindAll(
+        IMemoryReader memory, IReadOnlyList<MemoryRegion> data, IReadOnlyDictionary<int, IReadOnlySet<uint>> quests)
+    {
+        var found = new Dictionary<int, long>();
+        var buffer = new byte[RegionWindows.DefaultWindowBytes];
+        foreach (var region in data)
+            foreach (var (address, window) in RegionWindows.ReadRegion(memory, region, buffer))
+            {
+                var span = window.Span;
+                for (int i = (int)((4 - address % 4) % 4); i + 8 <= span.Length; i += 4)
+                {
+                    int sno = BinaryPrimitives.ReadInt32LittleEndian(span[i..]);
+                    if (!quests.TryGetValue(sno, out var uids) || !uids.Contains(BinaryPrimitives.ReadUInt32LittleEndian(span[(i + 4)..]))) continue;
+                    long phaseAddress = address + i + 4;
+                    if (!found.TryGetValue(sno, out long earlier) || phaseAddress < earlier) found[sno] = phaseAddress;
+                }
+            }
+        return found;
+    }
+
     /// <summary>The phase UID at <paramref name="phaseAddress"/>; null when the pair no longer holds this quest and one of its phases.</summary>
     public static uint? Read(IMemoryReader memory, long phaseAddress, int questSno, IReadOnlySet<uint> phaseUids)
     {

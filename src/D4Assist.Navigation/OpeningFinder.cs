@@ -43,6 +43,13 @@ public static class OpeningFinder
                     AddCandidate(map, memberSet, candidates, side, position, width, usedFallback: false);
             }
 
+        // A side only the scene's own data has is a passage where the floor reaches it, never an edge-midpoint guess: on a
+        // preset room's outer wall (Triad_B_ThroneRoom pieces: offline 15, live 7) that guess would invent exits.
+        foreach (var tile in members)
+            foreach (var side in ExitMaskBits.SidesOf(tile.Input.AuthoredExitMask & ~tile.Input.ExitMask))
+                foreach (var (position, width) in TryFindRuns(tile, side, walkability) ?? [])
+                    AddCandidate(map, memberSet, candidates, side, position, width, usedFallback: false);
+
         // Several runs can lead to the same neighbour cell (e.g. grid noise next to the real
         // passage); keep the widest one rather than whichever was found first.
         return candidates

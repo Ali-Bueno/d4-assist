@@ -22,6 +22,7 @@ Offsets relative to the u32 `snoScene` at address `a`. Records live in a pool (s
 | a+136 | 6×f32 | local AABB (center, half-extent) | == offline scene AABB exactly |
 | a+160 | 6×f32 | world AABB (center = local center + wp) | |
 | a+280 / a+292 | vec3 / f32×2 | `wp` copy / tile size X,Y | |
+| a+416 / a+420 | u32 / u32 | tile hash / exit mask: a copy on ordinary tiles, **another cell's** on a large FLEX POI piece (`Ancients_Blood_FLEX_POI_Underworld_01` 96×128: 0xFFFAFFFC / 14 vs 0xFFFCFFFE / 6, 2026-10-01), so not checked | |
 
 **Static route to the pool** (read offline from game code disassembled out of the stale image view,
 which is ~41% decrypted; confidence high on code semantics, **not yet validated live**). RVAs are from the
@@ -46,6 +47,12 @@ slots reused as the player moves.
 **Preset rooms and stale slots** (live pool dump, `D4MemScan scene-route --diagnose --slots`, 2026-09-28, `S15_Triad_B_Worldstone`):
 
 - Large preset rooms are placed as 96×96 pieces (`Triad_B_ThroneRoom_N02_E03_DGN`, `…_N03_E03_DGN`) sharing one node/group id. Their live exit mask is a **subset** of the offline one (offline 15, live 7 and 6), so matching must accept subsets. The tile hash keeps the 32-unit formula.
+- A flexible POI room's live mask can also **leave out** a real passage (2026-10-01, `CSD_Frac_Underworld_AncientMausoleum`):
+  `Ancients_Blood_FLEX_POI_CentralChamber_01` is live 14, offline 15, yet its floor runs north into `Ancients_Blood_NS_TR8_01`
+  (rows 0 walkable at y 29–50 against the tile's y 46–49), where Lilith's trigger is. Without the N exit the guide never
+  reached that tile and said everything was explored. Tiles now carry the offline mask too (`AuthoredExitMask`); a side only
+  it has is an exit where a walkable run reaches it, never an edge-midpoint guess (`OpeningFinder`).
+- A flexible POI room can carry a **superset** instead (2026-10-01, `CSD_Frac_GaleValley_HoradricVault`): `Mage_Halls_FLEX_POI_HoradricVault_01` (64×64 at (0,0), the entrance with the portal) is live 15, offline 9 (N+W), with filler tiles beyond E. Requiring a subset dropped the player's own tile, so the radar and announcements stayed silent there. The matcher now keeps `live & offline`.
 - Filler tiles (`*_FILLER_01`) and UI scenes (`PaperDoll_*`, `Portrait_*`) share the pool with `a−20 == 0`; the matcher rejects them.
 - Free slots (`id == 0xFFFFFFFF`) keep the old record intact, so a heap scan also finds tiles from earlier floors. Only the route's free-slot check tells live from stale.
 
@@ -277,6 +284,25 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   after its pair is gone (live: 486210 → 486212), so a phase once seen and then lost names nothing. Quest 486212 then
   ran 283 → 350 → 346 → 362 → 326 in `CSD_Frac_Underworld_AncientCity`; the pair stayed at RVA 0x30643CC. Live: `Quest tracked: 486210, 1 object(s) named, phase 271`,
   the city blocker silent.
+- **Quest places and DRLG frames** (live 2026-10-01, `CSD_Frac_Underworld_AncientMausoleum`, no quest tracked): the HUD
+  said "chase Lilith" while `ManuallyTrackedQuestSNO` was empty; the {quest, phase} pair at RVA 0x30643CC held
+  549310 `QST_Frac_Underworld2_02` at phase 80, whose only object is a `Trigger_Sphere_8m` to walk into. In a DRLG dungeon
+  the quest's markers sit in **scene** layer sets, `<Scene> (<Layer>)` (`Ancients_Blood_FLEX_POI_CentralChamber_01
+  (CSD_Frac_Underworld_AncientMausoleum_CentralChamber)`, `… (Game)`), scene-local: the chamber is placed at (0,0) so its
+  (−1, 51) happened to be world space; phase 154's (1, 38) in `FLEX_POI_Underworld_01` placed at (−128, −64) is (−126.8, −26).
+  The app (`LiveDungeonSessionReader`): with no tracked quest, the quests with markers in the world's or the visited scenes'
+  layer sets (`QuestScriptMarkerReader.QuestsWithMarkersIn`) whose pair the module data holds (`QuestPhaseLocator.FindAll`,
+  one pass every 5 s) are followed instead; scene markers land at `wp + rotate(q, local)` of the scene's single placement
+  this visit. The current phase's markers become guide destinations in the quest tier (`ObjectiveMemory.ObservePlaces`).
+  Live: `Quest in progress here (none tracked): 549310 … phase 135` → 154, `OBJECTIVE seen (quest place): Trigger_Sphere_8m
+  at (-126,8,-26,0)`. The guide leading there is not yet heard.
+- **Quest → gizmos by SNO alone** (live 2026-10-01, `CSD_Frac_GaleValley_HoradricVault`): a gizmo placed by a DRLG tile has
+  no world-layer marker, so a phase names it only in its callbacks' `arSnonameTokens` (DT_SNO_NAME {group, id}). Phase 87 of
+  549147 `QST_Frac_GaleValley_Neyrelle_06` names `QST_Frac_GaleValley2_HoradricBook` (actor 1036093, gizmo 57) that way;
+  the book was quest-restricted, not on the minimap, and stayed silent as "locked". The app now also counts every placed
+  copy of an actor the current phase names by SNO (`QuestScriptMarkerReader.PhaseObjects`); only quest-restricted gizmos
+  are affected, so NPCs and bosses named the same way (Neyrelle, `Tchort_Boss`) change nothing. Live: `Quest tracked:
+  549147, 1 object(s) named, phase 87`, the book looped with reason `quest`.
 - **Quest companions** (live 2026-09-30, `acd --match .` in Fractured Peaks): `NPC_QST_Neyrelle_Follower` and
   `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =
   525136 and `Pet_Type`; no other NPC in range had them. The app silences NPCs with `Follower_Quest` (`AcdFlagReader`).

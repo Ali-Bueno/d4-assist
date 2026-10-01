@@ -144,4 +144,44 @@ public class ObjectiveMemoryTests
 
         Assert.Equal(LeverSno, Assert.Single(heard).ActorSno);
     }
+
+    // The Ancient Mausoleum's "chase Lilith" step (QST_Frac_Underworld2_02 phase 80, live 2026-10-01): a trigger to walk into.
+    private const int TriggerSno = 42298;
+
+    [Fact]
+    public void A_quest_place_leads_in_the_quest_tier_until_reached()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(40, 50));
+        memory.Observe([Altar(100, 0)]);
+
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -1, 51)]);
+
+        var place = Assert.Single(memory.Destinations(), d => d.Position == (-1, 51));
+        Assert.Equal(ObjectiveMemory.QuestTier, place.Tier);
+        Assert.StartsWith("quest-place:", place.Id);
+
+        feed.RaisePlayer(At(-1, 49)); // inside the trigger
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -1, 51)]);
+        Assert.DoesNotContain(memory.Destinations(), d => d.Position == (-1, 51));
+
+        memory.Rearm(); // the guide switched on again
+        Assert.Contains(memory.Destinations(), d => d.Position == (-1, 51));
+    }
+
+    [Fact]
+    public void A_quest_place_is_done_when_the_phase_moves_on_and_the_world_change_forgets_it()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(Far, Far));
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -1, 51)]);
+
+        memory.ObservePlaces([new QuestPlace(TriggerSno, 24, 33)]); // the next phase names another spot
+
+        Assert.Equal((24f, 33f), Assert.Single(memory.Destinations()).Position);
+
+        feed.RaiseWorld(1);
+        memory.ObservePlaces([]);
+        Assert.Empty(memory.Destinations());
+    }
 }

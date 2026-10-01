@@ -123,28 +123,25 @@ public class CSceneRecordMatcherTests
     }
 
     [Fact]
-    public void RejectsLiveExitTheOfflineSceneDoesNotHave()
+    public void KeepsOnlyTheOfflineExitsOfALiveMaskWithMore()
     {
-        var northOnly = new Dictionary<int, CandidateScene> { [1234] = Candidate with { ExitMask = 1 } };
-        var buffer = MakeRecord(600, 100, exitMask: 3, exitMaskCopy: 3); // S exit the offline scene lacks
+        // A flexible POI room's live mask names every side (Mage_Halls_FLEX_POI_HoradricVault_01: offline 9 = N+W, live 15).
+        var northWest = new Dictionary<int, CandidateScene> { [1234] = Candidate with { ExitMask = 9 } };
+        var buffer = MakeRecord(600, 100, exitMask: 15, exitMaskCopy: 15);
 
-        Assert.Empty(CSceneRecordMatcher.FindHits(buffer, 0, new CandidateIndex(northOnly)));
+        var hit = Assert.Single(CSceneRecordMatcher.FindHits(buffer, 0, new CandidateIndex(northWest)));
+        Assert.Equal(9, hit.ExitMask);
     }
 
     [Fact]
-    public void RejectsExitMaskCopyMismatch()
+    public void AcceptsALargeFlexPieceWhoseCopiesNameAnotherCell()
     {
-        var buffer = MakeRecord(600, 100, exitMaskCopy: 7); // -44 == offline (15) but +420 disagrees
+        // Ancients_Blood_FLEX_POI_Underworld_01 (live 2026-10-01): a-44 = 6 but +420 = 14, a-48 and +416 differ too.
+        var buffer = MakeRecord(600, 100, exitMask: 6, exitMaskCopy: 14, tileHashCopy: 0xBAD);
 
-        Assert.Empty(CSceneRecordMatcher.FindHits(buffer, 0, new CandidateIndex(Candidates)));
-    }
-
-    [Fact]
-    public void RejectsTileHashCopyMismatch()
-    {
-        var buffer = MakeRecord(600, 100, tileHashCopy: 0xBAD);
-
-        Assert.Empty(CSceneRecordMatcher.FindHits(buffer, 0, new CandidateIndex(Candidates)));
+        var hit = Assert.Single(CSceneRecordMatcher.FindHits(buffer, 0, new CandidateIndex(Candidates)));
+        Assert.Equal(6, hit.ExitMask);
+        Assert.Equal(TileHash, hit.TileHash);
     }
 
     [Fact]

@@ -109,8 +109,12 @@ internal static class Program
         // ACD flags are read for gizmos (used) and NPCs (quest followers) only: monsters and the player carry hundreds of attributes.
         Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
-        Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>> questMarkers =
-            quest => { lock (cascGate) return questScripts.PhaseMarkers(quest); };
+        Func<int, IReadOnlyList<QuestPhaseObjects>> questMarkers =
+            quest => { lock (cascGate) return questScripts.PhaseObjects(quest); };
+        Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>> worldQuests = (world, scenes) =>
+        {
+            lock (cascGate) return questScripts.QuestsWithMarkersIn(new[] { world }.Concat(scenes).Select(store.Name).OfType<string>());
+        };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
         var conversationAddresses = new ConversationAddresses(
@@ -118,7 +122,8 @@ internal static class Program
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
-                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses),
+                installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
+                worldQuests),
             sceneSnos, staticTiles: staticTiles.Build);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -309,7 +314,8 @@ internal static class Program
             name => Console.WriteLine($"Beacon actor '{name}' is not in CoreTOC; ignored."));
 
         var dpo = new DungeonObjectiveReader(store, schema);
-        var objectives = new ObjectiveClassifier(definitionOf, store.Name);
+        var objectives = new ObjectiveClassifier(
+            definitionOf, store.Name, sno => { lock (cascGate) return dpo.ActorsNamedByAnyQuest().Contains(sno); });
         var portalRule = new PortalClassifier(definitionOf, store.Name);
         var safeZones = new SafeZoneClassifier(definitionOf, store.Name);
         var selector = new LoopTargetSelector(
@@ -327,6 +333,7 @@ internal static class Program
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
         var objectiveMemory = new ObjectiveMemory(session, store.Name, debug ? Console.WriteLine : null);
         loops.ObjectivesLooping += objectiveMemory.Observe;
+        session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
         return new LoopMemory(portals, objectiveMemory);
     }

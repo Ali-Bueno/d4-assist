@@ -2,9 +2,10 @@ namespace D4Assist.Game;
 
 /// <summary>One CScene tile, as exposed to the app (extends CSceneHit with the DRLG node/group id it carries).</summary>
 /// <param name="YawDegrees">Placement yaw decoded from the CScene quaternion (client-memory.md §3 convention).</param>
+/// <param name="AuthoredExitMask">The scene's offline exit mask (TileInput.AuthoredExitMask).</param>
 public sealed record TileState(
     int SceneSno, string? Name, float OriginX, float OriginY, float SizeX, float SizeY,
-    int ExitMask, uint NodeId, uint GroupId, float YawDegrees = 0f);
+    int ExitMask, uint NodeId, uint GroupId, float YawDegrees = 0f, int AuthoredExitMask = 0);
 
 /// <summary>One placed RActor (world coordinates), as exposed to the app.</summary>
 /// <param name="StateChanged">The actor's state moved at least once; for a gizmo, it was used (research/client-memory.md §4).</param>
@@ -25,6 +26,9 @@ public sealed record ActorState(
     /// <summary>The game doesn't let the player use this gizmo yet.</summary>
     public bool Unusable => QuestLocked || ScriptDisabled;
 }
+
+/// <summary>A place the active quest's current phase names (a marker in world space): where its step happens.</summary>
+public sealed record QuestPlace(int ActorSno, float X, float Y);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

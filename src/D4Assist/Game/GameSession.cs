@@ -66,6 +66,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     public event Action<PlayerState>? PlayerMoved;
     public event Action<IReadOnlyList<ActorState>>? ActorsUpdated;
 
+    /// <summary>The places the active quests' current phases name, after every actor read (IDungeonSessionReader.ReadQuestPlaces).</summary>
+    public event Action<IReadOnlyList<QuestPlace>>? QuestPlacesRead;
+
     /// <summary>True while loading through <see cref="TransitWorldName"/> out of a read world; the bridges keep their
     /// state (no WorldChanged) until the next world shows whether it is the same instance.</summary>
     public event Action<bool>? TransitChanged;
@@ -255,6 +258,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         IDungeonSessionReader? session;
         lock (_gate) session = _session;
         if (session?.ReadActors() is { } actors) Raise("actors", ActorsUpdated, h => h(actors));
+        if (session?.ReadQuestPlaces() is { } places) Raise("quest places", QuestPlacesRead, h => h(places));
         if (session?.ReadCinematic() is { } cinematic) Raise("cinematic", CinematicRead, h => h(cinematic));
     }
 

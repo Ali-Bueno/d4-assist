@@ -28,13 +28,20 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly long _positionAddress;
     private readonly Func<int, bool> _readsFlags;
     private readonly int _playerActorSno;
-    private readonly Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>>? _questMarkers;
+    private readonly Func<int, IReadOnlyList<QuestPhaseObjects>>? _questMarkers;
+    private readonly int _worldSno;
+    private readonly Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? _worldQuests;
+    // Where each scene was placed this visit (tile reads), to land scene-local quest markers in the world.
+    private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
+    private IReadOnlyList<PlacedMarker> _questPlaces = [];
+    private IReadOnlyDictionary<int, long> _questsInProgressHere = new Dictionary<int, long>();
+    private DateTime _nextWorldQuestSearch = DateTime.MinValue;
     private readonly ConversationAddresses? _conversations;
     private readonly uint _build;
     private readonly IReadOnlyList<MemoryRegion> _moduleData;
     private int[] _trackedQuests = [];
     private List<TrackedQuest> _quests = [];
-    private IReadOnlyList<PlacedMarker> _namedByQuests = [];
+    private QuestNames _namedByQuests = QuestNames.None;
     private bool _actorFailureLogged;
     private AcdFlagReader? _flags;
     private bool _flagsMissing;
@@ -45,10 +52,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
-        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>>? questMarkers,
-        ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData)
+        Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers,
+        ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
+        Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests)
     {
         (_conversations, _build, _moduleData) = (conversations, build, moduleData);
+        (_worldSno, _worldQuests) = (worldSno, worldQuests);
         _readsFlags = readsFlags;
         _playerActorSno = playerActorSno;
         _questMarkers = questMarkers;
@@ -64,11 +73,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <summary>Throws InvalidOperationException with the reason when the process isn't running or can't be read, the
     /// module can't be located, or no live player record is in this world yet.</summary>
     /// <param name="readsFlags">True for an actor SNO whose ACD flags are read (gizmos and NPCs); null reads none.</param>
-    /// <param name="questMarkers">The objects a quest's scripts name (QuestScriptMarkerReader.Markers); null ignores the tracked quest.</param>
+    /// <param name="questMarkers">The objects each phase of a quest names (QuestScriptMarkerReader.PhaseObjects); null ignores the tracked quest.</param>
+    /// <param name="worldQuests">The quests with markers in a world or in the scenes placed in it so far
+    /// (QuestScriptMarkerReader.QuestsWithMarkersIn), followed when the player tracks none; null for none.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
-        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)>>? questMarkers = null,
-        ConversationAddresses? conversations = null)
+        MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
+        ConversationAddresses? conversations = null, Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests = null)
     {
         var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
         string exePath = Path.Combine(installPath, ExecutableFileName);
@@ -103,7 +114,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             (offsets is null ? " (no rooms, radar walls or actor sounds)." : "."));
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
-            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base));
+            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, worldQuests);
     }
 
     // The addresses hold for the whole build, so they are searched once per build and kept for later sessions.
@@ -216,8 +227,11 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var player = PlayerRecord(records);
             _playerAcdId = player?.AcdId;
             var named = NamedByTrackedQuests(player, flags);
+            var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();
+            _questPlaces = places;
             return ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
-                r => named.Any(m => m.Sno == r.ActorSno && Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= QuestMarkerReach));
+                r => named.ActorSnos.Contains(r.ActorSno) || places.Any(m => m.Sno == r.ActorSno
+                    && Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= QuestMarkerReach));
         }
 
         if (!_actorFailureLogged) // once per session: the route is either unknown for this build or not yet populated
@@ -231,44 +245,93 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // A quest's marker and the actor it placed share a spot (live: the Darkened Way gate, 0.0 apart).
     private const float QuestMarkerReach = 2f;
 
+    // What the tracked quests' current phases name: markers (world space, or scene-local until the scene is placed), matched by
+    // spot, and actors named by SNO alone (any placed copy).
+    private sealed record QuestNames(IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers)
+    {
+        public static readonly QuestNames None = new([], new HashSet<int>(), []);
+
+        public static QuestNames Of(IEnumerable<QuestPhaseObjects> phases) =>
+            new([.. phases.SelectMany(p => p.Markers)], phases.SelectMany(p => p.ActorSnos).ToHashSet(), [.. phases.SelectMany(p => p.SceneMarkers)]);
+
+        public int Count => Markers.Count + ActorSnos.Count + SceneMarkers.Count;
+    }
+
+    // A scene-local marker lands where its scene is placed: world = wp + rotate(q, local) (research/client-memory.md §5). A
+    // scene not placed yet, or placed more than once, says nothing.
+    private IEnumerable<PlacedMarker> InWorld(IReadOnlyList<SceneMarker> markers)
+    {
+        if (markers.Count == 0) yield break;
+        lock (_placements)
+            foreach (var (scene, marker) in markers)
+                if (_placements.TryGetValue(scene, out var at) && at.Count == 1)
+                    yield return marker with { Position = at[0].Wp + Vector3.Transform(marker.Position, at[0].Q) };
+    }
+
     // A tracked quest's phases (offline) and where its current phase is read (found in the module's data).
-    private sealed class TrackedQuest(int sno, IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)> phases)
+    private sealed class TrackedQuest(int sno, IReadOnlyList<QuestPhaseObjects> phases)
     {
         public int Sno { get; } = sno;
-        public IReadOnlyList<(uint PhaseUid, IReadOnlyList<PlacedMarker> Markers)> Phases { get; } = phases;
+        public IReadOnlyList<QuestPhaseObjects> Phases { get; } = phases;
         public HashSet<uint> Uids { get; } = [.. phases.Select(p => p.PhaseUid)];
         public long? PhaseAddress { get; set; }
         public uint? Phase { get; set; }
         public bool PhaseSeen { get; set; }
+        // Found in progress rather than tracked: names nothing until its phase is read.
+        public bool RequirePhase { get; init; }
         public DateTime NextSearch { get; set; } = DateTime.MinValue;
 
-        // The current phase's objects. Before the phase is ever found, every phase's (a later step can then sound early);
+        // The current phase. Before the phase is ever found, every phase (a later step can then sound early);
         // once seen, a lost phase names nothing: the quest ended while it stays tracked (live 2026-09-30, ~50 s).
-        public IEnumerable<PlacedMarker> Named =>
-            Phase is { } current ? Phases.Where(p => p.PhaseUid == current).SelectMany(p => p.Markers)
-            : PhaseSeen ? [] : Phases.SelectMany(p => p.Markers);
+        public IEnumerable<QuestPhaseObjects> Current =>
+            Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : Phases;
     }
 
     // The phase pair can move (a new quest record); a failed search waits this long before the next scan of the module data.
     private static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
 
     // The objects the player's tracked quests name in their current phase (research/client-memory.md §4).
-    private IReadOnlyList<PlacedMarker> NamedByTrackedQuests(RActorRecord? player, AcdFlagReader flags)
+    private QuestNames NamedByTrackedQuests(RActorRecord? player, AcdFlagReader flags)
     {
         if (_questMarkers is null) return _namedByQuests;
-        if (UpdateQuestPhases(log: true)) _namedByQuests = [.. _quests.SelectMany(q => q.Named)];
+        if (UpdateQuestPhases(log: true)) _namedByQuests = QuestNames.Of(_quests.SelectMany(q => q.Current));
         if (player is not { } self) return _namedByQuests;
         var values = flags.Values(self.AcdId);
         int[] quests = [.. new[] { AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest }
             .Select(name => values.TryGetValue(name, out uint sno) ? (int)sno : 0).Where(sno => sno > 0).Distinct().Order()];
+        bool tracked = quests.Length > 0;
+        if (!tracked) quests = [.. QuestsInProgressHere().Keys.Order()];
         if (quests.SequenceEqual(_trackedQuests)) return _namedByQuests;
         _trackedQuests = quests;
-        _quests = [.. quests.Select(q => new TrackedQuest(q, _questMarkers(q)))];
+        _quests = [.. quests.Select(q => new TrackedQuest(q, _questMarkers(q))
+        {
+            RequirePhase = !tracked, PhaseAddress = !tracked && _questsInProgressHere.TryGetValue(q, out long at) ? at : null,
+        })];
         UpdateQuestPhases(log: false);
-        _namedByQuests = [.. _quests.SelectMany(q => q.Named)];
-        Console.WriteLine($"Quest tracked: {(quests.Length == 0 ? "none" : string.Join(", ", quests))}, {_namedByQuests.Count} object(s) named{PhaseText()}.");
+        _namedByQuests = QuestNames.Of(_quests.SelectMany(q => q.Current));
+        string which = !tracked && quests.Length > 0 ? "Quest in progress here (none tracked)" : "Quest tracked";
+        Console.WriteLine($"{which}: {(quests.Length == 0 ? "none" : string.Join(", ", quests))}, {_namedByQuests.Count} object(s) named{PhaseText()}.");
         return _namedByQuests;
     }
+
+    // Without a tracked quest (the HUD then follows the campaign quest), the quests with markers in this world whose
+    // {quest, phase} pair the module data holds; one pass every PhaseSearchInterval (live 2026-10-01: QST_Frac_Underworld2_02
+    // at phase 80 in the Ancient Mausoleum, none tracked).
+    private IReadOnlyDictionary<int, long> QuestsInProgressHere()
+    {
+        if (_worldQuests is null || _questMarkers is null || DateTime.UtcNow < _nextWorldQuestSearch) return _questsInProgressHere;
+        _nextWorldQuestSearch = DateTime.UtcNow + PhaseSearchInterval;
+        int[] scenes;
+        lock (_placements) scenes = [.. _placements.Keys];
+        var candidates = _worldQuests(_worldSno, scenes)
+            .ToDictionary(q => q, q => (IReadOnlySet<uint>)_questMarkers(q).Select(p => p.PhaseUid).ToHashSet());
+        return _questsInProgressHere = candidates.Count == 0
+            ? new Dictionary<int, long>()
+            : QuestPhaseLocator.FindAll(_process, _moduleData, candidates);
+    }
+
+    public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>
+        _questMarkers is null ? null : [.. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y))];
 
     // True when a quest's phase changed.
     private bool UpdateQuestPhases(bool log)
@@ -287,7 +350,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             quest.Phase = phase;
             quest.PhaseSeen |= phase is not null;
             changed = true;
-            if (log) Console.WriteLine($"Quest phase: {quest.Sno} {(phase is { } v ? $"at {v}" : "unknown")}, {quest.Named.Count()} object(s) named.");
+            if (log) Console.WriteLine($"Quest phase: {quest.Sno} {(phase is { } v ? $"at {v}" : "unknown")}, {QuestNames.Of(quest.Current).Count} object(s) named.");
         }
         return changed;
     }
@@ -303,11 +366,18 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         var result = new List<TileState>(hits.Count);
         foreach (var hit in hits)
         {
-            var size = _candidates.TryGet(hit.Sno, out var candidate) ? candidate.TileSize : [];
+            bool known = _candidates.TryGet(hit.Sno, out var candidate);
+            var size = known ? candidate.TileSize : [];
             float sizeX = size.Length > 0 ? size[0] : 0f;
             float sizeY = size.Length > 1 ? size[1] : 0f;
             float yaw = TileRotation.YawDegrees(hit.Q.Z, hit.Q.W);
-            result.Add(new TileState(hit.Sno, hit.Name, hit.Wp.X, hit.Wp.Y, sizeX, sizeY, hit.ExitMask, hit.NodeId, hit.GroupId, yaw));
+            lock (_placements)
+            {
+                var at = _placements.TryGetValue(hit.Sno, out var list) ? list : _placements[hit.Sno] = [];
+                if (!at.Any(p => Vector3.Distance(p.Wp, hit.Wp) < 1f)) at.Add((hit.Wp, hit.Q));
+            }
+            result.Add(new TileState(
+                hit.Sno, hit.Name, hit.Wp.X, hit.Wp.Y, sizeX, sizeY, hit.ExitMask, hit.NodeId, hit.GroupId, yaw, known ? candidate.ExitMask : hit.ExitMask));
         }
         return result;
     }

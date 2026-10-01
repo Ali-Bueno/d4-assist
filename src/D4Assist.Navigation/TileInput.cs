@@ -15,6 +15,9 @@ namespace D4Assist.Navigation;
 /// <param name="GroupId">DRLG group id, observed alongside NodeId on multi-tile rooms.</param>
 /// <param name="YawDegrees">CScene placement yaw (client-memory.md §3 quaternion convention). Every
 /// tile seen so far is 0 (identity quaternion); non-zero values only matter for TileRotation.</param>
+/// <param name="AuthoredExitMask">The scene's own exits (offline data). A side it has beyond <paramref name="ExitMask"/> is an
+/// exit only where the walk map opens onto it: a flexible POI room's live mask can leave out a real passage (the Ancient
+/// Mausoleum's central chamber: live 14, offline 15, floor running north; research/client-memory.md §1).</param>
 public sealed record TileInput(
     int SceneSno,
     string? Name,
@@ -25,7 +28,8 @@ public sealed record TileInput(
     int ExitMask,
     uint NodeId,
     uint GroupId,
-    float YawDegrees = 0f);
+    float YawDegrees = 0f,
+    int AuthoredExitMask = 0);
 
 /// <summary>Live player world position (engine axes: X = south, Y = east, Z = up).</summary>
 public sealed record PlayerInput(float X, float Y, float Z);

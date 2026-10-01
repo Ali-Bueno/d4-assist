@@ -84,5 +84,5 @@ public sealed class NavigationBridge
     private static string Format(PlayerInput? p) => p is null ? "(?)" : $"({p.X:F1},{p.Y:F1})";
 
     private static TileInput ToInput(TileState t) =>
-        new(t.SceneSno, t.Name, t.OriginX, t.OriginY, t.SizeX, t.SizeY, t.ExitMask, t.NodeId, t.GroupId, t.YawDegrees);
+        new(t.SceneSno, t.Name, t.OriginX, t.OriginY, t.SizeX, t.SizeY, t.ExitMask, t.NodeId, t.GroupId, t.YawDegrees, t.AuthoredExitMask);
 }

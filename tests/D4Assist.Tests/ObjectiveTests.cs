@@ -12,7 +12,8 @@ public class ObjectiveTests
     private const int PadSno = 1, MinibossSno = 2, LeverSno = 3, PrisonerNpcSno = 4, PrisonerSwitchSno = 5, DeadPrisonerCageSno = 6,
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
-        QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27;
+        QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -43,12 +44,18 @@ public class ObjectiveTests
         [AkaratOrbSno] = ("Akarat_Orb", new(Prop, NotGizmo)),
         [AkaratPillarSno] = ("Akarat_Orb_Pillar", new(Prop, NotGizmo)),
         [VesselSno] = ("QST_Skov_Skartara_WardBreakerShrine_Kulle", new(Gizmo, Conventions.GizmoSwitch)),
+        [TumorSno] = ("Frac_Cursed_Tumor_01_Corner_2x2_01_Multistage", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
+        [MummySno] = ("MageHalls_Prop_Mummy_Mage_Any_1x1_01_Multistage", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
+        [TumorPieceSno] = ("Frac_Cursed_Tumor_Core_01_Dyn", new(Gizmo, 48)),
     };
+
+    // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
+    private static readonly HashSet<int> QuestNamed = [TumorSno, TumorPieceSno];
 
     private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno };
 
     private static ObjectiveClassifier Classifier() => new(
-        sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, sno => Actors.TryGetValue(sno, out var a) ? a.Name : null);
+        sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, sno => Actors.TryGetValue(sno, out var a) ? a.Name : null, QuestNamed.Contains);
 
     private static IReadOnlySet<int> Dpo(int world) => world == WorldA ? WorldADpo : new HashSet<int>();
 
@@ -68,6 +75,7 @@ public class ObjectiveTests
     [InlineData(SkillOrbSno, ObjectiveReason.StolenSkill)] // a hostile monster, yet the player's to take back
     [InlineData(AkaratOrbSno, ObjectiveReason.AkaratLight)]
     [InlineData(VesselSno, ObjectiveReason.WardBreaker)]   // before the QST_ name rule
+    [InlineData(TumorSno, ObjectiveReason.Destructible)]   // a hostile structure a quest asks the player to break
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 
@@ -82,6 +90,8 @@ public class ObjectiveTests
     [InlineData(EnticementIconSno)]   // the attunement switch's minimap icon
     [InlineData(AkaratPillarSno)]     // the light's pillar, on the orb's own spot
     [InlineData(UnreadableSno)]       // no ActorDefinition record
+    [InlineData(MummySno)]            // a breakable prop no quest names
+    [InlineData(TumorPieceSno)]       // the tumor's breakable pieces: destroyables, not the structure
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));
 
@@ -211,6 +221,19 @@ public class ObjectiveTests
         Assert.NotNull(selector.Select(Placed(CarryableSno)));
         Assert.Null(selector.Select(Placed(CarryableSno) with { ClientOnly = true }));
         Assert.NotNull(selector.Select(Placed(ReceptacleSno) with { ClientOnly = true })); // only the carried item goes silent
+    }
+
+    [Fact]
+    public void Selector_SilencesADestroyedStructure()
+    {
+        var selector = Selector();
+        selector.SetWorld(WorldB, isDungeon: true);
+
+        // Live 2026-10-01 (Ancient Mausoleum): a destroyed tumor stays in the actor list without its game record (ACD).
+        var tumor = Assert.IsType<LoopTarget>(selector.Select(Placed(TumorSno)));
+        Assert.Equal(LoopKind.Objective, tumor.Kind);
+        Assert.Equal(LoopTargetSelector.QuestItemSound, tumor.Sound);
+        Assert.Null(selector.Select(Placed(TumorSno) with { ClientOnly = true }));
     }
 
     [Fact]

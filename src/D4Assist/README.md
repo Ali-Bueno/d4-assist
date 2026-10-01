@@ -143,13 +143,20 @@ state word; remembered by spot for the world visit, so a re-created actor stays 
 the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
 Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): one the game shows on the minimap
-(`MinimapActive`), or one the tracked quest's scripts name (the player's `ManuallyTrackedQuestSNO`, resolved offline by
-`D4Data.Readers.QuestScriptMarkerReader`), is the quest's current step and gets the quest loop whatever it is
+(`MinimapActive`), or one the tracked quest's current phase names (the player's `ManuallyTrackedQuestSNO`, resolved offline by
+`D4Data.Readers.QuestScriptMarkerReader`: a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is the quest's current step and gets the quest loop whatever it is
 (`ActorState.QuestStep`, reason `quest`). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
 (`ActorState.Unusable`) and stays silent. `--debug` logs `Quest tracked: <sno>, N object(s) named.` on each change and
 `LOOP silent … cause=unusable` once per gizmo.
 The Undercity attunement switches (spirit hearths and beacons, name token `Enticement`, research/dungeon-objectives.md §5)
 are objectives too (reason `enticement`), on their own settings cue; they fall silent once used.
+Quest places: the current phase of the tracked quest (or, with none tracked, of a quest in progress with markers in this
+dungeon or its scenes) names spots such as a trigger to walk into ("chase Lilith"); the exploration guide leads to them in
+the quest tier, before unexplored ground, until the phase moves on (`ObjectiveMemory.ObservePlaces`; research/client-memory.md
+§4). `--debug` logs `Quest in progress here (none tracked): …` and `OBJECTIVE seen (quest place): …`.
+Structures the player must break (a hostile `*_Multistage` actor some quest names: the hatred tumors, a few cracked walls and
+gates, research/dungeon-objectives.md §12) loop the quest sound (reason `destructible`) until destroyed, when the remains
+lose their game record (ACD).
 
 ## Safe zones in boss fights
 

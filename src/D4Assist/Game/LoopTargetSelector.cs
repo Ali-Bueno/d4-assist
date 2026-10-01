@@ -94,7 +94,8 @@ public sealed class LoopTargetSelector
         if (_objectives is not null && actor.QuestStep) return _objectiveTargets[ObjectiveReason.Quest];
         if (IsHeld(actor)) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
-            return (_objectives.IsGizmo(actor.ActorSno) ? _objectiveTargets : _npcObjectiveTargets)[reason];
+            return reason == ObjectiveReason.Destructible && actor.ClientOnly ? null // destroyed: the remains have no game record
+                : (_objectives.IsGizmo(actor.ActorSno) ? _objectiveTargets : _npcObjectiveTargets)[reason];
         if (_interactables?.Classify(actor.ActorSno) is not { } thing) return null;
         if (thing.Kind == InteractableKind.Door && actor.GizmoStateSet) return null; // already open: nothing to do
         return new LoopTarget(

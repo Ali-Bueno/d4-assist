@@ -149,7 +149,7 @@ public class ObjectiveMemoryTests
     private const int TriggerSno = 42298;
 
     [Fact]
-    public void A_quest_place_leads_in_the_quest_tier_until_reached()
+    public void A_quest_place_leads_in_the_quest_tier_and_stays_while_the_player_stands_in_it()
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(40, 50));
@@ -160,13 +160,25 @@ public class ObjectiveMemoryTests
         var place = Assert.Single(memory.Destinations(), d => d.Position == (-1, 51));
         Assert.Equal(ObjectiveMemory.QuestTier, place.Tier);
         Assert.StartsWith("quest-place:", place.Id);
+        Assert.Equal(3f, place.Radius); // no trigger radius known: an item's reach
 
+        // Live 2026-10-01: phase 154's trigger was reached and the phase stayed; the guide must not turn to unexplored ground.
         feed.RaisePlayer(At(-1, 49)); // inside the trigger
         memory.ObservePlaces([new QuestPlace(TriggerSno, -1, 51)]);
-        Assert.DoesNotContain(memory.Destinations(), d => d.Position == (-1, 51));
-
-        memory.Rearm(); // the guide switched on again
         Assert.Contains(memory.Destinations(), d => d.Position == (-1, 51));
+    }
+
+    [Fact]
+    public void A_trigger_place_carries_its_own_radius_and_height()
+    {
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, triggerRadius: sno => sno == TriggerSno ? 4f : null);
+
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -126.8f, -26f, -31.2f)]);
+
+        var place = Assert.Single(memory.Destinations());
+        Assert.Equal(4f, place.Radius);
+        Assert.Equal(-31.2f, place.Z);
     }
 
     [Fact]

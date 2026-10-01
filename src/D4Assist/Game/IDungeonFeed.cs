@@ -28,7 +28,7 @@ public sealed record ActorState(
 }
 
 /// <summary>A place the active quest's current phase names (a marker in world space): where its step happens.</summary>
-public sealed record QuestPlace(int ActorSno, float X, float Y);
+public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

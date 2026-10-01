@@ -46,6 +46,14 @@ public sealed class ExplorationGuideBridge
     private bool _inBossRoom;
     private bool _muted = true;
     private int _arrivals;
+    private string? _heldAt;
+    private string? _heightToldFor;
+
+    // A quest place is reached inside its radius and on its floor: a height gap up to this (or the radius, if larger) is the
+    // same floor. Live 2026-10-01: the Rathma temple's trigger lay 23 units below the walkway the player stood on.
+    private const float SameFloorUnits = 3f;
+    // Over or under a quest place within this flat distance, the guide says once that it is lower or higher.
+    private const float HeightHintUnits = ExplorationGuide.DestinationArrivalUnits;
 
     /// <param name="step">Asks the navigation engine for the next guide step: the flag asks it to re-check exit candidates when nothing is left to explore,
     /// the lists are where to lead after that and the objectives to lead to before exploring (NavigationBridge.NextGuideStep).</param>
@@ -160,6 +168,7 @@ public sealed class ExplorationGuideBridge
             case GuideStatus.Guiding:
                 LogTargetChange(step);
                 AnnounceGoal(step, destinations, objectives);
+                if (HoldsAtQuestPlace(step, objectives)) { _ping.Silence(); break; }
                 var (right, up) = ScreenDirections.ToScreen(step.Waypoint.X - _player.X, step.Waypoint.Y - _player.Y);
                 _ping.Aim(right, up, step.RemainingLength);
                 break;
@@ -211,6 +220,40 @@ public sealed class ExplorationGuideBridge
         _announcedRound = step.Round;
         _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE recheck round {step.Round}");
         _speech.Speak(NavigationPhrases.For(_language.Current).Rechecking, interrupt: false);
+    }
+
+    // A quest place stays the target until its phase moves on (ObjectiveMemory): inside it (its radius, its floor), one arrival
+    // chime, then silence; over or under it, the guide says once which way it is and keeps pointing.
+    private bool HoldsAtQuestPlace(GuideStep step, IReadOnlyList<GuideDestination> objectives)
+    {
+        if (step.Target is not { Kind: GuideTargetKind.Objective } target || !target.Id.StartsWith(ObjectiveMemory.QuestPlaceKind, StringComparison.Ordinal)
+            || objectives.FirstOrDefault(o => o.Id == target.Id) is not { } place)
+        {
+            _heldAt = null;
+            return false;
+        }
+        var player = _player!;
+        float flat = MathF.Sqrt(MathF.Pow(target.Position.X - player.X, 2) + MathF.Pow(target.Position.Y - player.Y, 2));
+        float radius = place.Radius > 0 ? place.Radius : ExplorationGuide.DestinationArrivalUnits;
+        float rise = place.Z is { } z ? z - player.Z : 0;
+        bool sameFloor = MathF.Abs(rise) <= MathF.Max(radius, SameFloorUnits);
+        if (flat > HeightHintUnits * 2) _heightToldFor = null;
+        if (!sameFloor && flat <= HeightHintUnits && _heightToldFor != target.Id)
+        {
+            _heightToldFor = target.Id;
+            var phrases = NavigationPhrases.For(_language.Current);
+            _speech.Speak(rise < 0 ? phrases.QuestObjectiveBelow : phrases.QuestObjectiveAbove, interrupt: false);
+        }
+        if (sameFloor && flat <= (_heldAt == target.Id ? radius * 1.5f : radius))
+        {
+            if (_heldAt == target.Id) return true;
+            _heldAt = target.Id;
+            _ping.PlayArrived();
+            _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE holding at {target.Id}");
+            return true;
+        }
+        _heldAt = null;
+        return false;
     }
 
     private void LogTargetChange(GuideStep step)

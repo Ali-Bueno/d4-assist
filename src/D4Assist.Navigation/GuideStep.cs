@@ -6,7 +6,9 @@ public enum GuideTargetKind { UnvisitedTile, Frontier, ExitCandidate, Destinatio
 
 /// <summary>A known point to lead to: an objective seen earlier (before exploring), or a portal (once nothing is left to explore).</summary>
 /// <param name="Tier">Lower tiers win: the guide picks among the reachable destinations of the lowest tier.</param>
-public sealed record GuideDestination(string Id, (float X, float Y) Position, int Tier = 0);
+/// <param name="Z">The point's height when known (a quest place), to tell standing on it from standing above or below it.</param>
+/// <param name="Radius">How close counts as there (a trigger's own radius); 0 when the guide's arrival distance applies.</param>
+public sealed record GuideDestination(string Id, (float X, float Y) Position, int Tier = 0, float? Z = null, float Radius = 0);
 
 /// <param name="Id">Stable identity across recomputes (a tile cell, or an exit's tile/side/position).</param>
 /// <param name="Position">World point to reach: where the route enters the tile, or the frontier opening.</param>

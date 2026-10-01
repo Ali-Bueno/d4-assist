@@ -331,7 +331,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     }
 
     public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>
-        _questMarkers is null ? null : [.. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y))];
+        _questMarkers is null ? null : [.. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z))];
 
     // True when a quest's phase changed.
     private bool UpdateQuestPhases(bool log)

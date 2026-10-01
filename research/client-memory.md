@@ -295,7 +295,20 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   one pass every 5 s) are followed instead; scene markers land at `wp + rotate(q, local)` of the scene's single placement
   this visit. The current phase's markers become guide destinations in the quest tier (`ObjectiveMemory.ObservePlaces`).
   Live: `Quest in progress here (none tracked): 549310 … phase 135` → 154, `OBJECTIVE seen (quest place): Trigger_Sphere_8m
-  at (-126,8,-26,0)`. The guide leading there is not yet heard.
+  at (-126,8,-26,0)`.
+- **Shown vs hidden callbacks** (offline, same quest, after the user reached phase 154's trigger and the phase stayed):
+  `QuestCallback.eIndicatorType` 2 marks the objective the game shows, 3 a hidden one. Phase 80: shown = player enters a
+  level area, hidden = the trigger in the chamber's north passage (a good waypoint). Phase 154: shown = player + an actor
+  group (`gbidActorGroup`, a GameBalance id, not resolved) with a map region (`arRegionOverrides`: centre (18.5, 15.4),
+  radius 33.9, a 6-point polygon; frame not stated, likely `FLEX_POI_Underworld_01`'s, where the trigger sits on its edge),
+  hidden = the trigger at (1.2, 38) the guide led to. So a quest place is not the end of the step: the guide now holds on it
+  (one arrival chime, then silence) until the phase moves on, instead of turning to unexplored ground.
+- **Trigger size and floor** (live 2026-10-01, second try): the hold came 8 units short and 23 units above the trigger:
+  `Trigger_Sphere_8m` has a 4-unit radius (`Trigger_Sphere_16m` 8: the name is the diameter) and its marker is at local
+  z −23.2 (world z ≈ −31, the Rathma temple floor) under the walkway at z ≈ −8. The phase moved 154 → 153 only once the
+  player went down into the temple; 153 then named the blood petal, which the guide pointed at, exactly where it spawned.
+  A quest place now carries its height and its trigger's radius (`QuestPlace.Z`, `GuideDestination.Z/Radius`, an item 3):
+  the guide holds only inside it on its floor, and over or under it says once "El objetivo está más abajo/arriba".
 - **Quest → gizmos by SNO alone** (live 2026-10-01, `CSD_Frac_GaleValley_HoradricVault`): a gizmo placed by a DRLG tile has
   no world-layer marker, so a phase names it only in its callbacks' `arSnonameTokens` (DT_SNO_NAME {group, id}). Phase 87 of
   549147 `QST_Frac_GaleValley_Neyrelle_06` names `QST_Frac_GaleValley2_HoradricBook` (actor 1036093, gizmo 57) that way;

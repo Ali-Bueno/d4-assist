@@ -344,6 +344,49 @@ public class ExplorationGuideBridgeTests
         new(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Objective, id, (-10, 10)), (-10, 10), 50);
 
     [Fact]
+    public void On_a_quest_place_the_guide_chimes_once_and_holds_until_the_player_walks_off()
+    {
+        // Live 2026-10-01: reaching phase 154's trigger turned the guide to unexplored ground while the step went on there.
+        string id = $"{ObjectiveMemory.QuestPlaceKind}:42298:0,3";
+        var rig = new Rig { Objectives = [new(id, (0, 3), ObjectiveMemory.QuestTier)] };
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Objective, id, (0, 3)), (0, 3), 3);
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Pad.Press(); // on
+
+        rig.Feed.RaisePlayer(0, 0);  // 3 units off: on it
+        rig.Feed.RaisePlayer(0, -6); // 9 units: still within the release margin
+        Assert.Single(rig.Log, l => l.Contains($"GUIDE holding at {id}"));
+
+        rig.Feed.RaisePlayer(0, -20); // walked off: it leads back to the place
+        rig.Now += 1;
+        Assert.True(rig.Hear().Right > 0 || rig.Hear().Left > 0);
+        rig.Feed.RaisePlayer(0, 0);
+        Assert.Equal(2, rig.Log.Count(l => l.Contains($"GUIDE holding at {id}")));
+    }
+
+    [Fact]
+    public void Over_a_quest_place_on_another_floor_the_guide_says_it_is_lower_and_keeps_pointing()
+    {
+        // Live 2026-10-01: the Rathma temple's Trigger_Sphere_8m (radius 4) lay 23 units below the walkway over it.
+        string id = $"{ObjectiveMemory.QuestPlaceKind}:42298:0,2";
+        var rig = new Rig { Objectives = [new(id, (0, 2), ObjectiveMemory.QuestTier, Z: -23, Radius: 4)] };
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Objective, id, (0, 2)), (0, 2), 2);
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Pad.Press(); // on
+        rig.Speech.Spoken.Clear();
+
+        rig.Feed.RaisePlayer(0, 0);
+        rig.Feed.RaisePlayer(0, 1);
+
+        Assert.Single(rig.Speech.Spoken, s => s.Text == NavigationPhrases.Spanish.QuestObjectiveBelow); // once, after the goal
+        Assert.DoesNotContain(rig.Log, l => l.Contains("GUIDE holding"));
+
+        rig.Objectives = [new(id, (0, 2), ObjectiveMemory.QuestTier, Z: 1, Radius: 4)]; // down on its floor
+        rig.Feed.RaisePlayer(0, 0);
+        Assert.Single(rig.Log, l => l.Contains($"GUIDE holding at {id}"));
+    }
+
+    [Fact]
     public void Switching_on_says_where_the_guide_leads()
     {
         var rig = new Rig { Objectives = [new("q", (-10, 10), ObjectiveMemory.QuestTier)], Step = ToObjective("q") };

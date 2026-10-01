@@ -331,7 +331,7 @@ internal static class Program
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         var loops = new ActorLoopBridge(
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
-        var objectiveMemory = new ObjectiveMemory(session, store.Name, debug ? Console.WriteLine : null);
+        var objectiveMemory = new ObjectiveMemory(session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius);
         loops.ObjectivesLooping += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);

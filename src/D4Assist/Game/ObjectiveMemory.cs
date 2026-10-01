@@ -7,7 +7,8 @@ namespace D4Assist.Game;
 /// can lead back to one out of earshot. One that falls silent near the player is done; one the player reached waits until
 /// another objective is done (a key found may open the door visited earlier) or the guide is switched on again.
 /// The places the active quest's current phase names (a trigger to walk into: "chase Lilith") lead in the quest tier too,
-/// until the phase moves on.
+/// until the phase moves on: reaching one is not the end of the step (live 2026-10-01: phase 154's trigger is one of the
+/// step's hidden callbacks; the shown one waits for a group of enemies), so the guide holds there (ExplorationGuideBridge).
 /// </summary>
 public sealed class ObjectiveMemory
 {
@@ -18,11 +19,16 @@ public sealed class ObjectiveMemory
     /// <summary>Guide tiers: the tracked quest's step leads before the dungeon's own objectives.</summary>
     public const int QuestTier = 0, DungeonTier = 1;
 
+    /// <summary>Id prefix of a quest place's guide destination.</summary>
+    public const string QuestPlaceKind = "quest-place";
+
     // A placed gizmo never moves; a re-created actor (new id) lands on the same spot.
     private const float SameSpotUnits = 1f;
 
     private sealed class Objective(int sno, string name, (float X, float Y) position, string kind = "objective")
     {
+        public float? Z { get; init; }
+        public float Radius { get; init; }
         public int Sno { get; } = sno;
         public string Name { get; } = name;
         public string Id { get; } = $"{kind}:{sno}:{MathF.Round(position.X)},{MathF.Round(position.Y)}";
@@ -33,7 +39,11 @@ public sealed class ObjectiveMemory
         public bool Reached { get; set; }
     }
 
+    // An item or NPC a quest phase names: close enough to interact.
+    private const float PlaceRadiusUnits = 3f;
+
     private readonly Func<int, string?> _nameOf;
+    private readonly Func<int, float?> _triggerRadius;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
     private readonly List<Objective> _objectives = [];
@@ -41,9 +51,12 @@ public sealed class ObjectiveMemory
     private (float X, float Y)? _player;
 
     /// <param name="log">Debug sink for sightings, arrivals and completions; null when not debugging.</param>
-    public ObjectiveMemory(IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null)
+    /// <param name="triggerRadius">A trigger actor's ground radius (ActorDefinitionInfo.TriggerRadius): a quest place that is a
+    /// trigger counts as there only inside it (Trigger_Sphere_8m: 4). Null for none.</param>
+    public ObjectiveMemory(IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null)
     {
         _nameOf = nameOf;
+        _triggerRadius = triggerRadius ?? (_ => null);
         _log = log;
         feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
@@ -54,7 +67,7 @@ public sealed class ObjectiveMemory
     {
         lock (_gate)
             return [.. _places.Concat(_objectives).Where(o => o.Pending && !o.Reached)
-                .Select(o => new GuideDestination(o.Id, o.Position, o.Quest ? QuestTier : DungeonTier))];
+                .Select(o => new GuideDestination(o.Id, o.Position, o.Quest ? QuestTier : DungeonTier, o.Z, o.Radius))];
     }
 
     /// <summary>Takes the places the active quests' current phases name (GameSession.QuestPlacesRead, every actor poll).</summary>
@@ -68,8 +81,8 @@ public sealed class ObjectiveMemory
                 var objective = _places.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
                 if (objective is null)
                 {
-                    objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y), "quest-place")
-                        { Quest = true };
+                    objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y), QuestPlaceKind)
+                        { Quest = true, Z = place.Z, Radius = _triggerRadius(place.ActorSno) ?? PlaceRadiusUnits };
                     _places.Add(objective);
                     Log("seen (quest place)", objective);
                 }
@@ -135,8 +148,7 @@ public sealed class ObjectiveMemory
     private void OnPlayer((float X, float Y) here)
     {
         _player = here;
-        foreach (var objective in _places.Concat(_objectives)
-                     .Where(o => o.Pending && !o.Reached && Distance(o.Position, here) <= ExplorationGuide.DestinationArrivalUnits))
+        foreach (var objective in _objectives.Where(o => o.Pending && !o.Reached && Distance(o.Position, here) <= ExplorationGuide.DestinationArrivalUnits))
         {
             objective.Reached = true;
             Log("reached", objective);

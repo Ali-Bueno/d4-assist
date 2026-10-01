@@ -23,6 +23,8 @@ public sealed class NavigationPhrases
         ToQuestObjective = "Hacia el objetivo de la misión.",
         ToDungeonObjective = "Hacia un objetivo de la mazmorra.",
         ToUnexplored = "Hacia zona sin explorar.",
+        QuestObjectiveBelow = "El objetivo está más abajo.",
+        QuestObjectiveAbove = "El objetivo está más arriba.",
         Directions = Map("arriba", "arriba a la derecha", "derecha", "abajo a la derecha", "abajo", "abajo a la izquierda", "izquierda", "arriba a la izquierda"),
         Labels = new() { [RoomKind.Junction] = "Cruce.", [RoomKind.BigRoom] = "Sala grande.", [RoomKind.Corridor] = "Pasillo." },
     };
@@ -42,6 +44,8 @@ public sealed class NavigationPhrases
         ToQuestObjective = "To the quest objective.",
         ToDungeonObjective = "To a dungeon objective.",
         ToUnexplored = "To unexplored ground.",
+        QuestObjectiveBelow = "The objective is further down.",
+        QuestObjectiveAbove = "The objective is further up.",
         Directions = Map("up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"),
         Labels = new() { [RoomKind.Junction] = "Junction.", [RoomKind.BigRoom] = "Big room.", [RoomKind.Corridor] = "Corridor." },
     };
@@ -64,6 +68,12 @@ public sealed class NavigationPhrases
 
     /// <summary>Spoken when the guide turns (back) to exploring, or is switched on while exploring.</summary>
     public string ToUnexplored { get; private init; } = "";
+
+    /// <summary>Spoken once when the player stands over a quest place on another floor (it is lower).</summary>
+    public string QuestObjectiveBelow { get; private init; } = "";
+
+    /// <summary>Spoken once when the player stands under a quest place on another floor (it is higher).</summary>
+    public string QuestObjectiveAbove { get; private init; } = "";
 
     private string SingularHeader { get; init; } = "";
     private string PluralHeader { get; init; } = "";

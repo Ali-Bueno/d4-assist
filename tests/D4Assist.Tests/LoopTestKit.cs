@@ -7,7 +7,8 @@ internal static class LoopTestKit
 {
     private static readonly string[] SoundIds =
     [
-        LoopTargetSelector.QuestItemSound, InteractableClassifier.CorpseSound, InteractableClassifier.ChestSound, InteractableClassifier.ScrollSound,
+        LoopTargetSelector.QuestItemSound, LoopTargetSelector.EnticementSound, LoopTargetSelector.SafeZoneSound,
+        InteractableClassifier.CorpseSound, InteractableClassifier.ChestSound, InteractableClassifier.ScrollSound,
         InteractableClassifier.WoodenDoorSound, InteractableClassifier.MetalDoorSound, InteractableClassifier.StoneDoorSound,
     ];
 

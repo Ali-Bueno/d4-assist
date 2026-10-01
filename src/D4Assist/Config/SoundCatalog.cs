@@ -11,7 +11,7 @@ public static class SoundCatalog
     {
         <= SoundCue.RadarLeft => SoundGroup.Radar,
         <= SoundCue.PointOfInterest => SoundGroup.Objects,
-        <= SoundCue.Prisoner => SoundGroup.Quest,
+        <= SoundCue.WardBreaker => SoundGroup.Quest,
         <= SoundCue.GuideArrival => SoundGroup.Guide,
         _ => SoundGroup.Characters,
     };

@@ -126,6 +126,15 @@ gizmo type 57.
 - **Ziggurat_02 (live 2026-09-29):** all 14 tiles explored, no frontier, and the pad never appeared although the player passed 1.5-3.4 units from the pad spot in all three
   pad-capable dead ends; unknown whether it spawns later or the floor continued unseen. The guide now re-checks the exit-candidate tiles (20 scenes / 26 layers in this build) and `--debug` logs `ACTOR seen:` lines.
 - **Pit:** no static portal marker. Its portals and guardian are spawned by the server (L).
+- **Attunement "enticements" (offline census 2026-10-01, M):** what the user calls the spirit braziers. All are eType 2,
+  gizmo 57 (Switch): `X1_Undercity_Enticement_SpiritHearth_Switch` 2036342 (summons elites; single-use,
+  `fSwitchCanOperateMultipleTimes` 0), `S11_Undercity_Enticement_AndarielSpiritHearth_Switch` 2440216 (same, season 11),
+  `X1_Undercity_Enticements_SpiritBeaconSwitch` 1995876 (holdout, own quest 1995815, multi-operate 1). They sit in
+  `X1_Undercity_SMPEnticement_*` marker sets with a `X1_Undercity_Enticement_MapIcon` (eType 4, `_Inactive` after use) and
+  elite spawners; no tile layer, quest or world references those sets, so the server places them (count per floor: live).
+  No DPO names them. The app loops them by name token `Enticement` on a switch (`ObjectiveReason.Enticement`). The
+  attunement chests `X1_Undercity_Chest_Attunement0..4` are chests (gizmo 1). `X1_Undercity_Brazier_MarkerLocation_Lit`
+  2093221 is entrance/town decor.
 
 ## 6. Doors, chests and readables (offline census, build 3.2.1.73552, 2026-09-29)
 
@@ -266,3 +275,79 @@ them as missing. Gizmos (`eType` 2): 22,725.
 - **A door with no use mark (live 2026-09-30, M):** `Hell_Fort_Door_A_01_Dyn` 1247789, which the player couldn't use,
   held only `Gizmo_State` = 0. Its DoorGizmoData matches usable doors field for field (`fGizmoPlayerOperable` 1, not
   starting disabled, no condition). Level scripting keeps it shut, so it still loops.
+
+## 10. Boss-fight safe zones (offline, 2026-10-01)
+
+An ally raises a bubble and the player must stand in it to survive the boss's big attack. The app loops a sound at it
+from afar and falls silent inside (`Game/SafeZoneClassifier`).
+
+- **Trigger size is readable (H):** `ActorDefinition.ptGizmoData` → `TriggerGizmoData.tTriggerData` (+208) →
+  `TriggerData.tTriggerProxData.ptProxData`, a polymorphic array of `SphereProximityData.flRadius`,
+  `CapsuleProximityData` (radius, height) or `BoxProximityData.wvOBB`. Checked on named triggers: `Trigger_Sphere_8m`
+  r 4, `_16m` 8, `_32m` 16, `_5m` 2.5, so the name gives the **diameter**. Entered/pulse/exited powers at
+  `TriggerData` +72/+76/+84. Read as `ActorDefinitionInfo.TriggerRadius` (a box: its narrower horizontal half-extent).
+
+| SNO | Actor | Kind | Fight | Size |
+|---|---|---|---|---|
+| 1327442 | `QST_Hell_Battlefield_Donan_SuppressingBubble` | trigger (gizmo 44), team 2 | Hell battlefield, quest `QST_Hell_Main_01B_Battlefield` 1120730, boss `QST_Hell_Battlefield_MegaDemon` 1221013 | sphere r 5.25 (H) |
+| 2440181 | `QST_X2_Lilith_Bubble_Caster` | monster, team 2, anim `QST_X2_Lilith_BubbleCast` | Skovos mindscape, quest `QST_X2_Skov_Skartara_Mindscape_01` 2418726, boss `…_CouncilBoss_TerrorDemon` 2519459 (wipe power 2558201) | none readable (power `QST_X2_Lilith_CastBubble` 2440191 has no formulas) |
+| 972175 | `BCD_Trigger_EliasPalace_SafeZone` | trigger, team 1 | act 3 sandstorm ([campaign-routes](campaign-routes.md) §2) | box (5, 5, 5), half-extents (M) |
+| 1277801 | `knight_brute_barrier_border` | effect (eType 3), team 0 | Vigo's dome against Lilith's Lament: act 1, quest `QST_Frac_Underworld2_02` 549310, world `CSD_Frac_Underworld_AncientMausoleum`, boss `grandfather_vampire_boss` 1244924 (its flood attack); also `QST_Caldeum_Knight_Brute_VGN` | ring ≈ 6.4 across from particle scale (L-M); no logic actor |
+| 1095630, 1095786 | `CAP_Tier4_Scos_ArchivesofIssalia_SuppressingShrineTrigger` (+`_Entrance`) | trigger, team 1, player-only | Archives of Issalia: entry power nullifies the dungeon's health drain | sphere r 4 / 8 (H) |
+| 1950387 | `X1_Raid_Switch_BetaMiniBoss_SafeZone` | switch (gizmo 57), team 0, 4 placed spots | Vessel of Hatred raid, beta-wing miniboss | none readable |
+| 1905698 | `QST_Naha_Lingering_Light` | NPC, team 2, placed | "Lingering Hatred" 3 (Travincal): conditions `…_EruLightFollowCheck`, `…_Globe_of_Light`; darkness power `…_Travincal_Darkness` | none readable |
+| 1706514, 2469089 | `CMP_Naha_GatesOfTheNecropolis_MovingLight`, `QST_Skov_RathmasArchive_MovingLight` | monster, team 2, spawned | light-buff escorts (`…_MovingLightBuff`) | none readable |
+
+- None of the boss bubbles is placed by a marker: the server spawns them during the fight (H). Which fight each one
+  belongs to comes from the quest data; that they shelter from the named attack is read from the names (M).
+- **Vigo's dome (2026-10-01):** "Lilith's Lament" is the boss, not an attack. Vigo's power `knight_brute_barrier` 816018
+  has no trigger; its effect group `knight_brute_barrier_v2` holds the boss's `lilithsLament_flood_*` effects, so it shelters
+  from the flood (H for the link, M that the flood is the "wail"). Only the border effect can show where it is.
+  `NPC_Follower_Vigo_Barrier_Trigger` 1045678 is another Vigo (the follower, `GaleValley`/`KorValar`/`Underworld_01`): a
+  thin box (0.17 × 1.5 × 1.75, `DetectProjectiles` like the firewall), a cover that stops projectiles, not an area; left out.
+- **Akarat's lights** are pickups, not shelters: §11. The Travincal braziers `Kurast_BrazierTravincal_Hatred_01` 1759569
+  (switches; weather `…_BrazierSafeZone`) are left out until their lit state is known.
+- **Rule:** not on the hostile team (19); a trigger named `SafeZone`/`Bubble`/`Suppressing` with its shape's radius; any other
+  gizmo named `SafeZone`; an actor named `Bubble_Caster`, `Barrier_Border`, `Lingering_Light` or `MovingLight`; the last
+  three with a fallback radius of 5 (shelter zones in the data measure 5–5.25: Donan 5.25, an Undercity
+  safe-zone effect 5.25, `Hell_HoradrimBubble` bounds 5, Elias ±5). Inside = within the radius minus 1 unit.
+- **Rejected:** the sandstorm visuals `environmentVFX_sandstorm_safeZone_*` (their trigger already loops), the Undercity snake
+  boss pillars `S06_Undercity_SnakePillar_*` (line-of-sight cover), the conversation bubble `QST_Conv_Kehj2_03_Horadrim_Bubble` (eType 4), `npc_mephisto_bloodbubble` (captive Mephisto), enemy
+  shields on team 19 (`NPC_QST_X2_Lucion_Bubble`, `…BubbleWrap_*`), `npc_Eru_spiritShield_bubble` (eType 3, one target).
+  `Hell_HoradrimBubble` 1090010 (placed next to Donan, Lorath and Neyrelle) is on team 19 with the destructible barriers:
+  role unknown, left out.
+- **Live checks:** whether the client's actor list shows the spawned trigger and the caster; whether the actor position is
+  the bubble's centre and the radius scales with the RActor scale (+0x76C); a box's half or full extent; the Lilith
+  bubble's real size; whether the entered power shows on the player as a buff (an exact "inside" signal).
+
+## 11. Boss-fight objects to reach (offline + web, 2026-10-01)
+
+Things the player must go to during a fight, looped until gone or locked (`ObjectiveClassifier`, own settings cue each).
+`--debug` logs `ACTOR seen` for `Akarat`/`Orb`/`Barrier`/`SafeZone` actors to confirm them live.
+
+- **Mephisto's stolen skills (Lord of Hatred, campaign and "Echo of Mephisto"):** phase 2 opens by taking every skill and
+  scattering them as orbs, walked over to take back; again in the "Eaten" phase (web: Icy Veins, Skycoach guides). Orb actor
+  `Mephisto_Boss_P2_OrbActor` 2435143 (monster, team 19, one SNO for every slot); its pickup prop
+  `enc_utility_playerPowerSeal_orb` 2665317 (eType 4, half-extent 1.6) and visuals `mephisto_boss_Orb*` (eType 3). Powers
+  `Mephisto_Boss_P2_PlayerPowerSeal` 2396108 / `_v2` 2665956, `Mephisto_Boss_P2_OverrideSkill` 2396140 + `_1`..`_5` (one per
+  slot); the action bar has `Storyboard_ActionBar_MephistoSkillSteal_*`. Bosses `Mephisto_Boss_P1/P2` 2139279/2220133,
+  `UberMephisto_Boss_P1/P2` 2575338/2575340 (world `Boss_Skov_UberMephisto`). The app loops each orb until it leaves the
+  actor list and speaks the theft at the first orb and the recovery 2 s after the last (`StolenSkillsAnnouncer`).
+  Player-state signal (unconfirmed): the exe's attribute table has `Skill_Override_Active(_Any)`, `Power_Disabled`
+  (exe `.rdata` strings are readable offline).
+- **Akarat's lights (Vessel of Hatred, Harbinger of Hatred; user: "las luces de Akarat"):** no pool actor or trigger exists
+  for `Harbinger_Akarat_HolyPool` 1791011 / `EGB_…` 2148005. The visible lights are `Akarat_Orb` 2004489 (+ `Akarat_Orb_Pillar`
+  2005586 on the same spot), spawned by `Harbinger_Akarat_Holy_OrbPickup` 1703471: picking one up gives the player
+  `Harbinger_Player_SuperSaiyan` 1572027 / `EGB_…` 2148055, which unleashes a holy barrage at the boss (`harbinger_hatredImmune`).
+  Read as empowerment (M-L). Four `Harbinger_ShieldLoc` markers sit 5 units around `Harbinger_Center` (possible spawn spots, L).
+  The app loops `Akarat_Orb` (an effect: no "used" signal; whether effects of this kind reach the actor list is unchecked).
+- **Horadric Guardian, Keeper of the Cube (Lord of Hatred, quest `QST_Skov_Skartara_06_VaultBoss` 2420639, world
+  `CSD_Skov_HoradricVault_Boss` 2556182):** the boss `QST_Horadric_Guardian_boss` 2301098 raises a barrier showing one Horadric
+  sigil; the player uses the vessel with that sigil, then stands inside the barrier to break it (web: Fextralife). Vessels
+  `QST_Skov_Skartara_WardBreakerShrine_Kulle` 2480807 (−10.7, −10.7), `_Rasha` 2481232, `_Fahd` 2481234, `_Cain` 2481230:
+  switches, team 1, set `QST_Horadric_Guardian_Boss` 2329502, `fSwitchCanOperateMultipleTimes` 1, not starting disabled.
+  Symbol → vessel: Zoltun → Kulle, Tal → Rasha, Iben → Fahd, Jared → Cain. The barrier and its symbols are effect groups
+  (`Horadric_Guardian_harmless_Barrier_<Mage>`), not actors, so the client actor list can't tell the symbol. The app loops
+  the vessels as reusable (silent only while locked). **Live check:** do the four vessels' ACD flags
+  (`Gizmo_Disabled_By_Script`, quest restriction, `MinimapActive`) single out the matching one? `--debug` logs it as
+  `LOOP stopped … cause=unusable` / `started`. No barrier loop yet (size unknown, 4–6 L).

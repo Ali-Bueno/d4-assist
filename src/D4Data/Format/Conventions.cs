@@ -38,6 +38,7 @@ public static class Conventions
     public const int GizmoPortal = 2;               // PortalGizmoData: dungeon portals, level transitions (research/dungeon-objectives.md �7)
     public const int GizmoRewardChest = 19;         // data class unread; every actor is a *_Chest_Reward* event chest
     public const int GizmoSign = 98;                // SignGizmoData: lore books, notes, notices
+    public const int GizmoTrigger = 44;             // TriggerGizmoData: invisible zones that act when entered (safe zones, story triggers)
     public const int GizmoLookAt = 29;              // only POI_Look_At: a spot the player can "look" at again and again (live 2026-09-30)
     public const int GizmoLockedChest = 106;        // data class unread; mostly *_Chest_Rare_Locked_* key chests
     public const int GizmoSwitch = 57;              // SwitchGizmoData

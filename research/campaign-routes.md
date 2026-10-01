@@ -45,9 +45,9 @@ holds only a row of 6 invisible collision cubes at X≈−491, Y 22..59.
   then 3 (−516, −143). That is about 320 units in all, against about 388 for the next best order. The Y coordinate falls
   monotonically westward along it, and the highwind triggers sit on legs 1→2 and 2→3 (the one at (−501.6, −95.2)
   lies on leg 2→3). Nearest-first from the start would wrongly pick zone 2 (78 units) before zone 1 (82).
-- **Safe zone size unknown** (M). The marker scale is 1, and the trigger actor's bounds (cylinder radius 1) are the
-  same as every other trigger gizmo's, so the server or a script sets the real size. A sibling
-  `BCD_Trigger_Sphere_8m` suggests about 8 m (L). The app counts a zone reached within 4 units.
+- **Safe zone size** (corrected 2026-10-01): the actor bounds say nothing, but the trigger's proximity shape does: a box
+  with `wvOBB` (5, 5, 5), most likely half-extents (M). `BCD_Trigger_Sphere_8m` is r 4 (the name gives the diameter).
+  Reader and evidence: [dungeon-objectives](dungeon-objectives.md) §10. The route counts a zone reached within 4 units.
 - Groups seen: 29 = PowerDefinition (`VGN_Kehj_EliasPalace_SandstormSafezone` 577575 and `…_SandstormDamage`
   577568; no readable radius), 14 = EffectGroupDefinition, 51 = ConditionDefinition (`QST_Kehj_Arc_EliasPalace_Sandstorm*`,
   not decoded).

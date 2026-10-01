@@ -149,6 +149,7 @@ internal static class Program
         var objectives = loopMemory?.Objectives;
         using var npcTap = new NpcCuePlayer(mixer);
         StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
+        _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles and the portals.
         _ = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine);
@@ -310,8 +311,10 @@ internal static class Program
         var dpo = new DungeonObjectiveReader(store, schema);
         var objectives = new ObjectiveClassifier(definitionOf, store.Name);
         var portalRule = new PortalClassifier(definitionOf, store.Name);
+        var safeZones = new SafeZoneClassifier(definitionOf, store.Name);
         var selector = new LoopTargetSelector(
-            beaconSnos, objectives, world => { lock (cascGate) return dpo.ActorSnos(world); }, interactables, portalRule.IsPortal);
+            beaconSnos, objectives, world => { lock (cascGate) return dpo.ActorSnos(world); }, interactables, portalRule.IsPortal,
+            safeZones.InsideRadius);
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name), start.IsDungeon); // app started mid-dungeon
 
         var player = new SpatialLoopPlayer(mixer, sounds);
@@ -328,15 +331,18 @@ internal static class Program
         return new LoopMemory(portals, objectiveMemory);
     }
 
-    // Prisoners keep their own objective loop, so they never tap as well.
+    // Prisoners and light carriers keep their own loop, so they never tap as well.
     private static void StartNpcTap(
         GameSession session, NpcCuePlayer tap, Func<int, ActorDefinitionInfo?> definitionOf, Func<int, string?> nameOf, bool debug)
     {
         var npcs = new NpcClassifier(definitionOf, nameOf);
         var objectives = new ObjectiveClassifier(definitionOf, nameOf);
+        var safeZones = new SafeZoneClassifier(definitionOf, nameOf);
         var none = new HashSet<int>();
-        _ = new NpcCueBridge(session, tap, a => npcs.IsNpc(a.ActorSno) && objectives.Classify(a.ActorSno, none) is null, nameOf,
-            debug ? Console.WriteLine : null);
+        _ = new NpcCueBridge(
+            session, tap,
+            a => npcs.IsNpc(a.ActorSno) && objectives.Classify(a.ActorSno, none) is null && safeZones.InsideRadius(a.ActorSno) is null,
+            nameOf, debug ? Console.WriteLine : null);
     }
 
     private static void WatchCutscenes(WorldLogWatcher log, GameSession session, CueGate gate, bool debug)

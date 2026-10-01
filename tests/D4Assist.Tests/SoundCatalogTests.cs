@@ -22,7 +22,7 @@ public class SoundCatalogTests
         SoundCue[] expected =
         [
             SoundCue.Door, SoundCue.Chest, SoundCue.Corpse, SoundCue.Readable, SoundCue.PointOfInterest,
-            SoundCue.Portal, SoundCue.QuestObjective, SoundCue.Prisoner, SoundCue.GuidePing, SoundCue.Npc,
+            SoundCue.Portal, SoundCue.QuestObjective, SoundCue.Prisoner, SoundCue.Enticement, SoundCue.SafeZone, SoundCue.StolenSkill, SoundCue.AkaratLight, SoundCue.WardBreaker, SoundCue.GuidePing, SoundCue.Npc,
         ];
 
         Assert.Equal(expected.Order(), Enum.GetValues<SoundCue>().Where(SoundCatalog.Repeats).Order());

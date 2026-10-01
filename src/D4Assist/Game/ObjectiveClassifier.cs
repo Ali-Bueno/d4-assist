@@ -4,7 +4,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -19,6 +19,21 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     private static readonly string[] QuestTokens = ["QST_", "Quest", "Prologue", "BloodPetal"];
     private static readonly HashSet<int> QuestNamedGizmos = [Conventions.GizmoSwitch, Conventions.GizmoSign];
 
+    // Undercity attunement switches, placed by the server (X1_Undercity_Enticement_SpiritHearth_Switch,
+    // X1_Undercity_Enticements_SpiritBeaconSwitch; research/dungeon-objectives.md §5).
+    private const string EnticementToken = "Enticement";
+
+    // Mephisto's phase 2 scatters the player's stolen skills as these orbs, walked over to take back (research/dungeon-objectives.md §11).
+    private const string StolenSkillToken = "Mephisto_Boss_P2_OrbActor";
+
+    // Akarat's lights in the Harbinger of Hatred fight: orbs (effects) the player picks up for Akarat's power; their
+    // Akarat_Orb_Pillar companion stands on the same spot (research/dungeon-objectives.md §11).
+    private const string AkaratLightName = "Akarat_Orb";
+
+    // The Horadric Guardian's four vessels (QST_Skov_Skartara_WardBreakerShrine_Kulle/Rasha/Fahd/Cain), one per sigil: the
+    // one matching the barrier's symbol breaks it, again at every barrier (research/dungeon-objectives.md §11).
+    private const string WardBreakerToken = "WardBreakerShrine";
+
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =
     [
@@ -26,7 +41,7 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     ];
 
     // The world-independent part of the answer, cached per actor SNO.
-    private readonly record struct Traits(ObjectiveReason? Fixed, bool IsMonster, bool IsCarryable, IReadOnlyList<int>? Accepts);
+    private readonly record struct Traits(ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsCarryable, IReadOnlyList<int>? Accepts);
 
     private readonly Dictionary<int, Traits?> _traits = [];
 
@@ -38,8 +53,12 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
         return !traits.IsMonster && dpoActors.Contains(actorSno) ? ObjectiveReason.Dpo : null;
     }
 
-    /// <summary>True for monsters and NPCs, whose state changes as they animate: a gizmo-only "used" signal does not apply.</summary>
-    public bool IsMonster(int actorSno) => TraitsOf(actorSno)?.IsMonster == true;
+    /// <summary>True for gizmos, the only actors a "used" signal applies to: monsters, NPCs and effects change state as they
+    /// animate, and loop until they leave the actor list.</summary>
+    public bool IsGizmo(int actorSno) => TraitsOf(actorSno)?.IsGizmo == true;
+
+    /// <summary>True for an orb holding one of the skills Mephisto stole from the player.</summary>
+    public bool IsStolenSkill(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.StolenSkill;
 
     /// <summary>True for an item the player carries to a receptacle (relics, idols, stone carvings).</summary>
     public bool IsCarryable(int actorSno) => TraitsOf(actorSno)?.IsCarryable == true;
@@ -51,7 +70,8 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     {
         if (_traits.TryGetValue(actorSno, out var cached)) return cached;
         Traits? traits = definition(actorSno) is { } info
-            ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster, info.GizmoType == Conventions.GizmoCarryable,
+            ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster, info.GizmoType >= 0,
+                info.GizmoType == Conventions.GizmoCarryable,
                 info.AcceptedCarryables)
             : null;
         return _traits[actorSno] = traits;
@@ -61,6 +81,12 @@ public sealed class ObjectiveClassifier(Func<int, ActorDefinitionInfo?> definiti
     {
         string? name = nameOf(actorSno);
         if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
+        if (name?.Contains(StolenSkillToken, StringComparison.OrdinalIgnoreCase) == true) return ObjectiveReason.StolenSkill;
+        if (string.Equals(name, AkaratLightName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.AkaratLight;
+        if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(WardBreakerToken, StringComparison.OrdinalIgnoreCase) == true)
+            return ObjectiveReason.WardBreaker;
+        if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(EnticementToken, StringComparison.OrdinalIgnoreCase) == true)
+            return ObjectiveReason.Enticement;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
         return questNamed || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;

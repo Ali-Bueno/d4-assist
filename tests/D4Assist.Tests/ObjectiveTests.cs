@@ -12,7 +12,7 @@ public class ObjectiveTests
     private const int PadSno = 1, MinibossSno = 2, LeverSno = 3, PrisonerNpcSno = 4, PrisonerSwitchSno = 5, DeadPrisonerCageSno = 6,
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
-        QuestNoteSno = 19, TownNoteSno = 20;
+        QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -36,6 +36,13 @@ public class ObjectiveTests
         [BonfireSno] = ("Frac_Prologue_RitualBonfire", new(Gizmo, Conventions.GizmoSwitch)),
         [QuestNoteSno] = ("QST_Frac_Glacier_Zak_Triptych_03", new(Gizmo, Conventions.GizmoSign)),
         [TownNoteSno] = ("TWN_Frac_Kyovashad_Sign_Brazier", new(Gizmo, Conventions.GizmoSign)),
+        [HearthSno] = ("X1_Undercity_Enticement_SpiritHearth_Switch", new(Gizmo, Conventions.GizmoSwitch)),
+        [BeaconSno] = ("X1_Undercity_Enticements_SpiritBeaconSwitch", new(Gizmo, Conventions.GizmoSwitch)),
+        [EnticementIconSno] = ("X1_Undercity_Enticement_MapIcon", new(4, NotGizmo)),
+        [SkillOrbSno] = ("Mephisto_Boss_P2_OrbActor", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
+        [AkaratOrbSno] = ("Akarat_Orb", new(Prop, NotGizmo)),
+        [AkaratPillarSno] = ("Akarat_Orb_Pillar", new(Prop, NotGizmo)),
+        [VesselSno] = ("QST_Skov_Skartara_WardBreakerShrine_Kulle", new(Gizmo, Conventions.GizmoSwitch)),
     };
 
     private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno };
@@ -56,6 +63,11 @@ public class ObjectiveTests
     [InlineData(BloodPetalsSno, ObjectiveReason.Gizmo)] // a plain switch, known by name
     [InlineData(BonfireSno, ObjectiveReason.Gizmo)]
     [InlineData(QuestNoteSno, ObjectiveReason.Gizmo)]   // a quest's message, known by name
+    [InlineData(HearthSno, ObjectiveReason.Enticement)]  // Undercity attunement switches, in no DPO list
+    [InlineData(BeaconSno, ObjectiveReason.Enticement)]
+    [InlineData(SkillOrbSno, ObjectiveReason.StolenSkill)] // a hostile monster, yet the player's to take back
+    [InlineData(AkaratOrbSno, ObjectiveReason.AkaratLight)]
+    [InlineData(VesselSno, ObjectiveReason.WardBreaker)]   // before the QST_ name rule
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 
@@ -67,6 +79,8 @@ public class ObjectiveTests
     [InlineData(PrisonerDoorSno)]     // door gizmo, not a switch or NPC
     [InlineData(PlainPropSno)]
     [InlineData(TownNoteSno)]         // an ordinary note stays a readable
+    [InlineData(EnticementIconSno)]   // the attunement switch's minimap icon
+    [InlineData(AkaratPillarSno)]     // the light's pillar, on the orb's own spot
     [InlineData(UnreadableSno)]       // no ActorDefinition record
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));
@@ -105,6 +119,65 @@ public class ObjectiveTests
         Assert.Equal("gizmo", objective.Reason);
         Assert.Equal("dpo", selector.Select(Placed(DpoSwitchSno))!.Reason);
         Assert.Null(selector.Select(Placed(MinibossSno)));
+    }
+
+    [Fact]
+    public void Selector_AttunementSwitchesHaveTheirOwnCueAndFallSilentOnceUsed()
+    {
+        var selector = Selector();
+        selector.SetWorld(WorldB, isDungeon: true);
+
+        var hearth = selector.Select(Placed(HearthSno))!;
+
+        Assert.Equal(LoopKind.Objective, hearth.Kind);
+        Assert.Equal(SoundCue.Enticement, hearth.Cue);
+        Assert.Equal(LoopTargetSelector.EnticementSound, hearth.Sound);
+        Assert.True(hearth.StopsWhenUsed);
+    }
+
+    [Fact]
+    public void Selector_StolenSkillOrbsLoopUntilTheyAreGone()
+    {
+        var selector = Selector();
+        selector.SetWorld(WorldB, isDungeon: true);
+
+        var orb = selector.Select(Placed(SkillOrbSno))!;
+
+        Assert.Equal(SoundCue.StolenSkill, orb.Cue);
+        Assert.False(orb.StopsWhenUsed); // a monster: no gizmo "used" signal; it leaves the actor list when taken
+        Assert.True(Classifier().IsStolenSkill(SkillOrbSno));
+        Assert.False(Classifier().IsStolenSkill(HearthSno));
+    }
+
+    [Fact]
+    public void Selector_AkaratsLightsLoopUntilTheyAreGone_TheVesselsSurviveTheirUse()
+    {
+        var selector = Selector();
+        selector.SetWorld(WorldB, isDungeon: true);
+
+        var light = selector.Select(Placed(AkaratOrbSno))!;
+        var vessel = selector.Select(Placed(VesselSno))!;
+
+        Assert.Equal(SoundCue.AkaratLight, light.Cue);
+        Assert.False(light.StopsWhenUsed); // an effect: no gizmo "used" signal
+        Assert.Equal(SoundCue.WardBreaker, vessel.Cue);
+        Assert.False(vessel.StopsWhenUsed);
+        Assert.True(vessel.Reusable);
+    }
+
+    [Fact]
+    public void Bridge_AReusableVesselKeepsLoopingOnceUsed_ButNotWhileTheGameLocksIt()
+    {
+        var (feed, player, _) = CreateBridge(_ => true); // every actor reads as used
+        feed.RaiseWorld(WorldB);
+
+        feed.RaiseActors(new ActorState(1, VesselSno, 5, 0, 0));
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(1, player.ActiveCount);
+
+        feed.RaiseActors(new ActorState(1, VesselSno, 5, 0, 0, ScriptDisabled: true));
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(0, player.ActiveCount);
     }
 
     [Fact]

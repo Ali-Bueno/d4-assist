@@ -53,6 +53,21 @@ public class DungeonObjectiveReaderRealDataTests
         Assert.Null(info);
     }
 
+    [Theory]
+    [InlineData("QST_Hell_Battlefield_Donan_SuppressingBubble", 5.25f)] // sphere
+    [InlineData("Trigger_Sphere_8m", 4f)]                              // the name gives the diameter
+    [InlineData("BCD_Trigger_EliasPalace_SafeZone", 5f)]               // box, half-extents (5, 5, 5)
+    public void ActorDefinitionReader_ReadsATriggersRadiusFromItsShape(string actor, float radius)
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+
+        var info = new ActorDefinitionReader(store, schema).Read(store.Resolve(schema.SnoGroup("ActorDefinition"), actor));
+
+        Assert.Equal(radius, info!.Value.TriggerRadius!.Value, precision: 2);
+    }
+
     [Fact]
     public void ActorDefinitionReader_ReadsTheCarryablesAReceptacleTakes()
     {

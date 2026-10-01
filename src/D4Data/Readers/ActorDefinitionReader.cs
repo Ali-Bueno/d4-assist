@@ -12,9 +12,12 @@ namespace D4Data.Readers;
 /// <param name="IsNpc">ActorMonsterData.fIsNPC: townsfolk, vendors, quest givers and followers (research/dungeon-objectives.md §9).</param>
 /// <param name="MonsterFamilySno">ActorMonsterData.snoMonsterFamily, or -1.</param>
 /// <param name="AcceptedCarryables">CarryableReceptacleGizmoData.arCarryables: the carryable SNOs a receptacle takes; null otherwise.</param>
+/// <param name="TriggerRadius">A trigger gizmo's ground radius from its proximity shape (sphere or capsule radius, a box's
+/// narrower half-extent); null for other actors or an unknown shape (research/dungeon-objectives.md §10).</param>
 public readonly record struct ActorDefinitionInfo(
     int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default,
-    int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1, IReadOnlyList<int>? AcceptedCarryables = null);
+    int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1, IReadOnlyList<int>? AcceptedCarryables = null,
+    float? TriggerRadius = null);
 
 /// <summary>Reads (and caches per SNO) <see cref="ActorDefinitionInfo"/> from ActorDefinition meta records.</summary>
 public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
@@ -23,6 +26,8 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
     private const string Aabb = "AABB";
     private const string MonsterData = "ActorMonsterData";
     private const string ReceptacleData = "CarryableReceptacleGizmoData";
+    private const string TriggerGizmo = "TriggerGizmoData", Trigger = "TriggerData", TriggerProximity = "TriggerProximityData";
+    private const string ShapeBase = "ProximityDataBase", Sphere = "SphereProximityData", Capsule = "CapsuleProximityData", Box = "BoxProximityData";
     private const int SnoIdSize = 4; // DT_SNO
 
     private readonly Dictionary<int, ActorDefinitionInfo?> _cache = [];
@@ -48,6 +53,8 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
             };
         if (info is { GizmoType: Conventions.GizmoCarryableReceptacle } receptacle)
             info = receptacle with { AcceptedCarryables = AcceptedCarryables(meta!) };
+        if (info is { GizmoType: Conventions.GizmoTrigger } trigger)
+            info = trigger with { TriggerRadius = TriggerRadius(meta!) };
         _cache[actorSno] = info;
         return info;
     }
@@ -57,6 +64,32 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
         [.. meta.PolymorphicArray(schema.Offset(ActorDefinition, "ptGizmoData"), schema.Size(ReceptacleData)).Take(1)
             .SelectMany(gizmo => meta.Array(gizmo + schema.Offset(ReceptacleData, "arCarryables"), SnoIdSize))
             .Select(meta.I32)];
+
+    // ptGizmoData holds one TriggerGizmoData; its first proximity shape sizes the zone.
+    private float? TriggerRadius(SnoBlob meta)
+    {
+        int gizmo = meta.PolymorphicArray(schema.Offset(ActorDefinition, "ptGizmoData"), schema.Size(TriggerGizmo)).FirstOrDefault(-1);
+        if (gizmo < 0) return null;
+        int shapes = gizmo + schema.Offset(TriggerGizmo, "tTriggerData") + schema.Offset(Trigger, "tTriggerProxData")
+            + schema.Offset(TriggerProximity, "ptProxData");
+        if (meta.PolymorphicElements(shapes, p => ShapeAt(meta, p) is { } t ? schema.Size(t) : null) is not [var shape, ..]) return null;
+        return ShapeAt(meta, shape) switch
+        {
+            Sphere => meta.F32(shape + schema.Offset(Sphere, "flRadius")),
+            Capsule => meta.F32(shape + schema.Offset(Capsule, "flRadius")),
+            Box => Narrower(meta.Vec3(shape + schema.Offset(Box, "wvOBB"))),
+            _ => null,
+        };
+    }
+
+    private static float Narrower(Vector3 halfExtents) => Math.Min(halfExtents.X, halfExtents.Y);
+
+    // A proximity shape names its own type in dwType (the type hash).
+    private string? ShapeAt(SnoBlob meta, int shape)
+    {
+        int typeOffset = shape + schema.Offset(ShapeBase, "dwType");
+        return typeOffset + sizeof(uint) <= meta.Length ? schema.TypeName(meta.U32(typeOffset)) : null;
+    }
 
     // Where the actor's ActorMonsterData block starts in its record, or null when it has none.
     private int? MonsterDataOffset(SnoBlob meta)

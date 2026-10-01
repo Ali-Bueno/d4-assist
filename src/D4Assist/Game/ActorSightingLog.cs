@@ -2,10 +2,11 @@ using D4Data.Readers;
 
 namespace D4Assist.Game;
 
-/// <summary>Debug log: once per dungeon visit and actor SNO, every placed gizmo or portal-like actor, to learn what an exit really is.</summary>
+/// <summary>Debug log: once per dungeon visit and actor SNO, every placed gizmo, portal-like or shelter-like actor, to learn what
+/// an exit or a boss-fight shelter (research/dungeon-objectives.md §10-11) really is.</summary>
 public sealed class ActorSightingLog(Func<int, ActorDefinitionInfo?> definition, Func<int, string?> nameOf, Action<string> log)
 {
-    private static readonly string[] NameTokens = ["Portal", "Warp", "Exit", "Beacon"];
+    private static readonly string[] NameTokens = ["Portal", "Warp", "Exit", "Beacon", "Bubble", "Barrier", "SafeZone", "Akarat", "Orb"];
     private const int NoGizmo = -1;
 
     private readonly HashSet<int> _seen = [];

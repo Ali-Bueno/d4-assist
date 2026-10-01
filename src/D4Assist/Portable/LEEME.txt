@@ -99,6 +99,16 @@ Qué hace
   (la que tienes marcada en el diario) cuando ya los puedes usar, por ejemplo
   el demonio asesinado y la puerta de la Vía Oscurecida. Los que la misión aún
   no deja usar no suenan.
+- Braseros espirituales de la Ciudad Subterránea (NUEVO): suenan con su
+  propio sonido hasta que los usas, para subir la sintonía.
+- Barreras protectoras en combates contra jefes (NUEVO): cuando un aliado
+  levanta una barrera para protegerte (Donan en el infierno, Lilith en Skovos,
+  Vigo contra el Lamento de Lilith) o hay una luz en la que quedarte, suena
+  desde lejos con su propio sonido y se calla cuando estás dentro.
+- Objetos de combates contra jefes (NUEVO), de momento con el sonido de
+  misión: los orbes de las habilidades que te quita Mefisto (avisa cuando te
+  las quita y cuando las has recuperado todas), las luces de Akarat contra el
+  Heraldo del Odio y las vasijas de los sellos contra el Guardián Horádrico.
 - NPCs (NUEVO): el toque de madera de D2R sobre el NPC más cercano, a menos de
   unos 15 metros. Suena más rápido cuanto más cerca está, a la izquierda o a la
   derecha según dónde esté, y más grave si está abajo en la pantalla. Suena

@@ -148,6 +148,26 @@ Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): o
 (`ActorState.QuestStep`, reason `quest`). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
 (`ActorState.Unusable`) and stays silent. `--debug` logs `Quest tracked: <sno>, N object(s) named.` on each change and
 `LOOP silent … cause=unusable` once per gizmo.
+The Undercity attunement switches (spirit hearths and beacons, name token `Enticement`, research/dungeon-objectives.md §5)
+are objectives too (reason `enticement`), on their own settings cue; they fall silent once used.
+
+## Safe zones in boss fights
+
+`Game/SafeZoneClassifier` picks the places the player must stand in to be protected (research/dungeon-objectives.md §10):
+allies' bubbles (Donan in the Hell battlefield, Lilith in the Skovos mindscape, Vigo's dome against Lilith's Lament),
+lights to stay in (Lingering Hatred, moving lights) and safe zones the game names so. A non-hostile trigger named
+`SafeZone`/`Bubble`/`Suppressing` is sized by its proximity shape (`ActorDefinitionInfo.TriggerRadius`); other gizmos named
+`SafeZone` and actors named `Bubble_Caster`, `Barrier_Border`, `Lingering_Light` or `MovingLight` get a 5-unit radius. A light
+carrier loops instead of the NPC tap. They loop first in the voice budget, with the beacon profile, and fall silent while the player is inside
+(radius minus 1 unit). `--debug` logs `LOOP inside`/`LOOP outside`, and `ACTOR seen` for any `Bubble` actor.
+
+## Boss-fight objects
+
+Mephisto's stolen-skill orbs, Akarat's lights against the Harbinger of Hatred and the Horadric Guardian's sigil vessels loop
+as objectives, each on its own settings cue (research/dungeon-objectives.md §11). Orbs and lights are no gizmos: they loop
+until they leave the actor list. The vessels are used once per barrier, so they never fall silent for being used, only
+while the game locks them (`LoopTarget.Reusable`). `Game/StolenSkillsAnnouncer` speaks Mephisto's theft at the first orb
+and the recovery once no orb was seen for 2 s.
 
 ## Doors, chests and readables
 

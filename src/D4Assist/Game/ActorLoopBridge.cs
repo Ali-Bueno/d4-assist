@@ -27,6 +27,7 @@ public sealed class ActorLoopBridge
     private readonly object _gate = new();
     private Dictionary<uint, (ActorState Actor, LoopTarget Target)> _targets = [];
     private readonly HashSet<uint> _loggedUnusable = [];
+    private readonly HashSet<uint> _sheltered = [];
     private PlayerState? _lastPlayer;
 
     /// <param name="isUsed">True once an actor was used (lever pulled, chest opened): its loop stops if its target says so.
@@ -64,6 +65,7 @@ public sealed class ActorLoopBridge
     {
         _targets = [];
         _loggedUnusable.Clear();
+        _sheltered.Clear();
         _lastPlayer = null;
         _sightings?.Reset();
         _used?.Reset();
@@ -81,11 +83,11 @@ public sealed class ActorLoopBridge
             .Where(x => x.Target is not null)
             .GroupBy(x => x.Actor.Id).ToDictionary(g => g.Key, g => g.First());
         // An unusable gizmo (quest-restricted, script-disabled) offers no interaction: silent until the game allows it.
-        var next = selected.Where(kv => !(kv.Value.Target!.StopsWhenUsed && (kv.Value.Actor.Unusable || _isUsed(kv.Value.Actor))))
+        var next = selected.Where(kv => !Silent(kv.Value.Actor, kv.Value.Target!))
             .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, Target: kv.Value.Target!));
         if (_log is not null)
             foreach (var (actor, target) in selected.Values.Where(x =>
-                         x.Target!.StopsWhenUsed && x.Actor.Unusable && !_targets.ContainsKey(x.Actor.Id) && _loggedUnusable.Add(x.Actor.Id)))
+                         x.Target!.SilentWhileUnusable && x.Actor.Unusable && !_targets.ContainsKey(x.Actor.Id) && _loggedUnusable.Add(x.Actor.Id)))
                 Log("silent", actor, target!, "unusable");
         if (_log is not null) LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
         _targets = next;
@@ -97,11 +99,24 @@ public sealed class ActorLoopBridge
     {
         _lastPlayer = p;
         _player.Update([.. _targets.Values
+            .Where(t => !Sheltered(t.Actor, t.Target, p))
             .Select(t => (t.Actor, t.Target, Level: _levelOf(t.Target.Cue)))
             .Where(t => t.Level.Gain > 0)
             .GroupBy(t => t.Target.Kind)
             .SelectMany(kind => kind.OrderBy(t => Sq(t.Actor.X - p.X) + Sq(t.Actor.Y - p.Y)).Take(MaxVoices(kind.Key)))
             .Select(t => ToSource(t.Actor, t.Target, t.Level, p))]);
+    }
+
+    private bool Silent(ActorState actor, LoopTarget target) =>
+        (target.SilentWhileUnusable && actor.Unusable) || (target.StopsWhenUsed && _isUsed(actor));
+
+    // Inside a safe zone its loop has done its job: silent until the player steps out.
+    private bool Sheltered(ActorState actor, LoopTarget target, PlayerState p)
+    {
+        bool inside = target.QuietWithin > 0 && Sq(actor.X - p.X) + Sq(actor.Y - p.Y) <= Sq(target.QuietWithin);
+        if (_log is not null && (inside ? _sheltered.Add(actor.Id) : _sheltered.Remove(actor.Id)))
+            Log(inside ? "inside" : "outside", actor, target, null);
+        return inside;
     }
 
     /// <summary>How many loops of one kind may sound at once (the nearest ones).</summary>

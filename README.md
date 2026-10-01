@@ -1,6 +1,6 @@
 # Diablo 4 Assist
 
-Hey! So, Diablo 4 already comes with screen reader support, and for menus and text it does the job. But once you're
+Diablo 4 already comes with screen reader support, and for menus and text it does the job. But once you're
 inside a dungeon you're pretty much on your own: where are the exits, where did I already go, where's that lever or
 that prisoner, how do I get out of here. That's what this is for. It's not a replacement for the game's accessibility,
 just a complement for the parts that aren't accessible. It runs next to the game, talks through your screen reader
@@ -41,8 +41,7 @@ like "Junction. Exits: up, right unexplored." The ones you haven't been through 
 
 **Radar.** Short sounds in four directions (up, down, left, right) that tell you what's ahead if you keep walking that
 way. A bright tone is an exit, a dull knock is a wall, two knocks a closed door, and a soft breath is open floor. It only
-plays when something changes. It's the same radar from my Diablo 2 Resurrected mod, so if you used that one, you already
-know how it works. One thing: corridors in this game go diagonal a lot, so a corridor right between two directions can
+plays when something changes. One thing: corridors in this game go diagonal a lot, so a corridor right between two directions can
 sound like a wall until you turn a bit toward it.
 
 **Guide.** Press left on the D-pad and a ping starts leading you, following the actual path, to the nearest place you
@@ -53,8 +52,8 @@ everything's explored, to a portal. It's on by default in the Undercity and the 
 
 **Sounds on things.** Portals loop a sound so you can find the way out. Objectives play the quest sound: levers, things
 you have to carry and where they go, quest chests, stuff your quest asks you to use or break, and what the dungeon asks
-you to kill. Prisoners play a corpse sound. Doors, chests, books and notes, and bodies you can search play the same
-sounds as in my D2R mod. Characters you can talk to get a little wooden tap. Everything goes quiet once you've used it.
+you to kill. Prisoners play a corpse sound. Doors, chests, books and notes, and bodies you can search have their own
+sounds too. Characters you can talk to get a little wooden tap. Everything goes quiet once you've used it.
 
 **Boss fights.** Safe spots you have to stand in, like Donan's or Vigo's barriers, play their own sound and go quiet once
 you're inside. The Undercity braziers have their own sound too. There are also sounds for Mephisto's skill orbs,

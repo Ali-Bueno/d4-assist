@@ -45,8 +45,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The testers' Spanish readme: in the portable build only (Properties/PublishProfiles/Portable.pubxml). -->
-    <None Include="Portable\LEEME.txt" Link="LEEME.txt" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The players' readme: in the portable build only (Properties/PublishProfiles/Portable.pubxml). -->
+    <None Include="Portable\README.txt" Link="README.txt" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Prismatoid also ships tolk.dll, an optional Tolk-compat backend: NVDA, JAWS and SAPI are built into prism.dll

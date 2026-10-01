@@ -70,7 +70,7 @@ dotnet publish src/D4Assist -p:PublishProfile=Portable
 
 It lands in `artifacts/D4Assist/` (git-ignored) with three files: a single self-contained `D4Assist.exe`
 (the .NET runtime, every assembly with embedded symbols, and `prism.dll`, which is extracted to
-`%TEMP%\.net\D4Assist\` on first run), `d4assist.json` and the Spanish `LEEME.txt` (`src/D4Assist/Portable/`).
+`%TEMP%\.net\D4Assist\` on first run), `d4assist.json` and the English `README.txt` (`src/D4Assist/Portable/`; it replaced the Spanish `LEEME.txt` on 2026-10-01).
 The sounds and `definitions.json` are embedded in the exe too. `tolk.dll` is left out. Zip that folder for testers.
 
 ## Where to start reading

@@ -358,7 +358,7 @@ Output goes to `d4assist-log.txt` (there is no console window).
   self-check), the radar's
   `DungeonRadarWorld`/`RadarBridge`, and `LockedTileWalkability` (one walk-map lookup shared across poll threads).
 - `Program.cs` — wiring and the run loop.
-- `Portable/LEEME.txt` — the testers' Spanish readme, published next to the exe by `Properties/PublishProfiles/Portable.pubxml`
+- `Portable/README.txt` — the players' readme (English), published next to the exe by `Properties/PublishProfiles/Portable.pubxml`
   (single-file, self-contained; see the root README).
 
 ## Tests

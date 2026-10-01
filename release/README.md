@@ -67,7 +67,7 @@ game's own navigation assist covers the rest.
 4. To close it, choose "Exit" from its notification-area icon menu (Windows+B, then the icon "Diablo 4 Assist";
    it may be under "Show hidden icons").
 
-The full guide, in Spanish, is `LEEME.txt` inside the zip.
+The full guide is `README.txt` inside the zip.
 
 ### Keys
 

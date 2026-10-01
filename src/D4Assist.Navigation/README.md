@@ -1,6 +1,6 @@
 # D4Assist.Navigation
 
-Pure navigation/announcement logic for the Diablo IV Dungeon Assist. No game or
+Pure navigation/announcement logic for the Diablo 4 Assist. No game or
 process access, no dependencies beyond the BCL — everything here is a function
 of `TileInput`/`PlayerInput` snapshots the host app feeds in.
 

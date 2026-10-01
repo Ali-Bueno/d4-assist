@@ -1,0 +1,36 @@
+using D4Assist.Game;
+
+namespace D4Assist.Strings;
+
+public sealed partial record AppStrings
+{
+    /// <summary>ChineseSimplified (zhCN).</summary>
+    public static readonly AppStrings ChineseSimplified = new(
+        AssistantActive: "Diablo 4 Assist 已启动",
+        WaitingForGame: "正在等待 Diablo IV",
+        EnteringDungeon: "进入地下城",
+        LeavingDungeon: "离开地下城",
+        GuideOn: "向导已开启。",
+        GuideOff: "向导已关闭。",
+        EnteringWorldFormat: "进入{0}",
+        SoundExamples: ["出口", "可通行地面", "墙壁", "门", "未探索的出口", "任务提示音", "向导提示音", "到达"],
+        ShelterGuide: "避难所向导。",
+        ShelterReachedFormat: "第{0}个避难所，共{1}个。",
+        GuideToPortal: "全部探索完毕。正在带你前往传送门。",
+        GuideToUsedPortal: "全部探索完毕。正在带你回到来时的传送门。",
+        AssistantClosed: "Diablo 4 Assist 已关闭",
+        Restarting: "正在重启助手",
+        SkillsStolen: "墨菲斯托夺走了你的技能。请拾取法球。",
+        SkillsRecovered: "技能已找回。",
+        ReadFailures: new Dictionary<ReadCheck, string>
+        {
+            [ReadCheck.Position] = "无法读取角色位置，助手无法工作",
+            [ReadCheck.Addresses] = "找不到此游戏版本的数据，没有房间、雷达和物体音效",
+            [ReadCheck.Rooms] = "无法读取房间，没有房间播报和雷达",
+            [ReadCheck.Actors] = "无法读取物体，没有传送门、目标和角色音效",
+            [ReadCheck.Attributes] = "无法读取物体状态，已使用的物体可能仍会发声，任务也无法跟踪",
+            [ReadCheck.Menus] = "找不到游戏菜单，菜单中音效不会暂停",
+        },
+        ReadWarningFormat: "警告：{0}。Diablo IV 可能已更新。请发送日志。",
+        Stopped: "助手因错误而停止。请发送日志。");
+}

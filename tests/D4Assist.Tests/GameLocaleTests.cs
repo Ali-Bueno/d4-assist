@@ -13,7 +13,8 @@ public class GameLocaleTests
     [InlineData("enUS", SpeechLanguage.English)]
     [InlineData("esMX", SpeechLanguage.Spanish)]
     [InlineData("esES", SpeechLanguage.Spanish)]
-    [InlineData("frFR", SpeechLanguage.English)]
+    [InlineData("frFR", SpeechLanguage.French)]
+    [InlineData("zhCN", SpeechLanguage.ChineseSimplified)]
     public void Text_locale_is_parsed_and_mapped(string locale, SpeechLanguage expected)
     {
         var parsed = GameLocale.ExtractTextLocale($"{Line}{locale}\r");
@@ -102,7 +103,7 @@ public class GameLocaleTests
     public void Config_invalid_language_is_a_hard_error()
     {
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
-        File.WriteAllText(path, "{\"Language\":\"fr\"}");
+        File.WriteAllText(path, "{\"Language\":\"xx\"}");
         Assert.Throws<InvalidDataException>(() => AppConfig.Load(path));
         Assert.Equal("auto", new AppConfig().Language);
     }
@@ -110,8 +111,8 @@ public class GameLocaleTests
     [Fact]
     public void App_strings_are_language_aware()
     {
-        Assert.Equal("Dungeon assistant active", AppStrings.For(SpeechLanguage.English).AssistantActive);
-        Assert.Equal("Asistente de mazmorras activo", AppStrings.For(SpeechLanguage.Spanish).AssistantActive);
+        Assert.Equal("Diablo 4 Assist active", AppStrings.For(SpeechLanguage.English).AssistantActive);
+        Assert.Equal("Diablo 4 Assist activo", AppStrings.For(SpeechLanguage.Spanish).AssistantActive);
         Assert.Equal("Entering X", AppStrings.English.EnteredWorld("X"));
         Assert.Equal("Guide off.", AppStrings.English.GuideOff);
     }

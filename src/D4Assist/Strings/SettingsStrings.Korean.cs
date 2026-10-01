@@ -1,0 +1,93 @@
+using D4Assist.Config;
+
+namespace D4Assist.Strings;
+
+public sealed partial record SettingsStrings
+{
+    /// <summary>Korean (koKR).</summary>
+    public static readonly SettingsStrings Korean = new()
+    {
+        AppName = "Diablo 4 Assist",
+        MenuSettings = "설정...",
+        MenuRestart = "도우미 다시 시작",
+        MenuExit = "종료",
+        AlreadyRunning = "Diablo 4 Assist가 이미 실행 중입니다. 알림 영역에 있으며, Ctrl+Alt+Shift+C를 누르면 설정이 열립니다.",
+        WindowTitle = "Diablo 4 Assist 설정",
+        Ok = "확인",
+        Cancel = "취소",
+        Apply = "적용",
+        Defaults = "기본값 복원",
+        RestartQuestion = "일반 탭의 변경 사항은 도우미를 다시 시작하면 적용됩니다. 지금 다시 시작할까요?",
+        SaveFailedFormat = "설정을 저장할 수 없습니다: {0}",
+
+        SoundTab = "소리",
+        MasterVolume = "마스터 볼륨",
+        Preview = "볼륨이나 속도를 바꿀 때 소리 미리 듣기",
+        VolumeColumn = "볼륨",
+        SpeedColumn = "속도",
+        SpeedDescription = "퍼센트: 100은 보통 속도, 200은 두 배 빠르게, 50은 절반 속도입니다.",
+        GroupEnabledFormat = "{0}: 소리 켜기",
+        GroupVolumeFormat = "{0}: 전체 볼륨",
+        GroupSpeedFormat = "{0}: 전체 속도",
+        CueVolumeFormat = "{0}: 볼륨",
+        CueSpeedFormat = "{0}: 속도",
+        RadarDirections = "레이더 방향",
+        GuideAndCharactersTab = "안내와 캐릭터",
+        Groups = new Dictionary<SoundGroup, string>
+        {
+            [SoundGroup.Radar] = "레이더",
+            [SoundGroup.Objects] = "사물",
+            [SoundGroup.Quest] = "퀘스트와 포털",
+            [SoundGroup.Guide] = "안내",
+            [SoundGroup.Characters] = "캐릭터",
+        },
+        Cues = new Dictionary<SoundCue, string>
+        {
+            [SoundCue.RadarExit] = "출구",
+            [SoundCue.RadarOpen] = "열린 바닥",
+            [SoundCue.RadarWall] = "벽",
+            [SoundCue.RadarDoor] = "닫힌 문",
+            [SoundCue.RadarFront] = "앞",
+            [SoundCue.RadarRight] = "오른쪽",
+            [SoundCue.RadarBack] = "뒤",
+            [SoundCue.RadarLeft] = "왼쪽",
+            [SoundCue.Door] = "문",
+            [SoundCue.Chest] = "보물 상자",
+            [SoundCue.Corpse] = "시체",
+            [SoundCue.Readable] = "글과 책",
+            [SoundCue.PointOfInterest] = "살펴볼 곳",
+            [SoundCue.Portal] = "포털",
+            [SoundCue.QuestObjective] = "퀘스트 목표",
+            [SoundCue.Prisoner] = "포로",
+            [SoundCue.Enticement] = "지하 도시의 영혼 화로",
+            [SoundCue.SafeZone] = "우두머리 전투의 보호 장벽",
+            [SoundCue.StolenSkill] = "메피스토가 훔친 스킬 구슬",
+            [SoundCue.AkaratLight] = "증오의 전령과 싸울 때의 아카라트의 빛",
+            [SoundCue.WardBreaker] = "호라드림 수호자와 싸울 때의 인장 그릇",
+            [SoundCue.GuidePing] = "안내 신호음",
+            [SoundCue.GuideArrival] = "도착",
+            [SoundCue.Npc] = "대화할 캐릭터",
+        },
+
+        GeneralTab = "일반",
+        GeneralBox = "옵션 (도우미를 다시 시작하면 적용됩니다)",
+        PausesBox = "소리 끄기 (도우미를 다시 시작하면 적용됩니다)",
+        Language = "언어",
+        LanguageAuto = "자동, 게임과 같은 언어",
+        RadarFrame = "레이더 방향 기준",
+        RadarFrameChoices = ["십자: 스틱의 위, 오른쪽, 아래, 왼쪽", "대각선: 게임의 축"],
+        SpeechEnabled = "화면 낭독기로 음성 안내",
+        AutoAnnouncements = "방과 던전을 자동으로 안내",
+        InterruptOnContextChange = "던전에 들어가거나 나갈 때 음성 끊기",
+        RadarClosedDoors = "레이더에 닫힌 문 표시",
+        LiveBarriers = "레이더와 안내에 던전 장벽 반영",
+        ExplorationGuide = "탐색 안내 (방향 패드 왼쪽으로 켜고 끔)",
+        ExplorationGuideInDungeons = "일반 던전에 들어갈 때 안내 켜기 (지하 도시와 구덩이에서는 항상 켜진 채로 시작합니다)",
+        QuestRoutes = "퀘스트 경로 (모래 폭풍 은신처)",
+        OutsideDungeons = "던전 밖에서도 작동",
+        PauseInCutscenes = "컷신 중",
+        PauseInBackground = "게임이 맨 앞에 있지 않을 때",
+        PauseInConversations = "대화 중",
+        PauseInMenus = "게임 메뉴에서",
+    };
+}

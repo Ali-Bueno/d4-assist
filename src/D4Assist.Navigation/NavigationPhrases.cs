@@ -1,10 +1,8 @@
 namespace D4Assist.Navigation;
 
 /// <summary>Every navigation string for one language, kept short for NVDA; add a phrase once per language instance.</summary>
-public sealed class NavigationPhrases
+public sealed partial class NavigationPhrases
 {
-    private const string ListSeparator = ", ";
-
     // Spelled-out counts for grouped repeated openings; larger counts use the digit (no room observed exceeds 4).
     private static readonly int[] SpelledCounts = [2, 3, 4];
 
@@ -50,7 +48,22 @@ public sealed class NavigationPhrases
         Labels = new() { [RoomKind.Junction] = "Junction.", [RoomKind.BigRoom] = "Big room.", [RoomKind.Corridor] = "Corridor." },
     };
 
-    public static NavigationPhrases For(SpeechLanguage language) => language == SpeechLanguage.English ? English : Spanish;
+    public static NavigationPhrases For(SpeechLanguage language) => language switch
+    {
+        SpeechLanguage.English => English,
+        SpeechLanguage.French => French,
+        SpeechLanguage.German => German,
+        SpeechLanguage.Italian => Italian,
+        SpeechLanguage.Polish => Polish,
+        SpeechLanguage.Portuguese => Portuguese,
+        SpeechLanguage.Russian => Russian,
+        SpeechLanguage.Turkish => Turkish,
+        SpeechLanguage.Japanese => Japanese,
+        SpeechLanguage.Korean => Korean,
+        SpeechLanguage.ChineseSimplified => ChineseSimplified,
+        SpeechLanguage.ChineseTraditional => ChineseTraditional,
+        _ => Spanish,
+    };
 
     private NavigationPhrases() { }
 
@@ -75,6 +88,11 @@ public sealed class NavigationPhrases
     /// <summary>Spoken once when the player stands under a quest place on another floor (it is higher).</summary>
     public string QuestObjectiveAbove { get; private init; } = "";
 
+    // How a room's announcement is put together: {0} label, {1} exit header, {2} the exits; and the label with no exits.
+    // Japanese and Chinese use their own punctuation (、 ： 。) and no spaces.
+    private string ExitsFormat { get; init; } = "{0} {1}: {2}.";
+    private string NoExitsFormat { get; init; } = "{0} {1}";
+    private string ListSeparator { get; init; } = ", ";
     private string SingularHeader { get; init; } = "";
     private string PluralHeader { get; init; } = "";
     private string UnexploredFormat { get; init; } = "";
@@ -107,9 +125,9 @@ public sealed class NavigationPhrases
 
     private string WithLabel(string label, IReadOnlyList<string> openingPhrases)
     {
-        if (openingPhrases.Count == 0) return $"{label} {NoOtherExits}";
+        if (openingPhrases.Count == 0) return string.Format(NoExitsFormat, label, NoOtherExits);
         var header = openingPhrases.Count == 1 ? SingularHeader : PluralHeader;
-        return $"{label} {header}: {string.Join(ListSeparator, GroupRepeats(openingPhrases))}.";
+        return string.Format(ExitsFormat, label, header, string.Join(ListSeparator, GroupRepeats(openingPhrases)));
     }
 
     // Collapses repeated identical phrases into "N exits <phrase>", keeping first-occurrence order.

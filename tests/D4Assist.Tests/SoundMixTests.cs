@@ -8,12 +8,14 @@ public class SoundMixTests
     private const double Tolerance = 1e-9;
 
     [Fact]
-    public void Default_is_full_gain_and_normal_rate_everywhere()
+    public void Default_is_half_master_volume_full_cues_but_the_scroll_and_normal_rate()
     {
         var mix = SoundMix.From(new SoundSettings());
 
-        Assert.Equal(1, mix.Master);
-        Assert.All(Enum.GetValues<SoundCue>(), cue => Assert.Equal(CueLevel.Full, mix.Level(cue)));
+        Assert.Equal(0.25, mix.Master, Tolerance); // 50 on the squared curve
+        Assert.All(Enum.GetValues<SoundCue>().Where(c => c != SoundCue.Readable), cue => Assert.Equal(CueLevel.Full, mix.Level(cue)));
+        Assert.Equal(SoundMix.From(new SoundSettings { Cues = new() { ["Readable"] = new CueSetting { Volume = 50 } } }).Level(SoundCue.Readable),
+            mix.Level(SoundCue.Readable));
         Assert.All(Enum.GetValues<SoundGroup>(), group => Assert.Equal(CueLevel.Full, mix.GroupLevel(group)));
         Assert.Equal(1, mix.RadarGain(RadarCueKind.Exit, RadarRay.Up));
     }

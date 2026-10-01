@@ -4,7 +4,7 @@ using D4Assist.Navigation;
 namespace D4Assist.Strings;
 
 /// <summary>The notification-area menu and settings window text for one language (CLAUDE.md §9/§10).</summary>
-public sealed record SettingsStrings
+public sealed partial record SettingsStrings
 {
     public required string AppName { get; init; }
     public required string MenuSettings { get; init; }
@@ -39,7 +39,8 @@ public sealed record SettingsStrings
     public required string GeneralBox { get; init; }
     public required string PausesBox { get; init; }
     public required string Language { get; init; }
-    public required IReadOnlyList<string> LanguageChoices { get; init; }
+    /// <summary>The first language choice: follow the game; the languages follow by their own names.</summary>
+    public required string LanguageAuto { get; init; }
     public required string RadarFrame { get; init; }
     public required IReadOnlyList<string> RadarFrameChoices { get; init; }
     public required string SpeechEnabled { get; init; }
@@ -58,12 +59,12 @@ public sealed record SettingsStrings
 
     public static readonly SettingsStrings Spanish = new()
     {
-        AppName = "Diablo IV Dungeon Assist",
+        AppName = "Diablo 4 Assist",
         MenuSettings = "Configuración...",
         MenuRestart = "Reiniciar asistente",
         MenuExit = "Salir",
-        AlreadyRunning = "Diablo IV Dungeon Assist ya está en marcha. Está en la bandeja del sistema; Control+Alt+Shift+C abre su configuración.",
-        WindowTitle = "Configuración de Diablo IV Dungeon Assist",
+        AlreadyRunning = "Diablo 4 Assist ya está en marcha. Está en la bandeja del sistema; Control+Alt+Shift+C abre su configuración.",
+        WindowTitle = "Configuración de Diablo 4 Assist",
         Ok = "Aceptar",
         Cancel = "Cancelar",
         Apply = "Aplicar",
@@ -124,7 +125,7 @@ public sealed record SettingsStrings
         GeneralBox = "Opciones (se aplican al reiniciar el asistente)",
         PausesBox = "Silenciar los sonidos (se aplica al reiniciar el asistente)",
         Language = "Idioma",
-        LanguageChoices = ["Automático, el del juego", "Español", "Inglés"],
+        LanguageAuto = "Automático, el del juego",
         RadarFrame = "Orientación del radar",
         RadarFrameChoices = ["Cardinal: arriba, derecha, abajo e izquierda del stick", "Diagonal: los ejes del juego"],
         SpeechEnabled = "Voz por el lector de pantalla",
@@ -144,12 +145,12 @@ public sealed record SettingsStrings
 
     public static readonly SettingsStrings English = new()
     {
-        AppName = "Diablo IV Dungeon Assist",
+        AppName = "Diablo 4 Assist",
         MenuSettings = "Settings...",
         MenuRestart = "Restart assistant",
         MenuExit = "Exit",
-        AlreadyRunning = "Diablo IV Dungeon Assist is already running. It is in the notification area; Control+Alt+Shift+C opens its settings.",
-        WindowTitle = "Diablo IV Dungeon Assist settings",
+        AlreadyRunning = "Diablo 4 Assist is already running. It is in the notification area; Control+Alt+Shift+C opens its settings.",
+        WindowTitle = "Diablo 4 Assist settings",
         Ok = "OK",
         Cancel = "Cancel",
         Apply = "Apply",
@@ -210,7 +211,7 @@ public sealed record SettingsStrings
         GeneralBox = "Options (take effect when the assistant restarts)",
         PausesBox = "Silence the sounds (takes effect when the assistant restarts)",
         Language = "Language",
-        LanguageChoices = ["Automatic, the game's", "Spanish", "English"],
+        LanguageAuto = "Automatic, the game's",
         RadarFrame = "Radar orientation",
         RadarFrameChoices = ["Cardinal: the stick's up, right, down and left", "Diagonal: the game's axes"],
         SpeechEnabled = "Speech through the screen reader",
@@ -228,5 +229,20 @@ public sealed record SettingsStrings
         PauseInMenus = "In game menus",
     };
 
-    public static SettingsStrings For(SpeechLanguage language) => language == SpeechLanguage.English ? English : Spanish;
+    public static SettingsStrings For(SpeechLanguage language) => language switch
+    {
+        SpeechLanguage.English => English,
+        SpeechLanguage.French => French,
+        SpeechLanguage.German => German,
+        SpeechLanguage.Italian => Italian,
+        SpeechLanguage.Polish => Polish,
+        SpeechLanguage.Portuguese => Portuguese,
+        SpeechLanguage.Russian => Russian,
+        SpeechLanguage.Turkish => Turkish,
+        SpeechLanguage.Japanese => Japanese,
+        SpeechLanguage.Korean => Korean,
+        SpeechLanguage.ChineseSimplified => ChineseSimplified,
+        SpeechLanguage.ChineseTraditional => ChineseTraditional,
+        _ => Spanish,
+    };
 }

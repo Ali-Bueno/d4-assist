@@ -117,7 +117,7 @@ public sealed class SoundConfigTests : IDisposable
         copy.BeaconActorNames[0] = "Y";
 
         Assert.Equal(70, original.Sound.Cue(SoundCue.Chest).Volume);
-        Assert.Equal(100, original.Sound.MasterVolume);
+        Assert.Equal(SoundSettings.DefaultMasterVolume, original.Sound.MasterVolume);
         Assert.Equal(["X"], original.BeaconActorNames);
     }
 

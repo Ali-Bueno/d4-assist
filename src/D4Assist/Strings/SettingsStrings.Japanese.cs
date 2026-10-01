@@ -1,0 +1,93 @@
+using D4Assist.Config;
+
+namespace D4Assist.Strings;
+
+public sealed partial record SettingsStrings
+{
+    /// <summary>Japanese (jaJP).</summary>
+    public static readonly SettingsStrings Japanese = new()
+    {
+        AppName = "Diablo 4 Assist",
+        MenuSettings = "設定...",
+        MenuRestart = "アシスタントを再起動",
+        MenuExit = "終了",
+        AlreadyRunning = "Diablo 4 Assistはすでに実行中です。通知領域にあります。Ctrl+Alt+Shift+Cで設定を開きます。",
+        WindowTitle = "Diablo 4 Assist の設定",
+        Ok = "OK",
+        Cancel = "キャンセル",
+        Apply = "適用",
+        Defaults = "既定値に戻す",
+        RestartQuestion = "全般タブの変更は、アシスタントの再起動後に反映されます。今すぐ再起動しますか？",
+        SaveFailedFormat = "設定を保存できませんでした：{0}",
+
+        SoundTab = "サウンド",
+        MasterVolume = "マスター音量",
+        Preview = "音量や速度を変更するときに音を試聴する",
+        VolumeColumn = "音量",
+        SpeedColumn = "速度",
+        SpeedDescription = "パーセント：100が通常の速度、200で2倍、50で半分です。",
+        GroupEnabledFormat = "{0}：サウンドオン",
+        GroupVolumeFormat = "{0}：全体の音量",
+        GroupSpeedFormat = "{0}：全体の速度",
+        CueVolumeFormat = "{0}：音量",
+        CueSpeedFormat = "{0}：速度",
+        RadarDirections = "レーダーの方向",
+        GuideAndCharactersTab = "ガイドとキャラクター",
+        Groups = new Dictionary<SoundGroup, string>
+        {
+            [SoundGroup.Radar] = "レーダー",
+            [SoundGroup.Objects] = "オブジェクト",
+            [SoundGroup.Quest] = "クエストとポータル",
+            [SoundGroup.Guide] = "ガイド",
+            [SoundGroup.Characters] = "キャラクター",
+        },
+        Cues = new Dictionary<SoundCue, string>
+        {
+            [SoundCue.RadarExit] = "出口",
+            [SoundCue.RadarOpen] = "通れる床",
+            [SoundCue.RadarWall] = "壁",
+            [SoundCue.RadarDoor] = "閉じたドア",
+            [SoundCue.RadarFront] = "前",
+            [SoundCue.RadarRight] = "右",
+            [SoundCue.RadarBack] = "後ろ",
+            [SoundCue.RadarLeft] = "左",
+            [SoundCue.Door] = "ドア",
+            [SoundCue.Chest] = "宝箱",
+            [SoundCue.Corpse] = "死体",
+            [SoundCue.Readable] = "メモと本",
+            [SoundCue.PointOfInterest] = "見る場所",
+            [SoundCue.Portal] = "ポータル",
+            [SoundCue.QuestObjective] = "クエストの目的",
+            [SoundCue.Prisoner] = "囚人",
+            [SoundCue.Enticement] = "アンダーシティの霊の火鉢",
+            [SoundCue.SafeZone] = "ボス戦の防護バリア",
+            [SoundCue.StolenSkill] = "メフィストに奪われたスキルのオーブ",
+            [SoundCue.AkaratLight] = "憎悪の先触れと戦うときのアカラットの光",
+            [SoundCue.WardBreaker] = "ホラドリムの守護者と戦うときの印章の器",
+            [SoundCue.GuidePing] = "ガイドの合図音",
+            [SoundCue.GuideArrival] = "到着",
+            [SoundCue.Npc] = "話しかけるキャラクター",
+        },
+
+        GeneralTab = "全般",
+        GeneralBox = "オプション（アシスタントの再起動後に反映）",
+        PausesBox = "サウンドを消す（アシスタントの再起動後に反映）",
+        Language = "言語",
+        LanguageAuto = "自動、ゲームの言語",
+        RadarFrame = "レーダーの向き",
+        RadarFrameChoices = ["十字：スティックの上、右、下、左", "斜め：ゲームの軸"],
+        SpeechEnabled = "スクリーンリーダーで読み上げる",
+        AutoAnnouncements = "部屋とダンジョンを自動で案内する",
+        InterruptOnContextChange = "ダンジョンに入るとき、出るときに読み上げを中断する",
+        RadarClosedDoors = "レーダーに閉じたドアを表示する",
+        LiveBarriers = "レーダーとガイドにダンジョンの障壁を反映する",
+        ExplorationGuide = "探索ガイド（十字キーの左でオンとオフを切り替え）",
+        ExplorationGuideInDungeons = "通常のダンジョンに入るときガイドをオンにする（アンダーシティとピットでは常にオンで始まります）",
+        QuestRoutes = "クエストルート（砂嵐の避難所）",
+        OutsideDungeons = "ダンジョンの外でも動作する",
+        PauseInCutscenes = "ムービー中",
+        PauseInBackground = "ゲームが前面にないとき",
+        PauseInConversations = "会話中",
+        PauseInMenus = "ゲームのメニュー中",
+    };
+}

@@ -1,6 +1,6 @@
-# STATUS — Diablo IV Dungeon Assist
+# STATUS — Diablo 4 Assist
 
-**Last updated:** 2026-10-01 (afternoon) — dungeon barriers and kill targets (live, Maulwood: the guide led the player behind a bone wall the sentinel holds): `*barrierWall*` walls block the guide's routes (tiles split into regions) and the radar while they stand, remembered while out of the client's range; DPO-named monsters are kill targets with the quest loop. Structure layout check (`LayoutDiscovery`): RActor/ACD fields verified live as known, and found back from shifted guesses (`D4MemScan layout`). Morning: release prep 0.1.0, self-check, G in either image copy (see git log).
+**Last updated:** 2026-10-01 (evening) — renamed **Diablo 4 Assist** (more than dungeons); speech and settings in the game's 13 text languages (`Navigation.SpeechLanguages`, one file per language; non-es/en machine-translated, review terms listed in git log); defaults master 50 % and the scroll loop 50 % (user); the build no longer copies d4assist.json over a saved one (it wiped the user's settings once). Public releases repo `Ali-Bueno/d4-assist`, source repo renamed `d4-assist-source`. Afternoon: barriers, kill targets, layout check.
 
 ## Identity
 
@@ -56,6 +56,7 @@
 | Kill targets | wip | Monsters the world's DPO names (`ObjectiveReason.KillTarget`: unique elites, `DRLG_Structure_*`) loop the quest sound and become guide objectives once heard; other monsters stay silent. Not phase-aware (a later phase's target can sound early). **Not live-tested** |
 | Tester log | done | Everything the console prints goes to `d4assist-log.txt` next to the exe (previous run kept as `.old`) |
 | Adapter + Speech (`Speak("test")` via PRISM) | done | Prismatoid 0.3.0, backend NVDA; `src/D4Assist` companion app |
+| Localization | done | 13 languages (es, en, fr, de, it, pl, pt-BR, ru, tr, ja, ko, zh-CN, zh-TW) following the game's text locale or forced in settings: `AppStrings.<Lang>.cs`, `SettingsStrings.<Lang>.cs`, `NavigationPhrases.<Lang>.cs` (CJK punctuation via `ExitsFormat`/`ListSeparator`). Only es/en written by hand; the rest need native review (Undercity, Pit, boss names) |
 
 ## Derived facts
 
@@ -101,7 +102,7 @@
 1. **"Used" signal — found for chest gizmos (RActor `+0x148 != 0`), still to confirm on a door and a lever. Prisoners: the user hears them fall silent when freed (2026-10-01, act 1); which signal does it is not logged.** Earlier note: Next time the user stands at a prisoner/lever/barrier: `D4MemScan actors --defs data/definitions.json --watch 20 --match <name>` while they use it, then plug the finding into `ActorLoopBridge`'s `isUsed` seam. Live case: the Yshari Sanctum boss barrier (`DRLG_Blocker_Mage_Halls_…`, DPO) kept sounding ~10 s after the key opened it, until the game removed it. The user rejected a proximity or button-press stand-in.
 2. Exploration guide: live-test the objective lead in a normal dungeon with `--debug` (switch it on mid-dungeon, hear the goal; read `OBJECTIVE seen|done|reached` and `GUIDE target Objective`); detect barriers ("Paso bloqueado." / "Path blocked."). Not live-tested yet: the doorway-peek + commitment fix and the Undercity exit re-check (2026-09-29, `X1_Undercity_Ziggurat_02`: closed 14-tile map, no pad at any of its 3 candidate spots). `--debug` now logs `ACTOR seen` for gizmos/portals: read it the next time an exit is missing.
 3. Sound examples on Ctrl+Alt+Shift+1..8 (for the user's video), not yet tried by the user.
-4. Portable build for testers: `dotnet publish src/D4Assist -p:PublishProfile=Portable` → `artifacts/D4DungeonAssist/` (single-file exe with the sounds and `definitions.json` embedded, + config and `LEEME.txt`; root README). Test build 7 (tray + settings window) zipped to the user's desktop 2026-09-30 (`D4DungeonAssist.zip`, replaces the earlier one). Keep `src/D4Assist/Portable/LEEME.txt` in step with new features.
+4. Portable build for testers: `dotnet publish src/D4Assist -p:PublishProfile=Portable` → `artifacts/D4Assist/` (single-file exe with the sounds and `definitions.json` embedded, + config and `LEEME.txt`; root README). Test build 7 (tray + settings window) zipped to the user's desktop 2026-09-30 (`D4DungeonAssist.zip`, replaces the earlier one). Keep `src/D4Assist/Portable/LEEME.txt` in step with new features.
 
 ## User and decisions
 
@@ -114,7 +115,7 @@
 - **Radar-only worlds:** built 2026-09-28 for the Mercenary den (video). 2026-09-30: the user asked for the radar in the Darkened Way; every story area (non-DRLG world but the open world) now gets it automatically. **Open world: no radar** (user 2026-09-30: Blizzard's own navigation assist works well there; enable it only if that stops working).
 - **Features (2026-09-28):** first = automatic spoken announcements (junctions, dead ends, big rooms) in stick directions, then the radar. Language: C# (.NET 10).
 - **Live sessions (2026-09-29):** after each new feature, stop the running app, rebuild and relaunch it with `--debug` without asking.
-- **Repository:** private GitHub `Ali-Bueno/d4-dungeon-assist`. Never make it public without asking (it reads game memory).
+- **Repository:** private GitHub `Ali-Bueno/d4-assist-source` (renamed from `d4-dungeon-assist` 2026-10-01). Never make it public without asking (it reads game memory). Builds are published as releases of the public `Ali-Bueno/d4-assist`, whose README is `release/README.md` here (2026-10-01, user).
 - **Project knowledge lives in this repo only** (this file, `research/`, READMEs), never in assistant memory.
 
 ## Known issues / open questions

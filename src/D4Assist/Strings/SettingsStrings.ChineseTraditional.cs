@@ -1,0 +1,93 @@
+using D4Assist.Config;
+
+namespace D4Assist.Strings;
+
+public sealed partial record SettingsStrings
+{
+    /// <summary>ChineseTraditional (zhTW).</summary>
+    public static readonly SettingsStrings ChineseTraditional = new()
+    {
+        AppName = "Diablo 4 Assist",
+        MenuSettings = "設定...",
+        MenuRestart = "重新啟動助手",
+        MenuExit = "結束",
+        AlreadyRunning = "Diablo 4 Assist 已在執行。它位於通知區域；按 Ctrl+Alt+Shift+C 可開啟其設定。",
+        WindowTitle = "Diablo 4 Assist 設定",
+        Ok = "確定",
+        Cancel = "取消",
+        Apply = "套用",
+        Defaults = "還原預設值",
+        RestartQuestion = "一般索引標籤中的變更將在助手重新啟動後生效。現在重新啟動嗎？",
+        SaveFailedFormat = "無法儲存設定：{0}",
+
+        SoundTab = "聲音",
+        MasterVolume = "主音量",
+        Preview = "變更音量或速度時試聽聲音",
+        VolumeColumn = "音量",
+        SpeedColumn = "速度",
+        SpeedDescription = "百分比：100 為正常速度，200 為兩倍速，50 為一半速度。",
+        GroupEnabledFormat = "{0}：聲音開啟",
+        GroupVolumeFormat = "{0}：總音量",
+        GroupSpeedFormat = "{0}：總速度",
+        CueVolumeFormat = "{0}：音量",
+        CueSpeedFormat = "{0}：速度",
+        RadarDirections = "雷達方向",
+        GuideAndCharactersTab = "導引和角色",
+        Groups = new Dictionary<SoundGroup, string>
+        {
+            [SoundGroup.Radar] = "雷達",
+            [SoundGroup.Objects] = "物件",
+            [SoundGroup.Quest] = "任務和傳送門",
+            [SoundGroup.Guide] = "導引",
+            [SoundGroup.Characters] = "角色",
+        },
+        Cues = new Dictionary<SoundCue, string>
+        {
+            [SoundCue.RadarExit] = "出口",
+            [SoundCue.RadarOpen] = "可通行地面",
+            [SoundCue.RadarWall] = "牆壁",
+            [SoundCue.RadarDoor] = "關閉的門",
+            [SoundCue.RadarFront] = "前方",
+            [SoundCue.RadarRight] = "右方",
+            [SoundCue.RadarBack] = "後方",
+            [SoundCue.RadarLeft] = "左方",
+            [SoundCue.Door] = "門",
+            [SoundCue.Chest] = "寶箱",
+            [SoundCue.Corpse] = "屍體",
+            [SoundCue.Readable] = "文字和書籍",
+            [SoundCue.PointOfInterest] = "可查看的地點",
+            [SoundCue.Portal] = "傳送門",
+            [SoundCue.QuestObjective] = "任務目標",
+            [SoundCue.Prisoner] = "囚犯",
+            [SoundCue.Enticement] = "地下城市的靈魂火盆",
+            [SoundCue.SafeZone] = "首領戰中的防護屏障",
+            [SoundCue.StolenSkill] = "墨菲斯托偷走的技能法球",
+            [SoundCue.AkaratLight] = "對抗憎恨先驅時的阿卡拉特之光",
+            [SoundCue.WardBreaker] = "對抗赫拉迪克守護者時的印記容器",
+            [SoundCue.GuidePing] = "導引提示音",
+            [SoundCue.GuideArrival] = "抵達",
+            [SoundCue.Npc] = "可對話的角色",
+        },
+
+        GeneralTab = "一般",
+        GeneralBox = "選項（助手重新啟動後生效）",
+        PausesBox = "靜音（助手重新啟動後生效）",
+        Language = "語言",
+        LanguageAuto = "自動，與遊戲相同",
+        RadarFrame = "雷達方向基準",
+        RadarFrameChoices = ["十字：搖桿的上、右、下、左", "斜向：遊戲的座標軸"],
+        SpeechEnabled = "透過螢幕報讀程式朗讀",
+        AutoAnnouncements = "自動播報房間和地城",
+        InterruptOnContextChange = "進入或離開地城時中斷朗讀",
+        RadarClosedDoors = "在雷達中顯示關閉的門",
+        LiveBarriers = "在雷達和導引中反映地城屏障",
+        ExplorationGuide = "探索導引（方向鍵左鍵開啟或關閉）",
+        ExplorationGuideInDungeons = "進入一般地城時開啟導引（在地下城市和深坑中一律預設開啟）",
+        QuestRoutes = "任務路線（沙暴避難所）",
+        OutsideDungeons = "在地城之外也運作",
+        PauseInCutscenes = "過場動畫中",
+        PauseInBackground = "遊戲不在前景時",
+        PauseInConversations = "對話中",
+        PauseInMenus = "遊戲選單中",
+    };
+}

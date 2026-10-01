@@ -13,8 +13,6 @@ public sealed class AppConfig
 {
     public const string FileName = "d4assist.json";
     public const string AutoLanguage = "auto";
-    private const string SpanishCode = "es";
-    private const string EnglishCode = "en";
 
 
     /// <summary>Empty = find the Diablo IV install through Battle.net (SnoStore.TryLocateInstall).</summary>
@@ -130,11 +128,8 @@ public sealed class AppConfig
     private string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
 
     /// <summary>The language forced by <see cref="Language"/>, or null for "auto".</summary>
-    public SpeechLanguage? ForcedLanguage() => Language.Trim().ToLowerInvariant() switch
-    {
-        AutoLanguage => null,
-        SpanishCode => SpeechLanguage.Spanish,
-        EnglishCode => SpeechLanguage.English,
-        _ => throw new InvalidDataException($"Language must be \"{AutoLanguage}\", \"{SpanishCode}\" or \"{EnglishCode}\", not \"{Language}\"."),
-    };
+    public SpeechLanguage? ForcedLanguage() =>
+        string.Equals(Language.Trim(), AutoLanguage, StringComparison.OrdinalIgnoreCase) ? null
+        : SpeechLanguages.FromCode(Language) ?? throw new InvalidDataException(
+            $"Language must be \"{AutoLanguage}\" or one of {string.Join(", ", SpeechLanguages.Supported.Select(SpeechLanguages.Code))}, not \"{Language}\".");
 }

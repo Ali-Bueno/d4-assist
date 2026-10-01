@@ -1,6 +1,6 @@
 # D4Assist
 
-The Diablo IV Dungeon Assist companion app: a standalone, read-only .NET app, living in the notification area, that speaks dungeon
+The Diablo 4 Assist companion app: a standalone, read-only .NET app, living in the notification area, that speaks dungeon
 entry/exit and (once wired up further) tile/position state through a screen reader while you play. It never
 injects into or writes to the game process — see `src/D4Memory`'s safety policy, which this app reuses as-is.
 
@@ -17,8 +17,8 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   - polls tiles every 1000 ms via the static scene route (`D4Memory.SceneRoute`), falling back to one full
     CScene heap scan per dungeon entry (background thread) when the route is unavailable for the installed
     build, with further rescans only on demand (`GameSession.RescanTiles`).
-- Speaks "Asistente de mazmorras activo" at startup and dungeon-enter/leave announcements through PRISM, in
-  the game's language (`Strings/AppStrings`, Spanish or English; see `Language` below). The NVDA voice itself is your choice.
+- Speaks "Diablo 4 Assist activo" at startup and dungeon-enter/leave announcements through PRISM, in
+  the game's language (`Strings/AppStrings`, one file per language; see `Language` below). The NVDA voice itself is your choice.
 - `--debug` logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
   swaps PRISM for a console sink so you can run it without a screen reader.
 - Everything printed also goes to `d4assist-log.txt` next to the exe, timestamped (`Logging/LogFile`; the previous
@@ -73,7 +73,7 @@ error. No key needs a machine-specific path.
 | `DefinitionsPath` | *(empty: the copy embedded in the exe)* | d4data `definitions.json`. The build embeds `data/definitions.json` in the exe when it exists; set a path only to use another file (relative paths resolve against the exe's folder). |
 | `SpeechEnabled` | `true` | `false` behaves like `--no-speech` (console sink instead of PRISM). |
 | `AutoAnnouncementsEnabled` | `true` | Speak the dungeon enter/leave lines automatically. |
-| `Language` | `"auto"` | `"auto"` follows the game's text locale (`Current Text Locale` in FenrisDebug.txt: `es*` = Spanish, anything else = English; Spanish until a locale is seen); `"es"` / `"en"` force one. Anything else is a startup error. `--debug` logs the choice and changes. |
+| `Language` | `"auto"` | `"auto"` follows the game's text locale (Battle.net's `Launcher.db`, then `Current Text Locale` in FenrisDebug.txt, mapped by `Navigation.SpeechLanguages`: esES/esMX Spanish, frFR French… 13 languages, English for an unknown locale); a code forces one: `es`, `en`, `fr`, `de`, `it`, `pl`, `pt`, `ru`, `tr`, `ja`, `ko`, `zh-cn`, `zh-tw`. Anything else is a startup error. `--debug` logs the choice and changes. |
 | `InterruptOnContextChange` | `true` | `interrupt=true` on those announcements (CLAUDE.md §9: interrupt only on context change). |
 | `RadarFrame` | `"Cardinal"` | `"Cardinal"` (stick up/right/down/left) or `"Diagonal"` (along the dungeon's axes). |
 | `ExplorationGuideEnabled` | `true` | Automatic ping that leads to the nearest unexplored part of the dungeon (see Exploration guide). |
@@ -95,7 +95,7 @@ Files from before 2026-09-30 carry flat sound fields (`RadarEnabled`, `RadarVolu
 
 The app has no console window: it puts an icon ("D4") in the notification area (`Ui/TrayApp`, its own STA thread). Enter,
 a click or the context-menu key on the icon opens its menu: **Settings…**, **Restart assistant**, **Exit** (speaks
-"Asistente de mazmorras cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere. A second copy refuses to start
+"Diablo 4 Assist cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere. A second copy refuses to start
 (`SingleInstance`, a session mutex) and says where the running one is; a restart starts a new copy with `--restarted`, which
 waits for the old one to exit. Startup errors (no install, bad `d4assist.json`) show a message box as well as the log.
 

@@ -3,7 +3,7 @@ using D4Assist.Game;
 namespace D4Assist.Strings;
 
 /// <summary>Every app-level spoken string for one language (CLAUDE.md §9/§10); add a phrase once per language instance.</summary>
-public sealed record AppStrings(
+public sealed partial record AppStrings(
     string AssistantActive, string WaitingForGame, string EnteringDungeon, string LeavingDungeon,
     string GuideOn, string GuideOff, string EnteringWorldFormat, IReadOnlyList<string> SoundExamples,
     string ShelterGuide, string ShelterReachedFormat, string GuideToPortal, string GuideToUsedPortal,
@@ -11,12 +11,12 @@ public sealed record AppStrings(
     IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped)
 {
     public static readonly AppStrings Spanish = new(
-        "Asistente de mazmorras activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
+        "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
         "Guía activada.", "Guía desactivada.", "Entrando en {0}",
         ["Salida", "Paso abierto", "Pared", "Puerta", "Salida sin explorar", "Sonido de misión", "Pitido de la guía", "Llegada"],
         "Guía de refugios.", "Refugio {0} de {1}.",
         "Todo explorado. Te llevo a un portal.", "Todo explorado. Te llevo al portal por el que llegaste.",
-        "Asistente de mazmorras cerrado", "Reiniciando el asistente",
+        "Diablo 4 Assist cerrado", "Reiniciando el asistente",
         "Mefisto te ha quitado las habilidades. Recoge los orbes.", "Habilidades recuperadas.",
         new Dictionary<ReadCheck, string>
         {
@@ -31,12 +31,12 @@ public sealed record AppStrings(
         "El asistente se ha detenido por un error. Manda el registro.");
 
     public static readonly AppStrings English = new(
-        "Dungeon assistant active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
+        "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
         "Guide on.", "Guide off.", "Entering {0}",
         ["Exit", "Open floor", "Wall", "Door", "Unexplored exit", "Quest sound", "Guide ping", "Arrival"],
         "Shelter guide.", "Shelter {0} of {1}.",
         "All explored. Leading to a portal.", "All explored. Leading back to the portal you came through.",
-        "Dungeon assistant closed", "Restarting the assistant",
+        "Diablo 4 Assist closed", "Restarting the assistant",
         "Mephisto took your skills. Pick up the orbs.", "Skills recovered.",
         new Dictionary<ReadCheck, string>
         {
@@ -50,7 +50,22 @@ public sealed record AppStrings(
         "Warning: {0}. Diablo IV may have been updated. Please send the log.",
         "The assistant stopped because of an error. Please send the log.");
 
-    public static AppStrings For(Navigation.SpeechLanguage language) => language == Navigation.SpeechLanguage.English ? English : Spanish;
+    public static AppStrings For(Navigation.SpeechLanguage language) => language switch
+    {
+        Navigation.SpeechLanguage.English => English,
+        Navigation.SpeechLanguage.French => French,
+        Navigation.SpeechLanguage.German => German,
+        Navigation.SpeechLanguage.Italian => Italian,
+        Navigation.SpeechLanguage.Polish => Polish,
+        Navigation.SpeechLanguage.Portuguese => Portuguese,
+        Navigation.SpeechLanguage.Russian => Russian,
+        Navigation.SpeechLanguage.Turkish => Turkish,
+        Navigation.SpeechLanguage.Japanese => Japanese,
+        Navigation.SpeechLanguage.Korean => Korean,
+        Navigation.SpeechLanguage.ChineseSimplified => ChineseSimplified,
+        Navigation.SpeechLanguage.ChineseTraditional => ChineseTraditional,
+        _ => Spanish,
+    };
 
     public string EnteredWorld(string worldName) => string.Format(EnteringWorldFormat, worldName);
 

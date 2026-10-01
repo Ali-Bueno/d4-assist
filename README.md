@@ -1,9 +1,9 @@
-# Diablo IV Dungeon Assist
+# Diablo 4 Assist
 
 An external companion app that makes Diablo IV's procedural dungeons navigable for blind players. It runs
 next to the game (controller + NVDA through D4's third-party screen-reader option) and adds:
 
-- **Spoken room announcements** through PRISM, in Spanish or English following the game's text language:
+- **Spoken room announcements** through PRISM, in the game's text language (13 languages, `Navigation.SpeechLanguages`):
   junctions, dead ends, big rooms and the dungeon entrance, with their exits as controller-stick directions
   ("Cruce. Salidas: arriba, derecha sin explorar." / "Junction. Exits: up, right unexplored.").
 - **A reactive audio radar**, a port of the author's Diablo II Resurrected radar: four screen directions,
@@ -68,7 +68,7 @@ Portable build for testers (no .NET install needed):
 dotnet publish src/D4Assist -p:PublishProfile=Portable
 ```
 
-It lands in `artifacts/D4DungeonAssist/` (git-ignored) with three files: a single self-contained `D4Assist.exe`
+It lands in `artifacts/D4Assist/` (git-ignored) with three files: a single self-contained `D4Assist.exe`
 (the .NET runtime, every assembly with embedded symbols, and `prism.dll`, which is extracted to
 `%TEMP%\.net\D4Assist\` on first run), `d4assist.json` and the Spanish `LEEME.txt` (`src/D4Assist/Portable/`).
 The sounds and `definitions.json` are embedded in the exe too. `tolk.dll` is left out. Zip that folder for testers.

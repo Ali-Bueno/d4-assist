@@ -1,10 +1,10 @@
-D4 Dungeon Assist 0.1.0 - primera versión (octubre de 2026)
-============================================================
+Diablo 4 Assist 0.1.0 - primera versión (octubre de 2026)
+==========================================================
 
-Programa de accesibilidad para jugar las mazmorras de Diablo IV sin ver la
-pantalla. Funciona al lado del juego: no modifica el juego ni sus archivos.
-Habla a través de tu lector de pantalla (NVDA o JAWS) y añade sonidos de
-orientación.
+Programa de accesibilidad para jugar a Diablo IV sin ver la pantalla:
+mazmorras, misiones, combates contra jefes y personajes. Funciona al lado del
+juego: no modifica el juego ni sus archivos. Habla a través de tu lector de
+pantalla (NVDA o JAWS) y añade sonidos de orientación.
 
 Probado de principio a fin en el acto 1 de la campaña, en Undercity y en el
 Foso. En los demás actos y en la expansión puede haber objetos de misión o
@@ -14,6 +14,11 @@ registro (ver "Si algo no funciona").
 
 Cambios desde la versión de prueba 7
 ------------------------------------
+- Nuevo nombre: Diablo 4 Assist (antes D4 Dungeon Assist), porque ya no
+  ayuda solo en las mazmorras.
+- Habla en los 13 idiomas del juego, siguiendo el idioma de texto de Diablo IV.
+- Volumen de partida más bajo: el volumen general viene al 50 % y el sonido
+  de pergamino (libros, notas y carteles) a la mitad.
 - Avisos: si el programa no puede leer algo del juego (por ejemplo tras una
   actualización), lo dice una vez con lo que deja de funcionar, en vez de
   quedarse callado. Ver "Avisos del asistente".
@@ -77,8 +82,8 @@ Los sonidos y los datos del programa van dentro de D4Assist.exe.
 Cómo usarlo
 -----------
 1. Descomprime la carpeta donde quieras.
-2. Abre D4Assist.exe, antes o después de abrir el juego. Dirá "Asistente de
-   mazmorras activo". No abre ninguna ventana: se queda en la bandeja del
+2. Abre D4Assist.exe, antes o después de abrir el juego. Dirá "Diablo 4
+   Assist activo". No abre ninguna ventana: se queda en la bandeja del
    sistema (ver "Bandeja del sistema"). Si ya estaba abierto, un mensaje lo
    avisa y no se abre otra copia.
 3. Juega normal. En las mazmorras (normales, de campaña, de expansión y de
@@ -88,10 +93,13 @@ Cómo usarlo
    mundo abierto solo suenan los objetivos cercanos y la guía de refugios (ver
    abajo): allí ya ayuda la navegación asistida del juego.
 4. Para cerrarlo, elige "Salir" en su menú de la bandeja del sistema. Dirá
-   "Asistente de mazmorras cerrado".
+   "Diablo 4 Assist cerrado".
 
-Habla en el idioma de texto del juego: en español si el juego está en español
-(de España o latino) y en inglés con cualquier otro idioma.
+Habla en el idioma de texto del juego, en cualquiera de los suyos: español
+(de España o latino), inglés, francés, alemán, italiano, polaco, portugués de
+Brasil, ruso, turco, japonés, coreano y chino simplificado o tradicional. Tu
+lector de pantalla necesita una voz de ese idioma. En la configuración se
+puede fijar otro.
 
 
 Qué hace
@@ -232,7 +240,7 @@ Bandeja del sistema
 El programa pone un icono en la bandeja del sistema, junto al reloj. Con el
 teclado: Windows+B lleva a la bandeja; si el icono no está a la vista, está
 dentro de "Mostrar iconos ocultos" (Intro para abrirlo). El icono se llama
-"Diablo IV Dungeon Assist". Intro o la tecla de menú contextual sobre él
+"Diablo 4 Assist". Intro o la tecla de menú contextual sobre él
 abren su menú:
 - Configuración...: abre la ventana de configuración.
 - Reiniciar asistente: lo cierra y lo vuelve a abrir (dice "Reiniciando el
@@ -306,5 +314,8 @@ Si algo no funciona
 Cada vez que abres el programa escribe lo que pasa en d4assist-log.txt, en esta
 misma carpeta (el de la vez anterior queda como d4assist-log.old.txt). Si no
 suena nada o algo falla, cierra el programa (Salir, en la bandeja del sistema)
-y manda los dos archivos a quien te pasó el programa. No hace falta abrirlo con
-ninguna opción especial. El registro dice qué versión del programa usas.
+y manda los dos archivos: abre una incidencia (issue) en
+https://github.com/Ali-Bueno/d4-assist/issues contando dónde estabas en el
+juego y adjúntalos, o mándalos a quien te pasó el programa. No hace falta
+abrirlo con ninguna opción especial. El registro dice qué versión del programa
+usas.

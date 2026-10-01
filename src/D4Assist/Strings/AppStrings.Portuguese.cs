@@ -1,0 +1,36 @@
+using D4Assist.Game;
+
+namespace D4Assist.Strings;
+
+public sealed partial record AppStrings
+{
+    /// <summary>Portuguese (ptBR).</summary>
+    public static readonly AppStrings Portuguese = new(
+        AssistantActive: "Diablo 4 Assist ativo",
+        WaitingForGame: "Aguardando Diablo IV",
+        EnteringDungeon: "Entrando na masmorra",
+        LeavingDungeon: "Saindo da masmorra",
+        GuideOn: "Guia ativado.",
+        GuideOff: "Guia desativado.",
+        EnteringWorldFormat: "Entrando em {0}",
+        SoundExamples: ["Saída", "Passagem aberta", "Parede", "Porta", "Saída inexplorada", "Som de missão", "Sinal do guia", "Chegada"],
+        ShelterGuide: "Guia de abrigos.",
+        ShelterReachedFormat: "Abrigo {0} de {1}.",
+        GuideToPortal: "Tudo explorado. Levando você a um portal.",
+        GuideToUsedPortal: "Tudo explorado. Levando você de volta ao portal por onde chegou.",
+        AssistantClosed: "Diablo 4 Assist fechado",
+        Restarting: "Reiniciando o assistente",
+        SkillsStolen: "Mefisto tirou suas habilidades. Pegue as esferas.",
+        SkillsRecovered: "Habilidades recuperadas.",
+        ReadFailures: new Dictionary<ReadCheck, string>
+        {
+            [ReadCheck.Position] = "não consigo ler a posição do personagem, o assistente não pode funcionar",
+            [ReadCheck.Addresses] = "não encontro os dados desta versão do jogo, sem salas, radar nem sons de objetos",
+            [ReadCheck.Rooms] = "não consigo ler as salas, sem anúncios de salas nem radar",
+            [ReadCheck.Actors] = "não consigo ler os objetos, sem sons de portais, objetivos nem personagens",
+            [ReadCheck.Attributes] = "não consigo ler o estado dos objetos, objetos já usados podem continuar soando e as missões não são acompanhadas",
+            [ReadCheck.Menus] = "não encontro os menus do jogo, os sons não vão pausar neles",
+        },
+        ReadWarningFormat: "Aviso: {0}. O Diablo IV pode ter sido atualizado. Envie o registro.",
+        Stopped: "O assistente parou por causa de um erro. Envie o registro.");
+}

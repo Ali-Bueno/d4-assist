@@ -38,7 +38,7 @@ public sealed class SettingsSessionTests : IDisposable
 
         session.Working.Sound.MasterVolume = 1;
 
-        Assert.Equal(100, saved.Sound.MasterVolume);
+        Assert.Equal(SoundSettings.DefaultMasterVolume, saved.Sound.MasterVolume);
     }
 
     [Fact]

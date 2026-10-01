@@ -1,0 +1,36 @@
+using D4Assist.Game;
+
+namespace D4Assist.Strings;
+
+public sealed partial record AppStrings
+{
+    /// <summary>French (frFR).</summary>
+    public static readonly AppStrings French = new(
+        AssistantActive: "Diablo 4 Assist actif",
+        WaitingForGame: "En attente de Diablo IV",
+        EnteringDungeon: "Entrée dans le donjon",
+        LeavingDungeon: "Sortie du donjon",
+        GuideOn: "Guide activé.",
+        GuideOff: "Guide désactivé.",
+        EnteringWorldFormat: "Entrée : {0}",
+        SoundExamples: ["Sortie", "Passage ouvert", "Mur", "Porte", "Sortie inexplorée", "Son de quête", "Bip du guide", "Arrivée"],
+        ShelterGuide: "Guide des abris.",
+        ShelterReachedFormat: "Abri {0} sur {1}.",
+        GuideToPortal: "Tout est exploré. Je vous mène à un portail.",
+        GuideToUsedPortal: "Tout est exploré. Je vous ramène au portail par lequel vous êtes arrivé.",
+        AssistantClosed: "Diablo 4 Assist fermé",
+        Restarting: "Redémarrage de l'assistant",
+        SkillsStolen: "Méphisto vous a volé vos compétences. Ramassez les orbes.",
+        SkillsRecovered: "Compétences récupérées.",
+        ReadFailures: new Dictionary<ReadCheck, string>
+        {
+            [ReadCheck.Position] = "impossible de lire la position du personnage, l'assistant ne peut pas fonctionner",
+            [ReadCheck.Addresses] = "données de cette version du jeu introuvables, ni salles, ni radar, ni sons d'objets",
+            [ReadCheck.Rooms] = "impossible de lire les salles, ni annonces de salles, ni radar",
+            [ReadCheck.Actors] = "impossible de lire les objets, ni sons de portails, d'objectifs ou de personnages",
+            [ReadCheck.Attributes] = "impossible de lire l'état des objets, des objets déjà utilisés peuvent continuer à sonner et les quêtes ne sont pas suivies",
+            [ReadCheck.Menus] = "menus du jeu introuvables, les sons ne se couperont pas dans les menus",
+        },
+        ReadWarningFormat: "Attention : {0}. Diablo IV a peut-être été mis à jour. Envoyez le journal.",
+        Stopped: "L'assistant s'est arrêté à cause d'une erreur. Envoyez le journal.");
+}

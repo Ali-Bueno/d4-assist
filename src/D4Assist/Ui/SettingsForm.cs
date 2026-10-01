@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using D4Assist.Audio;
 using D4Assist.Config;
+using D4Assist.Navigation;
 using D4Assist.Strings;
 
 namespace D4Assist.Ui;
@@ -16,7 +17,7 @@ public sealed class SettingsForm : Form
     private const int PreviewDelayMs = 150;
     private const int SliderWidth = 220;
     private const int VolumeTicks = 10, SpeedTicks = 25;
-    private static readonly string[] LanguageCodes = [AppConfig.AutoLanguage, "es", "en"];
+    private static readonly string[] LanguageCodes = [AppConfig.AutoLanguage, .. SpeechLanguages.Supported.Select(SpeechLanguages.Code)];
 
     private readonly SettingsSession _session;
     private readonly SettingsStrings _text;
@@ -170,7 +171,7 @@ public sealed class SettingsForm : Form
     private Control GeneralBox()
     {
         var table = Table(2);
-        AddChoice(table, _text.Language, _text.LanguageChoices,
+        AddChoice(table, _text.Language, [_text.LanguageAuto, .. SpeechLanguages.Supported.Select(SpeechLanguages.NativeName)],
             () => Math.Max(0, Array.IndexOf(LanguageCodes, Config.Language.Trim().ToLowerInvariant())), i => Config.Language = LanguageCodes[i]);
         AddChoice(table, _text.RadarFrame, _text.RadarFrameChoices, () => (int)Config.RadarFrame, i => Config.RadarFrame = (RadarFrame)i);
         AddChecks(table,

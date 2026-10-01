@@ -56,7 +56,7 @@ internal static class Program
         }
         using var log = LogFile.Start(AppContext.BaseDirectory);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.Error.WriteLine($"Unhandled error: {e.ExceptionObject}");
-        Console.WriteLine($"D4 Dungeon Assist {AppVersion}");
+        Console.WriteLine($"Diablo 4 Assist {AppVersion}");
 
         bool noSpeech = args.Contains("--no-speech");
         bool debug = args.Contains("--debug");
@@ -272,7 +272,7 @@ internal static class Program
         tray.RestartRequested += () => { restart = true; exit.Set(); };
         tray.Start();
 
-        Console.WriteLine("D4 Dungeon Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings.");
+        Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings.");
         exit.Wait();
         var farewell = AppStrings.For(language.Current);
         speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true);

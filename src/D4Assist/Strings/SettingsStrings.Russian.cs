@@ -1,0 +1,93 @@
+using D4Assist.Config;
+
+namespace D4Assist.Strings;
+
+public sealed partial record SettingsStrings
+{
+    /// <summary>Russian (ruRU).</summary>
+    public static readonly SettingsStrings Russian = new()
+    {
+        AppName = "Diablo 4 Assist",
+        MenuSettings = "Настройки...",
+        MenuRestart = "Перезапустить помощника",
+        MenuExit = "Выход",
+        AlreadyRunning = "Diablo 4 Assist уже запущен. Он находится в области уведомлений; Ctrl+Alt+Shift+C открывает его настройки.",
+        WindowTitle = "Настройки Diablo 4 Assist",
+        Ok = "ОК",
+        Cancel = "Отмена",
+        Apply = "Применить",
+        Defaults = "Восстановить значения по умолчанию",
+        RestartQuestion = "Изменения на вкладке «Общие» вступят в силу после перезапуска помощника. Перезапустить его сейчас?",
+        SaveFailedFormat = "Не удалось сохранить настройки: {0}",
+
+        SoundTab = "Звук",
+        MasterVolume = "Общая громкость",
+        Preview = "Прослушивать звук при изменении громкости или скорости",
+        VolumeColumn = "Громкость",
+        SpeedColumn = "Скорость",
+        SpeedDescription = "Проценты: 100 — обычная скорость, 200 — вдвое быстрее, 50 — вдвое медленнее.",
+        GroupEnabledFormat = "{0}: звуки включены",
+        GroupVolumeFormat = "{0}: общая громкость",
+        GroupSpeedFormat = "{0}: общая скорость",
+        CueVolumeFormat = "{0}: громкость",
+        CueSpeedFormat = "{0}: скорость",
+        RadarDirections = "Направления радара",
+        GuideAndCharactersTab = "Проводник и персонажи",
+        Groups = new Dictionary<SoundGroup, string>
+        {
+            [SoundGroup.Radar] = "Радар",
+            [SoundGroup.Objects] = "Объекты",
+            [SoundGroup.Quest] = "Задание и порталы",
+            [SoundGroup.Guide] = "Проводник",
+            [SoundGroup.Characters] = "Персонажи",
+        },
+        Cues = new Dictionary<SoundCue, string>
+        {
+            [SoundCue.RadarExit] = "Выход",
+            [SoundCue.RadarOpen] = "Проход",
+            [SoundCue.RadarWall] = "Стена",
+            [SoundCue.RadarDoor] = "Закрытая дверь",
+            [SoundCue.RadarFront] = "Впереди",
+            [SoundCue.RadarRight] = "Справа",
+            [SoundCue.RadarBack] = "Сзади",
+            [SoundCue.RadarLeft] = "Слева",
+            [SoundCue.Door] = "Двери",
+            [SoundCue.Chest] = "Сундуки",
+            [SoundCue.Corpse] = "Трупы",
+            [SoundCue.Readable] = "Записки и книги",
+            [SoundCue.PointOfInterest] = "Места для осмотра",
+            [SoundCue.Portal] = "Порталы",
+            [SoundCue.QuestObjective] = "Цели заданий",
+            [SoundCue.Prisoner] = "Пленники",
+            [SoundCue.Enticement] = "Духовные жаровни Подгорода",
+            [SoundCue.SafeZone] = "Защитные барьеры в битвах с боссами",
+            [SoundCue.StolenSkill] = "Сферы умений, украденных Мефисто",
+            [SoundCue.AkaratLight] = "Огни Акарата в битве с Вестником Ненависти",
+            [SoundCue.WardBreaker] = "Сосуды печатей в битве с Хорадримским стражем",
+            [SoundCue.GuidePing] = "Сигнал проводника",
+            [SoundCue.GuideArrival] = "Прибытие",
+            [SoundCue.Npc] = "Персонажи для разговора",
+        },
+
+        GeneralTab = "Общие",
+        GeneralBox = "Параметры (вступают в силу после перезапуска помощника)",
+        PausesBox = "Отключать звуки (вступает в силу после перезапуска помощника)",
+        Language = "Язык",
+        LanguageAuto = "Автоматически, как в игре",
+        RadarFrame = "Ориентация радара",
+        RadarFrameChoices = ["Крестом: вверх, вправо, вниз и влево на стике", "По диагонали: оси игры"],
+        SpeechEnabled = "Озвучивание через программу чтения с экрана",
+        AutoAnnouncements = "Автоматически объявлять комнаты и подземелья",
+        InterruptOnContextChange = "Прерывать речь при входе в подземелье и выходе из него",
+        RadarClosedDoors = "Закрытые двери на радаре",
+        LiveBarriers = "Преграды подземелий на радаре и в проводнике",
+        ExplorationGuide = "Проводник по исследованию (крестовина влево включает и выключает)",
+        ExplorationGuideInDungeons = "Включать проводник при входе в обычные подземелья (в Подгороде и Яме он всегда включён)",
+        QuestRoutes = "Маршруты заданий (укрытия от песчаной бури)",
+        OutsideDungeons = "Работать и вне подземелий",
+        PauseInCutscenes = "В заставках",
+        PauseInBackground = "Когда игра не на переднем плане",
+        PauseInConversations = "В разговорах",
+        PauseInMenus = "В меню игры",
+    };
+}

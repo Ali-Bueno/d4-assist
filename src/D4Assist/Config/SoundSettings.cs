@@ -37,7 +37,10 @@ public sealed class SoundSettings
     private Dictionary<string, CueSetting> _groups = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, CueSetting> _cues = new(StringComparer.OrdinalIgnoreCase);
 
-    public int MasterVolume { get; set; } = CueSetting.MaxVolume;
+    /// <summary>Half the designed level by default: the user's choice over the full level (2026-10-01).</summary>
+    public const int DefaultMasterVolume = 50;
+
+    public int MasterVolume { get; set; } = DefaultMasterVolume;
 
     /// <summary>Play a cue while its volume or speed is being changed in the settings window.</summary>
     public bool Preview { get; set; } = true;
@@ -58,7 +61,10 @@ public sealed class SoundSettings
     public CueSetting Group(SoundGroup group) => Entry(_groups, group.ToString());
 
     /// <summary>The cue's entry, created with the defaults when missing.</summary>
-    public CueSetting Cue(SoundCue cue) => Entry(_cues, cue.ToString());
+    public CueSetting Cue(SoundCue cue) => Entry(_cues, cue.ToString(), DefaultVolume(cue));
+
+    // The scroll loop on books, notes and signs sounds at half its designed level by default (user, 2026-10-01).
+    private static int DefaultVolume(SoundCue cue) => cue == SoundCue.Readable ? CueSetting.MaxVolume / 2 : CueSetting.MaxVolume;
 
     public SoundSettings Clone() => new()
     {
@@ -76,9 +82,9 @@ public sealed class SoundSettings
         return this;
     }
 
-    private static CueSetting Entry(Dictionary<string, CueSetting> entries, string key)
+    private static CueSetting Entry(Dictionary<string, CueSetting> entries, string key, int volume = CueSetting.MaxVolume)
     {
-        if (!entries.TryGetValue(key, out var entry) || entry is null) entries[key] = entry = new CueSetting();
+        if (!entries.TryGetValue(key, out var entry) || entry is null) entries[key] = entry = new CueSetting { Volume = volume };
         return entry;
     }
 }

@@ -6,7 +6,6 @@ namespace D4Assist.Game;
 public static class GameLocale
 {
     private const string TextLocaleMarker = "Current Text Locale: ";
-    private const string SpanishLocalePrefix = "es";
 
     /// <summary>The locale after "Current Text Locale:" (e.g. "enUS"), or null when the line isn't the locale line.</summary>
     public static string? ExtractTextLocale(string line)
@@ -41,7 +40,7 @@ public static class GameLocale
         text.Length == LocaleLength && char.IsAsciiLetterLower(text[0]) && char.IsAsciiLetterLower(text[1])
         && char.IsAsciiLetterUpper(text[2]) && char.IsAsciiLetterUpper(text[3]);
 
-    /// <summary>esES/esMX are Spanish; every other locale is English (only two languages exist).</summary>
-    public static SpeechLanguage ToLanguage(string locale) =>
-        locale.StartsWith(SpanishLocalePrefix, StringComparison.OrdinalIgnoreCase) ? SpeechLanguage.Spanish : SpeechLanguage.English;
+    /// <summary>The speech language of a game locale (SpeechLanguages.FromLocale): esES/esMX Spanish, frFR French...; English
+    /// for a locale the game doesn't have.</summary>
+    public static SpeechLanguage ToLanguage(string locale) => SpeechLanguages.FromLocale(locale);
 }

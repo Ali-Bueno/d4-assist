@@ -15,7 +15,7 @@
   "OutsideDungeonsEnabled": true,
   "QuestRoutesEnabled": true,
   "Sound": {
-    "MasterVolume": 100,
+    "MasterVolume": 50,
     "Preview": true,
     "Groups": {
       "Radar": {
@@ -102,7 +102,7 @@
       },
       "Readable": {
         "Enabled": true,
-        "Volume": 100,
+        "Volume": 50,
         "Speed": 100
       },
       "PointOfInterest": {

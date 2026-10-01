@@ -37,8 +37,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Ships next to the exe so a fresh checkout has a starting config; see Config/AppConfig.cs. -->
-    <None Update="d4assist.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The starting config, in the portable build only: a build must never overwrite the config a player saved (it did
+         on 2026-10-01). Without the file the app starts from the same defaults (Config/AppConfig.cs). -->
+    <None Update="d4assist.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
     <!-- d4data type registry (data/ is not in git: see README "Setup"), embedded in the exe: the default when DefinitionsPath is empty. -->
     <EmbeddedResource Include="..\..\data\definitions.json" LogicalName="definitions.json" Condition="Exists('..\..\data\definitions.json')" />
   </ItemGroup>

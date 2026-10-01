@@ -36,11 +36,17 @@ never writes to the game, injects code or hooks it.
 - **Live data:** the placed tiles, the player position and nearby actors are read from process memory. Tiles
   are read only in dungeons; the position and actors also outside them (`OutsideDungeonsEnabled`), never in
   menus or loading screens.
+- **Game updates:** no memory address is hard-coded. The game object, the attribute table, the pools, the menu
+  screens and the conversation lists are found by their content when the app starts reading; only the structure
+  layout is fixed ([research/client-memory.md](research/client-memory.md) §6).
+- **Self-check:** each memory read reports whether it worked. The log says which reads are fine, and a read that
+  keeps failing (for example after a game update changed a structure) is spoken once with what stopped working, so
+  the player is never left in silence. A crash is spoken too.
 
 ## Requirements
 
-- Windows, the .NET 10 SDK, and Diablo IV installed (build 3.2.1.73552; memory offsets are per build). The
-  install is found through Battle.net.
+- Windows, the .NET 10 SDK, and Diablo IV installed (tested on build 3.2.2.73764). The install is found through
+  Battle.net.
 - A screen reader (NVDA tested), reached through PRISM (Prismatoid NuGet package).
 - `data/definitions.json` from d4data for the same build (not committed); the build embeds it in the exe.
 
@@ -53,7 +59,8 @@ src\D4Assist\bin\Debug\net10.0-windows\win-x64\D4Assist.exe [--debug] [--no-spee
 ```
 
 Configuration lives in `d4assist.json` next to the exe, edited from the settings window; see
-[src/D4Assist/README.md](src/D4Assist/README.md). Output goes to `d4assist-log.txt` next to the exe.
+[src/D4Assist/README.md](src/D4Assist/README.md). Output goes to `d4assist-log.txt` next to the exe; its second
+line is the app version (`<Version>` in `src/D4Assist/D4Assist.csproj`) with the commit it was built from.
 
 Portable build for testers (no .NET install needed):
 

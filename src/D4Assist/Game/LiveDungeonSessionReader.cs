@@ -46,6 +46,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private AcdFlagReader? _flags;
     private bool _flagsMissing;
     private uint? _playerAcdId;
+    private readonly ReadHealth? _health;
 
     // The actors' flags, plus the player's cinematic flag.
     private static readonly string[] AcdNames = [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying];
@@ -54,8 +55,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
         Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers,
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
-        Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests)
+        Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests, ReadHealth? health)
     {
+        _health = health;
         (_conversations, _build, _moduleData) = (conversations, build, moduleData);
         (_worldSno, _worldQuests) = (worldSno, worldQuests);
         _readsFlags = readsFlags;
@@ -70,18 +72,25 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _positionAddress = positionAddress;
     }
 
-    /// <summary>Throws InvalidOperationException with the reason when the process isn't running or can't be read, the
-    /// module can't be located, or no live player record is in this world yet.</summary>
+    /// <summary>Throws InvalidOperationException when the game isn't running, and GameUnreadableException with the reason when
+    /// the process can't be read, the module can't be located, or no live player record is in this world yet.</summary>
     /// <param name="readsFlags">True for an actor SNO whose ACD flags are read (gizmos and NPCs); null reads none.</param>
     /// <param name="questMarkers">The objects each phase of a quest names (QuestScriptMarkerReader.PhaseObjects); null ignores the tracked quest.</param>
     /// <param name="worldQuests">The quests with markers in a world or in the scenes placed in it so far
     /// (QuestScriptMarkerReader.QuestsWithMarkersIn), followed when the player tracks none; null for none.</param>
+    /// <param name="health">Told whether the addresses, rooms, actors, attributes and menus read; null checks nothing.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
         MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
-        ConversationAddresses? conversations = null, Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests = null)
+        ConversationAddresses? conversations = null, Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>>? worldQuests = null,
+        ReadHealth? health = null)
     {
-        var process = ProcessReader.OpenDiabloIv(); // throws InvalidOperationException if not running; caller decides how to react
+        ProcessReader process;
+        using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
+        {
+            try { process = ProcessReader.Open(game.Id); }
+            catch (InvalidOperationException e) { throw new GameUnreadableException(e.Message); }
+        }
         string exePath = Path.Combine(installPath, ExecutableFileName);
         var regions = process.ImageRegions();
         var modules = ModuleLocator.LocateAll(regions, process, exePath);
@@ -89,7 +98,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (modules.Count == 0)
         {
             process.Dispose();
-            throw new InvalidOperationException($"game module not found in the process (installed exe build 0x{build:X8}).");
+            throw new GameUnreadableException($"game module not found in the process (installed exe build 0x{build:X8}).");
         }
 
         PlayerRecordHit? player = null;
@@ -106,30 +115,58 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         {
             string records = DescribePlayerRecords(process, regions, modules, playerActorSnos, worldSno, sceneSnos);
             process.Dispose();
-            throw new InvalidOperationException($"player not found in world {worldSno}; {records}");
+            throw new GameUnreadableException($"player not found in world {worldSno}; {records}");
         }
 
-        GameBuildOffsets? offsets = OffsetsFor(process, regions, liveModule, build, out string addresses);
-        Console.WriteLine($"Memory: player actor {found.ActorSno}, game build 0x{build:X8}, {addresses}" +
+        string playerCopy = $"0x{liveModule.Base:X}";
+        var (offsets, offsetsModule, addresses) = FindOffsets(process, regions, liveModule, modules, build);
+        // The menus, conversations and quest phases are read in the copy that holds the game object too, and so is the player
+        // record when that copy has it.
+        if (offsets is not null && offsetsModule.Base != liveModule.Base)
+        {
+            if (FindLivePlayerRecord(process, ModuleLocator.WritableRegionsAt(regions, offsetsModule.Base), playerActorSnos, worldSno, sceneSnos)
+                is { } there)
+                (found, playerCopy) = (there, $"0x{offsetsModule.Base:X}");
+            liveModule = offsetsModule;
+        }
+        Console.WriteLine($"Memory: player actor {found.ActorSno} in copy {playerCopy} " +
+            $"(of {string.Join(", ", modules.Select(m => $"0x{m.Base:X}"))}), game build 0x{build:X8}, {addresses}" +
             (offsets is null ? " (no rooms, radar walls or actor sounds)." : "."));
+        health?.Report(ReadCheck.Addresses, offsets is not null, addresses);
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
-            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, worldQuests);
+            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, worldQuests, health);
     }
 
-    // The addresses hold for the whole build, so they are searched once per build and kept for later sessions.
-    private static readonly Dictionary<uint, GameBuildOffsets> DiscoveredByBuild = [];
+    // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer
+    // is not always the one the player record is found in (live 2026-10-01: the player in the first copy, G only in another).
+    private static (GameBuildOffsets? Offsets, ModuleRange Module, string Report) FindOffsets(
+        ProcessReader process, IReadOnlyList<MemoryRegion> regions, ModuleRange playerModule, List<MainModule> modules, uint build)
+    {
+        var misses = new List<string>();
+        var copies = modules.Select(m => new ModuleRange(m.Base, m.SizeOfImage)).OrderBy(m => m.Base == playerModule.Base ? 0 : 1);
+        foreach (var module in copies)
+        {
+            if (OffsetsFor(process, regions, module, build, out string report) is { } offsets)
+                return (offsets, module, $"addresses in 0x{module.Base:X}: {report}");
+            misses.Add($"0x{module.Base:X}: {report}");
+        }
+        return (null, playerModule, string.Join("; ", misses));
+    }
+
+    // The addresses hold for the whole build, so they are searched once per build and module copy and kept for later sessions.
+    private static readonly Dictionary<(uint Build, long Base), GameBuildOffsets> DiscoveredByBuild = [];
 
     private static GameBuildOffsets? OffsetsFor(
         ProcessReader process, IReadOnlyList<MemoryRegion> regions, ModuleRange module, uint build, out string report)
     {
         lock (DiscoveredByBuild)
         {
-            if (DiscoveredByBuild.TryGetValue(build, out var known)) { report = "addresses known"; return known; }
+            if (DiscoveredByBuild.TryGetValue((build, module.Base), out var known)) { report = "known"; return known; }
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var offsets = BuildOffsetsDiscovery.Discover(process, regions, module, out report);
             report += $" ({clock.ElapsedMilliseconds} ms)";
-            if (offsets is not null) DiscoveredByBuild[build] = offsets;
+            if (offsets is not null) DiscoveredByBuild[(build, module.Base)] = offsets;
             return offsets;
         }
     }
@@ -180,7 +217,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     public IReadOnlyList<TileState>? ReadTilesViaRoute()
     {
         if (_offsets is not { } offsets) return null;
-        return SceneRouteReader.TryRead(_process, _moduleBase, offsets, _candidates, out var hits) ? ToTileStates(hits) : null;
+        bool read = SceneRouteReader.TryRead(_process, _moduleBase, offsets, _candidates, out var hits);
+        _health?.Report(ReadCheck.Rooms, read && hits.Count > 0, read ? "the scene route holds no known room" : "the scene route is unreadable");
+        return read ? ToTileStates(hits) : null;
     }
 
     public ConversationSnapshot? ReadConversation()
@@ -190,7 +229,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         return _conversations.For(_build) is { } conversation ? ConversationReader.TryRead(_process, _moduleBase, conversation) : null;
     }
 
-    public IReadOnlyList<string>? ReadMenus() => _menus?.Read(_process, _module);
+    public IReadOnlyList<string>? ReadMenus()
+    {
+        if (_menus is null) return null;
+        var open = _menus.Read(_process, _module);
+        _health?.Report(ReadCheck.Menus, open is not null, "no watched menu screen located");
+        return open;
+    }
 
     // The player's RTC Playing flag (research/runtime-signals.md §2); the ACD id comes from the last actor read.
     public bool? ReadCinematic() =>
@@ -199,20 +244,37 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             : null;
 
     // The player's own record: the closest one with the player's actor SNO (another player of the same class can be near).
-    private RActorRecord? PlayerRecord(IReadOnlyList<RActorRecord> records) =>
-        ReadPlayer() is { } p
+    private RActorRecord? PlayerRecord(IReadOnlyList<RActorRecord> records, PlayerState? p) =>
+        p is not null
             ? records.Where(r => r.ActorSno == _playerActorSno && r.AcdId != RActorRecord.NoAcd)
                 .OrderBy(r => Vector2.DistanceSquared(new(r.Position.X, r.Position.Y), new(p.X, p.Y))).Select(r => (RActorRecord?)r).FirstOrDefault()
             : null;
 
+    // The player record and the player's RActor are written at different moments; a moved field reads garbage far away.
+    private const float OwnActorReach = 5f;
+
+    // The actor pool reads right when the player's own actor is in it, where the player record says the player is.
+    private void ReportOwnActor(RActorRecord? self, PlayerState? p, int count)
+    {
+        if (_health is null || p is null) return;
+        bool found = self is { } r && Vector2.Distance(new(r.Position.X, r.Position.Y), new(p.X, p.Y)) <= OwnActorReach;
+        _health.Report(ReadCheck.Actors, found, $"the player's actor {_playerActorSno} is not among the {count} actors read");
+    }
+
     // Opened on first use and retried while the pool is unreadable; a build whose table lacks the attribute gives up once.
     private AcdFlagReader? FlagReader(GameBuildOffsets offsets)
     {
-        if (_flags is not null || _flagsMissing || offsets.Acd is null) return _flags;
+        if (_flags is not null || _flagsMissing) return _flags;
+        if (offsets.Acd is null)
+        {
+            _health?.Report(ReadCheck.Attributes, ok: false, "no ACD pool among this build's addresses");
+            return null;
+        }
         if (!AcdReader.TryOpen(_process, _moduleBase, offsets, out _)) return null;
         _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, AcdNames);
-        if (_flags is null || _flags.Known.Count < AcdNames.Length)
-            Console.WriteLine($"ACD attributes not found: {string.Join(", ", AcdNames.Except(_flags?.Known ?? []))}.");
+        var missing = AcdNames.Except(_flags?.Known ?? []).ToList();
+        if (missing.Count > 0) Console.WriteLine($"ACD attributes not found: {string.Join(", ", missing)}.");
+        _health?.Report(ReadCheck.Attributes, missing.Count == 0, $"attributes not found: {string.Join(", ", missing)}");
         _flagsMissing = _flags is null;
         return _flags;
     }
@@ -221,10 +283,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     {
         if (_offsets is { } offsets && RActorReader.TryRead(_process, _moduleBase, offsets, out var records))
         {
+            var position = ReadPlayer();
+            var player = PlayerRecord(records, position);
+            ReportOwnActor(player, position, records.Count);
             var flags = FlagReader(offsets);
             if (flags is null) return ActorFilter.Placed(records);
             flags.Refresh();
-            var player = PlayerRecord(records);
             _playerAcdId = player?.AcdId;
             var named = NamedByTrackedQuests(player, flags);
             var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();
@@ -234,6 +298,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
                     && Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= QuestMarkerReach));
         }
 
+        if (_offsets is not null) _health?.Report(ReadCheck.Actors, ok: false, "the actor pool is unreadable");
         if (!_actorFailureLogged) // once per session: the route is either unknown for this build or not yet populated
         {
             _actorFailureLogged = true;

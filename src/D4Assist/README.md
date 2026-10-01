@@ -27,8 +27,14 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   log names a world before the player is placed in it), the player actor and game build once reading, and every
   `CUES muted/unmuted` reason.
 - The game's memory addresses change with every game update; the app finds them at session start (`Memory: … game
-  object at RVA …`). The conversation addresses can only be found while someone talks (`TALK playing list found at RVA
-  …`); they are saved per game build in `d4assist-addresses.json` next to the exe (research/client-memory.md §6).
+  object at RVA …`). The game maps its image twice and the game object can be in either copy, so each is tried
+  (`addresses in 0x…`), and the session reads from that copy. The conversation addresses can only be found while someone
+  talks (`TALK playing list found at RVA …`); they are saved per game build in `d4assist-addresses.json` next to the exe
+  (research/client-memory.md §6).
+- Self-check (`Game/ReadHealth`): the session reports each read (position, addresses, rooms, actors, attributes, menus).
+  The log's first line per read is `Self-check: <read> ok.`; a read that never works in a world for its grace logs
+  `Self-check: <read> FAILED after N s: <reason>` and is spoken once per run (`AppStrings.ReadFailures`: "Aviso: no puedo
+  leer las salas…"). The log's second line is the app version and commit; a crash speaks `AppStrings.Stopped`.
 - Plays the D2R-ported reactive radar (`src/D4Assist.Radar`) while in a dungeon: four fixed stick directions,
   exit/floor/wall cues on confirmed changes only (`Game/RadarBridge`, world from `Game/DungeonRadarWorld`).
 - Loops positional beacons at every portal in a dungeon and at configured actors such as the Undercity exit pad (`Game/ActorLoopBridge`, see Beacons and objective sounds).
@@ -337,7 +343,8 @@ Output goes to `d4assist-log.txt` (there is no console window).
 - `SingleInstance.cs` — one running copy per Windows session.
 - `Game/` — `WorldLogWatcher`, `WorldClassifier`, the `GameSession` state machine
   (`WaitingForGame -> Idle -> InDungeon`), `IDungeonFeed`/`TileState`/`PlayerState`, and
-  `LiveDungeonSessionReader` (the production `IDungeonSessionReader`, built on `D4Memory`), the radar's
+  `LiveDungeonSessionReader` (the production `IDungeonSessionReader`, built on `D4Memory`), `ReadHealth` (the
+  self-check), the radar's
   `DungeonRadarWorld`/`RadarBridge`, and `LockedTileWalkability` (one walk-map lookup shared across poll threads).
 - `Program.cs` — wiring and the run loop.
 - `Portable/LEEME.txt` — the testers' Spanish readme, published next to the exe by `Properties/PublishProfiles/Portable.pubxml`

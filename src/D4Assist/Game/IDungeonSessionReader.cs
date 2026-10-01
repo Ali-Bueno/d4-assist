@@ -32,3 +32,7 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The places the active quests' current phases name, as of the last actor read; null when unknown.</summary>
     IReadOnlyList<QuestPlace>? ReadQuestPlaces() => null;
 }
+
+/// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.
+/// Thrown in place of a plain InvalidOperationException, which means the game is not running.</summary>
+public sealed class GameUnreadableException(string message) : InvalidOperationException(message);

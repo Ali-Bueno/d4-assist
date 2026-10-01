@@ -35,6 +35,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private readonly int _tilePollIntervalMs;
     private readonly int _actorPollIntervalMs;
     private readonly int _openRetryIntervalMs;
+    private readonly ReadHealth? _health;
     private readonly object _gate = new();
 
     private Timer? _playerTimer;
@@ -85,13 +86,15 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <param name="staticTiles">Offline tiles of a radar-only (static-grid) world, raised once on entry; null means none.</param>
     /// <param name="playerPollIntervalMs">Timer.Infinite disables the automatic timer entirely — tests then
     /// drive polling deterministically via PollPlayerOnce/PollTilesOnce instead of a background tick.</param>
+    /// <param name="health">Told whether each open finds the player, and when a new world starts; null checks nothing.</param>
     public GameSession(
         IWorldNameSource feed, IWorldClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?> openSession, IReadOnlySet<int> sceneSnos,
         int playerPollIntervalMs = DefaultPlayerPollIntervalMs, int tilePollIntervalMs = DefaultTilePollIntervalMs,
         int actorPollIntervalMs = DefaultActorPollIntervalMs, Func<int, IReadOnlyList<TileState>>? staticTiles = null,
-        int openRetryIntervalMs = DefaultOpenRetryIntervalMs)
+        int openRetryIntervalMs = DefaultOpenRetryIntervalMs, ReadHealth? health = null)
     {
+        _health = health;
         _staticTiles = staticTiles;
         _classifier = classifier;
         _openSession = openSession;
@@ -132,6 +135,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             if (!firstWorld && !afterTransit && classified.WorldSno == _currentWorldSno) return; // diff-gate
             _currentWorldSno = classified.WorldSno;
             _currentInstance = entry.Instance;
+            _health?.NewWorld();
 
             LeaveDungeonLocked();
             bool isDungeon = classified.Kind == WorldKind.Dungeon;
@@ -184,10 +188,16 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         try
         {
             _session = _openSession(_currentWorldSno, _sceneSnos);
-            if (_session is not null) return true;
+            if (_session is not null) { _health?.Report(ReadCheck.Position, ok: true); return true; }
             failure = "no memory session";
         }
-        catch (InvalidOperationException e) { _session = null; failure = e.Message; } // not running, access denied, player not placed yet
+        catch (GameUnreadableException e) // access denied, no game module, player not placed yet (or its record moved)
+        {
+            _session = null;
+            failure = e.Message;
+            _health?.Report(ReadCheck.Position, ok: false, failure);
+        }
+        catch (InvalidOperationException e) { _session = null; failure = e.Message; } // not running
 
         if (failure != _lastOpenFailure) Console.WriteLine($"Memory: cannot read the game yet, retrying: {failure}");
         _lastOpenFailure = failure;

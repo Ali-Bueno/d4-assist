@@ -32,10 +32,10 @@ public static class BuildOffsetsDiscovery
         var data = ModuleLocator.WritableRegionsAt(imageRegions, module.Base);
         var pointers = DataPointers(memory, data, module);
 
-        long? gWord = FindGameObjectPointer(memory, pointers, layout);
+        long? gWord = FindGameObjectPointer(memory, pointers, layout, out string misses);
         if (gWord is not { } g)
         {
-            report = $"game object not found ({pointers.Count} data pointers checked)";
+            report = $"game object not found ({pointers.Count} data pointers checked; {misses})";
             return null;
         }
 
@@ -70,21 +70,26 @@ public static class BuildOffsetsDiscovery
     }
 
     // G+0xAB0 holds a pointer to the ACD container pointer; the container starts with its name (§4). The scene and actor
-    // container pointers must be there too.
-    private static long? FindGameObjectPointer(IMemoryReader memory, Dictionary<ulong, long> pointers, GameBuildOffsets layout)
+    // container pointers must be there too. <paramref name="misses"/> counts the near misses, for the log.
+    private static long? FindGameObjectPointer(
+        IMemoryReader memory, Dictionary<ulong, long> pointers, GameBuildOffsets layout, out string misses)
     {
+        misses = "no ACD layout";
         if (layout.Acd is not { } acd) return null;
         var name = new byte[AcdContainerName.Length];
         long? best = null;
+        int named = 0, noScene = 0, noActor = 0;
         foreach (var (g, at) in pointers)
         {
             if (!PoolContainer.TryReadU64(memory, (long)g + acd.Pool.ContainerOffset, out ulong cell) || cell == 0) continue;
             if (!PoolContainer.TryReadU64(memory, (long)cell, out ulong container) || container == 0) continue;
             if (!memory.TryRead((long)container, name, name.Length) || !name.AsSpan().SequenceEqual(AcdContainerName)) continue;
-            if (!PoolContainer.TryReadU64(memory, (long)g + layout.Scene.ContainerOffset, out ulong scene) || scene == 0) continue;
-            if (!PoolContainer.TryReadU64(memory, (long)g + layout.Actor.ContainerOffset, out ulong actor) || actor == 0) continue;
+            named++;
+            if (!PoolContainer.TryReadU64(memory, (long)g + layout.Scene.ContainerOffset, out ulong scene) || scene == 0) { noScene++; continue; }
+            if (!PoolContainer.TryReadU64(memory, (long)g + layout.Actor.ContainerOffset, out ulong actor) || actor == 0) { noActor++; continue; }
             if (best is null || at < best) best = at;
         }
+        misses = $"{named} lead to ActorCommonData, {noScene} of them without a scene container, {noActor} without an actor container";
         return best;
     }
 

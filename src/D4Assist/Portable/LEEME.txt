@@ -1,26 +1,33 @@
-D4 Dungeon Assist - versión de prueba 7 (30 de septiembre de 2026)
-==================================================================
-
-Novedades de esta versión:
-- Ya no queda una consola abierta: el programa vive en la bandeja del sistema
-  (el área de notificación), desde donde se configura, se reinicia y se cierra.
-- Ventana de configuración: activar o desactivar cada sonido, su volumen y la
-  velocidad a la que se repiten los sonidos en bucle, por grupos o uno a uno,
-  con previsualización. Control+Alt+Shift+C la abre desde cualquier sitio.
-- Los ajustes de sonido del d4assist.json antiguo ya no se leen: si tenías
-  volúmenes cambiados, vuelve a ajustarlos en la ventana de configuración.
-- Solo suena lo que se puede usar: un objeto de misión que llevas en las manos
-  (por ejemplo el ídolo del glaciar) calla y suena el altar donde se deja; las
-  notas de misión suenan con el sonido de misión; las puertas ya abiertas no
-  suenan; el toque de personajes solo suena en los que tienen algo que decir o
-  hacer contigo.
-- Radar: las salidas hacia otra sala se oyen antes y las paredes que rozas ya
-  no cambian de pared a suelo a cada paso.
+D4 Dungeon Assist 0.1.0 - primera versión (octubre de 2026)
+============================================================
 
 Programa de accesibilidad para jugar las mazmorras de Diablo IV sin ver la
 pantalla. Funciona al lado del juego: no modifica el juego ni sus archivos.
 Habla a través de tu lector de pantalla (NVDA o JAWS) y añade sonidos de
 orientación.
+
+Probado de principio a fin en el acto 1 de la campaña, en Undercity y en el
+Foso. En los demás actos y en la expansión puede haber objetos de misión o
+mecánicas de jefes que todavía no suenan: si encuentras uno, manda el
+registro (ver "Si algo no funciona").
+
+
+Cambios desde la versión de prueba 7
+------------------------------------
+- Avisos: si el programa no puede leer algo del juego (por ejemplo tras una
+  actualización), lo dice una vez con lo que deja de funcionar, en vez de
+  quedarse callado. Ver "Avisos del asistente".
+- Arreglado: con algunos arranques del juego solo funcionaba la posición, sin
+  salas, radar, sonidos de objetos ni silencio en los menús.
+- La guía de exploración te lleva primero a los objetivos que ya oíste y
+  siguen pendientes, y al activarla dice adónde te lleva.
+- La guía te lleva al sitio adonde te manda la misión, aunque no tengas
+  ninguna marcada en el diario, y espera allí hasta que la misión avanza.
+- Suenan las estructuras que una misión pide romper (por ejemplo los tumores
+  del odio) hasta que las destruyes, y los objetos de misión que coloca la
+  propia mazmorra (por ejemplo el libro de la Cámara Horádrica).
+- Sonidos nuevos: braseros espirituales de Undercity, barreras protectoras y
+  objetos de los combates contra jefes (ver "Qué hace").
 
 
 AVISO IMPORTANTE: RIESGO
@@ -40,9 +47,11 @@ Requisitos
 - NVDA o JAWS en marcha.
 - Mando de Xbox, DualSense o DualShock 4, por cable o Bluetooth (para la
   cruceta izquierda; el resto funciona sin mando).
-- Hecho para la versión 3.2.2 del juego. El programa encuentra solo sus datos
-  tras las actualizaciones pequeñas; si una actualización grande cambia el
-  juego, algunas funciones pueden fallar hasta que se actualice el programa.
+- Alrededor de 1 GB de memoria RAM, además de la que usa el juego.
+- Hecho para la versión 3.2.2 del juego. El programa busca solo sus datos al
+  arrancar, así que las actualizaciones pequeñas no le afectan. Si una grande
+  cambia el juego por dentro, te avisa de lo que deja de funcionar (ver
+  "Avisos del asistente") hasta que se actualice el programa.
 
 
 Contenido de la carpeta
@@ -67,10 +76,10 @@ Cómo usarlo
    avisa y no se abre otra copia.
 3. Juega normal. En las mazmorras (normales, de campaña, de expansión y de
    pesadilla, Undercity y el Foso) funciona todo. En las zonas fijas de la
-   historia (NUEVO, sin probar: la Vía Oscurecida, Tristram, los infiernos, la
-   guarida de mercenarios) suenan el radar y los objetivos, sin anuncios de
-   salas. En el mundo abierto solo suenan los objetivos cercanos y la guía de
-   refugios (ver abajo): allí ya ayuda la navegación asistida del juego.
+   historia (la Vía Oscurecida, Tristram, los infiernos, la guarida de
+   mercenarios) suenan el radar y los objetivos, sin anuncios de salas. En el
+   mundo abierto solo suenan los objetivos cercanos y la guía de refugios (ver
+   abajo): allí ya ayuda la navegación asistida del juego.
 4. Para cerrarlo, elige "Salir" en su menú de la bandeja del sistema. Dirá
    "Asistente de mazmorras cerrado".
 
@@ -84,38 +93,40 @@ Qué hace
   dice las salidas en direcciones del stick ("arriba a la izquierda"...). Añade
   "sin explorar" a las salidas por las que aún no has pasado.
 - Radar: sonidos cortos hacia arriba, abajo, izquierda y derecha. Un tono agudo
-  indica una salida, un golpe grave una pared, dos golpes una puerta y un soplo
-  suave espacio abierto (hacia arriba sube, hacia abajo baja).
-- Balizas de salida (NUEVO): dentro de las mazmorras, un sonido en bucle en
+  indica una salida, un golpe grave una pared, dos golpes una puerta cerrada
+  (al abrirla suena como salida) y un soplo suave espacio abierto (hacia
+  arriba sube, hacia abajo baja).
+- Balizas de salida: dentro de las mazmorras, un sonido en bucle en
   cada portal (la salida de la mazmorra, los portales entre pisos, la
   plataforma de Undercity). Se oye cuando el portal está cerca (unos 60
   metros; la plataforma de Undercity aparece a unos 20 o 30).
 - Objetivos: un sonido de misión en bucle sobre palancas, objetos que hay que
   llevar y sus pedestales, y cofres de misión, dentro y fuera de las
   mazmorras, y sobre los pétalos de sangre de la campaña. Los prisioneros
-  suenan con el sonido de cadáver de D2R. Las palancas, los cofres y los
-  pétalos se callan al usarlos; los prisioneros todavía no (se callan cuando el
-  juego los retira). NUEVO: también suenan los objetos de la misión que sigues
-  (la que tienes marcada en el diario) cuando ya los puedes usar, por ejemplo
-  el demonio asesinado y la puerta de la Vía Oscurecida. Los que la misión aún
-  no deja usar no suenan.
-- Braseros espirituales de la Ciudad Subterránea (NUEVO): suenan con su
-  propio sonido hasta que los usas, para subir la sintonía.
-- Barreras protectoras en combates contra jefes (NUEVO): cuando un aliado
-  levanta una barrera para protegerte (Donan en el infierno, Lilith en Skovos,
-  Vigo contra el Lamento de Lilith) o hay una luz en la que quedarte, suena
-  desde lejos con su propio sonido y se calla cuando estás dentro.
-- Objetos de combates contra jefes (NUEVO), de momento con el sonido de
+  suenan con el sonido de cadáver de D2R. Las palancas, los cofres, los
+  pétalos y los prisioneros se callan al usarlos o liberarlos. También suenan
+  los objetos de la misión que sigues (la que tienes marcada en el diario, o
+  la que está en curso en esa mazmorra) cuando ya los puedes usar, por
+  ejemplo el demonio asesinado y la puerta de la Vía Oscurecida, el libro de
+  la Cámara Horádrica o los tumores del odio que hay que romper (se callan al
+  destruirlos). Los que la misión aún no deja usar no suenan.
+- Braseros espirituales de la Ciudad Subterránea: suenan con su propio sonido
+  hasta que los usas, para subir la sintonía.
+- Barreras protectoras en combates contra jefes: cuando un aliado levanta una
+  barrera para protegerte (Donan en el infierno, Lilith en Skovos, Vigo contra
+  el Lamento de Lilith) o hay una luz en la que quedarte, suena desde lejos
+  con su propio sonido y se calla cuando estás dentro.
+- Objetos de combates contra jefes (sin probar todavía), con el sonido de
   misión: los orbes de las habilidades que te quita Mefisto (avisa cuando te
   las quita y cuando las has recuperado todas), las luces de Akarat contra el
   Heraldo del Odio y las vasijas de los sellos contra el Guardián Horádrico.
-- NPCs (NUEVO): el toque de madera de D2R sobre el NPC más cercano, a menos de
+- NPCs: el toque de madera de D2R sobre el NPC más cercano, a menos de
   unos 15 metros. Suena más rápido cuanto más cerca está, a la izquierda o a la
   derecha según dónde esté, y más grave si está abajo en la pantalla. Suena
   en los personajes con los que se habla, los vendedores y los que acompañan
   en las misiones; no en los mercenarios. Los compañeros de misión que te
   siguen no suenan.
-- Puertas, cofres y lecturas (NUEVO): los sonidos de D2R en bucle.
+- Puertas, cofres y lecturas: los sonidos de D2R en bucle.
   Las puertas suenan a madera, metal (rejas, verjas, jaulas) o piedra; se oyen
   las 2 más cercanas. Los cofres, armeros y piedras sueltas suenan a cofre; los
   libros, notas y carteles que se leen suenan a pergamino; los cadáveres que se
@@ -125,24 +136,22 @@ Qué hace
   puerta que abre la misión) no suenan hasta que se puedan usar. Los puntos
   que se pueden "mirar" suenan a pergamino y siguen sonando después de
   mirarlos, porque se pueden mirar más veces.
-- Cinemáticas (NUEVO): al empezar una cinemática de vídeo se callan todos los
+- Cinemáticas: al empezar una cinemática de vídeo se callan todos los
   sonidos. Vuelven al cambiar de zona o en cuanto echas a andar. Las escenas
-  hechas con el motor del juego todavía no se detectan.
-- Silencio en conversaciones (NUEVO): con el menú de opciones de un personaje
+  hechas con el motor del juego también los callan mientras duran.
+- Silencio en conversaciones: con el menú de opciones de un personaje
   abierto, mientras habla la conversación que elegiste y en las conversaciones
   de historia o de misión aunque no salga menú, no suena nada. Tampoco suena
   nada cuando un personaje te dice algo sin menú, como un aldeano. Los
   comentarios sueltos de jefes y las frases de tu propio personaje (por
   ejemplo "no tengo suficiente vida") no callan nada.
-- Silencio en menús (NUEVO): con cualquier menú del juego abierto no suena
+- Silencio en menús: con cualquier menú del juego abierto no suena
   nada: inventario, habilidades, mapa, pausa, un cartel o tablón, los envíos
   horádricos, un vendedor, un artesano, el alijo, el tablero paragon, los
   glifos, el armario, el establo, la tienda y los demás. El chat y la
   selección de nivel de mundo no callan nada.
-- Silencio fuera del juego (NUEVO): si cambias a otra ventana se callan los
+- Silencio fuera del juego: si cambias a otra ventana se callan los
   sonidos; vuelven al volver al juego. Los ejemplos de sonido sí suenan.
-- Puertas cerradas en el radar (NUEVO, sin probar): en las mazmorras, una
-  puerta cerrada suena con los dos golpes de puerta; al abrirla, como salida.
 - Guía de exploración: un pitido que te lleva a la zona sin explorar más
   cercana, siguiendo el camino. Suena más rápido cuanto más cerca estás y toca
   tres notas al llegar. Cuando aparece un portal nuevo (uno por el que no has
@@ -162,21 +171,36 @@ Qué hace
     - En Undercity, si ya no queda nada por explorar y la salida no ha
       aparecido, dice "Salida no encontrada. Revisando los callejones" y te
       lleva otra vez por los callejones donde puede estar la plataforma.
-    - Para cuando te pierdes (NUEVO, sin probar): en las mazmorras normales,
-      si ya oíste un objetivo que sigue pendiente (el de la misión, un
-      prisionero, un altar, una palanca...), la guía te lleva primero a él y
-      luego sigue explorando. Primero el de la misión, luego los de la
-      mazmorra. Al activarla dice adónde te lleva: "Hacia el objetivo de la
-      misión", "Hacia un objetivo de la mazmorra", "Hacia zona sin explorar",
-      el portal o "Todo explorado". En Undercity y en el Foso sigue igual que
-      antes.
-- Guía de refugios (NUEVO, todavía sin probar): en la misión de campaña en la
+    - Para cuando te pierdes: en las mazmorras normales, si ya oíste un
+      objetivo que sigue pendiente (el de la misión, un prisionero, un altar,
+      una palanca...), la guía te lleva primero a él y luego sigue
+      explorando. Primero el de la misión, luego los de la mazmorra. Al
+      activarla dice adónde te lleva: "Hacia el objetivo de la misión", "Hacia
+      un objetivo de la mazmorra", "Hacia zona sin explorar", el portal o
+      "Todo explorado". En Undercity y en el Foso no lleva a objetivos: explora
+      y busca la salida.
+    - Si la misión te manda a un sitio (por ejemplo, seguir a un personaje
+      hasta un lugar), la guía te lleva allí, toca la llegada y se calla
+      hasta que la misión avanza.
+- Guía de refugios (sin probar todavía): en la misión de campaña en la
   que cruzas el desierto con Mesif y hay que protegerse de las tormentas de
   arena. Al empezar esa parte dice "Guía de refugios" y el mismo pitido de la
   guía te lleva en línea recta al siguiente refugio. Al llegar toca tres notas
   y dice "Refugio 1 de 3". Mientras sigas dentro del refugio el pitido calla
   (espera a que pase la tormenta); cuando sales, te lleva al siguiente. La
   cruceta hacia la IZQUIERDA la calla o la vuelve a activar.
+
+
+Avisos del asistente
+--------------------
+El programa comprueba que puede leer cada parte del juego que usa. Si una no
+funciona (lo normal es que sea por una actualización del juego), lo dice una
+sola vez, empezando por "Aviso:" y con lo que deja de funcionar. Por ejemplo:
+"Aviso: no puedo leer las salas, sin anuncios de salas ni radar. Puede que
+Diablo IV se haya actualizado. Manda el registro."
+Lo demás sigue funcionando. Si el programa se cierra por un error, dice "El
+asistente se ha detenido por un error. Manda el registro."
+En los dos casos, manda el registro (ver "Si algo no funciona").
 
 
 Atajos de teclado: ejemplos de sonidos
@@ -248,10 +272,24 @@ ese archivo con el Bloc de notas y añade una línea como esta, con tu carpeta,
 justo después de la primera llave:
   "InstallPath": "C:\\Program Files (x86)\\Diablo IV",
 
+Problemas conocidos
+-------------------
+- Si abres el programa a mitad de una mazmorra, la primera sala que anuncia
+  se llama "Entrada" aunque no lo sea.
+- El radar escucha en cuatro direcciones (arriba, abajo, izquierda y
+  derecha). Los pasillos del juego suelen ir en diagonal: un pasillo justo
+  entre dos direcciones suena como pared en las dos hasta que te alineas con
+  él.
+- En las zonas fijas de la historia, un saliente sobre un piso más bajo puede
+  sonar como suelo abierto.
+- Desde el acto 2 y en la expansión puede haber objetos de misión o mecánicas
+  de jefes que todavía no suenan.
+
+
 Si algo no funciona
 -------------------
 Cada vez que abres el programa escribe lo que pasa en d4assist-log.txt, en esta
 misma carpeta (el de la vez anterior queda como d4assist-log.old.txt). Si no
 suena nada o algo falla, cierra el programa (Salir, en la bandeja del sistema)
 y manda los dos archivos a quien te pasó el programa. No hace falta abrirlo con
-ninguna opción especial.
+ninguna opción especial. El registro dice qué versión del programa usas.

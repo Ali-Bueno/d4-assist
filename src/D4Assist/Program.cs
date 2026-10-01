@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using D4Assist.Audio;
 using D4Assist.Config;
@@ -55,6 +56,7 @@ internal static class Program
         }
         using var log = LogFile.Start(AppContext.BaseDirectory);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.Error.WriteLine($"Unhandled error: {e.ExceptionObject}");
+        Console.WriteLine($"D4 Dungeon Assist {AppVersion}");
 
         bool noSpeech = args.Contains("--no-speech");
         bool debug = args.Contains("--debug");
@@ -81,6 +83,10 @@ internal static class Program
         using ISpeechSink speech = noSpeech || !config.SpeechEnabled ? new ConsoleSpeechSink() : new PrismSpeechSink();
         Console.WriteLine($"Speech backend: {speech.BackendName}");
         speech.Speak(AppStrings.For(language.Current).AssistantActive, interrupt: true);
+        // A crash would otherwise end in silence.
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => speech.Speak(AppStrings.For(language.Current).Stopped, interrupt: true);
+        // A read that keeps failing after a game update is said once, so the player knows what stopped working.
+        var health = ReadHealth.Live(Console.WriteLine, check => speech.Speak(AppStrings.For(language.Current).ReadWarning(check), interrupt: false));
 
         using var store = new SnoStore(installPath);
         var schema = definitionsPath is null ? LoadEmbeddedDefinitions() : TypeSchema.Load(definitionsPath);
@@ -123,8 +129,8 @@ internal static class Program
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
-                worldQuests),
-            sceneSnos, staticTiles: staticTiles.Build);
+                worldQuests, health),
+            sceneSnos, staticTiles: staticTiles.Build, health: health);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
         var exitScenes = LoadExitCandidateScenes(store, schema, cascGate);
@@ -284,6 +290,10 @@ internal static class Program
         start.ArgumentList.Add(RestartedFlag);
         Process.Start(start);
     }
+
+    // <Version> in D4Assist.csproj plus the commit the SDK appends (+hash): which build a tester's log came from.
+    private static string AppVersion =>
+        typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "(version unknown)";
 
     private static bool HasEmbeddedDefinitions() => typeof(Program).Assembly.GetManifestResourceInfo(EmbeddedDefinitions) is not null;
 

@@ -451,6 +451,23 @@ app keeps only the structure layout (`GameBuildOffsetsTable.Layout`) and finds t
 - The screen registry (§5) and the player record (§3) were already found by content.
 - Build 3.2.1.73552's RVAs stay in this file (§1, §4, §5) for reference.
 
+**Two copies of the image (live 2026-10-01, same build, a fresh game start).** `ModuleLocator.LocateAll` finds the exe's
+header at two bases: the image (`0x7FF636390000`) and a `MEM_MAPPED` view at a heap-like address (`0x2CA0A630000`). The
+view comes first in address order and its writable data holds a live-looking player record, but none of its ≈450,000 data
+pointers leads to `ActorCommonData` and the screen scan located 0/89 screens there. In the image copy: G at the usual RVA
+0x3670918 (79–115 ms), 89/89 screens, quest phases, the player record too. Which copy comes first depends on where the
+view is mapped, so before the fix the app lost everything but the position on some game starts, silently. The app now
+tries discovery in each copy (the player's first), and reads the player record, the screens, the conversations and the
+quest phases from the copy that holds G. Unknown: whether the view's pages are the same memory under another protection
+(the writable-region filter would then hide them) or a stale copy.
+
+**Self-check** (`Game/ReadHealth.cs`): the session reports each read: player record found, G found, a scene-route read
+with ≥ 1 room, the player's own RActor (its SNO, with an ACD id, ≤ 5 units from the player record) among the actors, all
+ACD attribute names found, the screens located. The first success per run logs `Self-check: <read> ok.`; a read that never
+works in a world for its grace (position and menus 60 s, rooms and actors 20 s, addresses and attributes at once) logs
+`Self-check: <read> FAILED after N s: <reason>` and is spoken once per run. Live 2026-10-01: all six ok in town, after a
+restart while mounted (the player's RActor is still listed) and in a dungeon.
+
 ## 7. Open questions
 
 - The tile-hash units for tiles larger than 32×32, and whether RVAs stay stable across restarts.

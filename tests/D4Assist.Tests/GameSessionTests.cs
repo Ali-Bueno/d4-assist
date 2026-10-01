@@ -199,6 +199,31 @@ public class GameSessionTests
     }
 
     [Fact]
+    public void AnUnreadableGame_CountsAgainstThePosition_AClosedOneDoesNot()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true).MapOverworld(OverworldName, OverworldSno);
+        var log = new List<string>();
+        var now = TimeSpan.Zero;
+        var health = new ReadHealth(() => now, log.Add, _ => { });
+        bool running = false;
+        var session = new GameSession(feed, classifier,
+            (_, _) => running ? throw new GameUnreadableException("player not found") : throw new InvalidOperationException("not running"),
+            SceneSnos, Timeout.Infinite, Timeout.Infinite, Timeout.Infinite, openRetryIntervalMs: Timeout.Infinite, health: health);
+
+        feed.Raise(DungeonName);
+        now = TimeSpan.FromMinutes(5);
+        session.RetryOpenOnce();
+        Assert.Empty(log);
+
+        running = true;
+        feed.Raise(OverworldName);
+        now += TimeSpan.FromMinutes(1);
+        session.RetryOpenOnce();
+        Assert.Single(log, line => line.Contains("Position FAILED") && line.Contains("player not found"));
+    }
+
+    [Fact]
     public void PollPlayerOnce_FiresPlayerMovedWhileInDungeon()
     {
         var feed = new FakeWorldNameSource();

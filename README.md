@@ -52,11 +52,12 @@ when something changes.
 One thing: corridors in this game go diagonal a lot, so a corridor right between two directions can sound like a wall
 until you turn a bit toward it.
 
-**Guide.** Press left on the D-pad and a ping starts leading you, following the actual path, to the nearest place you
-haven't explored. It pings faster as you get closer and plays three notes when you get there. Press it again to turn it
-off. When you turn it on, it tells you where it's taking you. It goes first to where your quest wants you (even if you
-don't have the quest tracked), then to objectives you already heard and haven't done, then to unexplored stuff, and when
-everything's explored, to a portal. It's on by default in the Undercity and the Pit, and off in normal dungeons.
+**Guide.** Press left on the D-pad (or Ctrl+Alt+Shift+G on the keyboard) and a ping starts leading you, following the
+actual path, to the nearest place you haven't explored. It pings faster as you get closer and plays three notes when you
+get there. Press it again to turn it off. When you turn it on, it tells you where it's taking you. It goes first to
+where your quest wants you (even if you don't have the quest tracked), then to objectives you already heard and haven't
+done, then to unexplored stuff, and when everything's explored, to a portal. It's on by default in the Undercity and the
+Pit, and off in normal dungeons.
 
 **Sounds on things.** They repeat from where the thing is, louder as you get closer:
 
@@ -98,8 +99,9 @@ Ctrl+Alt+Shift plus a number from 1 to 8 plays each sound with its name, so you 
 door, unexplored exit, quest sound, guide ping and arrival.
 
 Left on the D-pad turns the guide on and off (Xbox controllers, and PlayStation's DualSense or DualShock 4). In the
-desert sandstorm quest it mutes and unmutes the ping that leads you between shelters. While a game menu is open it does
-nothing, because there the D-pad belongs to the game.
+desert sandstorm quest it mutes and unmutes the ping that leads you between shelters. While a game menu is open the
+D-pad does nothing, because there it belongs to the game. On the keyboard, Ctrl+Alt+Shift+G does the same as left on the
+D-pad, also in menus.
 
 ## Known issues
 

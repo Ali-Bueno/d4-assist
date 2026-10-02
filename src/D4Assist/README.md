@@ -331,7 +331,9 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
 - **Ctrl+Alt+Shift+1..8** (keyboard, anywhere) — sound examples, e.g. for a video without a fight's noise (user request
   2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per
   direction up/right/down/left), 6 the quest loop twice, 7 the guide ping three times, 8 the arrival chime. One example
-  at a time. `Input/DemoHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
+  at a time. `Input/GlobalHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
+- **Ctrl+Alt+Shift+G** (keyboard, anywhere) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
+  while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 
 ## Command-line flags

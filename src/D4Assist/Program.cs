@@ -226,9 +226,13 @@ internal static class Program
         // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
         using var xboxPad = guidePing is not null ? new XInputPad() : null;
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
-        // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide.
+        // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below).
+        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount);
+        // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
         var pad = xboxPad is not null && sonyPad is not null
-            ? new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null)
+            ? new CombinedPad([
+                new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null),
+                hotkeys])
             : null;
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
@@ -246,7 +250,6 @@ internal static class Program
             speech, digit => AppStrings.For(language.Current).SoundExamples[digit - 1], radarPlayer, mixer,
             loopSounds?.GetValueOrDefault(LoopTargetSelector.QuestItemSound), LoopProfiles.Quest.NearGain, guidePing,
             cueGate.Example);
-        using var hotkeys = new DemoHotkeys(SoundDemo.ExampleCount);
         hotkeys.DigitPressed += demo.Play;
         hotkeys.Start();
 

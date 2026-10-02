@@ -89,5 +89,11 @@ public sealed partial record SettingsStrings
         PauseInBackground = "ゲームが前面にないとき",
         PauseInConversations = "会話中",
         PauseInMenus = "ゲームのメニュー中",
+        InstallFolder = "Diablo IV のフォルダー",
+        InstallFolderAuto = "自動: Battle.net、Steam、実行中のゲーム、またはドライブの検索",
+        Browse = "参照...",
+        InstallPickerTitle = "Diablo IV のフォルダーを選択",
+        WrongInstallFolderFormat = "{0} に Diablo IV がありません。Diablo IV.exe があるフォルダーを選んでください。",
+        InstallNotFound = "Diablo 4 Assist は Diablo IV を見つけられませんでした。次のウィンドウで Diablo IV のフォルダー (Diablo IV.exe があるフォルダー) を選んでください。d4assist.json に保存されるので、この操作は一度だけです。",
     };
 }

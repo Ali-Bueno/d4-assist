@@ -89,5 +89,11 @@ public sealed partial record SettingsStrings
         PauseInBackground = "游戏不在前台时",
         PauseInConversations = "对话中",
         PauseInMenus = "游戏菜单中",
+        InstallFolder = "Diablo IV 文件夹",
+        InstallFolderAuto = "自动：Battle.net、Steam、正在运行的游戏或搜索磁盘",
+        Browse = "浏览...",
+        InstallPickerTitle = "选择 Diablo IV 文件夹",
+        WrongInstallFolderFormat = "{0} 中没有 Diablo IV。请选择包含 Diablo IV.exe 的文件夹。",
+        InstallNotFound = "Diablo 4 Assist 未找到 Diablo IV。请在下一个窗口中选择 Diablo IV 文件夹，即包含 Diablo IV.exe 的文件夹。它会保存在 d4assist.json 中，因此只需操作一次。",
     };
 }

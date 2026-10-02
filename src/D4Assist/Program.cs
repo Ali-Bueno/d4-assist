@@ -50,8 +50,9 @@ internal static class Program
         using var instance = SingleInstance.TryAcquire(args.Contains(RestartedFlag) ? RestartWait : TimeSpan.Zero);
         if (instance is null)
         {
-            var text = SettingsStrings.For(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "en" ? SpeechLanguage.English : SpeechLanguage.Spanish);
-            System.Windows.Forms.MessageBox.Show(text.AlreadyRunning, text.AppName);
+            var text = SettingsStrings.For(WindowsLanguage());
+            System.Windows.Forms.MessageBox.Show(text.AlreadyRunning, text.AppName,
+                System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
             return 1;
         }
         using var log = LogFile.Start(AppContext.BaseDirectory);
@@ -65,9 +66,10 @@ internal static class Program
         AppConfig config;
         try { config = AppConfig.Load(configPath); }
         catch (Exception e) when (e is InvalidDataException or JsonException or IOException) { return Fail($"{AppConfig.FileName}: {e.Message}"); }
-        var installPath = config.ResolveInstallPath(Directory.Exists, LocateInstall);
+        var installPath = config.ResolveInstallPath(Directory.Exists, LocateInstall) ?? SearchOrAskForInstall(config, configPath);
         if (installPath is null)
-            return Fail($"Diablo IV install not found. Start Diablo IV and open Diablo 4 Assist again, or set InstallPath in {AppConfig.FileName}. See README.md.");
+            return Fail($"Diablo IV install not found. Start Diablo IV and open Diablo 4 Assist again, or set InstallPath in {AppConfig.FileName}, "
+                + "for example \"InstallPath\": \"E:/Games/Diablo IV\". See README.txt.");
         Console.WriteLine($"Game install: {installPath} ({Presence(installPath, LiveDungeonSessionReader.ExecutableFileName)}, "
             + $"{Presence(installPath, WorldLogWatcher.LogFileName)}).");
         var definitionsPath = config.ResolveDefinitionsPath(AppContext.BaseDirectory);
@@ -293,6 +295,23 @@ internal static class Program
     private static string? LocateInstall() =>
         SnoStore.TryLocateInstall(out var found) ? found
         : ProcessLocator.ExecutableDirectory() is { } running && SnoStore.IsInstall(running) ? running : null;
+
+    // Slower than LocateInstall, so what it finds is kept in d4assist.json for the next starts.
+    private static string? SearchOrAskForInstall(AppConfig config, string configPath)
+    {
+        Console.WriteLine("No launcher entry or running game names the install: searching the drives.");
+        // The game's language comes from the install, so the picker uses the forced language, else Windows' one.
+        var text = SettingsStrings.For(config.ForcedLanguage() ?? WindowsLanguage());
+        var found = InstallFolderSearch.Locate(SnoStore.IsInstall) ?? InstallFolderPicker.AskAtStartup(text);
+        if (found is null) return null;
+        config.InstallPath = found;
+        try { config.Save(configPath); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Console.WriteLine($"Couldn't save InstallPath in {AppConfig.FileName}: {e.Message}"); }
+        return found;
+    }
+
+    // For dialogs shown before the game's language is known: "es-MX" → "esMX", a game locale.
+    private static SpeechLanguage WindowsLanguage() => SpeechLanguages.FromLocale(CultureInfo.CurrentUICulture.Name.Replace("-", ""));
 
     // For the log of a store we haven't tested (Steam): is the game's own file where the app expects it?
     private static string Presence(string folder, string file) => $"{file} {(File.Exists(Path.Combine(folder, file)) ? "found" : "missing")}";

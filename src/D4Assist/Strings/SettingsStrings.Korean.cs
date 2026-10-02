@@ -89,5 +89,11 @@ public sealed partial record SettingsStrings
         PauseInBackground = "게임이 맨 앞에 있지 않을 때",
         PauseInConversations = "대화 중",
         PauseInMenus = "게임 메뉴에서",
+        InstallFolder = "Diablo IV 폴더",
+        InstallFolderAuto = "자동: Battle.net, Steam, 실행 중인 게임 또는 드라이브 검색",
+        Browse = "찾아보기...",
+        InstallPickerTitle = "Diablo IV 폴더 선택",
+        WrongInstallFolderFormat = "{0}에 Diablo IV가 없습니다. Diablo IV.exe가 있는 폴더를 선택하세요.",
+        InstallNotFound = "Diablo 4 Assist가 Diablo IV를 찾지 못했습니다. 다음 창에서 Diablo IV.exe가 있는 Diablo IV 폴더를 선택하세요. d4assist.json에 저장되므로 한 번만 하면 됩니다.",
     };
 }

@@ -56,6 +56,15 @@ public sealed partial record SettingsStrings
     public required string PauseInBackground { get; init; }
     public required string PauseInConversations { get; init; }
     public required string PauseInMenus { get; init; }
+    public required string InstallFolder { get; init; }
+    /// <summary>Shown as the folder while InstallPath is empty (found at each start).</summary>
+    public required string InstallFolderAuto { get; init; }
+    public required string Browse { get; init; }
+    public required string InstallPickerTitle { get; init; }
+    /// <summary>{0} is the folder the player picked.</summary>
+    public required string WrongInstallFolderFormat { get; init; }
+    /// <summary>At startup, before the folder picker opens.</summary>
+    public required string InstallNotFound { get; init; }
 
     public static readonly SettingsStrings Spanish = new()
     {
@@ -141,6 +150,12 @@ public sealed partial record SettingsStrings
         PauseInBackground = "Cuando el juego no está en primer plano",
         PauseInConversations = "En las conversaciones",
         PauseInMenus = "En los menús del juego",
+        InstallFolder = "Carpeta de Diablo IV",
+        InstallFolderAuto = "Automática: Battle.net, Steam, el juego abierto o una búsqueda en los discos",
+        Browse = "Examinar...",
+        InstallPickerTitle = "Elige la carpeta de Diablo IV",
+        WrongInstallFolderFormat = "No hay ningún Diablo IV en {0}. Elige la carpeta que tiene Diablo IV.exe.",
+        InstallNotFound = "Diablo 4 Assist no encontró Diablo IV. En la siguiente ventana, elige la carpeta de Diablo IV, la que tiene Diablo IV.exe. Se guarda en d4assist.json, así que solo hay que hacerlo una vez.",
     };
 
     public static readonly SettingsStrings English = new()
@@ -227,6 +242,12 @@ public sealed partial record SettingsStrings
         PauseInBackground = "While the game is not in the foreground",
         PauseInConversations = "In conversations",
         PauseInMenus = "In game menus",
+        InstallFolder = "Diablo IV folder",
+        InstallFolderAuto = "Automatic: Battle.net, Steam, the running game or a search of your drives",
+        Browse = "Browse...",
+        InstallPickerTitle = "Choose the Diablo IV folder",
+        WrongInstallFolderFormat = "There is no Diablo IV in {0}. Choose the folder that has Diablo IV.exe in it.",
+        InstallNotFound = "Diablo 4 Assist couldn't find Diablo IV. In the next window, choose the Diablo IV folder, the one with Diablo IV.exe in it. It is saved in d4assist.json, so you only do this once.",
     };
 
     public static SettingsStrings For(SpeechLanguage language) => language switch

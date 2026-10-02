@@ -39,7 +39,7 @@ public sealed class SettingsSession(AppConfig saved, string path, LiveSoundMix l
         SoundChanged();
     }
 
-    /// <summary>Every option back to its default, except the file-only ones (install and data paths, beacon and world lists).</summary>
+    /// <summary>Every option back to its default, except the game folder and the file-only ones (data path, beacon and world lists).</summary>
     public void ResetToDefaults()
     {
         Working = new AppConfig

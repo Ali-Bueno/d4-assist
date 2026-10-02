@@ -87,5 +87,11 @@ public sealed partial record SettingsStrings
         PauseInBackground = "Gdy gra nie jest na pierwszym planie",
         PauseInConversations = "W rozmowach",
         PauseInMenus = "W menu gry",
+        InstallFolder = "Folder Diablo IV",
+        InstallFolderAuto = "Automatycznie: Battle.net, Steam, uruchomiona gra lub przeszukanie dysków",
+        Browse = "Przeglądaj...",
+        InstallPickerTitle = "Wybierz folder Diablo IV",
+        WrongInstallFolderFormat = "W {0} nie ma Diablo IV. Wybierz folder, w którym jest Diablo IV.exe.",
+        InstallNotFound = "Diablo 4 Assist nie znalazł Diablo IV. W następnym oknie wybierz folder Diablo IV, ten z plikiem Diablo IV.exe. Zostanie zapisany w d4assist.json, więc robisz to tylko raz.",
     };
 }

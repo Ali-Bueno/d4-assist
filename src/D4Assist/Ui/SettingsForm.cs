@@ -171,6 +171,7 @@ public sealed class SettingsForm : Form
     private Control GeneralBox()
     {
         var table = Table(2);
+        AddInstallFolder(table);
         AddChoice(table, _text.Language, [_text.LanguageAuto, .. SpeechLanguages.Supported.Select(SpeechLanguages.NativeName)],
             () => Math.Max(0, Array.IndexOf(LanguageCodes, Config.Language.Trim().ToLowerInvariant())), i => Config.Language = LanguageCodes[i]);
         AddChoice(table, _text.RadarFrame, _text.RadarFrameChoices, () => (int)Config.RadarFrame, i => Config.RadarFrame = (RadarFrame)i);
@@ -196,6 +197,23 @@ public sealed class SettingsForm : Form
             Check(_text.PauseInConversations, () => Config.PauseCuesInConversations, v => Config.PauseCuesInConversations = v),
             Check(_text.PauseInMenus, () => Config.PauseCuesInMenus, v => Config.PauseCuesInMenus = v));
         return Box(_text.PausesBox, table);
+    }
+
+    // Read-only: the folder only comes from the picker, which checks it holds the game.
+    private void AddInstallFolder(TableLayoutPanel table)
+    {
+        var folder = new TextBox { ReadOnly = true, AccessibleName = _text.InstallFolder, Width = 2 * SliderWidth };
+        _refreshers.Add(() => folder.Text = string.IsNullOrWhiteSpace(Config.InstallPath) ? _text.InstallFolderAuto : Config.InstallPath);
+        var browse = Button(_text.Browse, (_, _) =>
+        {
+            if (InstallFolderPicker.Browse(this, _text, Config.InstallPath) is not { } picked) return;
+            Config.InstallPath = picked;
+            RefreshControls();
+        });
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+        row.Controls.AddRange([folder, browse]);
+        table.Controls.Add(new Label { Text = _text.InstallFolder, AutoSize = true, Anchor = AnchorStyles.Left });
+        table.Controls.Add(row);
     }
 
     private void AddChoice(TableLayoutPanel table, string label, IReadOnlyList<string> choices, Func<int> get, Action<int> set)

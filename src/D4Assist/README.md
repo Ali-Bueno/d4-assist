@@ -69,7 +69,7 @@ error. No key needs a machine-specific path.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `InstallPath` | *(empty: found through Battle.net, then Steam's libraries, then the running game's folder)* | Game install dir (`FenrisDebug.txt`, the exe for module identification), logged as `Game install:`; a Steam install also logs each `Steam storage:` step ([research/steam-storage.md](../../research/steam-storage.md)). Set it only if detection fails. |
+| `InstallPath` | *(empty: found through Battle.net, then Steam's libraries, then the running game's folder, then a "Diablo IV" folder up to three levels deep on a local drive (`InstallFolderSearch`), then a folder picker; the last two are saved here)* | Game install dir (`FenrisDebug.txt`, the exe for module identification), logged as `Game install:`; a Steam install also logs each `Steam storage:` step ([research/steam-storage.md](../../research/steam-storage.md)). Set it only if detection fails. |
 | `DefinitionsPath` | *(empty: the copy embedded in the exe)* | d4data `definitions.json`. The build embeds `data/definitions.json` in the exe when it exists; set a path only to use another file (relative paths resolve against the exe's folder). |
 | `SpeechEnabled` | `true` | `false` behaves like `--no-speech` (console sink instead of PRISM). |
 | `AutoAnnouncementsEnabled` | `true` | Speak the dungeon enter/leave lines automatically. |
@@ -116,6 +116,8 @@ has one tab per sound group plus **Sound** (master volume, preview switch) and *
   (`D4Assist.Audio.LoopVoice` rate), the guide ping and NPC tap divide their interval.
 - **General** holds the other options (language, radar orientation, speech, announcements, guide, routes, outside dungeons,
   closed doors, cue pauses). They take effect on restart; saving a change there offers to restart now.
+  Its first row is the Diablo IV folder (`InstallPath`, read-only, "Automatic" when empty) with **Browse...**
+  (`Ui/InstallFolderPicker`: the picked folder or a `Diablo IV` up to three levels under it, else a warning and a retry).
 
 ## Beacons
 

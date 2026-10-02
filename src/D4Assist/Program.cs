@@ -68,7 +68,8 @@ internal static class Program
         var installPath = config.ResolveInstallPath(Directory.Exists, LocateInstall);
         if (installPath is null)
             return Fail($"Diablo IV install not found. Start Diablo IV and open Diablo 4 Assist again, or set InstallPath in {AppConfig.FileName}. See README.md.");
-        Console.WriteLine($"Game install: {installPath}");
+        Console.WriteLine($"Game install: {installPath} ({Presence(installPath, LiveDungeonSessionReader.ExecutableFileName)}, "
+            + $"{Presence(installPath, WorldLogWatcher.LogFileName)}).");
         var definitionsPath = config.ResolveDefinitionsPath(AppContext.BaseDirectory);
         if (definitionsPath is null ? !HasEmbeddedDefinitions() : !File.Exists(definitionsPath))
             return Fail(definitionsPath is null
@@ -89,7 +90,14 @@ internal static class Program
         // A read that keeps failing after a game update is said once, so the player knows what stopped working.
         var health = ReadHealth.Live(Console.WriteLine, check => speech.Speak(AppStrings.For(language.Current).ReadWarning(check), interrupt: false));
 
-        using var store = new SnoStore(installPath);
+        SnoStore store;
+        try { store = new SnoStore(installPath, Console.WriteLine); }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            Console.WriteLine($"Game files: {e}");
+            return Fail($"Can't read the Diablo IV files in {installPath}: {e.Message} Please send d4assist-log.txt.");
+        }
+        using var storeLifetime = store;
         var schema = definitionsPath is null ? LoadEmbeddedDefinitions() : TypeSchema.Load(definitionsPath);
         var worldReader = new WorldReader(store, schema);
         var classifier = new WorldClassifier(store, worldReader, config.RadarOnlyWorlds, config.OutsideDungeonsEnabled);
@@ -285,6 +293,9 @@ internal static class Program
     private static string? LocateInstall() =>
         SnoStore.TryLocateInstall(out var found) ? found
         : ProcessLocator.ExecutableDirectory() is { } running && SnoStore.IsInstall(running) ? running : null;
+
+    // For the log of a store we haven't tested (Steam): is the game's own file where the app expects it?
+    private static string Presence(string folder, string file) => $"{file} {(File.Exists(Path.Combine(folder, file)) ? "found" : "missing")}";
 
     /// <summary>Logs a startup error and shows it: with no console window it would otherwise go unseen.</summary>
     private static int Fail(string message)

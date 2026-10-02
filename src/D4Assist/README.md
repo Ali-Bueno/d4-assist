@@ -69,7 +69,7 @@ error. No key needs a machine-specific path.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `InstallPath` | *(empty: found through Battle.net, then Steam's libraries, then the running game's folder)* | Game install dir (`FenrisDebug.txt`, the exe for module identification), logged as `Game install:`. Set it only if detection fails. |
+| `InstallPath` | *(empty: found through Battle.net, then Steam's libraries, then the running game's folder)* | Game install dir (`FenrisDebug.txt`, the exe for module identification), logged as `Game install:`; a Steam install also logs each `Steam storage:` step ([research/steam-storage.md](../../research/steam-storage.md)). Set it only if detection fails. |
 | `DefinitionsPath` | *(empty: the copy embedded in the exe)* | d4data `definitions.json`. The build embeds `data/definitions.json` in the exe when it exists; set a path only to use another file (relative paths resolve against the exe's folder). |
 | `SpeechEnabled` | `true` | `false` behaves like `--no-speech` (console sink instead of PRISM). |
 | `AutoAnnouncementsEnabled` | `true` | Speak the dungeon enter/leave lines automatically. |

@@ -13,4 +13,8 @@
     <PackageReference Include="WiseOwl.Casc.Diablo4" Version="0.8.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="D4Data.Tests" />
+  </ItemGroup>
+
 </Project>

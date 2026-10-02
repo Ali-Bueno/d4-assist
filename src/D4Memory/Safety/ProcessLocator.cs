@@ -12,12 +12,15 @@ public static class ProcessLocator
             ?? throw new InvalidOperationException($"Process '{ProcessName}' not found. Is Diablo IV running?");
 
     /// <summary>The folder of the running game's exe, whichever store installed it; null when it isn't running or can't be queried.</summary>
-    public static string? ExecutableDirectory()
+    public static string? ExecutableDirectory() => ExecutablePath() is { } exe ? Path.GetDirectoryName(exe) : null;
+
+    /// <summary>The running game's exe file; null when it isn't running or can't be queried.</summary>
+    public static string? ExecutablePath()
     {
         try
         {
             using var process = Process.GetProcessesByName(ProcessName).FirstOrDefault();
-            return process?.MainModule?.FileName is { } exe ? Path.GetDirectoryName(exe) : null;
+            return process?.MainModule?.FileName;
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException)
         {

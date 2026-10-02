@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using D4Data.Casc.Static;
 using D4Data.Format;
 using WiseOwl.Casc;
 using WiseOwl.Casc.Diablo4;
@@ -8,21 +9,22 @@ namespace D4Data.Casc;
 /// <summary>Read-only SNO access over the local install: CoreTOC name lookups plus Meta/Payload reads.</summary>
 public sealed class SnoStore : IDisposable
 {
-    private readonly Diablo4Storage _storage;
+    private readonly ISnoArchive _archive;
     private readonly Dictionary<(int Group, string Name), int> _idsByName = new();
     private readonly Dictionary<int, string> _namesById = new();
 
-    public SnoStore(string installPath)
+    /// <param name="log">Where the Steam storage reports each opening step and its first failed reads.</param>
+    public SnoStore(string installPath, Action<string>? log = null)
     {
-        _storage = Diablo4Storage.Open(installPath);
-        foreach (var e in _storage.CoreToc.Entries)
+        _archive = OpenArchive(installPath, log);
+        foreach (var e in _archive.CoreToc.Entries)
         {
             _idsByName.TryAdd(((int)e.Group, e.Name.ToUpperInvariant()), e.Id);
             _namesById.TryAdd(e.Id, e.Name);
         }
     }
 
-    public string BuildVersion => _storage.Casc.Build.Version;
+    public string BuildVersion => _archive.BuildVersion;
 
     /// <summary>Locates the local Diablo IV install: WiseOwl's override and Battle.net entry, then Steam.</summary>
     public static bool TryLocateInstall([NotNullWhen(true)] out string? installPath)
@@ -32,10 +34,24 @@ public sealed class SnoStore : IDisposable
         return installPath is not null;
     }
 
-    /// <summary>True when <paramref name="folder"/> is a CASC install, the only kind the store opens (WiseOwl's own test).</summary>
-    public static bool IsInstall(string folder) => File.Exists(Path.Combine(folder, BuildInfoFileName));
+    /// <summary>True when <paramref name="folder"/> is an install the store opens: Steam's static storage or a Battle.net CASC.</summary>
+    public static bool IsInstall(string folder) =>
+        StaticCascStorage.IsStaticInstall(folder) || File.Exists(Path.Combine(folder, BuildInfoFileName));
 
     private const string BuildInfoFileName = ".build.info";
+
+    // Steam's install also has a .build.info, so its static build config is checked first.
+    private static ISnoArchive OpenArchive(string installPath, Action<string>? log)
+    {
+        try
+        {
+            if (!StaticCascStorage.IsStaticInstall(installPath)) return new BattleNetSnoArchive(Diablo4Storage.Open(installPath));
+            var storage = StaticCascStorage.Open(installPath, log);
+            try { return new TvfsSnoArchive(storage.ReadPath, storage.BuildVersion, storage); }
+            catch { storage.Dispose(); throw; }
+        }
+        catch (CascException e) { throw new InvalidDataException(e.Message, e); }
+    }
 
     /// <summary>All CoreTOC entries in <paramref name="group"/> (e.g. every Scene SNO for candidate enumeration).</summary>
     public IEnumerable<(int Id, string Name)> AllEntries(int group) => EntriesWithPrefix(group, "");
@@ -52,7 +68,7 @@ public sealed class SnoStore : IDisposable
     public string? Name(int id) => _namesById.GetValueOrDefault(id);
 
     public IEnumerable<(int Id, string Name)> EntriesWithPrefix(int group, string prefix) =>
-        _storage.CoreToc.EntriesInGroup((SnoGroup)group)
+        _archive.CoreToc.EntriesInGroup((SnoGroup)group)
             .Where(e => e.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(e => (e.Id, e.Name));
 
@@ -67,9 +83,9 @@ public sealed class SnoStore : IDisposable
     // 1087 of 62490 actor metas were TACT-encrypted in build 3.2.1.73552 (census 2026-09-29).
     private bool TryRead(int group, int id, SnoFolder folder, out byte[] bytes)
     {
-        try { return _storage.TryReadSno(group, id, folder, out bytes); }
+        try { return _archive.TryReadSno(group, id, folder, out bytes); }
         catch (CascEncryptedContentException) { bytes = []; return false; }
     }
 
-    public void Dispose() => _storage.Dispose();
+    public void Dispose() => _archive.Dispose();
 }

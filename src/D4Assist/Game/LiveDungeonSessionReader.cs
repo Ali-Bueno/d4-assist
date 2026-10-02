@@ -95,6 +95,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             catch (InvalidOperationException e) { throw new GameUnreadableException(e.Message); }
         }
         string exePath = Path.Combine(installPath, ExecutableFileName);
+        // A store that keeps the exe outside the data root: identify the module by the running game's own file.
+        if (!File.Exists(exePath) && ProcessLocator.ExecutablePath() is { } runningExe) exePath = runningExe;
         var regions = process.ImageRegions();
         var modules = ModuleLocator.LocateAll(regions, process, exePath);
         uint build = PeHeaderReader.ReadFromFile(exePath).TimeDateStamp;

@@ -46,7 +46,8 @@ never writes to the game, injects code or hooks it.
 ## Requirements
 
 - Windows, the .NET 10 SDK, and Diablo IV installed (tested on build 3.2.2.73764). The install is found through
-  Battle.net or Steam, else from the running game's folder (`InstallPath` in `d4assist.json` overrides it).
+  Battle.net or Steam, else from the running game's folder (`InstallPath` in `d4assist.json` overrides it). Steam's
+  game files use another storage layout, read by `src/D4Data/Casc/Static` ([research/steam-storage.md](research/steam-storage.md)); not yet tried on a real Steam copy.
 - A screen reader (NVDA tested), reached through PRISM (Prismatoid NuGet package).
 - `data/definitions.json` from d4data for the same build (not committed); the build embeds it in the exe.
 

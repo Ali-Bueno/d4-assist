@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using D4Assist.Audio;
 using D4Assist.Config;
@@ -78,6 +79,39 @@ public class SettingsFormTests
         Assert.Equal(["100", "300", "25"], read.values);
         Assert.Equal((AccessibleRole.Slider, CueSetting.MinSpeed, CueSetting.MaxSpeed), (read.Role, read.Minimum, read.Maximum));
     }
+
+    [Fact]
+    public void TogglingACheckBoxTellsTheScreenReaderItsNewState()
+    {
+        var heard = OnUiThread(form =>
+        {
+            bool allAccessible = Descendants(form).OfType<CheckBox>().All(c => c is AccessibleCheckBox);
+            using var box = new AccessibleCheckBox { Text = "x" };
+            box.CreateControl();
+            var events = new List<(IntPtr Window, int ObjectId, int ChildId)>();
+            WinEventProc proc = (_, _, window, objectId, childId, _, _) => events.Add((window, objectId, childId));
+            IntPtr hook = SetWinEventHook(StateChangeEvent, StateChangeEvent, IntPtr.Zero, proc, (uint)Environment.ProcessId, GetCurrentThreadId(), 0);
+            try
+            {
+                box.Checked = true;
+                for (int i = 0; i < 50 && events.Count == 0; i++) { Application.DoEvents(); Thread.Sleep(10); }
+            }
+            finally { UnhookWinEvent(hook); GC.KeepAlive(proc); }
+            return (allAccessible, uiaProvider: UiaHasServerSideProvider(box.Handle), events, box.Handle, box.AccessibilityObject.State);
+        });
+
+        Assert.True(heard.allAccessible);
+        Assert.False(heard.uiaProvider); // no UIA provider: NVDA reads the MSAA object, which gets the event
+        Assert.Contains((heard.Handle, -4, 0), heard.events); // OBJID_CLIENT, CHILDID_SELF
+        Assert.True(heard.State.HasFlag(AccessibleStates.Checked));
+    }
+
+    private const uint StateChangeEvent = 0x800A; // winuser.h EVENT_OBJECT_STATECHANGE
+    private delegate void WinEventProc(IntPtr hook, uint winEvent, IntPtr window, int objectId, int childId, uint thread, uint time);
+    [DllImport("user32.dll")] private static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventProc proc, uint process, uint thread, uint flags);
+    [DllImport("user32.dll")] private static extern bool UnhookWinEvent(IntPtr hook);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("UIAutomationCore.dll")] private static extern bool UiaHasServerSideProvider(IntPtr window);
 
     private static T OnUiThread<T>(Func<SettingsForm, T> use, LiveSoundMix? live = null)
     {

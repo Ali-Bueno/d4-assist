@@ -237,7 +237,7 @@ public sealed class SettingsForm : Form
 
     private CheckBox Check(string text, Func<bool> get, Action<bool> set, Action? changed = null)
     {
-        var box = new CheckBox { Text = text, AutoSize = true, Anchor = AnchorStyles.Left };
+        var box = new AccessibleCheckBox { Text = text, AutoSize = true, Anchor = AnchorStyles.Left };
         _refreshers.Add(() => box.Checked = get());
         box.CheckedChanged += (_, _) =>
         {

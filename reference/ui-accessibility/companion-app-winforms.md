@@ -34,3 +34,21 @@ position as a percentage of the range the proxy queries with `TBM_GETRANGEMIN`/`
 - **Works:** answer `TBM_GETRANGEMIN` with 0 and `TBM_GETRANGEMAX` with 100 in the trackbar's `WndProc`. WinForms keeps
   the range itself and never sends those messages, and the proxy does not clamp, so it reads the position as is (25, 100,
   300).
+
+## Trap: a check box's new state is not announced
+
+Space toggles a WinForms check box, but NVDA says nothing; the new state is only heard when focus comes back
+(user report, 2026-10-02). WinForms on .NET 10 (checked in 10.0.12, `CheckBox.NotifyAccessibilityStateChanged`):
+- UIA: it raises only a Name property change, never the Toggle pattern's `ToggleState` change. NVDA reads WinForms
+  controls through UIA (`UiaHasServerSideProvider` is true) and announces a toggle only on that event.
+- MSAA: `Control.AccessibilityNotifyClients` sends the `NotifyWinEvent` only when the AppContext switch
+  `Switch.System.Windows.Forms.AccessibleObject.NoClientNotifications` is **true** (default false), so no
+  `EVENT_OBJECT_STATECHANGE` either. This silences every `AccessibilityNotifyClients` call, not only the check box's.
+- NVDA ignores MSAA events from a window it reads through UIA (its `IAccessibleHandler`), so the MSAA event alone is not enough.
+
+**Works** (`Ui/AccessibleCheckBox`): answer `WM_GETOBJECT` with `UiaRootObjectId` (-25) with 0, so readers take the
+check box's MSAA object (WinForms' own `IAccessible`: role check button, state checked), and call
+`NotifyWinEvent(EVENT_OBJECT_STATECHANGE, hwnd, OBJID_CLIENT, CHILDID_SELF)` in `OnCheckedChanged`. Verified with a
+probe (a WinEvent hook and a UIA client): the WinEvent arrives with the checked state, and UIA's MSAA proxy turns it into a
+`ToggleState` change for UIA clients (Narrator). Without the `WM_GETOBJECT` answer, UIA clients still get no toggle event.
+Not yet confirmed by ear with NVDA.

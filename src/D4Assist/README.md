@@ -110,6 +110,8 @@ has one tab per sound group plus **Sound** (master volume, preview switch) and *
   End 0 (the bottom). Screen readers get a trackbar's value from the MSAA proxy (WinForms' UIA value pattern included), which
   reports the position as a percentage of the range it queries (`TBM_GETRANGEMIN/MAX`): a 25–300 speed at 100 read "27".
   `CueSlider` answers that query as 0–100 (WinForms never sends it), so the proxy reads the number itself ([companion-app-winforms](../../reference/ui-accessibility/companion-app-winforms.md)).
+- Check boxes (`Ui/AccessibleCheckBox`, user report 2026-10-02): WinForms raises no toggle event, so Space was silent.
+  They have no UIA provider (readers use their MSAA object) and send the MSAA state change themselves ([companion-app-winforms](../../reference/ui-accessibility/companion-app-winforms.md)).
 - With **Preview** on, the cue plays at its new level 150 ms after the last change (`Ui/CuePreview`, the mixer's own preview
   voice, audible although the game is in the background); a repeating cue plays two to six times at its speed.
 - Speed changes the time between repetitions, never the pitch: the object and quest loops overlap or space out their copies

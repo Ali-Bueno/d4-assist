@@ -25,6 +25,10 @@ Grab the zip from [Releases](../../releases), unzip it anywhere, open `D4Assist.
 "Diablo 4 Assist active" and stays in the system tray, next to the clock. To close it, go to its tray icon and choose
 Exit.
 
+It finds the game through Battle.net, Steam or the running game, and else looks for a "Diablo IV" folder on your
+drives. If it still can't find it, it asks you to choose the Diablo IV folder (the one with `Diablo IV.exe` in it) and
+remembers it. You can change that folder later in the settings, General tab, with the Browse button.
+
 It talks in the same language your game is in (13 languages). Only English and Spanish were written by me; the rest
 are machine translations, so if something sounds weird in your language, let me know.
 
@@ -38,9 +42,15 @@ your right plays on your right, and it gets louder as you get closer.
 like "Junction. Exits: up, right unexplored." The ones you haven't been through yet are marked as unexplored.
 
 **Radar.** Short sounds in four directions (up, down, left, right) that tell you what's ahead if you keep walking that
-way. A bright tone is an exit, a dull knock is a wall, two knocks a closed door, and a soft breath is open floor. It only
-plays when something changes. One thing: corridors in this game go diagonal a lot, so a corridor right between two directions can
-sound like a wall until you turn a bit toward it.
+way. Left and right come from their side; up and down come from the middle, and down sounds a bit lower. It only plays
+when something changes.
+
+- A bright tone is an exit. Two quick pips right after it mean the exit leads somewhere you haven't been yet.
+- A dull knock is a wall, and two knocks a closed door.
+- A soft breath is open floor: it rises for up, falls for down and stays flat for left and right.
+
+One thing: corridors in this game go diagonal a lot, so a corridor right between two directions can sound like a wall
+until you turn a bit toward it.
 
 **Guide.** Press left on the D-pad and a ping starts leading you, following the actual path, to the nearest place you
 haven't explored. It pings faster as you get closer and plays three notes when you get there. Press it again to turn it
@@ -48,10 +58,18 @@ off. When you turn it on, it tells you where it's taking you. It goes first to w
 don't have the quest tracked), then to objectives you already heard and haven't done, then to unexplored stuff, and when
 everything's explored, to a portal. It's on by default in the Undercity and the Pit, and off in normal dungeons.
 
-**Sounds on things.** Portals loop a sound so you can find the way out. Objectives play the quest sound: levers, things
-you have to carry and where they go, quest chests, stuff your quest asks you to use or break, and what the dungeon asks
-you to kill. Prisoners play a corpse sound. Doors, chests, books and notes, and bodies you can search have their own
-sounds too. Characters you can talk to get a little wooden tap. Everything goes quiet once you've used it.
+**Sounds on things.** They repeat from where the thing is, louder as you get closer:
+
+- The quest sound (Ctrl+Alt+Shift+6 plays it) is for what your quest or the dungeon wants from you: levers, things you
+  have to carry and where they go, quest chests, stuff your quest asks you to use or break, and the monsters the dungeon
+  asks you to kill.
+- Portals, including the Undercity's warp pads, have their own sound so you can find the way out.
+- Doors, chests, bodies you can search, books and notes, and spots to look at have their own sounds too. Prisoners play
+  the corpse sound.
+- Characters you can talk to get a little wooden tap. Companions who follow you in a quest stay quiet.
+
+Everything goes quiet once you've used it, except the spots to look at. In the settings each of these sounds has its own
+switch and volume.
 
 **Boss fights.** Safe spots you have to stand in, like Donan's or Vigo's barriers, play their own sound and go quiet once
 you're inside. The Undercity braziers have their own sound too. There are also sounds for Mephisto's skill orbs,
@@ -73,12 +91,15 @@ world just the nearby sounds, because the game's navigation assist already does 
 ## Settings and shortcuts
 
 Ctrl+Alt+Shift+C opens the settings from anywhere (also from the tray icon). You can turn off any sound, change its
-volume, and change how fast the repeating ones repeat, by group or one by one. The master volume starts at 50%.
+volume, and change how fast the repeating ones repeat, by group or one by one. The master volume starts at 50%. The
+General tab has the Diablo IV folder and a Browse button to choose another one.
 
 Ctrl+Alt+Shift plus a number from 1 to 8 plays each sound with its name, so you can learn them: exit, open floor, wall,
 door, unexplored exit, quest sound, guide ping and arrival.
 
-Left on the D-pad turns the guide on and off.
+Left on the D-pad turns the guide on and off (Xbox controllers, and PlayStation's DualSense or DualShock 4). In the
+desert sandstorm quest it mutes and unmutes the ping that leads you between shelters. While a game menu is open it does
+nothing, because there the D-pad belongs to the game.
 
 ## Known issues
 

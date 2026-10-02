@@ -10,8 +10,10 @@ next to the game (controller + NVDA through D4's third-party screen-reader optio
   a bright tin for a passage into another room or unexplored area, a breath for open floor and a dull tock
   for a nearby wall.
 - **Positional quest loops** (the D2R quest sound): every portal in a dungeon (its exit, the portals between floors,
-  the Undercity next-floor pad), and dungeon objectives
-  (prisoners, switches, carryables and receptacles, quest chests, the actors the dungeon's objective quest names).
+  the Undercity next-floor pad), dungeon objectives
+  (prisoners, switches, carryables and receptacles, quest chests, the actors the dungeon's objective quest names), and the
+  objects and people the current step of the tracked quest asks for (the stones to place, the NPC to talk to), and of
+  other quests in progress the app can read.
 - **An exploration guide**: an automatic ping along the path to the nearest unexplored part (on by default in
   the Undercity and the Pit, D-pad left toggles it, ignored while a game menu is open), with an arrival chime. With
   nothing left to explore it leads to a portal seen earlier, preferring one the player has not come through. In other

@@ -32,6 +32,8 @@ public sealed partial record SettingsStrings
     public required string CueSpeedFormat { get; init; }
     public required string RadarDirections { get; init; }
     public required string GuideAndCharactersTab { get; init; }
+    /// <summary>The choice of how many of the nearest characters to talk to tap at once.</summary>
+    public required string NpcVoices { get; init; }
     public required IReadOnlyDictionary<SoundGroup, string> Groups { get; init; }
     public required IReadOnlyDictionary<SoundCue, string> Cues { get; init; }
 
@@ -94,6 +96,7 @@ public sealed partial record SettingsStrings
         CueSpeedFormat = "{0}: velocidad",
         RadarDirections = "Direcciones del radar",
         GuideAndCharactersTab = "Guía y personajes",
+        NpcVoices = "Personajes que suenan a la vez",
         Groups = new Dictionary<SoundGroup, string>
         {
             [SoundGroup.Radar] = "Radar",
@@ -186,6 +189,7 @@ public sealed partial record SettingsStrings
         CueSpeedFormat = "{0}: speed",
         RadarDirections = "Radar directions",
         GuideAndCharactersTab = "Guide and characters",
+        NpcVoices = "Characters to talk to heard at once",
         Groups = new Dictionary<SoundGroup, string>
         {
             [SoundGroup.Radar] = "Radar",

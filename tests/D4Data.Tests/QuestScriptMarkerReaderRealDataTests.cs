@@ -97,4 +97,22 @@ public class QuestScriptMarkerReaderRealDataTests
         Assert.Empty(phase.Markers);
         Assert.DoesNotContain(book, phases.Single(p => p.PhaseUid == 277).ActorSnos);
     }
+
+    [Fact]
+    public void AnOverworldSideQuestIsFoundByTheObjectsItsStepNames()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+        int quest = store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Scos_Blycroft_01");
+        int wardstoneBase = store.Resolve(schema.SnoGroup("ActorDefinition"), "QST_Scos_Blycroft_Wardstone_base");
+
+        // research/client-memory.md §4 (user report 2026-10-02, "Fields of Ruin"): phase 14 places three wardstones on bases its
+        // markers name in a subzone layer set, "Scos_Downs (Scos_Downs_FieldsOfRuin)", which no world or scene name finds.
+        var phase = reader.PhaseObjects(quest).Single(p => p.PhaseUid == 14);
+        Assert.Equal(3, phase.Markers.Count(m => m.Sno == wardstoneBase));
+        Assert.Contains(quest, reader.QuestsNaming([(wardstoneBase, new System.Numerics.Vector3(-1767.8f, -487.6f, 0))], reach: 2));
+        Assert.DoesNotContain(quest, reader.QuestsNaming([(wardstoneBase, new System.Numerics.Vector3(-1700f, -487.6f, 0))], reach: 2));
+    }
 }

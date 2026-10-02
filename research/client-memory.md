@@ -316,6 +316,20 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   copy of an actor the current phase names by SNO (`QuestScriptMarkerReader.PhaseObjects`); only quest-restricted gizmos
   are affected, so NPCs and bosses named the same way (Neyrelle, `Tchort_Boss`) change nothing. Live: `Quest tracked:
   549147, 1 object(s) named, phase 87`, the book looped with reason `quest`.
+- **Overworld side quests** (offline 2026-10-02, after a tester's report: "place the wardstones" spots silent, an NPC to
+  talk to heard): `QST_Scos_Blycroft_01` (991256, "Fields of Ruin", esES "Coloca las piedras protectoras") phase 14 names its
+  three `QST_Scos_Blycroft_Wardstone_base` (gizmo 100) by markers #37/#40/#41 of `Scos_Downs (Scos_Downs_FieldsOfRuin)`, world
+  space, in objective sets 15/27/30 inside phase 14 (set 33 counts `Wardstone_Placed` to 3 and links to 49). The data was read
+  right; the quest was never followed: only the tracked quest was read, and the "none tracked" fallback matches world and scene
+  frames, while 287 of 314 side quests mark their objects in **subzone** frames (`<Subzone> (<Layer>)`, 0 in world frames).
+  The app now follows the tracked quests **plus** the quests in progress here (`ActiveQuests`): candidates with markers in the
+  world or scene frames, or a world-space marker of a loaded actor's SNO within 2 units (`QuestScriptMarkerReader.QuestsNaming`),
+  kept when the module data holds their {quest, phase} pair. An NPC showing a conversation icon whose SNO the current phase
+  names (any spot: NPCs move) is the quest step too (`QuestNaming.ItsKind`; phases 3/49/63 name the quest giver Phelan).
+  Side-quest census (1489 phases): 501 name an NPC, 175 a classifier gizmo, 310 only a place/trigger marker, 203 only a map
+  circle (`QuestCallback.tRegionDefault`/`arRegionOverrides`, unread). **Open:** whether the module data holds the pair of a
+  quest that is neither tracked nor the HUD's (RVA 0x30643CC held only the HUD's); check with `D4MemScan quest --sno 991256
+  --find` while another quest is tracked.
 - **Quest companions** (live 2026-09-30, `acd --match .` in Fractured Peaks): `NPC_QST_Neyrelle_Follower` and
   `NPC_QST_Vigo_Follower`, both following the player, carried `Follower_Quest` = 480289 (the quest), `Pet_Owner_ANN` =
   525136 and `Pet_Type`; no other NPC in range had them. The app silences NPCs with `Follower_Quest` (`AcdFlagReader`).

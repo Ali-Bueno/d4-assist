@@ -59,6 +59,27 @@ public class NpcTests
         Assert.Equal(1, mixer.ActiveEntityVoiceCount);
     }
 
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(NpcCuePlayer.DefaultVoices, 2)]
+    [InlineData(NpcCuePlayer.MaxVoices, 3)] // only three are in range
+    public void The_nearest_npcs_tap_as_many_as_the_setting_allows(int voices, int expected)
+    {
+        var feed = new FakeFeed();
+        var mixer = new AudioMixer();
+        double now = 0;
+        using var tap = new NpcCuePlayer(mixer, () => now, autoTick: false) { Voices = voices };
+        _ = new NpcCueBridge(feed, tap, a => Classifier.IsNpc(a.ActorSno), _ => null);
+
+        feed.RaiseActors(
+            new ActorState(1, MonkSno, 3, 0, 0, Talkable: true), new ActorState(2, MonkSno, 0, 6, 0, Talkable: true),
+            new ActorState(3, MonkSno, -9, 0, 0, Talkable: true), new ActorState(4, MonkSno, 40, 0, 0, Talkable: true));
+        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
+        tap.Tick();
+
+        Assert.Equal(expected, mixer.ActiveEntityVoiceCount);
+    }
+
     [Fact]
     public void A_quest_companion_following_the_player_is_silent()
     {

@@ -33,6 +33,7 @@ public sealed partial record SettingsStrings
         CueSpeedFormat = "{0}：速度",
         RadarDirections = "レーダーの方向",
         GuideAndCharactersTab = "ガイドとキャラクター",
+        NpcVoices = "同時に鳴らす話しかけるキャラクターの数",
         Groups = new Dictionary<SoundGroup, string>
         {
             [SoundGroup.Radar] = "レーダー",

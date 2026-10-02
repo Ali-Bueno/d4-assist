@@ -17,6 +17,7 @@ public sealed class SoundConfigTests : IDisposable
         var config = new AppConfig { Language = "en", SpeechEnabled = false, RadarFrame = RadarFrame.Diagonal, BeaconActorNames = ["A", "B"] };
         config.Sound.MasterVolume = 40;
         config.Sound.Preview = false;
+        config.Sound.NpcVoices = 3;
         config.Sound.Group(SoundGroup.Radar).Volume = 30;
         config.Sound.Cue(SoundCue.Chest).Enabled = false;
         config.Sound.Cue(SoundCue.GuidePing).Speed = 250;
@@ -28,7 +29,8 @@ public sealed class SoundConfigTests : IDisposable
         Assert.False(loaded.SpeechEnabled);
         Assert.Equal(RadarFrame.Diagonal, loaded.RadarFrame);
         Assert.Equal(["A", "B"], loaded.BeaconActorNames);
-        Assert.Equal((40, false), (loaded.Sound.MasterVolume, loaded.Sound.Preview));
+        Assert.Equal((40, false, 3), (loaded.Sound.MasterVolume, loaded.Sound.Preview, loaded.Sound.NpcVoices));
+        Assert.Equal(3, loaded.Sound.Clone().NpcVoices);
         Assert.Equal(30, loaded.Sound.Group(SoundGroup.Radar).Volume);
         Assert.False(loaded.Sound.Cue(SoundCue.Chest).Enabled);
         Assert.Equal(250, loaded.Sound.Cue(SoundCue.GuidePing).Speed);

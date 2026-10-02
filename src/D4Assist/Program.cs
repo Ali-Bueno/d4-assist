@@ -130,9 +130,11 @@ internal static class Program
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
         Func<int, IReadOnlyList<QuestPhaseObjects>> questMarkers =
             quest => { lock (cascGate) return questScripts.PhaseObjects(quest); };
-        Func<int, IReadOnlyCollection<int>, IReadOnlyList<int>> worldQuests = (world, scenes) =>
+        Func<QuestSearchArea, IReadOnlyList<int>> questsHere = area =>
         {
-            lock (cascGate) return questScripts.QuestsWithMarkersIn(new[] { world }.Concat(scenes).Select(store.Name).OfType<string>());
+            lock (cascGate)
+                return [.. questScripts.QuestsWithMarkersIn(new[] { area.WorldSno }.Concat(area.Scenes).Select(store.Name).OfType<string>())
+                    .Union(questScripts.QuestsNaming(area.Actors, ActiveQuests.MarkerReach))];
         };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
@@ -142,7 +144,7 @@ internal static class Program
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
-                worldQuests, health, actorSnos.Contains),
+                questsHere, health, actorSnos.Contains),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -217,6 +219,7 @@ internal static class Program
         {
             mixer.MasterVolume = mix.Master;
             (npcTap.Volume, npcTap.Rate) = mix.Level(SoundCue.Npc);
+            npcTap.Voices = mix.NpcVoices;
             if (guidePing is null) return;
             (guidePing.Volume, guidePing.Rate) = mix.Level(SoundCue.GuidePing);
             guidePing.ArrivalVolume = mix.Level(SoundCue.GuideArrival).Gain;

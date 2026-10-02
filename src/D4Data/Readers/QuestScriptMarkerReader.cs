@@ -1,3 +1,4 @@
+using System.Numerics;
 using D4Data.Casc;
 using D4Data.Format;
 using D4Data.Schema;
@@ -24,7 +25,9 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle";
 
     private readonly Dictionary<int, IReadOnlyList<PlacedMarker>> _cache = [];
+    private readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> _phaseCache = [];
     private Dictionary<string, List<int>>? _questsByFrame;
+    private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -42,10 +45,11 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     /// QST_Frac_GaleValley2_HoradricBook, a gizmo placed by a DRLG tile, with no marker) is any placed copy of it.</summary>
     public IReadOnlyList<QuestPhaseObjects> PhaseObjects(int questSno)
     {
-        if (store.Meta(schema.SnoGroup(Quest), questSno) is not { } quest) return [];
+        if (_phaseCache.TryGetValue(questSno, out var cached)) return cached;
+        if (store.Meta(schema.SnoGroup(Quest), questSno) is not { } quest) return _phaseCache[questSno] = [];
         var handles = Handles(quest).ToList();
         var actors = ActorTokens(quest).ToList();
-        return [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
+        return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
                 .Select(h => (Scene: SceneOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
@@ -61,18 +65,47 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     /// <c>&lt;World&gt; (&lt;Layer&gt;)</c>, <c>&lt;Scene&gt; (&lt;Layer&gt;)</c>); the index over every quest is built on first use.</summary>
     public IReadOnlyList<int> QuestsWithMarkersIn(IEnumerable<string> frames)
     {
-        if (_questsByFrame is null)
+        BuildIndexes();
+        return [.. frames.SelectMany(f => _questsByFrame!.TryGetValue(f, out var quests) ? quests : []).Distinct()];
+    }
+
+    /// <summary>The quests whose scripts name a world-space marker of one of <paramref name="actors"/> within
+    /// <paramref name="reach"/> of it. An overworld quest marks its objects in a subzone's layer set
+    /// (<c>Scos_Downs (Scos_Downs_FieldsOfRuin)</c>), which no world or scene name matches.</summary>
+    public IReadOnlyList<int> QuestsNaming(IEnumerable<(int ActorSno, Vector3 Position)> actors, float reach)
+    {
+        BuildIndexes();
+        return [.. actors
+            .SelectMany(a => (_questsByActor!.TryGetValue(a.ActorSno, out var named) ? named : [])
+                .Where(n => Vector2.Distance(new(n.Position.X, n.Position.Y), new(a.Position.X, a.Position.Y)) <= reach))
+            .Select(n => n.Quest).Distinct()];
+    }
+
+    // One pass over every quest builds both indexes; each world-space marker set is read once.
+    private void BuildIndexes()
+    {
+        if (_questsByFrame is not null) return;
+        var byFrame = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+        var handles = new List<(int Quest, int MarkerSet, int Id)>();
+        int group = schema.SnoGroup(Quest);
+        foreach (var (questSno, _) in store.AllEntries(group))
         {
-            _questsByFrame = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
-            int group = schema.SnoGroup(Quest);
-            foreach (var (questSno, _) in store.AllEntries(group))
-            {
-                if (store.Meta(group, questSno) is not { } quest) continue;
-                foreach (string frame in Handles(quest).Select(h => FrameOf(store.Name(h.MarkerSet))).OfType<string>().Distinct())
-                    (_questsByFrame.TryGetValue(frame, out var list) ? list : _questsByFrame[frame] = []).Add(questSno);
-            }
+            if (store.Meta(group, questSno) is not { } quest) continue;
+            var named = Handles(quest).Select(h => (questSno, h.MarkerSet, h.Id)).Distinct().ToList();
+            foreach (string frame in named.Select(h => FrameOf(store.Name(h.MarkerSet))).OfType<string>().Distinct())
+                (byFrame.TryGetValue(frame, out var list) ? list : byFrame[frame] = []).Add(questSno);
+            handles.AddRange(named);
         }
-        return [.. frames.SelectMany(f => _questsByFrame.TryGetValue(f, out var quests) ? quests : []).Distinct()];
+        var byActor = new Dictionary<int, List<(int Quest, Vector3 Position)>>();
+        int actorGroup = schema.SnoGroup(ActorDefinition);
+        foreach (var set in handles.GroupBy(h => h.MarkerSet).Where(set => SceneOf(set.Key) is null))
+        {
+            var top = markers.TopLevel(set.Key);
+            foreach (var (quest, _, id) in set)
+                if (top.TryGetValue(id, out var marker) && marker.Group == actorGroup)
+                    (byActor.TryGetValue(marker.Sno, out var list) ? list : byActor[marker.Sno] = []).Add((quest, marker.Position));
+        }
+        (_questsByFrame, _questsByActor) = (byFrame, byActor);
     }
 
     // "Ancients_Blood_FLEX_POI_CentralChamber_01 (CSD_Frac_Underworld_AncientMausoleum_CentralChamber)": the frame (a world or a

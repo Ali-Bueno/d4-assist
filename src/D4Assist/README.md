@@ -87,7 +87,7 @@ error. No key needs a machine-specific path.
 | `PauseCuesInMenus` | `true` | Silence every cue while a game menu is open: inventory, skills, map, pause, signs, Horadric shipments, vendor, artisans, stash and every other panel or full menu (`MenuScreens.Watched`, 85 screens). |
 | `RadarClosedDoorsEnabled` | `true` | A closed door sounds as a door in the radar (two knocks) instead of open floor. |
 | `BeaconActorNames` | `["X1_Undercity_WarpPad"]` | CoreTOC actor names that get a beacon; unknown names are logged once and ignored. |
-| `Sound` | *(everything on, 100)* | The settings window's sound tabs (see Settings window): `MasterVolume`, `Preview`, and per group (`Groups`: `Radar`, `Objects`, `Quest`, `Guide`, `Characters`) and per cue (`Cues`: the `Config/SoundCue` names) an `Enabled` switch, a `Volume` (0–100) and a repeat `Speed` (25–300 %, repeating cues only). Missing or unknown entries are ignored in favour of the defaults. |
+| `Sound` | *(everything on, 100)* | The settings window's sound tabs (see Settings window): `MasterVolume`, `Preview`, `NpcVoices` (how many of the nearest NPCs tap at once, 1–4, default 2), and per group (`Groups`: `Radar`, `Objects`, `Quest`, `Guide`, `Characters`) and per cue (`Cues`: the `Config/SoundCue` names) an `Enabled` switch, a `Volume` (0–100) and a repeat `Speed` (25–300 %, repeating cues only). Missing or unknown entries are ignored in favour of the defaults. |
 
 Files from before 2026-09-30 carry flat sound fields (`RadarEnabled`, `RadarVolume`, `BeaconVolume`, `DoorSoundsEnabled`…); they are no longer read, so those sounds start at their defaults.
 
@@ -104,8 +104,8 @@ has one tab per sound group plus **Sound** (master volume, preview switch) and *
 - Each group and each cue has a check box (on/off), a volume slider and, for the repeating cues (object and quest loops, the
   guide ping, the NPC tap), a speed slider. A cue's gain is group × cue, each volume squared (`Config/SoundMix`: 50 sounds
   about half as loud); speeds multiply. The radar tab also has one volume per direction (front = screen up), which scales
-  every radar sound from that side. Changes play live (`Config/LiveSoundMix`) and are saved by OK/Apply; Cancel or closing
-  restores the saved sound.
+  every radar sound from that side. The characters box also chooses how many NPCs tap at once (1 to 4). Changes play live
+  (`Config/LiveSoundMix`) and are saved by OK/Apply; Cancel or closing restores the saved sound.
 - Sliders (`Ui/CueSlider`, user request 2026-09-30): Up/Down ±1, Right/Left ±5, Page Up/Down ±10, Home 100 (the top),
   End 0 (the bottom). Screen readers get a trackbar's value from the MSAA proxy (WinForms' UIA value pattern included), which
   reports the position as a percentage of the range it queries (`TBM_GETRANGEMIN/MAX`): a 25–300 speed at 100 read "27".
@@ -154,17 +154,21 @@ state word; remembered by spot for the world visit, so a re-created actor stays 
 the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
 Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): one the game shows on the minimap
-(`MinimapActive`), or one the tracked quest's current phase names (the player's `ManuallyTrackedQuestSNO`, resolved offline by
-`D4Data.Readers.QuestScriptMarkerReader`: a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is the quest's current step and gets the quest loop whatever it is
-(`ActorState.QuestStep`, reason `quest`). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
-(`ActorState.Unusable`) and stays silent. `--debug` logs `Quest tracked: <sno>, N object(s) named.` on each change and
+(`MinimapActive`), or one an active quest's current phase names (resolved offline by `D4Data.Readers.QuestScriptMarkerReader`:
+a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is the quest's current step and gets the quest loop whatever it is
+(`ActorState.QuestStep`, reason `quest`). So does an NPC showing a conversation icon whose kind the current phase names (the
+one to talk to; it keeps its loop while it moves). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
+(`ActorState.Unusable`) and stays silent. Active quests (`ActiveQuests`): the player's tracked quest (`ManuallyTrackedQuestSNO`)
+plus the quests in progress here, those with markers in this world or its scenes, or on an actor loaded around the player (an
+overworld side quest marks its objects in a subzone layer set), whose {quest, phase} pair the module data holds. `--debug`
+logs `Quest tracked: <snos>; in progress here: <snos>; N object(s) named, <sno> at phase <uid>.` on each change and
 `LOOP silent … cause=unusable` once per gizmo.
 The Undercity attunement switches (spirit hearths and beacons, name token `Enticement`, research/dungeon-objectives.md §5)
 are objectives too (reason `enticement`), on their own settings cue; they fall silent once used.
-Quest places: the current phase of the tracked quest (or, with none tracked, of a quest in progress with markers in this
-dungeon or its scenes) names spots such as a trigger to walk into ("chase Lilith"); the exploration guide leads to them in
-the quest tier, before unexplored ground, until the phase moves on (`ObjectiveMemory.ObservePlaces`; research/client-memory.md
-§4). `--debug` logs `Quest in progress here (none tracked): …` and `OBJECTIVE seen (quest place): …`.
+Quest places: the current phase of an active quest names spots such as a trigger to walk into ("chase Lilith"); the
+exploration guide leads to them in the quest tier, before unexplored ground, until the phase moves on
+(`ObjectiveMemory.ObservePlaces`; research/client-memory.md §4). `--debug` logs `… in progress here: …` and
+`OBJECTIVE seen (quest place): …`.
 Structures the player must break (a hostile `*_Multistage` actor some quest names: the hatred tumors, a few cracked walls and
 gates, research/dungeon-objectives.md §12) loop the quest sound (reason `destructible`) until destroyed, when the remains
 lose their game record (ACD).
@@ -259,7 +263,8 @@ the `Cinematic` mute (`CUES muted: Cinematic`). A world change lifts it. Also un
 ## NPC sound
 
 `Game/NpcCueBridge` plays D2R's friendly-NPC tap (`Audio/NpcCuePlayer`, a port of d2r-access `entity_cue_synth.cpp`) at
-the nearest NPC within 15 units, on every player poll. It repeats faster as the NPC gets closer: 450 ms at the edge,
+the nearest NPCs within 15 units, on every player poll: the two nearest by default, 1 to 4 in the settings (`Sound.NpcVoices`;
+D2R taps one, user request 2026-10-02). Each repeats on its own rhythm, faster as the NPC gets closer: 450 ms at the edge,
 150 ms at contact. It is panned by screen side and pitched lower when the NPC is below the player.
 - **Which NPCs:** `Game/NpcClassifier` takes the fIsNPC monsters off the hostile team, including quest followers and
   escorts. It leaves out hired mercenaries, cinematic stand-ins and prisoners, which have their own loop
@@ -269,7 +274,7 @@ the nearest NPC within 15 units, on every player poll. It repeats faster as the 
   `NPC follows the player, silent`.
 - **No line of sight:** the open world loads no walk grid, so an NPC behind a wall taps too.
 - **Muting:** the cue gate mutes it like every cue.
-- **Log:** `--debug` logs `NPC tap: <name>` per target change.
+- **Log:** `--debug` logs `NPC tap: <name>` when an NPC starts tapping.
 
 ## Exploration guide
 

@@ -48,7 +48,7 @@ public sealed class SettingsForm : Form
             SoundBox(text.RadarDirections, null, SoundCatalog.CuesOf(SoundGroup.Radar).Where(SoundCatalog.IsRadarDirection))));
         tabs.TabPages.Add(Page(text.Groups[SoundGroup.Objects], GroupBox(SoundGroup.Objects)));
         tabs.TabPages.Add(Page(text.Groups[SoundGroup.Quest], GroupBox(SoundGroup.Quest)));
-        tabs.TabPages.Add(Page(text.GuideAndCharactersTab, GroupBox(SoundGroup.Guide), GroupBox(SoundGroup.Characters)));
+        tabs.TabPages.Add(Page(text.GuideAndCharactersTab, GroupBox(SoundGroup.Guide), CharactersBox()));
         tabs.TabPages.Add(Page(text.GeneralTab, GeneralBox(), PausesBox()));
 
         var ok = Button(text.Ok, (_, _) => { if (Save()) { _keepChanges = true; Close(); } });
@@ -101,10 +101,10 @@ public sealed class SettingsForm : Form
         finally { _refreshing = false; }
     }
 
-    private void SoundChanged(Action preview)
+    private void SoundChanged(Action? preview = null)
     {
         _mix = _session.SoundChanged();
-        if (!Sound.Preview) return;
+        if (!Sound.Preview || preview is null) return;
         _pendingPreview = preview;
         _previewTimer.Stop();
         _previewTimer.Start();
@@ -130,10 +130,17 @@ public sealed class SettingsForm : Form
         return Box(_text.SoundTab, table);
     }
 
-    private Control GroupBox(SoundGroup group) => SoundBox(_text.Groups[group], group, SoundCatalog.CuesOf(group));
+    private Control GroupBox(SoundGroup group, Action<TableLayoutPanel>? moreRows = null) =>
+        SoundBox(_text.Groups[group], group, SoundCatalog.CuesOf(group), moreRows);
+
+    // The characters' cues, then how many NPCs tap at once, applied live like the rest of the sound.
+    private Control CharactersBox() => GroupBox(SoundGroup.Characters, table => AddChoice(table, _text.NpcVoices,
+        [.. Enumerable.Range(1, NpcCuePlayer.MaxVoices).Select(n => n.ToString())],
+        () => Math.Clamp(Sound.NpcVoices, 1, NpcCuePlayer.MaxVoices) - 1,
+        i => { Sound.NpcVoices = i + 1; SoundChanged(); }));
 
     // A group's switch/volume/speed row (when given), then one row per cue; the speed column only where something repeats.
-    private Control SoundBox(string title, SoundGroup? group, IEnumerable<SoundCue> cues)
+    private Control SoundBox(string title, SoundGroup? group, IEnumerable<SoundCue> cues, Action<TableLayoutPanel>? moreRows = null)
     {
         var list = cues.ToList();
         bool speeds = group is { } g && SoundCatalog.Repeats(g) || list.Any(SoundCatalog.Repeats);
@@ -155,6 +162,7 @@ public sealed class SettingsForm : Form
             AddRow(table, speeds, () => Sound.Cue(cue), name, string.Format(_text.CueVolumeFormat, name),
                 SoundCatalog.Repeats(cue) ? string.Format(_text.CueSpeedFormat, name) : null, () => _preview.PlayCue(cue, _mix));
         }
+        moreRows?.Invoke(table);
         return Box(title, table);
     }
 
@@ -224,6 +232,7 @@ public sealed class SettingsForm : Form
         combo.SelectedIndexChanged += (_, _) => { if (!_refreshing && combo.SelectedIndex >= 0) set(combo.SelectedIndex); };
         table.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left });
         table.Controls.Add(combo);
+        table.SetColumnSpan(combo, table.ColumnCount - 1);
     }
 
     private static void AddChecks(TableLayoutPanel table, params CheckBox[] boxes)

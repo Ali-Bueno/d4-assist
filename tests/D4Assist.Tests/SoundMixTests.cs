@@ -29,6 +29,19 @@ public class SoundMixTests
     public void Volume_is_squared_and_clamped(int volume, double amplitude) =>
         Assert.Equal(amplitude, SoundMix.Amplitude(volume), Tolerance);
 
+    [Theory]
+    [InlineData(null, NpcCuePlayer.DefaultVoices)]
+    [InlineData(1, 1)]
+    [InlineData(0, 1)]
+    [InlineData(9, NpcCuePlayer.MaxVoices)]
+    public void Npc_voices_default_to_two_and_clamp(int? voices, int expected)
+    {
+        var settings = new SoundSettings();
+        if (voices is { } v) settings.NpcVoices = v;
+
+        Assert.Equal(expected, SoundMix.From(settings).NpcVoices);
+    }
+
     [Fact]
     public void Master_follows_the_master_volume() =>
         Assert.Equal(0.25, SoundMix.From(new SoundSettings { MasterVolume = 50 }).Master, Tolerance);

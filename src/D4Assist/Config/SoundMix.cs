@@ -23,10 +23,15 @@ public sealed class SoundMix
     /// <summary>Master amplitude for the whole mixer (AudioMixer.MasterVolume).</summary>
     public double Master { get; }
 
+    /// <summary>How many NPCs tap at once (NpcCuePlayer.Voices).</summary>
+    public int NpcVoices { get; }
+
     private SoundMix(
-        double master, Dictionary<SoundCue, CueLevel> levels, Dictionary<SoundGroup, CueLevel> groupLevels, Dictionary<SoundCue, double> directionGain)
+        double master, int npcVoices, Dictionary<SoundCue, CueLevel> levels, Dictionary<SoundGroup, CueLevel> groupLevels,
+        Dictionary<SoundCue, double> directionGain)
     {
         Master = master;
+        NpcVoices = npcVoices;
         _levels = levels;
         _groupLevels = groupLevels;
         _directionGain = directionGain;
@@ -46,7 +51,7 @@ public sealed class SoundMix
             levels[cue] = new CueLevel(group.Gain * own.Gain, group.Rate * own.Rate);
             if (SoundCatalog.IsRadarDirection(cue)) directionGain[cue] = own.Gain;
         }
-        return new SoundMix(Amplitude(settings.MasterVolume), levels, groupLevels, directionGain);
+        return new SoundMix(Amplitude(settings.MasterVolume), Math.Clamp(settings.NpcVoices, 1, NpcCuePlayer.MaxVoices), levels, groupLevels, directionGain);
     }
 
     /// <summary>The cue's gain and rate: its group's and its own switch, volume and speed combined (master excluded).</summary>

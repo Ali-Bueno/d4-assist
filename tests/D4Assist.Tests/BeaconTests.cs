@@ -74,7 +74,7 @@ public class BeaconTests
     public void ActorFilter_AQuestGizmoOnTheMinimapOrNamedByTheTrackedQuestIsTheQuestStep_ElseItIsUnusable()
     {
         const string quest = D4Memory.Actors.AcdFlagReader.GizmoQuestRestricted, minimap = D4Memory.Actors.AcdFlagReader.MinimapActive;
-        var records = Enumerable.Range(1, 5).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        var records = Enumerable.Range(1, 6).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
         var flags = new Dictionary<uint, IReadOnlySet<string>>
         {
             [1] = new HashSet<string> { quest },                                               // the locked quest gate
@@ -82,12 +82,36 @@ public class BeaconTests
             [3] = new HashSet<string> { D4Memory.Actors.AcdFlagReader.GizmoDisabledByScript },
             [4] = new HashSet<string> { minimap },                                             // an elevator
             [5] = new HashSet<string> { quest },                                               // the gate, once the quest names it
+            [6] = new HashSet<string> { quest },                                               // the same gate placed elsewhere
         };
+        var naming = new Dictionary<uint, QuestNaming> { [5] = QuestNaming.It, [6] = QuestNaming.ItsKind };
 
-        var actors = ActorFilter.Placed(records, r => flags.GetValueOrDefault(r.Id), namedByQuest: r => r.Id == 5);
+        var actors = ActorFilter.Placed(records, r => flags.GetValueOrDefault(r.Id), namedByQuest: r => naming.GetValueOrDefault(r.Id));
 
-        Assert.Equal([true, false, true, false, false], actors.Select(a => a.Unusable));
-        Assert.Equal([false, true, false, false, true], actors.Select(a => a.QuestStep));
+        Assert.Equal([true, false, true, false, false, true], actors.Select(a => a.Unusable));
+        Assert.Equal([false, true, false, false, true, false], actors.Select(a => a.QuestStep));
+    }
+
+    [Fact]
+    public void ActorFilter_AnNpcAQuestNamesIsTheQuestStepWhileItShowsAConversationIcon()
+    {
+        var records = Enumerable.Range(1, 6).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        var flags = new Dictionary<uint, IReadOnlySet<string>>
+        {
+            [1] = new HashSet<string> { AcdFlagReader.ConversationIcon },                        // the NPC at its marker
+            [2] = new HashSet<string> { AcdFlagReader.ConversationIconQuest },                   // walked off its marker
+            [3] = new HashSet<string> { AcdFlagReader.NpcHasInteractOptions },                   // a vendor the quest names
+            [4] = new HashSet<string> { AcdFlagReader.ConversationIcon, AcdFlagReader.FollowerQuest }, // a companion
+            [5] = new HashSet<string> { AcdFlagReader.ConversationIcon },                        // a quest giver no quest names
+            [6] = new HashSet<string> { AcdFlagReader.ConversationIcon },                        // named by its SNO alone
+        };
+        var naming = new Dictionary<uint, QuestNaming>
+            { [1] = QuestNaming.It, [2] = QuestNaming.ItsKind, [3] = QuestNaming.It, [4] = QuestNaming.It, [6] = QuestNaming.It };
+
+        var actors = ActorFilter.Placed(records, r => flags[r.Id], namedByQuest: r => naming.GetValueOrDefault(r.Id));
+
+        Assert.Equal([true, true, false, false, false, true], actors.Select(a => a.QuestStep));
+        Assert.All(actors, a => Assert.False(a.Unusable));
     }
 
     [Fact]

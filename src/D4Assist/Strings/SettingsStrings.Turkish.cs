@@ -32,6 +32,7 @@ public sealed partial record SettingsStrings
         CueSpeedFormat = "{0}: hız",
         RadarDirections = "Radar yönleri",
         GuideAndCharactersTab = "Rehber ve karakterler",
+        NpcVoices = "Aynı anda duyulan konuşulabilir karakterler",
         Groups = new Dictionary<SoundGroup, string>
         {
             [SoundGroup.Radar] = "Radar",

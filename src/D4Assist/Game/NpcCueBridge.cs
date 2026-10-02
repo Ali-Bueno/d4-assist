@@ -4,9 +4,9 @@ using D4Assist.Navigation;
 namespace D4Assist.Game;
 
 /// <summary>
-/// Aims D2R's friendly-NPC tap (NpcCuePlayer) at the nearest NPC within range, on every player poll; one NPC at a time,
-/// like D2R's single NPC class (d2r-access docs/entity-cues.md). Direct bearing, no line of sight: the overworld has no
-/// walk grid. Only NPCs the player can talk to or trade with get it (ActorState.Talkable); quest companions following
+/// Aims D2R's friendly-NPC tap (NpcCuePlayer) at the nearest NPCs within range, on every player poll: as many as
+/// NpcCuePlayer.Voices (a setting, two by default; D2R taps one, d2r-access docs/entity-cues.md). Direct bearing, no line of
+/// sight: the overworld has no walk grid. Only NPCs the player can talk to or trade with get it (ActorState.Talkable); quest companions following
 /// the player (ActorState.QuestFollower) stay silent (user, 2026-09-30).
 /// Silent on a world change.
 /// </summary>
@@ -20,7 +20,7 @@ public sealed class NpcCueBridge
     private readonly object _gate = new();
     private readonly HashSet<uint> _loggedSilent = [];
     private IReadOnlyList<ActorState> _npcs = [];
-    private uint? _loggedId;
+    private HashSet<uint> _tapping = [];
 
     /// <param name="isNpc">True for an actor that gets the tap (NpcClassifier, minus actors with their own loop).</param>
     /// <param name="log">Debug sink for target changes; null when not debugging.</param>
@@ -30,7 +30,7 @@ public sealed class NpcCueBridge
         _isNpc = isNpc;
         _nameOf = nameOf;
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _npcs = []; _loggedId = null; _loggedSilent.Clear(); _player.Silence(); } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _npcs = []; _tapping = []; _loggedSilent.Clear(); _player.Silence(); } };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) Aim(p); };
     }
@@ -45,17 +45,16 @@ public sealed class NpcCueBridge
 
     private void Aim(PlayerState p)
     {
-        var nearest = _npcs.MinBy(n => Distance(n, p));
-        if (nearest is null || Distance(nearest, p) > _player.RangeUnits)
+        var nearest = _npcs.Select(n => (Npc: n, Distance: Distance(n, p))).Where(n => n.Distance <= _player.RangeUnits)
+            .OrderBy(n => n.Distance).Take(_player.Voices).ToList();
+        foreach (var (npc, distance) in nearest.Where(n => !_tapping.Contains(n.Npc.Id)))
+            _log?.Invoke($"NPC tap: {Name(npc)} at ({npc.X:F1},{npc.Y:F1}) distance={distance:F1}");
+        _tapping = [.. nearest.Select(n => n.Npc.Id)];
+        _player.Aim([.. nearest.Select(n =>
         {
-            _player.Silence();
-            _loggedId = null;
-            return;
-        }
-        if (_loggedId != nearest.Id) _log?.Invoke($"NPC tap: {Name(nearest)} at ({nearest.X:F1},{nearest.Y:F1}) distance={Distance(nearest, p):F1}");
-        _loggedId = nearest.Id;
-        var (right, up) = ScreenDirections.ToScreen(nearest.X - p.X, nearest.Y - p.Y);
-        _player.Aim(right, up, Distance(nearest, p));
+            var (right, up) = ScreenDirections.ToScreen(n.Npc.X - p.X, n.Npc.Y - p.Y);
+            return new NpcAim(n.Npc.Id, right, up, n.Distance);
+        })]);
     }
 
     private string Name(ActorState npc) => _nameOf(npc.ActorSno) ?? npc.ActorSno.ToString();

@@ -62,12 +62,13 @@ Pit, and off in normal dungeons.
 **Sounds on things.** They repeat from where the thing is, louder as you get closer:
 
 - The quest sound (Ctrl+Alt+Shift+6 plays it) is for what your quest or the dungeon wants from you: levers, things you
-  have to carry and where they go, quest chests, stuff your quest asks you to use or break, and the monsters the dungeon
-  asks you to kill.
+  have to carry and where they go, quest chests, stuff your quest asks you to use or break, the person your quest asks you
+  to talk to, and the monsters the dungeon asks you to kill.
 - Portals, including the Undercity's warp pads, have their own sound so you can find the way out.
 - Doors, chests, bodies you can search, books and notes, and spots to look at have their own sounds too. Prisoners play
   the corpse sound.
-- Characters you can talk to get a little wooden tap. Companions who follow you in a quest stay quiet.
+- Characters you can talk to get a little wooden tap, the two nearest at once (the settings let you pick 1 to 4).
+  Companions who follow you in a quest stay quiet.
 
 Everything goes quiet once you've used it, except the spots to look at. In the settings each of these sounds has its own
 switch and volume.

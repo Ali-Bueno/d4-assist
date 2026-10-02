@@ -37,16 +37,20 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
     }
 
     /// <summary>The top-level marker <paramref name="markerId"/> (Marker.nID) of a marker set, in the set's frame; null when absent.</summary>
-    public PlacedMarker? Find(int markerSetSno, int markerId)
+    public PlacedMarker? Find(int markerSetSno, int markerId) => TopLevel(markerSetSno).GetValueOrDefault(markerId);
+
+    /// <summary>The top-level markers of a marker set by Marker.nID, in the set's frame; empty when the set is unreadable.</summary>
+    public IReadOnlyDictionary<int, PlacedMarker> TopLevel(int markerSetSno)
     {
-        if (store.Meta(MarkerSetGroup, markerSetSno) is not { } meta) return null;
+        var result = new Dictionary<int, PlacedMarker>();
+        if (store.Meta(MarkerSetGroup, markerSetSno) is not { } meta) return result;
         var blob = schema.IsInPayload(MarkerSet, "tMarkerSet") ? store.Payload(MarkerSetGroup, markerSetSno) : meta;
-        if (blob is null) return null;
+        if (blob is null) return result;
         int nameField = schema.Offset(Marker, "snoname");
         foreach (var m in blob.Array(schema.Offset(MarkerSet, "tMarkerSet"), schema.Size(Marker)))
-            if (blob.I32(m + schema.Offset(Marker, "nID")) == markerId)
-                return new PlacedMarker(blob.I32(m + nameField), blob.I32(m + nameField + sizeof(int)), LocalMatrix(blob, m).Translation);
-        return null;
+            result.TryAdd(blob.I32(m + schema.Offset(Marker, "nID")),
+                new PlacedMarker(blob.I32(m + nameField), blob.I32(m + nameField + sizeof(int)), LocalMatrix(blob, m).Translation));
+        return result;
     }
 
     // Visits every non-prefab marker with its composed transform, expanding nested prefab marker sets.

@@ -1,3 +1,5 @@
+using D4Assist.Audio;
+
 namespace D4Assist.Config;
 
 /// <summary>A set of sound cues that share a switch, a volume and a repeat speed on top of each cue's own.</summary>
@@ -45,6 +47,9 @@ public sealed class SoundSettings
     /// <summary>Play a cue while its volume or speed is being changed in the settings window.</summary>
     public bool Preview { get; set; } = true;
 
+    /// <summary>How many of the nearest characters to talk to tap at once (1 to NpcCuePlayer.MaxVoices).</summary>
+    public int NpcVoices { get; set; } = NpcCuePlayer.DefaultVoices;
+
     public Dictionary<string, CueSetting> Groups
     {
         get => _groups;
@@ -70,6 +75,7 @@ public sealed class SoundSettings
     {
         MasterVolume = MasterVolume,
         Preview = Preview,
+        NpcVoices = NpcVoices,
         Groups = _groups.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         Cues = _cues.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
     };

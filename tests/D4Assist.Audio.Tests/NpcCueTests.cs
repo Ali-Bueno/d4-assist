@@ -74,7 +74,7 @@ public class NpcCueTests
     public void Balance_follows_the_screen_direction(double right)
     {
         var (mixer, npc, _) = Create();
-        npc.Aim(right, up: 0.1, distanceUnits: 5);
+        npc.Aim([new NpcAim(1, right, Up: 0.1, DistanceUnits: 5)]);
         npc.Tick();
 
         var (left, rightEnergy) = Listen(mixer);
@@ -86,11 +86,11 @@ public class NpcCueTests
     public void Silent_beyond_range_and_after_Silence()
     {
         var (mixer, npc, _) = Create();
-        npc.Aim(0, 1, npc.RangeUnits + 1);
+        npc.Aim([new NpcAim(1, 0, 1, npc.RangeUnits + 1)]);
         npc.Tick();
         Assert.Equal(0, mixer.ActiveEntityVoiceCount);
 
-        npc.Aim(0, 1, 5);
+        npc.Aim([new NpcAim(1, 0, 1, 5)]);
         npc.Silence();
         npc.Tick();
         Assert.Equal(0, mixer.ActiveEntityVoiceCount);
@@ -104,7 +104,7 @@ public class NpcCueTests
         var tick = new short[AudioFormat.SampleRate * NpcCuePlayer.TickMs / 1000 * AudioFormat.Channels];
         for (clock.Now = 0; clock.Now < 0.9; clock.Now += NpcCuePlayer.TickMs / 1000.0)
         {
-            npc.Aim(0, 1, 0); // 150 ms
+            npc.Aim([new NpcAim(1, 0, 1, 0)]); // 150 ms
             int before = mixer.ActiveEntityVoiceCount;
             npc.Tick();
             if (mixer.ActiveEntityVoiceCount > before) plays++;
@@ -123,16 +123,16 @@ public class NpcCueTests
         var (slowMixer, slow, slowClock) = Create();
         var (fastMixer, fast, fastClock) = Create();
         fast.Rate = 2.0;
-        slow.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits); // 450 ms apart
-        fast.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits); // 225 ms apart
+        slow.Aim([new NpcAim(1, 0, 1, NpcCuePlayer.DefaultRangeUnits)]); // 450 ms apart
+        fast.Aim([new NpcAim(1, 0, 1, NpcCuePlayer.DefaultRangeUnits)]); // 225 ms apart
         slow.Tick();
         fast.Tick();
         Listen(slowMixer);
         Listen(fastMixer);
 
         slowClock.Now = fastClock.Now = 0.3;
-        slow.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits);
-        fast.Aim(0, 1, NpcCuePlayer.DefaultRangeUnits);
+        slow.Aim([new NpcAim(1, 0, 1, NpcCuePlayer.DefaultRangeUnits)]);
+        fast.Aim([new NpcAim(1, 0, 1, NpcCuePlayer.DefaultRangeUnits)]);
         slow.Tick();
         fast.Tick();
 
@@ -141,11 +141,44 @@ public class NpcCueTests
     }
 
     [Fact]
+    public void Several_npcs_tap_together_each_on_its_own_rhythm()
+    {
+        var (mixer, npc, clock) = Create();
+        NpcAim near = new(1, -1, 0.1, 0), far = new(2, 1, 0.1, NpcCuePlayer.DefaultRangeUnits); // 150 and 450 ms apart
+        npc.Aim([near, far]);
+        npc.Tick();
+        Assert.Equal(2, mixer.ActiveEntityVoiceCount);
+        var (left, right) = Listen(mixer);
+        Assert.True(left > 0 && right > 0);
+
+        clock.Now = 0.2;
+        npc.Aim([near, far]);
+        npc.Tick();
+
+        Assert.Equal(1, mixer.ActiveEntityVoiceCount); // only the near one is due again
+    }
+
+    [Fact]
+    public void An_npc_left_out_of_the_aim_goes_silent()
+    {
+        var (mixer, npc, clock) = Create();
+        npc.Aim([new NpcAim(1, -1, 0.1, 2), new NpcAim(2, 1, 0.1, 2)]);
+        npc.Tick();
+        Listen(mixer);
+
+        clock.Now = 1.0;
+        npc.Aim([new NpcAim(1, -1, 0.1, 2)]);
+        npc.Tick();
+
+        Assert.Equal(1, mixer.ActiveEntityVoiceCount);
+    }
+
+    [Fact]
     public void Zero_volume_plays_nothing()
     {
         var (mixer, npc, _) = Create();
         npc.Volume = 0;
-        npc.Aim(0, 1, 5);
+        npc.Aim([new NpcAim(1, 0, 1, 5)]);
         npc.Tick();
 
         Assert.Equal(0, mixer.ActiveEntityVoiceCount);

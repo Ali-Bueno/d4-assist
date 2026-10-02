@@ -20,8 +20,8 @@ public sealed class AudioMixer
     /// when the next starts), so radar cues can neither steal nor starve them.</summary>
     public const int MaxGuideVoices = 2;
 
-    /// <summary>Separate budget for the friendly-NPC tap (one at a time; the spare covers a tap still ringing).</summary>
-    public const int MaxEntityVoices = 2;
+    /// <summary>Separate budget for the friendly-NPC taps: two per NPC that may tap at once (the spare covers a tap still ringing).</summary>
+    public const int MaxEntityVoices = 2 * NpcCuePlayer.MaxVoices;
 
     // A single boosted cue peaks below this, so only overlapping cues are ever compressed.
     private const float LimiterKnee = 0.8f;
@@ -80,7 +80,7 @@ public sealed class AudioMixer
         }
     }
 
-    /// <summary>Plays an entity cue on its own voice budget; when both slots are busy the older one is replaced.</summary>
+    /// <summary>Plays an entity cue on its own voice budget; when every slot is busy the oldest one is replaced.</summary>
     public void PlayEntity(float[] samples, double gain, double pan)
     {
         if (_paused) return;

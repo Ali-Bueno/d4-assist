@@ -14,7 +14,8 @@ public sealed record TileState(
 /// <param name="QuestFollower">A companion NPC following the player for a quest: ACD Follower_Quest (research/client-memory.md §4).</param>
 /// <param name="QuestLocked">A quest gizmo (Gizmo_Is_Quest_Restricted) that isn't the quest step.</param>
 /// <param name="ScriptDisabled">ACD Gizmo_Disabled_By_Script.</param>
-/// <param name="QuestStep">A quest gizmo (Gizmo_Is_Quest_Restricted) on the minimap or named by the tracked quest's scripts.</param>
+/// <param name="QuestStep">A quest gizmo (Gizmo_Is_Quest_Restricted) on the minimap or named by an active quest's scripts, or an
+/// NPC with a conversation icon an active quest names.</param>
 /// <param name="ClientOnly">No game record (ACD): a client-side prop, or what the player holds (research/client-memory.md §4).</param>
 /// <param name="GizmoStateSet">ACD Gizmo_State is nonzero: an open door, a used corpse or herb (research/client-memory.md §4).</param>
 /// <param name="Talkable">An NPC with interact options or a conversation icon (research/client-memory.md §4).</param>

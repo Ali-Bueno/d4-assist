@@ -193,6 +193,15 @@ public class InteractableTests
     }
 
     [Fact]
+    public void Selector_AQuestNpcGetsTheQuestLoopAndKeepsItWhileItAnimates()
+    {
+        var target = Selector().Select(new ActorState(1, NpcSno, 0, 0, 0, StateChanged: true, QuestStep: true, Talkable: true));
+
+        Assert.Equal((LoopKind.Objective, LoopTargetSelector.QuestItemSound, "quest", false),
+            (target!.Kind, target.Sound, target.Reason, target.StopsWhenUsed));
+    }
+
+    [Fact]
     public void Selector_OnlyGizmoTargetsStopWhenUsed()
     {
         var selector = Selector();

@@ -91,7 +91,7 @@ public sealed class LoopTargetSelector
     {
         if (_safeZoneRadius?.Invoke(actor.ActorSno) is { } inside) return _safeZone with { QuietWithin = inside };
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
-        if (_objectives is not null && actor.QuestStep) return _objectiveTargets[ObjectiveReason.Quest];
+        if (_objectives is not null && actor.QuestStep) return (actor.Talkable ? _npcObjectiveTargets : _objectiveTargets)[ObjectiveReason.Quest];
         if (IsHeld(actor)) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
             return reason == ObjectiveReason.Destructible && actor.ClientOnly ? null // destroyed: the remains have no game record

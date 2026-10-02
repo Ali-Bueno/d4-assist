@@ -24,8 +24,18 @@ public sealed class SnoStore : IDisposable
 
     public string BuildVersion => _storage.Casc.Build.Version;
 
-    /// <summary>Locates the local Diablo IV install (wraps WiseOwl so callers never reference it directly).</summary>
-    public static bool TryLocateInstall([NotNullWhen(true)] out string? installPath) => Diablo4Storage.TryLocateInstall(out installPath);
+    /// <summary>Locates the local Diablo IV install: WiseOwl's override and Battle.net entry, then Steam.</summary>
+    public static bool TryLocateInstall([NotNullWhen(true)] out string? installPath)
+    {
+        if (Diablo4Storage.TryLocateInstall(out installPath)) return true;
+        installPath = OperatingSystem.IsWindows() ? SteamInstall.Locate(IsInstall) : null;
+        return installPath is not null;
+    }
+
+    /// <summary>True when <paramref name="folder"/> is a CASC install, the only kind the store opens (WiseOwl's own test).</summary>
+    public static bool IsInstall(string folder) => File.Exists(Path.Combine(folder, BuildInfoFileName));
+
+    private const string BuildInfoFileName = ".build.info";
 
     /// <summary>All CoreTOC entries in <paramref name="group"/> (e.g. every Scene SNO for candidate enumeration).</summary>
     public IEnumerable<(int Id, string Name)> AllEntries(int group) => EntriesWithPrefix(group, "");

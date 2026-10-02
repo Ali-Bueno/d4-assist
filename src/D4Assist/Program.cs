@@ -65,9 +65,10 @@ internal static class Program
         AppConfig config;
         try { config = AppConfig.Load(configPath); }
         catch (Exception e) when (e is InvalidDataException or JsonException or IOException) { return Fail($"{AppConfig.FileName}: {e.Message}"); }
-        var installPath = config.ResolveInstallPath(Directory.Exists, () => SnoStore.TryLocateInstall(out var found) ? found : null);
+        var installPath = config.ResolveInstallPath(Directory.Exists, LocateInstall);
         if (installPath is null)
-            return Fail($"Diablo IV install not found. Set InstallPath in {AppConfig.FileName}. See README.md.");
+            return Fail($"Diablo IV install not found. Start Diablo IV and open Diablo 4 Assist again, or set InstallPath in {AppConfig.FileName}. See README.md.");
+        Console.WriteLine($"Game install: {installPath}");
         var definitionsPath = config.ResolveDefinitionsPath(AppContext.BaseDirectory);
         if (definitionsPath is null ? !HasEmbeddedDefinitions() : !File.Exists(definitionsPath))
             return Fail(definitionsPath is null
@@ -279,6 +280,11 @@ internal static class Program
         if (restart) StartAnotherCopy(args);
         return 0;
     }
+
+    // Battle.net or Steam; else the running game's folder, for any other store or a folder moved by hand.
+    private static string? LocateInstall() =>
+        SnoStore.TryLocateInstall(out var found) ? found
+        : ProcessLocator.ExecutableDirectory() is { } running && SnoStore.IsInstall(running) ? running : null;
 
     /// <summary>Logs a startup error and shows it: with no console window it would otherwise go unseen.</summary>
     private static int Fail(string message)

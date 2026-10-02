@@ -15,7 +15,7 @@ public sealed class AppConfig
     public const string AutoLanguage = "auto";
 
 
-    /// <summary>Empty = find the Diablo IV install through Battle.net (SnoStore.TryLocateInstall).</summary>
+    /// <summary>Empty = find the Diablo IV install through Battle.net, Steam or the running game (Program.LocateInstall).</summary>
     public string InstallPath { get; set; } = "";
 
     /// <summary>Empty = the definitions.json embedded in the exe (data/definitions.json at build time). A relative path is

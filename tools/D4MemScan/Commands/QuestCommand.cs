@@ -24,11 +24,12 @@ internal static class QuestCommand
             var quests = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
             var phases = quests.PhaseObjects(sno);
             int index = 0;
-            foreach (var (uid, markers, actors, sceneMarkers) in phases)
+            foreach (var (uid, markers, actors, sceneMarkers, subQuests) in phases)
                 Console.WriteLine($"phase {index++,2} uid {uid} (0x{uid:X}): " +
                     string.Join(", ", markers.Select(m => $"{store.Name(m.Sno)} ({m.Position.X:F0},{m.Position.Y:F0})")
                         .Concat(sceneMarkers.Select(s => $"{store.Name(s.Marker.Sno)} ({s.Marker.Position.X:F0},{s.Marker.Position.Y:F0} in {store.Name(s.SceneSno)})"))
-                        .Concat(actors.Select(a => $"{store.Name(a)} (any)"))));
+                        .Concat(actors.Select(a => $"{store.Name(a)} (any)"))
+                        .Concat((subQuests ?? new HashSet<int>()).Select(q => $"waits on quest {q} {store.Name(q)}"))));
             var uids = phases.Select(p => p.PhaseUid).ToHashSet();
             if (reader.Has("--find")) Find(sno, uids, Path.Combine(install, GameData.MainModuleFileName));
             if (reader.Get("--watch") is { } watch) Watch(sno, uids, int.Parse(watch));

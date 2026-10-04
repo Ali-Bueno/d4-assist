@@ -10,19 +10,22 @@ namespace D4Data.Readers;
 public sealed record SceneMarker(int SceneSno, PlacedMarker Marker);
 
 /// <summary>One quest phase's objects: the markers its scripts name in world space and in scenes, and the actor SNOs its callbacks name.</summary>
+/// <param name="SubQuests">The quests the phase waits on (ScriptEventParamQuest): the game then shows their phase instead of this one's
+/// (live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 hands over to the hub's quest S15_Triad_C_Travincal). Null for none.</param>
 public sealed record QuestPhaseObjects(
-    uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers);
+    uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
+    IReadOnlySet<int>? SubQuests = null);
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
-/// parameters and event filters (resolved through its marker set) and every actor in the callback's <c>arSnonameTokens</c>.
-/// Cached per quest; not thread-safe.</remarks>
+/// parameters and event filters (resolved through its marker set), every ScriptEventParamQuest there (a sub-quest) and every
+/// actor in the callback's <c>arSnonameTokens</c>. Cached per quest; not thread-safe.</remarks>
 public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, MarkerReader markers)
 {
     private const string Quest = "QuestDefinition", Phase = "QuestPhase", Set = "QuestObjectiveSet", Callback = "QuestCallback";
     private const string ActorDefinition = "ActorDefinition", SnoName = "DT_SNO_NAME", SceneDefinition = "SceneDefinition";
     private const string MessageMap = "ScriptMessageMap", Filter = "ScriptMessageMapFilter";
-    private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle";
+    private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle", QuestParam = "ScriptEventParamQuest";
 
     private readonly Dictionary<int, IReadOnlyList<PlacedMarker>> _cache = [];
     private readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> _phaseCache = [];
@@ -49,15 +52,18 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         if (store.Meta(schema.SnoGroup(Quest), questSno) is not { } quest) return _phaseCache[questSno] = [];
         var handles = Handles(quest).ToList();
         var actors = ActorTokens(quest).ToList();
+        var subQuests = SubQuests(quest, questSno).ToList();
         return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
                 .Select(h => (Scene: SceneOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
+            var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             return new QuestPhaseObjects(uid,
                 [.. named.Where(m => m.Scene is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
-                [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))]);
+                [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))],
+                waitsOn.Count > 0 ? waitsOn : null);
         })];
     }
 
@@ -141,6 +147,22 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
 
     private IEnumerable<(uint PhaseUid, int MarkerSet, int Id)> Handles(SnoBlob quest)
     {
+        foreach (var (phaseUid, param, type) in Params(quest))
+        {
+            if (type != MarkerHandleParam) continue;
+            int handle = param + schema.Offset(MarkerHandleParam, "tMarkerHandle");
+            yield return (phaseUid, quest.I32(handle + schema.Offset("MarkerHandle", "snoMarkerSet")), quest.I32(handle + schema.Offset("MarkerHandle", "nID")));
+        }
+    }
+
+    private IEnumerable<(uint PhaseUid, int Quest)> SubQuests(SnoBlob quest, int questSno) =>
+        Params(quest).Where(p => p.Type == QuestParam)
+            .Select(p => (p.PhaseUid, Quest: quest.I32(p.Param + schema.Offset(QuestParam, "snoQuest"))))
+            .Where(s => s.Quest > 0 && s.Quest != questSno);
+
+    // Every script parameter of the callbacks' message maps, the event filters' included, with its phase and its type name.
+    private IEnumerable<(uint PhaseUid, int Param, string? Type)> Params(SnoBlob quest)
+    {
         int map = schema.Offset(Callback, "tScriptMessageMap");
         foreach (int phase in Phases(quest))
         foreach (int callback in Callbacks(quest, phase))
@@ -150,12 +172,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 parameterArrays.Add(filter + schema.Offset(Filter, "pMessageFilter"));
             foreach (int array in parameterArrays)
             foreach (int param in quest.PolymorphicElements(array, p => ParamType(quest, p) is { } t ? schema.Size(t) : null) ?? [])
-            {
-                if (ParamType(quest, param) != MarkerHandleParam) continue;
-                int handle = param + schema.Offset(MarkerHandleParam, "tMarkerHandle");
-                yield return (PhaseUid(quest, phase),
-                    quest.I32(handle + schema.Offset("MarkerHandle", "snoMarkerSet")), quest.I32(handle + schema.Offset("MarkerHandle", "nID")));
-            }
+                yield return (PhaseUid(quest, phase), param, ParamType(quest, param));
         }
     }
 

@@ -141,11 +141,15 @@ internal static class Program
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
         Func<int, IReadOnlyList<QuestPhaseObjects>> questMarkers =
             quest => { lock (cascGate) return questScripts.PhaseObjects(quest); };
+        var dpo = new DungeonObjectiveReader(store, schema);
+        // The world's own objective quest too: a seasonal hub's zone quest names its steps by actor, with no marker to find it by,
+        // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18).
         Func<QuestSearchArea, IReadOnlyList<int>> questsHere = area =>
         {
             lock (cascGate)
                 return [.. questScripts.QuestsWithMarkersIn(new[] { area.WorldSno }.Concat(area.Scenes).Select(store.Name).OfType<string>())
-                    .Union(questScripts.QuestsNaming(area.Actors, ActiveQuests.MarkerReach))];
+                    .Union(questScripts.QuestsNaming(area.Actors, ActiveQuests.MarkerReach))
+                    .Union(dpo.QuestSnos(area.WorldSno))];
         };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
@@ -187,7 +191,7 @@ internal static class Program
                 cells => { navigation.SetBlockedCells(cells); radarWorld.SetBarriers(cells); });
 
         var loopMemory = loopSounds is null ? null : StartLoops(
-            session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, cue => liveSound.Current.Level(cue));
+            session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, dpo, cue => liveSound.Current.Level(cue));
         var portals = loopMemory?.Portals;
         var objectives = loopMemory?.Objectives;
         using var npcTap = new NpcCuePlayer(mixer);
@@ -253,7 +257,8 @@ internal static class Program
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
                 pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations,
-                objectives is null ? null : objectives.Destinations, objectives is null ? null : objectives.Rearm);
+                objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
+                objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); });
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
@@ -376,14 +381,13 @@ internal static class Program
     private static LoopMemory StartLoops(
         GameSession session, AudioMixer mixer, Dictionary<string, float[]> sounds, AppConfig config, SnoStore store, TypeSchema schema,
         object cascGate, bool debug, Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables,
-        Func<SoundCue, CueLevel> levelOf)
+        DungeonObjectiveReader dpo, Func<SoundCue, CueLevel> levelOf)
     {
         int actorGroup = schema.SnoGroup(ActorDefinitionType);
         var beaconSnos = BeaconTargets.Resolve(
             config.BeaconActorNames, name => store.Resolve(actorGroup, name),
             name => Console.WriteLine($"Beacon actor '{name}' is not in CoreTOC; ignored."));
 
-        var dpo = new DungeonObjectiveReader(store, schema);
         var objectives = new ObjectiveClassifier(
             definitionOf, store.Name, sno => { lock (cascGate) return dpo.ActorsNamedByAnyQuest().Contains(sno); });
         var portalRule = new PortalClassifier(definitionOf, store.Name);
@@ -405,7 +409,13 @@ internal static class Program
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld);
         loops.ObjectivesLooping += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
-        var portals = new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);
+        // A portal is known as soon as the tile that places it loads, not only once it streams in (a hub's side dungeons).
+        var tilePortals = new ScenePortalReader(
+            new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false),
+            sno => beaconSnos.Contains(sno) || portalRule.IsPortal(sno));
+        var portals = new PortalMemory(
+            session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null,
+            scene => { lock (cascGate) return tilePortals.In(scene); }, () => selector.WorldObjectiveActors);
         return new LoopMemory(portals, objectiveMemory);
     }
 

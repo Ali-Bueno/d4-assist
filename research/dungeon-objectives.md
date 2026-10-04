@@ -452,8 +452,9 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   `QST_Frac_Prologue_Taiga_01` 449539: phase uid 0 opens `Frac_Prologue_Tower_Gate`, uid 8 kills `Frac_Prologue_demon_mega_miniboss`
   1227632 (shown, level area `CSD_Frac_Prologue_AbandonedTower_03`), uid 34 a corpse in `ProtoDun_Keep_FLEX_POI_BossRoom`. The boss
   comes from `Prologue_ManualBossFight` 652902, which no set nests: no offline position.
-- **DPO phases are not followed:** the statue and monolith DPOs name actors by SNO only (no markers) and no live tracked quest was a
-  DPO, so `ActiveQuests` never follows one; DPO kill targets stay phase-blind (§13).
+- **DPO phases:** the statue and monolith DPOs name actors by SNO only (no markers). Since 2026-10-04 the world's objective quests
+  are `ActiveQuests` candidates (§18), followed whenever the module data holds their phase pair; otherwise DPO kill targets stay
+  phase-blind (§13).
 
 ## 17. Fire-bowl puzzles: switches lit again and again (offline, build 3.2.2, 2026-10-03)
 
@@ -464,3 +465,43 @@ the player to unexplored ground behind a bone wall near the entrance, because th
 - **Lit signal unknown.** `--debug` logs every multi-use switch once seen and on each change:
   `SWITCH <name> sno=<sno> at (x,y): seen PreviousState=… Gizmo_State=… Gizmo_Has_Been_Operated=… Gizmo_Disabled_By_Script=…
   Operatable=… Disabled=…`, then `SWITCH … : <signal>=<old>→<new>` (`Game/SwitchStateLog`). Light and unlight one to find it.
+
+## 18. Hub dungeons: side-dungeon portals and quests that hand over (live, build 3.2.2, 2026-10-04)
+
+- **`S15_Triad_C_Travincal` 2638641 (H):** one DRLG world. A 7-tile hub (`S15_ZigOut_Naha_Trav_POI_*`) places four portals in
+  its tiles' "Game" layers: `S15_TriadC_Portal_KurastSewers` 2647367 and `_FlayerDungeon` 2647355 (tile `__NW_01`),
+  `_SpiderCavern` 2647347 (`NE_01`) and `_DuranceOfHate` 2647374 (`SEW_01`). Each one's `CommonPortalGizmoData` has
+  `eWorldToChoose` 1, `snoSpecifiedWorld` = this world and its own `snoPortalDestLevelArea` (Sewer01 2638650, Flayer01 2638654,
+  Spider01 2638652, Durance01 2638656). The side dungeons are level areas of the same world: warping in and out logs
+  `World: back in … (same instance)`.
+- **Tile portals (H):** tile origin + marker local position matched the live actor within 0.1 units for three portals (all the
+  tiles were unrotated). Portals stream in about 25 units away, so a hub tile counted as visited long before its far portal was
+  seen, and the guide then led back to the entrance. `ScenePortalReader` and `PortalMemory` now place portals at tile load.
+  Durance's portal appeared only after the three side dungeons (M), so a placed portal still missing when the player stands
+  within 12 units is dropped until it shows.
+- **Objective portals:** the world has no DPO entry. The quest named after it, `S15_Triad_C_Travincal` 2605635, names all four
+  portals, so they lead as dungeon objectives until used (`PortalMemory.ObjectiveDestinations`).
+- **Hand-over (H):** the tracked `S15_QST_Main_03_TriadC_01` 2651255 phase 81 has one callback, whose event filter is
+  `ScriptEventParamQuest.snoQuest` = 2605635, and names no object. Once the hub quest started, the module-data pair the app reads
+  (`QuestPhaseLocator`, RVA 0x30643C8 in this build) switched from {2651255, 81} to {2605635, 8}. The game shows the sub-quest's
+  phase in the parent's place, and the parent's phase is no longer found. Two kinds of quest are now "in progress here"
+  candidates: any quest a phase of a tracked quest waits on (`QuestPhaseObjects.SubQuests`, recursively), and the world's
+  objective quests (`DungeonObjectiveReader.QuestSnos`). Live, the app followed 2605635 through phases 8 → 9 → 16 → 19 → 30 → 27
+  → 37 to its end, then the next main quest, 2651257.
+- 2605635's phases:
+
+  | Phase | What it names |
+  |---|---|
+  | 0 | the three side-dungeon portals (use), Khalim's parts, Vilehand |
+  | 8 | `S15_Prop_Compelling_Orb_Altar_01_Dyn` 2597583 |
+  | 9 | the Durance portal; entering Durance01 |
+  | 16 | entering Durance03 |
+  | 19 | `Triad_C_Boss_QST` 2670877 |
+  | 27, 30 | `S15_Sankekur_NPC` 2643907 |
+  | 37 | the soulshard 2671193 |
+
+- **The Compelling Orb** (switch 57, `Hitpoints_Max` 0.001):
+  - While it was the step, it held `Gizmo_Is_Quest_Restricted` = 1 without `MinimapActive` (`D4MemScan acd --match Compelling`).
+  - It looped silent (`cause=unusable`) until the hub quest was followed. Named by phase 8, it is the quest step.
+  - It replaced `S15_Prop_Compelling_Orb_Dummy` 2679384 at the same spot when phase 8 began.
+- `D4MemScan quest --sno <quest>` lists each phase's `waits on quest …` and `--find` its live pair.

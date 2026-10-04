@@ -14,14 +14,17 @@ public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
     private Dictionary<int, int[]>? _worldQuests;
     private HashSet<int>? _questActors;
 
+    /// <summary>The world's objective quests: its DPO quests, else the quest named after the world; empty for neither.</summary>
+    public IReadOnlyList<int> QuestSnos(int worldSno) =>
+        WorldQuests().TryGetValue(worldSno, out var dpo) ? dpo : QuestNamedAfter(worldSno, schema.SnoGroup(QuestDefinition));
+
     /// <summary>Empty for a world without a DPO quest, or when the Global record is unreadable.</summary>
     public IReadOnlySet<int> ActorSnos(int worldSno)
     {
         if (_cache.TryGetValue(worldSno, out var cached)) return cached;
         var actors = new HashSet<int>();
         int actorGroup = schema.SnoGroup(ActorDefinition), questGroup = schema.SnoGroup(QuestDefinition);
-        int[] quests = WorldQuests().TryGetValue(worldSno, out var dpo) ? dpo : QuestNamedAfter(worldSno, questGroup);
-        foreach (int quest in quests)
+        foreach (int quest in QuestSnos(worldSno))
             if (store.Meta(questGroup, quest) is { } blob)
                 foreach (var (group, id) in DungeonObjectiveParser.QuestTokens(blob, _layout))
                     if (group == actorGroup) actors.Add(id);

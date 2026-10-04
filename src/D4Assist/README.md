@@ -149,8 +149,12 @@ actor pool is unavailable the app logs it once and the beacons stay silent. `--d
 a target appears or disappears (`LOOP started/stopped`).
 
 `Game/PortalMemory` keeps every portal seen in the dungeon instance (also across warps inside it) and marks the ones the
-player appeared or vanished within 15 units of as used: they lead back, the others lead on. `--debug` logs `PORTAL seen`
-(with its distance and whether it was arrived by) and `PORTAL went through / arrived by`.
+player appeared or vanished within 15 units of as used: they lead back, the others lead on. A portal is also known as soon as
+the tile that places it loads (`Game/ScenePortalReader`, the tile's "Game"/"Shared" marker layers; not in the Pit or the
+Undercity, not on rotated tiles); one still missing when the player stands within 12 units is dropped until it appears. A
+portal the world's objective quest names (a hub's side dungeons) leads as a dungeon objective, before unexplored ground, until
+used (research/dungeon-objectives.md §18). `--debug` logs `PORTAL seen` (with its distance and whether it was arrived by),
+`PORTAL placed by tile <tile>: …`, `PORTAL not there: …` and `PORTAL went through / arrived by`.
 
 ## Objective sounds
 
@@ -182,7 +186,9 @@ a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is th
 one to talk to; it keeps its loop while it moves). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
 (`ActorState.Unusable`) and stays silent. Active quests (`ActiveQuests`): the player's tracked quest (`ManuallyTrackedQuestSNO`)
 plus the quests in progress here, those with markers in this world or its scenes, or on an actor loaded around the player (an
-overworld side quest marks its objects in a subzone layer set), whose {quest, phase} pair the module data holds. `--debug`
+overworld side quest marks its objects in a subzone layer set), the world's objective quest, and any quest a phase of the
+tracked quest waits on (`ScriptEventParamQuest`: the game then shows that quest's phase instead, research/dungeon-objectives.md
+§18), whose {quest, phase} pair the module data holds. `--debug`
 logs `Quest tracked: <snos>; in progress here: <snos>; N object(s) named, <sno> at phase <uid>.` on each change and
 `LOOP silent … cause=unusable|used` once per gizmo silent at first sight. It also logs every multi-use switch (braziers, levers)
 once seen and on each change of its state signals: `SWITCH <name> sno=<sno> at (x,y): <signal>=<old>→<new>` (`Game/SwitchStateLog`,

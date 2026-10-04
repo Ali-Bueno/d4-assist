@@ -83,6 +83,9 @@ public sealed class LoopTargetSelector
         _npcObjectiveTargets = Enum.GetValues<ObjectiveReason>().ToDictionary(reason => reason, reason => ObjectiveTarget(reason, gizmo: false));
     }
 
+    /// <summary>The actors the current world's objective names (its DPO, or the quest named after the world).</summary>
+    public IReadOnlySet<int> WorldObjectiveActors => _worldDpoActors;
+
     /// <summary>Rebuilds the world's objective allow-list; called on every world change.</summary>
     public void SetWorld(int worldSno, bool isDungeon)
     {

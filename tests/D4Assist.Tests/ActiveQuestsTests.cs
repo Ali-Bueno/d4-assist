@@ -18,11 +18,32 @@ public class ActiveQuestsTests
     private static readonly IReadOnlyList<PlacedMarker> Bases =
         [Marker(BaseSno, -1767.8f, -487.6f), Marker(BaseSno, -1779.8f, -438.4f), Marker(BaseSno, -1800.7f, -456.4f)];
 
+    // Live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 waits on the Travincal hub's quest, whose phase 8 asks for the
+    // Compelling Orb; the game then holds the hub quest's pair, not the tracked quest's.
+    private const int MainQuest = 2651255, HubQuest = 2605635, PortalSno = 2647347, OrbSno = 2597583;
+    private const uint HandOverPhase = 81, PortalsPhase = 0, OrbPhase = 8;
+
     private static readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> Phases = new()
     {
         [FieldsOfRuin] = [Phase(PickUpPhase, [Marker(CollectionSno, -1700, -400)]), Phase(PlacePhase, Bases)],
         [CampaignQuest] = [new QuestPhaseObjects(CampaignPhase, [], new HashSet<int> { PetalSno }, [])],
+        [MainQuest] = [new QuestPhaseObjects(HandOverPhase, [], new HashSet<int>(), [], new HashSet<int> { HubQuest })],
+        [HubQuest] =
+        [
+            new QuestPhaseObjects(PortalsPhase, [], new HashSet<int> { PortalSno }, []),
+            new QuestPhaseObjects(OrbPhase, [], new HashSet<int> { OrbSno }, []),
+        ],
     };
+
+    [Fact]
+    public void A_tracked_quest_that_waits_on_another_names_that_quests_current_phase()
+    {
+        var quests = Create(new ModuleReader((HubQuest, OrbPhase)));
+
+        var named = quests.Update(tracked: [MainQuest], AreaWith(OrbSno)); // nothing here names the hub quest
+
+        Assert.Equal([OrbSno], named.ActorSnos);
+    }
 
     [Fact]
     public void AnUntrackedQuestInProgressHereNamesItsCurrentPhase()

@@ -51,7 +51,7 @@ public sealed class ActiveQuests(
     {
         if (UpdatePhases(log: true)) _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
         if (tracked is null) return _names;
-        var here = InProgressHere(area);
+        var here = InProgressHere(tracked, area);
         int[] followed = [.. tracked.Concat(here.Keys).Distinct().Order()];
         if (followed.SequenceEqual(_followed)) return _names;
         _followed = followed;
@@ -86,16 +86,33 @@ public sealed class ActiveQuests(
             Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : Phases;
     }
 
-    // The quests named in the area whose {quest, phase} pair the module data holds; one pass every PhaseSearchInterval (live
-    // 2026-10-01: QST_Frac_Underworld2_02 at phase 80 in the Ancient Mausoleum, none tracked).
-    private IReadOnlyDictionary<int, long> InProgressHere(Func<QuestSearchArea> area)
+    // The quests named in the area, or handed over to by a tracked quest, whose {quest, phase} pair the module data holds; one pass
+    // every PhaseSearchInterval (live 2026-10-01: QST_Frac_Underworld2_02 at phase 80 in the Ancient Mausoleum, none tracked).
+    private IReadOnlyDictionary<int, long> InProgressHere(IReadOnlyList<int> tracked, Func<QuestSearchArea> area)
     {
         if (questsHere is null || DateTime.UtcNow < _nextSearch) return _inProgressHere;
         _nextSearch = DateTime.UtcNow + PhaseSearchInterval;
-        var candidates = questsHere(area()).ToDictionary(q => q, q => (IReadOnlySet<uint>)phases(q).Select(p => p.PhaseUid).ToHashSet());
+        var candidates = questsHere(area()).Union(SubQuests(tracked))
+            .ToDictionary(q => q, q => (IReadOnlySet<uint>)phases(q).Select(p => p.PhaseUid).ToHashSet());
         return _inProgressHere = candidates.Count == 0
             ? new Dictionary<int, long>()
             : QuestPhaseLocator.FindAll(memory, moduleData, candidates);
+    }
+
+    // The quests some phase of a tracked quest waits on, and theirs: while one runs the game shows its phase in place of the
+    // tracked quest's (live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 → S15_Triad_C_Travincal). Any phase, since the
+    // tracked quest's own phase is no longer readable then.
+    private IEnumerable<int> SubQuests(IReadOnlyList<int> tracked)
+    {
+        var seen = tracked.ToHashSet();
+        var pending = new Queue<int>(tracked);
+        while (pending.TryDequeue(out int quest))
+            foreach (int sub in phases(quest).SelectMany(p => p.SubQuests ?? Enumerable.Empty<int>()))
+                if (seen.Add(sub))
+                {
+                    pending.Enqueue(sub);
+                    yield return sub;
+                }
     }
 
     // True when a quest's phase changed.

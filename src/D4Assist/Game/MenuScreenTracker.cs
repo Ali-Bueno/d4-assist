@@ -7,7 +7,7 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Reads the watched menu screens' open flags each poll; locates their records with a background scan, once per
-/// game process, and again only when a record stops validating (a character switch rebuilds the UI).
+/// game process, again when a record stops validating, and on every world change (<see cref="Relocate"/>).
 /// </summary>
 public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<TimeSpan> clock, Action<string>? log = null)
 {
@@ -22,12 +22,20 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
     private ModuleRange _module;
     private bool _scanning, _needsScan = true;
     private TimeSpan _nextScanAt, _retryDelay = FirstRetryDelay;
+    private int _generation;
 
     /// <summary>The scan opens its own handle so it outlives the world session that triggered it.</summary>
     public static MenuScreenTracker ForLiveProcess(Action<string>? log = null)
     {
         var watch = Stopwatch.StartNew();
         return new MenuScreenTracker(() => ProcessReader.OpenDiabloIv(), () => watch.Elapsed, log);
+    }
+
+    /// <summary>Drops every record and locates them again: a character switch rebuilds the UI, and an old record can still
+    /// validate with its open byte at 1, which muted every cue until the app restarted (live 2026-10-04).</summary>
+    public void Relocate()
+    {
+        lock (_gate) (_records, _needsScan, _nextScanAt, _retryDelay, _generation) = ([], true, TimeSpan.Zero, FirstRetryDelay, _generation + 1);
     }
 
     /// <summary>Names of the open watched screens; null while the records are not located or one just failed validation.</summary>
@@ -66,10 +74,11 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         _needsScan = false;
         var module = _module;
         var missing = MenuScreens.Watched.Where(n => !_records.ContainsKey(n)).ToList();
-        Task.Run(() => Scan(missing, module));
+        int generation = _generation;
+        Task.Run(() => Scan(missing, module, generation));
     }
 
-    private void Scan(List<string> names, ModuleRange module)
+    private void Scan(List<string> names, ModuleRange module, int generation)
     {
         var started = clock();
         Dictionary<string, long> found = [];
@@ -86,6 +95,7 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         {
             _scanning = false;
             if (module != _module) return; // the process changed while scanning
+            if (generation != _generation) { _needsScan = true; return; } // relocated meanwhile: these records may be the old ones
             var now = clock();
             if (found.Count > 0) (_nextScanAt, _retryDelay) = (now + FirstRetryDelay, FirstRetryDelay);
             else (_nextScanAt, _retryDelay) = (now + _retryDelay, TimeSpan.FromTicks(Math.Min(_retryDelay.Ticks * 2, MaxRetryDelay.Ticks)));

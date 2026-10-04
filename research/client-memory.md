@@ -421,7 +421,10 @@ screens seen open during normal play (Chat, SocialNotifications, ConversationSub
 StoreDetails_v2, Mailbox_Right, and after a character switch InGameLogout, WorldTiers, FollowerSwap, ModalRenameLoadout).
 - The open flag is one byte: real toggles change only it (`0xE7010100` ↔ `0xE7010101`, `0` ↔ `1`), and all 292 records
   held 0 or 1 in play. During a character switch freed records read junk (`0xFFFFFFFF`, `0x876747B5`), so any other value
-  makes the record invalid. The tabs of the character panel (`screen_Mercenary_Default`,
+  makes the record invalid. **But a stale record can still validate** (live 2026-10-04): after a character switch,
+  `screen_Hall_Of_Fallen_Heroes` read 1 from entering the open world for 6 minutes (Darkened Way included), muting every cue,
+  while a fresh locate found its new record at another address reading 0. The app now locates every record again on each
+  world change (`MenuScreenTracker.Relocate`). The tabs of the character panel (`screen_Mercenary_Default`,
 `screen_WarPlanActivities_Default`) open inside `screen_MenuPanel_Default`. `screen_InteractPopup` was open ~4 s during an
 interaction: the NPC interaction menu, watched since 2026-09-30.
 

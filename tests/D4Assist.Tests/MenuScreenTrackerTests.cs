@@ -31,6 +31,22 @@ public class MenuScreenTrackerTests
     }
 
     [Fact]
+    public void A_world_change_locates_the_records_again_even_when_they_still_validate()
+    {
+        // Live 2026-10-04: after a character switch an old record read open for minutes and muted every cue.
+        var memory = new HeapReader();
+        var clock = new Clock();
+        var scans = 0;
+        var tracker = new MenuScreenTracker(() => { scans++; return memory; }, clock.Now);
+        tracker.Read(memory, Module);
+        WaitFor(() => tracker.Read(memory, Module) is not null);
+
+        tracker.Relocate();
+        Assert.Null(tracker.Read(memory, Module)); // records dropped: nothing mutes until they are found again
+        WaitFor(() => scans == 2 && tracker.Read(memory, Module) is not null);
+    }
+
+    [Fact]
     public void RescansOnlyAfterTheRetryDelayOnceARecordStopsValidating()
     {
         var memory = new HeapReader();

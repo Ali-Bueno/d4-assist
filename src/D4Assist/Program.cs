@@ -176,6 +176,7 @@ internal static class Program
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
                 scene => { lock (cascGate) return tileGizmos.In(scene); }),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
+        if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
         var exitScenes = LoadExitCandidateScenes(store, schema, cascGate);

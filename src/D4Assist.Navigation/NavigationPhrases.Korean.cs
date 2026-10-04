@@ -21,6 +21,7 @@ public sealed partial class NavigationPhrases
         QuestObjectiveBelow = "목표가 더 아래에 있습니다.",
         QuestObjectiveAbove = "목표가 더 위에 있습니다.",
         Directions = Map("위", "오른쪽 위", "오른쪽", "오른쪽 아래", "아래", "왼쪽 아래", "왼쪽", "왼쪽 위"),
+        CompassDirections = Map("북쪽", "북동쪽", "동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽"),
         Labels = new() { [RoomKind.Junction] = "갈림길.", [RoomKind.BigRoom] = "큰 방.", [RoomKind.Corridor] = "복도." },
     };
 }

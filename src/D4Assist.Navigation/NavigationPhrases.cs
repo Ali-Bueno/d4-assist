@@ -24,6 +24,7 @@ public sealed partial class NavigationPhrases
         QuestObjectiveBelow = "El objetivo está más abajo.",
         QuestObjectiveAbove = "El objetivo está más arriba.",
         Directions = Map("arriba", "arriba a la derecha", "derecha", "abajo a la derecha", "abajo", "abajo a la izquierda", "izquierda", "arriba a la izquierda"),
+        CompassDirections = Map("norte", "noreste", "este", "sureste", "sur", "suroeste", "oeste", "noroeste"),
         Labels = new() { [RoomKind.Junction] = "Cruce.", [RoomKind.BigRoom] = "Sala grande.", [RoomKind.Corridor] = "Pasillo." },
     };
 
@@ -45,6 +46,7 @@ public sealed partial class NavigationPhrases
         QuestObjectiveBelow = "The objective is further down.",
         QuestObjectiveAbove = "The objective is further up.",
         Directions = Map("up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"),
+        CompassDirections = Map("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"),
         Labels = new() { [RoomKind.Junction] = "Junction.", [RoomKind.BigRoom] = "Big room.", [RoomKind.Corridor] = "Corridor." },
     };
 
@@ -102,16 +104,21 @@ public sealed partial class NavigationPhrases
     private string Entrance { get; init; } = "";
     private string NoOtherExits { get; init; } = "";
     private Dictionary<StickDirection, string> Directions { get; init; } = new();
+    // North is screen up: the same eight screen sectors, named as compass points (not the game world's own axes).
+    private Dictionary<StickDirection, string> CompassDirections { get; init; } = new();
     private Dictionary<RoomKind, string> Labels { get; init; } = new();
 
     // Clockwise from up, matching the StickDirection order.
     private static Dictionary<StickDirection, string> Map(params string[] clockwise) =>
         clockwise.Select((text, i) => (Key: (StickDirection)i, text)).ToDictionary(p => p.Key, p => p.text);
 
-    public string Direction(StickDirection direction) => Directions[direction];
+    public string Direction(StickDirection direction) => Direction(direction, DirectionStyle.Screen);
 
-    public string DirectionPhrase(StickDirection direction, bool unexplored) =>
-        unexplored ? string.Format(UnexploredFormat, Direction(direction)) : Direction(direction);
+    public string Direction(StickDirection direction, DirectionStyle style) =>
+        (style == DirectionStyle.Compass ? CompassDirections : Directions)[direction];
+
+    public string DirectionPhrase(StickDirection direction, bool unexplored, DirectionStyle style = DirectionStyle.Screen) =>
+        unexplored ? string.Format(UnexploredFormat, Direction(direction, style)) : Direction(direction, style);
 
     /// <summary>Builds the full announcement for a room kind and its ordered, spoken opening phrases.
     /// <paramref name="isEntrance"/> overrides the label with the entrance label regardless of kind (the first

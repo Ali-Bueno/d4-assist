@@ -16,11 +16,12 @@ public sealed class NavigationBridge
     private PlayerInput? _lastPlayer;
 
     public NavigationBridge(IDungeonFeed feed, ISpeechSink speech, bool announcementsEnabled, bool diagnostics, ITileWalkability? walkability = null, LanguageSetting? language = null,
-        Func<int, bool>? isExitCandidate = null)
+        Func<int, bool>? isExitCandidate = null, DirectionStyle directionStyle = DirectionStyle.Screen)
     {
         _diagnostics = diagnostics;
         _engine = new NavigationEngine(walkability, language, isExitCandidate);
         _engine.Settings.Enabled = announcementsEnabled;
+        _engine.Settings.DirectionStyle = directionStyle;
         _engine.Announce += (text, interrupt) =>
         {
             if (_diagnostics) LogOpenings(text);

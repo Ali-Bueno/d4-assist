@@ -7,7 +7,7 @@ using D4Assist.Strings;
 namespace D4Assist.Ui;
 
 /// <summary>
-/// The notification-area icon (settings, restart, exit) and the Ctrl+Alt+Shift+C settings hotkey, on their own STA
+/// The notification-area icon (settings, check for updates, restart, exit) and the Ctrl+Alt+Shift+C settings hotkey, on their own STA
 /// thread and message loop. Enter or a click on the icon opens the same menu as the context-menu key.
 /// </summary>
 public sealed class TrayApp : IDisposable
@@ -32,6 +32,9 @@ public sealed class TrayApp : IDisposable
 
     /// <summary>Raised on the tray thread when the user picks Restart, or asks the settings window to restart.</summary>
     public event Action? RestartRequested;
+
+    /// <summary>Raised on the tray thread when the user picks Check for updates.</summary>
+    public event Action? CheckUpdatesRequested;
 
     /// <param name="createSettings">Builds a settings window; called on the tray thread each time one opens.</param>
     public TrayApp(SettingsStrings text, Func<SettingsForm> createSettings)
@@ -59,6 +62,7 @@ public sealed class TrayApp : IDisposable
         _context = new ApplicationContext();
         var menu = new ContextMenuStrip();
         menu.Items.Add(_text.MenuSettings, null, (_, _) => ShowSettings());
+        menu.Items.Add(_text.MenuCheckUpdates, null, (_, _) => CheckUpdatesRequested?.Invoke());
         menu.Items.Add(_text.MenuRestart, null, (_, _) => RestartRequested?.Invoke());
         menu.Items.Add(_text.MenuExit, null, (_, _) => ExitRequested?.Invoke());
         menu.Opened += (_, _) => menu.Items[0].Select(); // the screen reader lands on an item, not on an empty menu

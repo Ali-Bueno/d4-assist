@@ -21,6 +21,7 @@ public sealed partial class NavigationPhrases
         QuestObjectiveBelow = "Hedef daha aşağıda.",
         QuestObjectiveAbove = "Hedef daha yukarıda.",
         Directions = Map("yukarı", "yukarı sağ", "sağ", "aşağı sağ", "aşağı", "aşağı sol", "sol", "yukarı sol"),
+        CompassDirections = Map("kuzey", "kuzeydoğu", "doğu", "güneydoğu", "güney", "güneybatı", "batı", "kuzeybatı"),
         Labels = new() { [RoomKind.Junction] = "Kavşak.", [RoomKind.BigRoom] = "Büyük oda.", [RoomKind.Corridor] = "Koridor." },
     };
 }

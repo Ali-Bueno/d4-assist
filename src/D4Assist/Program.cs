@@ -12,6 +12,7 @@ using D4Assist.Radar;
 using D4Assist.Speech;
 using D4Assist.Strings;
 using D4Assist.Ui;
+using D4Assist.Update;
 using D4Data.Casc;
 using D4Data.Readers;
 using D4Data.Schema;
@@ -58,6 +59,7 @@ internal static class Program
         using var log = LogFile.Start(AppContext.BaseDirectory);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.Error.WriteLine($"Unhandled error: {e.ExceptionObject}");
         Console.WriteLine($"Diablo 4 Assist {AppVersion}");
+        FileReplacement.DeleteLeftover(AppContext.BaseDirectory, Path.GetFileName(Environment.ProcessPath!)); // the exe a finished update renamed
 
         bool noSpeech = args.Contains("--no-speech");
         bool debug = args.Contains("--debug");
@@ -91,6 +93,11 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, _) => speech.Speak(AppStrings.For(language.Current).Stopped, interrupt: true);
         // A read that keeps failing after a game update is said once, so the player knows what stopped working.
         var health = ReadHealth.Live(Console.WriteLine, check => speech.Speak(AppStrings.For(language.Current).ReadWarning(check), interrupt: false));
+        // Checked before the slow loading: just started from the desktop, the app may still bring its question to the front.
+        using var exit = new ManualResetEventSlim();
+        bool restart = false, updated = false;
+        var updates = UpdateService.ForThisApp(speech, language, Console.WriteLine, () => { restart = updated = true; exit.Set(); });
+        if (config.CheckForUpdates) updates.CheckAtStart();
 
         SnoStore store;
         try { store = new SnoStore(installPath, Console.WriteLine); }
@@ -151,7 +158,8 @@ internal static class Program
         var exitScenes = LoadExitCandidateScenes(store, schema, cascGate);
         if (debug) Console.WriteLine($"Exit candidate scenes: {exitScenes.Count}.");
         var navigation = new NavigationBridge(
-            session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains);
+            session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains,
+            config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
 
         // One mixer and one output for the radar cues and the beacon loops.
         Func<int, ActorDefinitionInfo?> definitionOf = sno => { lock (cascGate) return actorDefinitions.Read(sno); };
@@ -276,8 +284,6 @@ internal static class Program
         // The settings window edits a copy of the last saved config; the sound part plays live, the rest applies on restart.
         var savedConfig = config.Clone();
         var preview = new CuePreview(mixer, loopSounds, config.RadarFrame);
-        using var exit = new ManualResetEventSlim();
-        bool restart = false;
         using var tray = new TrayApp(SettingsStrings.For(language.Current), () =>
         {
             var visit = new SettingsSession(savedConfig, configPath, liveSound);
@@ -287,12 +293,13 @@ internal static class Program
         });
         tray.ExitRequested += exit.Set;
         tray.RestartRequested += () => { restart = true; exit.Set(); };
+        tray.CheckUpdatesRequested += updates.CheckNow;
         tray.Start();
 
         Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings.");
         exit.Wait();
         var farewell = AppStrings.For(language.Current);
-        speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true);
+        if (!updated) speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true); // the updater said it already
         if (restart) StartAnotherCopy(args);
         return 0;
     }

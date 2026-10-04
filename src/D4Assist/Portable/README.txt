@@ -41,6 +41,11 @@ settings, General tab, with the Browse button, or write it yourself in
 d4assist.json, on the InstallPath line, with forward slashes, like this:
 "InstallPath": "E:/Games/Diablo IV",
 
+It checks for new versions when it starts. If there is one, it tells you and
+asks if you want to update; say yes and it updates itself and restarts, keeping
+your settings. You can turn that off in the settings, General tab, or check by
+hand from the tray icon, with Check for updates.
+
 It talks in the same language your game is in (13 languages). Only English and
 Spanish were written by me; the rest are machine translations, so if something
 sounds weird in your language, let me know.
@@ -50,7 +55,9 @@ What it does
 
 All the directions are the ones from your stick, on the screen: up, down,
 left, right and the diagonals. If it says an exit is up-left, push the stick
-up-left and you're going there. And the sounds come from where things are:
+up-left and you're going there. If you'd rather hear north, east and so on,
+there's a check box for that in the settings: north is up, so up-left is
+northwest. And the sounds come from where things are:
 something on your right plays on your right, and it gets louder as you get
 closer.
 

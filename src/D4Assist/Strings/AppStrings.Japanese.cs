@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "ゲームのメニューが見つかりません。メニュー中も音が止まりません",
         },
         ReadWarningFormat: "警告：{0}。Diablo IVが更新された可能性があります。ログを送ってください。",
-        Stopped: "エラーのためアシスタントが停止しました。ログを送ってください。");
+        Stopped: "エラーのためアシスタントが停止しました。ログを送ってください。",
+        UpdateAvailableFormat: "Diablo 4 Assist {0} が利用できます。今すぐ更新しますか？",
+        UpdateDownloading: "更新をダウンロードしています。",
+        UpdateRestarting: "更新しました。再起動します。",
+        UpdateFailed: "更新に失敗しました。バージョンは変わっていません。",
+        UpdateFolderNotWritable: "更新に失敗しました。アプリのフォルダーに書き込めません。バージョンは変わっていません。",
+        UpToDate: "最新バージョンです。",
+        UpdateCheckFailed: "更新を確認できませんでした。",
+        UpdateOnlyDownloaded: "更新はダウンロードしたバージョンでのみ使えます。");
 }

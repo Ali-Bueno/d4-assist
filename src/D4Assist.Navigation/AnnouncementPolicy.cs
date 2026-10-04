@@ -17,6 +17,7 @@ public sealed class AnnouncementPolicy
     public bool Enabled { get; set; } = true;
     public bool IncludeCorridors { get; set; } = false;
     public bool MentionUnexplored { get; set; } = true;
+    public DirectionStyle DirectionStyle { get; set; } = DirectionStyle.Screen;
 
     private readonly LanguageSetting _language;
     private readonly RoomRouteCache _routes = new();
@@ -42,7 +43,7 @@ public sealed class AnnouncementPolicy
         var phrases = routes
             .Where(r => !r.IsEntry) // don't list the exit the player just walked through as if new
             .OrderBy(r => (int)r.Direction) // clockwise from up
-            .Select(r => words.DirectionPhrase(r.Direction, MentionUnexplored && r.Opening.Unexplored))
+            .Select(r => words.DirectionPhrase(r.Direction, MentionUnexplored && r.Opening.Unexplored, DirectionStyle))
             .ToList();
 
         var text = words.Announcement(kind, phrases, isEntrance);

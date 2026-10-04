@@ -5,6 +5,8 @@
   "AutoAnnouncementsEnabled": true,
   "InterruptOnContextChange": true,
   "RadarFrame": "Cardinal",
+  "CompassDirections": false,
+  "CheckForUpdates": true,
   "RadarClosedDoorsEnabled": true,
   "LiveBarriersEnabled": true,
   "PauseCuesInCutscenes": true,

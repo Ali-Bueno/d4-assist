@@ -129,3 +129,42 @@ public class EnglishPhrasesTests
         Assert.Same(NavigationPhrases.English, NavigationPhrases.For(setting.Current));
     }
 }
+
+public class CompassDirectionTests
+{
+    public static TheoryData<NavigationPhrases, string[]> Compass => new()
+    {
+        { NavigationPhrases.English, ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"] },
+        { NavigationPhrases.Spanish, ["norte", "noreste", "este", "sureste", "sur", "suroeste", "oeste", "noroeste"] },
+    };
+
+    [Theory, MemberData(nameof(Compass))]
+    public void Compass_style_names_the_eight_screen_sectors_clockwise_from_up(NavigationPhrases phrases, string[] expected) =>
+        Assert.Equal(expected, Enum.GetValues<StickDirection>().Select(d => phrases.Direction(d, DirectionStyle.Compass)));
+
+    [Fact]
+    public void Default_style_is_unchanged()
+    {
+        Assert.Equal("up-right", NavigationPhrases.English.Direction(StickDirection.UpRight));
+        Assert.Equal("arriba a la derecha", NavigationPhrases.Spanish.Direction(StickDirection.UpRight, DirectionStyle.Screen));
+    }
+
+    [Fact]
+    public void Compass_words_fit_the_sentence_formats()
+    {
+        var en = NavigationPhrases.English;
+        var phrases = new List<string> { en.DirectionPhrase(StickDirection.UpRight, false, DirectionStyle.Compass), en.DirectionPhrase(StickDirection.Left, true, DirectionStyle.Compass) };
+        Assert.Equal("Junction. Exits: northeast, west unexplored.", en.Announcement(RoomKind.Junction, phrases));
+    }
+
+    [Fact]
+    public void Every_language_has_distinct_compass_words()
+    {
+        foreach (var language in SpeechLanguages.Supported)
+        {
+            var words = Enum.GetValues<StickDirection>().Select(d => NavigationPhrases.For(language).Direction(d, DirectionStyle.Compass)).ToList();
+            Assert.All(words, w => Assert.False(string.IsNullOrWhiteSpace(w)));
+            Assert.Equal(8, words.Distinct().Count());
+        }
+    }
+}

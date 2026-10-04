@@ -192,7 +192,9 @@ public sealed class SettingsForm : Form
             Check(_text.ExplorationGuide, () => Config.ExplorationGuideEnabled, v => Config.ExplorationGuideEnabled = v),
             Check(_text.ExplorationGuideInDungeons, () => Config.ExplorationGuideInDungeons, v => Config.ExplorationGuideInDungeons = v),
             Check(_text.QuestRoutes, () => Config.QuestRoutesEnabled, v => Config.QuestRoutesEnabled = v),
-            Check(_text.OutsideDungeons, () => Config.OutsideDungeonsEnabled, v => Config.OutsideDungeonsEnabled = v));
+            Check(_text.OutsideDungeons, () => Config.OutsideDungeonsEnabled, v => Config.OutsideDungeonsEnabled = v),
+            Check(_text.CompassDirections, () => Config.CompassDirections, v => Config.CompassDirections = v),
+            Check(_text.CheckForUpdates, () => Config.CheckForUpdates, v => Config.CheckForUpdates = v));
         return Box(_text.GeneralBox, table);
     }
 

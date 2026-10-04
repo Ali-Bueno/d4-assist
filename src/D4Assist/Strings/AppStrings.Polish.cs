@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "nie mogę znaleźć menu gry, dźwięki nie będą wstrzymywane w menu",
         },
         ReadWarningFormat: "Ostrzeżenie: {0}. Diablo IV mogło zostać zaktualizowane. Wyślij dziennik.",
-        Stopped: "Asystent zatrzymał się z powodu błędu. Wyślij dziennik.");
+        Stopped: "Asystent zatrzymał się z powodu błędu. Wyślij dziennik.",
+        UpdateAvailableFormat: "Diablo 4 Assist {0} jest dostępny. Zaktualizować teraz?",
+        UpdateDownloading: "Pobieranie aktualizacji.",
+        UpdateRestarting: "Zaktualizowano. Ponowne uruchamianie.",
+        UpdateFailed: "Aktualizacja się nie powiodła; twoja wersja pozostała bez zmian.",
+        UpdateFolderNotWritable: "Aktualizacja się nie powiodła: folder aplikacji jest tylko do odczytu. Twoja wersja pozostała bez zmian.",
+        UpToDate: "Masz najnowszą wersję.",
+        UpdateCheckFailed: "Nie udało się sprawdzić aktualizacji.",
+        UpdateOnlyDownloaded: "Aktualizacje działają tylko w pobranej wersji.");
 }

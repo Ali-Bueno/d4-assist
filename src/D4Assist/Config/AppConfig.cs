@@ -28,6 +28,12 @@ public sealed class AppConfig
     /// <summary>"auto" follows the game's text language (FenrisDebug.txt); "es" or "en" forces one.</summary>
     public string Language { get; set; } = AutoLanguage;
 
+    /// <summary>Say directions as compass points on the screen map (north is up) instead of up, right...; only the wording changes.</summary>
+    public bool CompassDirections { get; set; } = false;
+
+    /// <summary>Look for a newer version on GitHub at start and offer to update (the downloaded build only).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>Closed doors sound as doors in the radar (two knocks, like D2R) instead of open floor.</summary>
     public bool RadarClosedDoorsEnabled { get; set; } = true;
 

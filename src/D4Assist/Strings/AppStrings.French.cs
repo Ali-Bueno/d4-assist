@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "menus du jeu introuvables, les sons ne se couperont pas dans les menus",
         },
         ReadWarningFormat: "Attention : {0}. Diablo IV a peut-être été mis à jour. Envoyez le journal.",
-        Stopped: "L'assistant s'est arrêté à cause d'une erreur. Envoyez le journal.");
+        Stopped: "L'assistant s'est arrêté à cause d'une erreur. Envoyez le journal.",
+        UpdateAvailableFormat: "Diablo 4 Assist {0} est disponible. Mettre à jour maintenant ?",
+        UpdateDownloading: "Téléchargement de la mise à jour.",
+        UpdateRestarting: "Mise à jour effectuée. Redémarrage.",
+        UpdateFailed: "La mise à jour a échoué ; votre version n'a pas changé.",
+        UpdateFolderNotWritable: "La mise à jour a échoué : le dossier de l'application n'est pas accessible en écriture. Votre version n'a pas changé.",
+        UpToDate: "Vous avez la dernière version.",
+        UpdateCheckFailed: "Impossible de rechercher les mises à jour.",
+        UpdateOnlyDownloaded: "Les mises à jour ne fonctionnent que dans la version téléchargée.");
 }

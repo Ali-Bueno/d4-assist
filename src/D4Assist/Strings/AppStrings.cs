@@ -8,7 +8,9 @@ public sealed partial record AppStrings(
     string GuideOn, string GuideOff, string EnteringWorldFormat, IReadOnlyList<string> SoundExamples,
     string ShelterGuide, string ShelterReachedFormat, string GuideToPortal, string GuideToUsedPortal,
     string AssistantClosed, string Restarting, string SkillsStolen, string SkillsRecovered,
-    IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped)
+    IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped,
+    string UpdateAvailableFormat, string UpdateDownloading, string UpdateRestarting, string UpdateFailed,
+    string UpdateFolderNotWritable, string UpToDate, string UpdateCheckFailed, string UpdateOnlyDownloaded)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -28,7 +30,15 @@ public sealed partial record AppStrings(
             [ReadCheck.Menus] = "no encuentro los menús del juego, los sonidos no se callarán en ellos",
         },
         "Aviso: {0}. Puede que Diablo IV se haya actualizado. Manda el registro.",
-        "El asistente se ha detenido por un error. Manda el registro.");
+        "El asistente se ha detenido por un error. Manda el registro.",
+        "Diablo 4 Assist {0} está disponible. ¿Actualizar ahora?",
+        "Descargando la actualización.",
+        "Actualizado. Reiniciando.",
+        "La actualización falló; tu versión no ha cambiado.",
+        "La actualización falló: no se puede escribir en la carpeta de la aplicación. Tu versión no ha cambiado.",
+        "Tienes la última versión.",
+        "No se pudo comprobar si hay actualizaciones.",
+        "Las actualizaciones solo funcionan en la versión descargada.");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -48,7 +58,15 @@ public sealed partial record AppStrings(
             [ReadCheck.Menus] = "can't find the game menus, sounds won't pause in them",
         },
         "Warning: {0}. Diablo IV may have been updated. Please send the log.",
-        "The assistant stopped because of an error. Please send the log.");
+        "The assistant stopped because of an error. Please send the log.",
+        "Diablo 4 Assist {0} is available. Update now?",
+        "Downloading the update.",
+        "Updated. Restarting.",
+        "The update failed; your version is unchanged.",
+        "The update failed: the app folder is not writable. Your version is unchanged.",
+        "You have the latest version.",
+        "Couldn't check for updates.",
+        "Updates only work in the downloaded build.");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {

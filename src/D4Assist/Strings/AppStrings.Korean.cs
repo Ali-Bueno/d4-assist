@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "게임 메뉴를 찾을 수 없어 메뉴에서 소리가 멈추지 않습니다",
         },
         ReadWarningFormat: "경고: {0}. Diablo IV가 업데이트되었을 수 있습니다. 로그를 보내 주세요.",
-        Stopped: "오류로 도우미가 멈췄습니다. 로그를 보내 주세요.");
+        Stopped: "오류로 도우미가 멈췄습니다. 로그를 보내 주세요.",
+        UpdateAvailableFormat: "Diablo 4 Assist {0}을(를) 사용할 수 있습니다. 지금 업데이트할까요?",
+        UpdateDownloading: "업데이트를 내려받는 중입니다.",
+        UpdateRestarting: "업데이트했습니다. 다시 시작합니다.",
+        UpdateFailed: "업데이트에 실패했습니다. 현재 버전은 그대로입니다.",
+        UpdateFolderNotWritable: "업데이트에 실패했습니다. 앱 폴더에 쓸 수 없습니다. 현재 버전은 그대로입니다.",
+        UpToDate: "최신 버전입니다.",
+        UpdateCheckFailed: "업데이트를 확인하지 못했습니다.",
+        UpdateOnlyDownloaded: "업데이트는 내려받은 버전에서만 작동합니다.");
 }

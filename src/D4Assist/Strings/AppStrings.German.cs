@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "Die Spielmenüs wurden nicht gefunden, die Töne pausieren dort nicht",
         },
         ReadWarningFormat: "Warnung: {0}. Diablo IV wurde möglicherweise aktualisiert. Bitte sende das Protokoll.",
-        Stopped: "Der Assistent wurde wegen eines Fehlers beendet. Bitte sende das Protokoll.");
+        Stopped: "Der Assistent wurde wegen eines Fehlers beendet. Bitte sende das Protokoll.",
+        UpdateAvailableFormat: "Diablo 4 Assist {0} ist verfügbar. Jetzt aktualisieren?",
+        UpdateDownloading: "Das Update wird heruntergeladen.",
+        UpdateRestarting: "Aktualisiert. Neustart.",
+        UpdateFailed: "Das Update ist fehlgeschlagen; deine Version ist unverändert.",
+        UpdateFolderNotWritable: "Das Update ist fehlgeschlagen: Der Programmordner ist nicht beschreibbar. Deine Version ist unverändert.",
+        UpToDate: "Du hast die neueste Version.",
+        UpdateCheckFailed: "Die Suche nach Updates ist fehlgeschlagen.",
+        UpdateOnlyDownloaded: "Updates funktionieren nur in der heruntergeladenen Version.");
 }

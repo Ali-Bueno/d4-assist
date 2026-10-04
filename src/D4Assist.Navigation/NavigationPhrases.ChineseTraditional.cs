@@ -24,6 +24,7 @@ public sealed partial class NavigationPhrases
         QuestObjectiveBelow = "目標在更下方。",
         QuestObjectiveAbove = "目標在更上方。",
         Directions = Map("上", "右上", "右", "右下", "下", "左下", "左", "左上"),
+        CompassDirections = Map("北", "東北", "東", "東南", "南", "西南", "西", "西北"),
         Labels = new() { [RoomKind.Junction] = "岔路口。", [RoomKind.BigRoom] = "大房間。", [RoomKind.Corridor] = "走廊。" },
     };
 }

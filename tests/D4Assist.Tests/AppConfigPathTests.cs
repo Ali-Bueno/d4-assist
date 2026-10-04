@@ -27,4 +27,16 @@ public class AppConfigPathTests
         Assert.Equal(Path.Combine(@"C:\app", "defs.json"), new AppConfig { DefinitionsPath = "defs.json" }.ResolveDefinitionsPath(@"C:\app"));
         Assert.Equal(@"D:\data\defs.json", new AppConfig { DefinitionsPath = @"D:\data\defs.json" }.ResolveDefinitionsPath(@"C:\app"));
     }
+
+    [Fact]
+    public void Direction_and_update_options_default_and_round_trip()
+    {
+        var defaults = new AppConfig();
+        Assert.False(defaults.CompassDirections);
+        Assert.True(defaults.CheckForUpdates);
+
+        var copy = new AppConfig { CompassDirections = true, CheckForUpdates = false }.Clone();
+        Assert.True(copy.CompassDirections);
+        Assert.False(copy.CheckForUpdates);
+    }
 }

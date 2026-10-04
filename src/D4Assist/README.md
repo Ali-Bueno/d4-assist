@@ -76,6 +76,8 @@ error. No key needs a machine-specific path.
 | `Language` | `"auto"` | `"auto"` follows the game's text locale (Battle.net's `Launcher.db`, then `Current Text Locale` in FenrisDebug.txt, mapped by `Navigation.SpeechLanguages`: esES/esMX Spanish, frFR French… 13 languages, English for an unknown locale); a code forces one: `es`, `en`, `fr`, `de`, `it`, `pl`, `pt`, `ru`, `tr`, `ja`, `ko`, `zh-cn`, `zh-tw`. Anything else is a startup error. `--debug` logs the choice and changes. |
 | `InterruptOnContextChange` | `true` | `interrupt=true` on those announcements (CLAUDE.md §9: interrupt only on context change). |
 | `RadarFrame` | `"Cardinal"` | `"Cardinal"` (stick up/right/down/left) or `"Diagonal"` (along the dungeon's axes). |
+| `CompassDirections` | `false` | Say spoken directions as compass points of the screen map (north is up: up-right = northeast) instead of up, right…. Only the wording changes (`NavigationPhrases` with `DirectionStyle.Compass`); the game world's own axes are not used. |
+| `CheckForUpdates` | `true` | At start, look for a newer release on GitHub in the background and ask whether to update (see Updates). The tray's **Check for updates** works either way. |
 | `ExplorationGuideEnabled` | `true` | Automatic ping that leads to the nearest unexplored part of the dungeon (see Exploration guide). |
 | `ExplorationGuideInDungeons` | `false` | Guide default in dungeons other than the Undercity and the Pit (`X1_Undercity_*`, `PIT_*` always start on). `ExplorationGuideEnabled=false` removes the guide and the toggle entirely. |
 | `RadarOnlyWorlds` | `[]` | Exact (case-sensitive) CoreTOC names of extra non-DRLG worlds that run **radar and actor loops only**: no room announcements, no exploration guide, no enter/leave speech. Story areas (every non-DRLG world but the open world, menus and loading screens) get this mode without being listed when `OutsideDungeonsEnabled` is on, so the list only matters for the open world or with that switch off. Tiles come offline from the world's placed scenes (`Game/StaticWorldTiles`), not the live scene route; walkability from the scenes' compressed nav data (`D4Data.Readers.CellBytesDecoder`, research/dungeon-data.md §4.1). `--debug` logs the world kind. |
@@ -91,10 +93,20 @@ error. No key needs a machine-specific path.
 
 Files from before 2026-09-30 carry flat sound fields (`RadarEnabled`, `RadarVolume`, `BeaconVolume`, `DoorSoundsEnabled`…); they are no longer read, so those sounds start at their defaults.
 
+## Updates
+
+`Update/` — at start (when `CheckForUpdates` is on) and from the tray menu, `ReleaseClient` reads
+`releases/latest` of `Ali-Bueno/d4-assist` (5 s timeout; errors only go to the log, a manual check also speaks them). A
+newer version is spoken and offered in a Yes/No message box (`UpdatePrompt`, topmost, with the release notes). On Yes
+`UpdatePackage` downloads `D4Assist.zip` to `%TEMP%\D4AssistUpdate\<version>`, checks the release's SHA-256 and unpacks it, and
+`FileReplacement` renames the running exe to `D4Assist.exe.old`, copies the new files (an existing `d4assist.json` is never
+overwritten), rolls back on any failure, and the app restarts through the tray's restart path. The `.old` file is deleted at
+the next start. Only the single-file portable build replaces itself; a dev build only logs that it skipped the check.
+
 ## Notification area and settings window
 
 The app has no console window: it puts an icon ("D4") in the notification area (`Ui/TrayApp`, its own STA thread). Enter,
-a click or the context-menu key on the icon opens its menu: **Settings…**, **Restart assistant**, **Exit** (speaks
+a click or the context-menu key on the icon opens its menu: **Settings…**, **Check for updates**, **Restart assistant**, **Exit** (speaks
 "Diablo 4 Assist cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere. A second copy refuses to start
 (`SingleInstance`, a session mutex) and says where the running one is; a restart starts a new copy with `--restarted`, which
 waits for the old one to exit. Startup errors (no install, bad `d4assist.json`) show a message box as well as the log.
@@ -361,6 +373,7 @@ Output goes to `d4assist-log.txt` (there is no console window).
   the tray menu and settings window text.
 - `Config/` — `AppConfig` (`d4assist.json` loading and saving), the sound settings (`SoundSettings`, `SoundCatalog`,
   `SoundMix`/`LiveSoundMix`) and `SettingsSession` (one visit to the settings window).
+- `Update/` — the updater (see Updates).
 - `Ui/` — `TrayApp` (notification-area icon, menu, settings hotkey), `SettingsForm`, `CueSlider`, `CuePreview`.
 - `SingleInstance.cs` — one running copy per Windows session.
 - `Game/` — `WorldLogWatcher`, `WorldClassifier`, the `GameSession` state machine

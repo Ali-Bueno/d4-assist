@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "oyun menüleri bulunamıyor, sesler menülerde duraklatılmayacak",
         },
         ReadWarningFormat: "Uyarı: {0}. Diablo IV güncellenmiş olabilir. Lütfen günlüğü gönder.",
-        Stopped: "Yardımcı bir hata nedeniyle durdu. Lütfen günlüğü gönder.");
+        Stopped: "Yardımcı bir hata nedeniyle durdu. Lütfen günlüğü gönder.",
+        UpdateAvailableFormat: "Diablo 4 Assist {0} kullanılabilir. Şimdi güncellensin mi?",
+        UpdateDownloading: "Güncelleme indiriliyor.",
+        UpdateRestarting: "Güncellendi. Yeniden başlatılıyor.",
+        UpdateFailed: "Güncelleme başarısız oldu; sürümünüz değişmedi.",
+        UpdateFolderNotWritable: "Güncelleme başarısız oldu: uygulama klasörüne yazılamıyor. Sürümünüz değişmedi.",
+        UpToDate: "En son sürümü kullanıyorsunuz.",
+        UpdateCheckFailed: "Güncellemeler denetlenemedi.",
+        UpdateOnlyDownloaded: "Güncellemeler yalnızca indirilen sürümde çalışır.");
 }

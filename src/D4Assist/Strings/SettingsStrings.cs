@@ -9,6 +9,7 @@ public sealed partial record SettingsStrings
     public required string AppName { get; init; }
     public required string MenuSettings { get; init; }
     public required string MenuRestart { get; init; }
+    public required string MenuCheckUpdates { get; init; }
     public required string MenuExit { get; init; }
     public required string AlreadyRunning { get; init; }
     public required string WindowTitle { get; init; }
@@ -18,6 +19,8 @@ public sealed partial record SettingsStrings
     public required string Defaults { get; init; }
     public required string RestartQuestion { get; init; }
     public required string SaveFailedFormat { get; init; }
+    /// <summary>The update question: {0} the new version, {1} the current one, {2} the release notes.</summary>
+    public required string UpdateDialogFormat { get; init; }
 
     public required string SoundTab { get; init; }
     public required string MasterVolume { get; init; }
@@ -52,6 +55,8 @@ public sealed partial record SettingsStrings
     public required string LiveBarriers { get; init; }
     public required string ExplorationGuide { get; init; }
     public required string ExplorationGuideInDungeons { get; init; }
+    public required string CompassDirections { get; init; }
+    public required string CheckForUpdates { get; init; }
     public required string QuestRoutes { get; init; }
     public required string OutsideDungeons { get; init; }
     public required string PauseInCutscenes { get; init; }
@@ -73,6 +78,7 @@ public sealed partial record SettingsStrings
         AppName = "Diablo 4 Assist",
         MenuSettings = "Configuración...",
         MenuRestart = "Reiniciar asistente",
+        MenuCheckUpdates = "Buscar actualizaciones",
         MenuExit = "Salir",
         AlreadyRunning = "Diablo 4 Assist ya está en marcha. Está en la bandeja del sistema; Control+Alt+Shift+C abre su configuración.",
         WindowTitle = "Configuración de Diablo 4 Assist",
@@ -82,6 +88,7 @@ public sealed partial record SettingsStrings
         Defaults = "Restaurar valores predeterminados",
         RestartQuestion = "Los cambios de la pestaña General se aplican al reiniciar el asistente. ¿Reiniciarlo ahora?",
         SaveFailedFormat = "No se pudo guardar la configuración: {0}",
+        UpdateDialogFormat = "Hay una versión nueva: {0} (tienes la {1}).\n\n¿Actualizar ahora? El asistente se reiniciará.\n\nNovedades:\n{2}",
 
         SoundTab = "Sonido general",
         MasterVolume = "Volumen maestro",
@@ -147,6 +154,8 @@ public sealed partial record SettingsStrings
         LiveBarriers = "Barreras de las mazmorras en el radar y la guía",
         ExplorationGuide = "Guía de exploración (cruceta izquierda la activa y desactiva)",
         ExplorationGuideInDungeons = "Guía activada al entrar en mazmorras normales (en la Ciudad Subterránea y el Pozo siempre empieza activada)",
+        CompassDirections = "Decir las direcciones como puntos cardinales (norte, este…) en vez de arriba, derecha…",
+        CheckForUpdates = "Buscar actualizaciones al iniciar",
         QuestRoutes = "Rutas de misión (refugios de la tormenta de arena)",
         OutsideDungeons = "Funcionar también fuera de las mazmorras",
         PauseInCutscenes = "En las cinemáticas",
@@ -166,6 +175,7 @@ public sealed partial record SettingsStrings
         AppName = "Diablo 4 Assist",
         MenuSettings = "Settings...",
         MenuRestart = "Restart assistant",
+        MenuCheckUpdates = "Check for updates",
         MenuExit = "Exit",
         AlreadyRunning = "Diablo 4 Assist is already running. It is in the notification area; Control+Alt+Shift+C opens its settings.",
         WindowTitle = "Diablo 4 Assist settings",
@@ -175,6 +185,7 @@ public sealed partial record SettingsStrings
         Defaults = "Restore defaults",
         RestartQuestion = "Changes on the General tab take effect when the assistant restarts. Restart it now?",
         SaveFailedFormat = "The settings could not be saved: {0}",
+        UpdateDialogFormat = "A new version is available: {0} (you have {1}).\n\nUpdate now? The assistant will restart.\n\nWhat's new:\n{2}",
 
         SoundTab = "Sound",
         MasterVolume = "Master volume",
@@ -240,6 +251,8 @@ public sealed partial record SettingsStrings
         LiveBarriers = "Dungeon barriers in the radar and the guide",
         ExplorationGuide = "Exploration guide (D-pad left turns it on and off)",
         ExplorationGuideInDungeons = "Guide on when entering ordinary dungeons (in the Undercity and the Pit it always starts on)",
+        CompassDirections = "Say directions as compass points (north, east…) instead of up, right…",
+        CheckForUpdates = "Check for updates at start",
         QuestRoutes = "Quest routes (sandstorm shelters)",
         OutsideDungeons = "Also work outside dungeons",
         PauseInCutscenes = "In cutscenes",

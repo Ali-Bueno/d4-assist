@@ -32,5 +32,13 @@ public sealed partial record AppStrings
             [ReadCheck.Menus] = "找不到游戏菜单，菜单中音效不会暂停",
         },
         ReadWarningFormat: "警告：{0}。Diablo IV 可能已更新。请发送日志。",
-        Stopped: "助手因错误而停止。请发送日志。");
+        Stopped: "助手因错误而停止。请发送日志。",
+        UpdateAvailableFormat: "Diablo 4 Assist {0} 可用。现在更新吗？",
+        UpdateDownloading: "正在下载更新。",
+        UpdateRestarting: "已更新。正在重新启动。",
+        UpdateFailed: "更新失败，当前版本保持不变。",
+        UpdateFolderNotWritable: "更新失败：无法写入应用程序文件夹。当前版本保持不变。",
+        UpToDate: "你已使用最新版本。",
+        UpdateCheckFailed: "无法检查更新。",
+        UpdateOnlyDownloaded: "更新仅适用于下载的版本。");
 }

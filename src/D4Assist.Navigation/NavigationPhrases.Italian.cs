@@ -21,6 +21,7 @@ public sealed partial class NavigationPhrases
         QuestObjectiveBelow = "L'obiettivo è più in basso.",
         QuestObjectiveAbove = "L'obiettivo è più in alto.",
         Directions = Map("su", "su a destra", "destra", "giù a destra", "giù", "giù a sinistra", "sinistra", "su a sinistra"),
+        CompassDirections = Map("nord", "nord-est", "est", "sud-est", "sud", "sud-ovest", "ovest", "nord-ovest"),
         Labels = new() { [RoomKind.Junction] = "Incrocio.", [RoomKind.BigRoom] = "Sala grande.", [RoomKind.Corridor] = "Corridoio." },
     };
 }

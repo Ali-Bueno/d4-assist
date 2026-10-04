@@ -46,6 +46,10 @@ public sealed class ObjectiveClassifier(
     // its boss spawner; not every DPO names them (research/dungeon-objectives.md §15).
     private const string MonolithToken = "Monolith";
 
+    // Gates a boss summons its invulnerable clones from; while one stands the boss is immune (live 2026-10-04, the Echo of Diablo:
+    // MorluGate_Triad_A_Boss_terrorCloneSource, 18 HP, not invulnerable).
+    private const string CloneSourceToken = "CloneSource";
+
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =
     [
@@ -117,6 +121,9 @@ public sealed class ObjectiveClassifier(
             return ObjectiveReason.Enticement;
         if (info.GizmoType == Conventions.GizmoDoor && name?.Contains(MonolithToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.Monolith;
+        if (info.EType == Conventions.ActorTypeMonster && info.DefaultTeam == Conventions.HostileTeam
+            && name?.Contains(CloneSourceToken, StringComparison.OrdinalIgnoreCase) == true)
+            return ObjectiveReason.KillTarget;
         if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));

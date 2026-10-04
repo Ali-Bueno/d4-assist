@@ -100,7 +100,7 @@ internal static class Program
         using var exit = new ManualResetEventSlim();
         bool restart = false, updated = false;
         var updates = UpdateService.ForThisApp(speech, language, Console.WriteLine, () => { restart = updated = true; exit.Set(); });
-        if (config.CheckForUpdates) updates.CheckAtStart();
+        if (config.CheckForUpdates) { updates.CheckAtStart(); updates.CheckPeriodically(); }
 
         SnoStore store;
         try { store = new SnoStore(installPath, Console.WriteLine); }

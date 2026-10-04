@@ -20,7 +20,11 @@ public sealed partial record SettingsStrings
         Defaults = "기본값 복원",
         RestartQuestion = "일반 탭의 변경 사항은 도우미를 다시 시작하면 적용됩니다. 지금 다시 시작할까요?",
         SaveFailedFormat = "설정을 저장할 수 없습니다: {0}",
-        UpdateDialogFormat = "새 버전 {0}을(를) 사용할 수 있습니다(현재 버전: {1}).\n\n지금 업데이트할까요? 도우미가 다시 시작됩니다.\n\n새로운 기능:\n{2}",
+        UpdateHeadingFormat = "Diablo 4 Assist {0}을(를) 사용할 수 있습니다(현재 버전: {1}).",
+        UpdateTextFormat = "지금 업데이트할까요? 도우미가 다시 시작됩니다.\n\n새로운 기능:\n{0}",
+        UpdateInstall = "지금 업데이트",
+        UpdateLater = "나중에 알림",
+        UpdateSkip = "이 버전 건너뛰기",
 
         SoundTab = "소리",
         MasterVolume = "마스터 볼륨",

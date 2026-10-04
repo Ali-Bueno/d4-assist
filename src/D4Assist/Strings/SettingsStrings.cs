@@ -20,7 +20,11 @@ public sealed partial record SettingsStrings
     public required string RestartQuestion { get; init; }
     public required string SaveFailedFormat { get; init; }
     /// <summary>The update question: {0} the new version, {1} the current one, {2} the release notes.</summary>
-    public required string UpdateDialogFormat { get; init; }
+    public required string UpdateHeadingFormat { get; init; }
+    public required string UpdateTextFormat { get; init; }
+    public required string UpdateInstall { get; init; }
+    public required string UpdateLater { get; init; }
+    public required string UpdateSkip { get; init; }
 
     public required string SoundTab { get; init; }
     public required string MasterVolume { get; init; }
@@ -88,7 +92,11 @@ public sealed partial record SettingsStrings
         Defaults = "Restaurar valores predeterminados",
         RestartQuestion = "Los cambios de la pestaña General se aplican al reiniciar el asistente. ¿Reiniciarlo ahora?",
         SaveFailedFormat = "No se pudo guardar la configuración: {0}",
-        UpdateDialogFormat = "Hay una versión nueva: {0} (tienes la {1}).\n\n¿Actualizar ahora? El asistente se reiniciará.\n\nNovedades:\n{2}",
+        UpdateHeadingFormat = "Diablo 4 Assist {0} está disponible (tienes la {1}).",
+        UpdateTextFormat = "¿Actualizar ahora? El asistente se reiniciará.\n\nNovedades:\n{0}",
+        UpdateInstall = "Actualizar ahora",
+        UpdateLater = "Recordármelo más tarde",
+        UpdateSkip = "Omitir esta versión",
 
         SoundTab = "Sonido general",
         MasterVolume = "Volumen maestro",
@@ -185,7 +193,11 @@ public sealed partial record SettingsStrings
         Defaults = "Restore defaults",
         RestartQuestion = "Changes on the General tab take effect when the assistant restarts. Restart it now?",
         SaveFailedFormat = "The settings could not be saved: {0}",
-        UpdateDialogFormat = "A new version is available: {0} (you have {1}).\n\nUpdate now? The assistant will restart.\n\nWhat's new:\n{2}",
+        UpdateHeadingFormat = "Diablo 4 Assist {0} is available (you have {1}).",
+        UpdateTextFormat = "Update now? The assistant will restart.\n\nWhat's new:\n{0}",
+        UpdateInstall = "Update now",
+        UpdateLater = "Remind me later",
+        UpdateSkip = "Skip this version",
 
         SoundTab = "Sound",
         MasterVolume = "Master volume",

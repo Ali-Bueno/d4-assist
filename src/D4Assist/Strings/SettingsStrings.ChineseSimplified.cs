@@ -20,7 +20,11 @@ public sealed partial record SettingsStrings
         Defaults = "恢复默认值",
         RestartQuestion = "常规选项卡中的更改将在助手重启后生效。现在重启吗？",
         SaveFailedFormat = "无法保存设置：{0}",
-        UpdateDialogFormat = "有新版本 {0}（当前版本 {1}）。\n\n现在更新吗？助手将重新启动。\n\n新内容：\n{2}",
+        UpdateHeadingFormat = "Diablo 4 Assist {0} 可用（当前版本 {1}）。",
+        UpdateTextFormat = "现在更新吗？助手将重新启动。\n\n新内容：\n{0}",
+        UpdateInstall = "立即更新",
+        UpdateLater = "稍后提醒我",
+        UpdateSkip = "跳过此版本",
 
         SoundTab = "声音",
         MasterVolume = "主音量",

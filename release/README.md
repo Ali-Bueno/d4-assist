@@ -31,7 +31,8 @@ remembers it. You can change that folder later in the settings, General tab, wit
 
 It checks for new versions when it starts. If there is one, it tells you and asks if you want to update; say yes and it
 updates itself and restarts, keeping your settings. You can turn that off in the settings, General tab, or check by hand
-from the tray icon, with Check for updates.
+from the tray icon, with Check for updates. If you leave it open, it checks again every few hours and asks once you're out
+of the game: update now, remind me later, or skip that version.
 
 It talks in the same language your game is in (13 languages). Only English and Spanish were written by me; the rest
 are machine translations, so if something sounds weird in your language, let me know.

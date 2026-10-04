@@ -71,16 +71,17 @@ public class UpdateReleaseTests
     }
 
     [Fact]
-    public void Dialog_text_has_both_versions_and_trimmed_plain_notes()
+    public void Dialog_heading_has_both_versions_and_text_has_trimmed_plain_notes()
     {
-        var format = SettingsStrings.English.UpdateDialogFormat;
-        var text = UpdatePrompt.Text(format, new Version(0, 1, 7, 0), V016, "**New**\n`code` " + new string('x', 3000));
+        var settings = SettingsStrings.English;
+        var heading = UpdatePrompt.Heading(settings.UpdateHeadingFormat, new Version(0, 1, 7, 0), V016);
+        var text = UpdatePrompt.Text(settings.UpdateTextFormat, "**New**\n`code` " + new string('x', 3000));
 
-        Assert.Contains("0.1.7", text);
-        Assert.Contains("0.1.6", text);
+        Assert.Contains("0.1.7", heading);
+        Assert.Contains("0.1.6", heading);
         Assert.DoesNotContain("**", text);
         Assert.DoesNotContain("`", text);
-        Assert.True(text.Length < format.Length + 1700);
+        Assert.True(text.Length < settings.UpdateTextFormat.Length + 1700);
         Assert.EndsWith("…", text);
     }
 
@@ -108,11 +109,13 @@ public class UpdateReleaseTests
         Assert.Contains("{0}", app.UpdateAvailableFormat);
         Assert.Contains("{0}", app.UpdateProgressFormat);
         Assert.Contains("{0}", app.UpdatedToFormat);
-        Assert.Contains("{2}", settings.UpdateDialogFormat);
+        Assert.Contains("{0}", settings.UpdateHeadingFormat);
+        Assert.Contains("{1}", settings.UpdateHeadingFormat);
+        Assert.Contains("{0}", settings.UpdateTextFormat);
         Assert.All(new[]
         {
             app.UpdateDownloading, app.UpdateRestarting, app.UpdateFailed, app.UpdateFolderNotWritable, app.UpToDate,
-            app.UpdateCheckFailed, app.UpdateOnlyDownloaded, settings.MenuCheckUpdates, settings.CheckForUpdates, settings.CompassDirections,
+            app.UpdateCheckFailed, app.UpdateOnlyDownloaded, settings.UpdateInstall, settings.UpdateLater, settings.UpdateSkip, settings.MenuCheckUpdates, settings.CheckForUpdates, settings.CompassDirections,
         }, text => Assert.False(string.IsNullOrWhiteSpace(text)));
     }
 
@@ -125,6 +128,74 @@ public class UpdateReleaseTests
         foreach (var percent in new[] { 3, 24, 25, 26, 60, 61, 99, 100, 100 }) sink(percent);
 
         Assert.Equal([25, 50, 75], spoken);
+    }
+
+    [Fact]
+    public void A_skipped_version_survives_a_save_and_load()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"d4assist-state-{Guid.NewGuid():N}.json");
+        try
+        {
+            new UpdateState("0.1.8").Save(path);
+
+            Assert.Equal(new Version(0, 1, 8, 0), UpdateState.Load(path).Skipped);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not json {")]
+    [InlineData("{\"SkippedVersion\":\"garbage\"}")]
+    public void A_missing_or_corrupt_state_file_skips_nothing(string? content)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"d4assist-state-{Guid.NewGuid():N}.json");
+        try
+        {
+            if (content is not null) File.WriteAllText(path, content);
+
+            Assert.Null(UpdateState.Load(path).Skipped);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData("0.1.7", "0.1.6", null, false, true)]   // newer, nothing skipped
+    [InlineData("0.1.7", "0.1.6", "0.1.7", false, false)] // skipped
+    [InlineData("0.1.8", "0.1.6", "0.1.7", false, true)]  // newer than the skipped one
+    [InlineData("0.1.7", "0.1.6", "0.1.7", true, true)]   // a manual check ignores the skip
+    [InlineData("0.1.6", "0.1.6", null, true, false)]     // not newer than this build
+    [InlineData("0.1.5", "0.1.6", null, false, false)]
+    public void An_automatic_check_asks_only_about_a_newer_version_it_was_not_told_to_skip(
+        string available, string current, string? skipped, bool manual, bool asks)
+    {
+        UpdateVersion.TryParse(skipped, out var skippedVersion);
+
+        Assert.Equal(asks, UpdateState.ShouldAsk(
+            new Version(available), new Version(current), skipped is null ? null : skippedVersion, manual));
+    }
+
+    [Fact]
+    public async Task The_gate_waits_while_the_game_is_in_front_and_opens_when_it_leaves()
+    {
+        int polls = 0;
+        var gate = new ForegroundGate(() => ++polls < 4, TimeSpan.FromMilliseconds(1));
+
+        await gate.WaitUntilQuietAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(4, polls);
+    }
+
+    [Fact]
+    public async Task A_release_opens_the_gate_while_the_game_is_still_in_front()
+    {
+        var gate = new ForegroundGate(() => true, TimeSpan.FromHours(1));
+        var waiting = gate.WaitUntilQuietAsync();
+
+        gate.Release();
+
+        await waiting.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     public static TheoryData<SpeechLanguage> Languages => [.. SpeechLanguages.Supported];
@@ -168,6 +239,16 @@ public sealed class FileReplacementTests : IDisposable
         Assert.Contains(Exe, report.Copied);
         Assert.Contains("README.txt", report.Copied);
         Assert.DoesNotContain("d4assist.json", report.Copied);
+    }
+
+    [Fact]
+    public void The_update_state_file_is_left_alone()
+    {
+        Put(App, UpdateState.FileName, "{\"SkippedVersion\":\"0.1.8\"}");
+
+        FileReplacement.Apply(App, Files, Exe, Backup);
+
+        Assert.Equal("{\"SkippedVersion\":\"0.1.8\"}", Read(UpdateState.FileName));
     }
 
     [Fact]

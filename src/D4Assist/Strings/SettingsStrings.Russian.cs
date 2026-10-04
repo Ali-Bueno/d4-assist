@@ -20,7 +20,11 @@ public sealed partial record SettingsStrings
         Defaults = "Восстановить значения по умолчанию",
         RestartQuestion = "Изменения на вкладке «Общие» вступят в силу после перезапуска помощника. Перезапустить его сейчас?",
         SaveFailedFormat = "Не удалось сохранить настройки: {0}",
-        UpdateDialogFormat = "Доступна новая версия: {0} (у вас {1}).\n\nОбновить сейчас? Помощник перезапустится.\n\nЧто нового:\n{2}",
+        UpdateHeadingFormat = "Доступен Diablo 4 Assist {0} (у вас {1}).",
+        UpdateTextFormat = "Обновить сейчас? Помощник перезапустится.\n\nЧто нового:\n{0}",
+        UpdateInstall = "Обновить сейчас",
+        UpdateLater = "Напомнить позже",
+        UpdateSkip = "Пропустить эту версию",
 
         SoundTab = "Звук",
         MasterVolume = "Общая громкость",

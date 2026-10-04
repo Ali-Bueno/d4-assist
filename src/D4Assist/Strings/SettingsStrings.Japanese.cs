@@ -20,7 +20,11 @@ public sealed partial record SettingsStrings
         Defaults = "既定値に戻す",
         RestartQuestion = "全般タブの変更は、アシスタントの再起動後に反映されます。今すぐ再起動しますか？",
         SaveFailedFormat = "設定を保存できませんでした：{0}",
-        UpdateDialogFormat = "新しいバージョン {0} があります（現在のバージョン：{1}）。\n\n今すぐ更新しますか？アシスタントは再起動します。\n\n新機能：\n{2}",
+        UpdateHeadingFormat = "Diablo 4 Assist {0} が利用できます（現在のバージョン：{1}）。",
+        UpdateTextFormat = "今すぐ更新しますか？アシスタントが再起動します。\n\n新機能：\n{0}",
+        UpdateInstall = "今すぐ更新",
+        UpdateLater = "後で通知",
+        UpdateSkip = "このバージョンをスキップ",
 
         SoundTab = "サウンド",
         MasterVolume = "マスター音量",

@@ -95,10 +95,14 @@ Files from before 2026-09-30 carry flat sound fields (`RadarEnabled`, `RadarVolu
 
 ## Updates
 
-`Update/` — at start (when `CheckForUpdates` is on) and from the tray menu, `ReleaseClient` reads
+`Update/` — at start and then every 4 hours (when `CheckForUpdates` is on), and from the tray menu, `ReleaseClient` reads
 `releases/latest` of `Ali-Bueno/d4-assist` (5 s timeout; errors only go to the log, a manual check also speaks them). A
-newer version is spoken and offered in a Yes/No message box (`UpdatePrompt`, topmost, with the release notes). On Yes
-`UpdatePackage` downloads `D4Assist.zip` to `%TEMP%\D4AssistUpdate\<version>`, checks the release's SHA-256 and unpacks it, and
+newer version is spoken and offered in a three-button task dialog (`UpdatePrompt`, own STA thread, topmost, with the release
+notes): Update now, Remind me later (also Escape: nothing saved, asked again next check) or Skip this version (saved as
+`{"SkippedVersion":"x.y.z"}` in `d4assist-update.json` next to the exe, app-managed and never in the release zip; automatic
+checks stay quiet about that version, a newer one or a manual check asks again). An automatic check holds the question back
+while the game window is in the foreground (`ForegroundGate`, polled every 5 s); a manual check asks at once and releases a
+waiting one. On Update `UpdatePackage` downloads `D4Assist.zip` to `%TEMP%\D4AssistUpdate\<version>`, checks the release's SHA-256 and unpacks it, and
 `FileReplacement` renames the running exe to `D4Assist.exe.old`, copies the new files (an existing `d4assist.json` is never
 overwritten), rolls back on any failure, and the app restarts through the tray's restart path. The `.old` file is deleted at
 the next start. Only the single-file portable build replaces itself; a dev build only logs that it skipped the check.

@@ -44,6 +44,7 @@ public sealed class ObjectiveMemory
 
     private readonly Func<int, string?> _nameOf;
     private readonly Func<int, float?> _triggerRadius;
+    private readonly Func<int, bool?> _takesHeld;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
     private readonly List<Objective> _objectives = [];
@@ -53,10 +54,16 @@ public sealed class ObjectiveMemory
     /// <param name="log">Debug sink for sightings, arrivals and completions; null when not debugging.</param>
     /// <param name="triggerRadius">A trigger actor's ground radius (ActorDefinitionInfo.TriggerRadius): a quest place that is a
     /// trigger counts as there only inside it (Trigger_Sphere_8m: 4). Null for none.</param>
-    public ObjectiveMemory(IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null)
+    /// <param name="takesHeld">For a receptacle, whether it takes what the player holds (LoopTargetSelector.ReceptacleTakesHeld): it
+    /// leads only then, in the quest tier; empty-handed, the next carryable or unexplored ground comes first
+    /// (research/dungeon-objectives.md §14). Null for none.</param>
+    public ObjectiveMemory(
+        IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
+        Func<int, bool?>? takesHeld = null)
     {
         _nameOf = nameOf;
         _triggerRadius = triggerRadius ?? (_ => null);
+        _takesHeld = takesHeld ?? (_ => null);
         _log = log;
         feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
@@ -66,8 +73,10 @@ public sealed class ObjectiveMemory
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
-            return [.. _places.Concat(_objectives).Where(o => o.Pending && !o.Reached)
-                .Select(o => new GuideDestination(o.Id, o.Position, o.Quest ? QuestTier : DungeonTier, o.Z, o.Radius))];
+            return [.. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
+                .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false)
+                .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
+                    x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius))];
     }
 
     /// <summary>Takes the places the active quests' current phases name (GameSession.QuestPlacesRead, every actor poll).</summary>

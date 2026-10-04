@@ -156,13 +156,19 @@ objectives: actors the world's DPO quest names (`D4Data` `DungeonObjectiveReader
 monsters stay silent), plus every carryable (on the ground; the copy in the player's hands, with no
 ACD, stays silent), carryable receptacle (a quest-locked one only while the player holds a carryable it takes; other quest steps
 wait meanwhile), quest
-switch and quest chest, switches and notes named for a quest (`QST_`, `Quest`, `Prologue`), and
-free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor). Rules and data:
+switch and quest chest, switches and notes named for a quest (`QST_`, `Quest`, `Prologue`), boss-summoning monoliths (door gizmos
+named `Monolith`, reason `monolith`, research/dungeon-objectives.md §15), and
+free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor). A closed door within 8 units of a receptacle
+still empty, unless the DPO names it, waits silent: filling the receptacles opens it by script (`Game/CarryGoals`,
+research/dungeon-objectives.md §14). A hostile unique or boss the followed quests' current phase names is the quest step too
+(`ActorState.NamedByQuest`, reason `killtarget`, research/dungeon-objectives.md §16); ordinary monsters a phase names stay silent,
+and a kill target's remains (no ACD) are silent. Rules and data:
 [dungeon-objectives](../../research/dungeon-objectives.md). The exit pads keep the beacon profile and are the only loops that
 mute the exploration guide. A loop stops when its actor leaves the placed list, or when the gizmo was used
 (`Game/GizmoUsedSignal`: the game's own mark, ACD attribute `Gizmo_Has_Been_Operated` (corpses, herbs, signs, doors;
 research/client-memory.md §4); else a chest's glow effect gone while the player is within 10 units, else the RActor
-state word; remembered by spot for the world visit, so a re-created actor stays silent). Chest kinds seen glowing are saved next to
+state word; remembered by spot for the world visit, so a re-created actor stays silent). A door-type objective (monolith, blocker,
+quest door) is used only by the ACD marks: operated, or `Gizmo_State` set. Chest kinds seen glowing are saved next to
 the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
 Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): one the game shows on the minimap
@@ -174,7 +180,9 @@ one to talk to; it keeps its loop while it moves). Any other quest gizmo, or one
 plus the quests in progress here, those with markers in this world or its scenes, or on an actor loaded around the player (an
 overworld side quest marks its objects in a subzone layer set), whose {quest, phase} pair the module data holds. `--debug`
 logs `Quest tracked: <snos>; in progress here: <snos>; N object(s) named, <sno> at phase <uid>.` on each change and
-`LOOP silent … cause=unusable` once per gizmo.
+`LOOP silent … cause=unusable|used` once per gizmo silent at first sight. It also logs every multi-use switch (braziers, levers)
+once seen and on each change of its state signals: `SWITCH <name> sno=<sno> at (x,y): <signal>=<old>→<new>` (`Game/SwitchStateLog`,
+research/dungeon-objectives.md §17).
 The Undercity attunement switches (spirit hearths and beacons, name token `Enticement`, research/dungeon-objectives.md §5)
 are objectives too (reason `enticement`), on their own settings cue; they fall silent once used.
 Quest places: the current phase of an active quest names spots such as a trigger to walk into ("chase Lilith"); the
@@ -293,7 +301,8 @@ D2R taps one, user request 2026-10-02). Each repeats on its own rhythm, faster a
 `Game/ExplorationGuideBridge` asks the navigation engine's `ExplorationGuide` for a waypoint on every player poll
 and tile update and aims `GuidePingPlayer` at it (no buttons). Outside the endgame it first leads to an objective heard
 earlier and not done: `Game/ObjectiveMemory` remembers every objective loop (`ActorLoopBridge.ObjectivesLooping`), the
-tracked quest's step before the dungeon's own objectives (prisoners, altars, levers, carryables). An objective that falls
+tracked quest's step before the dungeon's own objectives (prisoners, altars, levers, carryables). A receptacle leads only while
+the player holds an item it takes, then in the quest tier; empty-handed, the guide looks for the next carryable. An objective that falls
 silent within 20 units of the player is done (used, locked or removed); one the player came within a quarter tile of is
 passed over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again.
 Pit and Undercity keep the order below unchanged (user, 2026-09-30). Switching the guide on says where it leads ("Hacia el

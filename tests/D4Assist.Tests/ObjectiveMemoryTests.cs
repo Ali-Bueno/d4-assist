@@ -145,6 +145,24 @@ public class ObjectiveMemoryTests
         Assert.Equal(LeverSno, Assert.Single(heard).ActorSno);
     }
 
+    [Fact]
+    public void An_empty_handed_player_is_not_led_to_a_receptacle_and_a_laden_one_is_led_there_first()
+    {
+        // Two statues, one pedestal left: the second statue is out of earshot (live report 2026-10-03).
+        bool? holds = false;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, takesHeld: sno => sno == AltarSno ? holds : null);
+        feed.RaisePlayer(At(0, 0));
+        memory.Observe([Altar(50, 0), Lever(0, 50)]);
+
+        Assert.Equal((0f, 50f), Assert.Single(memory.Destinations()).Position);
+
+        holds = true;
+        var altar = Assert.Single(memory.Destinations(), d => d.Position == (50, 0));
+        Assert.Equal(ObjectiveMemory.QuestTier, altar.Tier);
+        Assert.Equal(ObjectiveMemory.DungeonTier, Assert.Single(memory.Destinations(), d => d.Position == (0, 50)).Tier);
+    }
+
     // The Ancient Mausoleum's "chase Lilith" step (QST_Frac_Underworld2_02 phase 80, live 2026-10-01): a trigger to walk into.
     private const int TriggerSno = 42298;
 

@@ -19,10 +19,11 @@ public sealed record TileState(
 /// <param name="ClientOnly">No game record (ACD): a client-side prop, or what the player holds (research/client-memory.md §4).</param>
 /// <param name="GizmoStateSet">ACD Gizmo_State is nonzero: an open door, a used corpse or herb (research/client-memory.md §4).</param>
 /// <param name="Talkable">An NPC with interact options or a conversation icon (research/client-memory.md §4).</param>
+/// <param name="NamedByQuest">The followed quests' current phase names this very actor (QuestNaming.It), whatever kind it is.</param>
 public sealed record ActorState(
     uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false,
     bool QuestFollower = false, bool QuestLocked = false, bool ScriptDisabled = false, bool QuestStep = false, bool ClientOnly = false,
-    bool GizmoStateSet = false, bool Talkable = false)
+    bool GizmoStateSet = false, bool Talkable = false, bool NamedByQuest = false)
 {
     /// <summary>The game doesn't let the player use this gizmo yet.</summary>
     public bool Unusable => QuestLocked || ScriptDisabled;

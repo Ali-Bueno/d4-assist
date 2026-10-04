@@ -115,6 +115,19 @@ public class BeaconTests
     }
 
     [Fact]
+    public void ActorFilter_OnlyAnActorTheCurrentPhaseNamesItselfIsNamedByTheQuest()
+    {
+        var records = Enumerable.Range(1, 3).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        var naming = new Dictionary<uint, QuestNaming> { [1] = QuestNaming.It, [2] = QuestNaming.ItsKind };
+
+        // A monster has no flags read, yet the phase may name it (the prologue tower's boss).
+        var actors = ActorFilter.Placed(records, _ => null, namedByQuest: r => naming.GetValueOrDefault(r.Id));
+
+        Assert.Equal([true, false, false], actors.Select(a => a.NamedByQuest));
+        Assert.All(actors, a => Assert.False(a.QuestStep));
+    }
+
+    [Fact]
     public void ActorFilter_APreviousStateMarksTheActorChanged()
     {
         var used = Record(1, Vector3.One, placement: 0) with { PreviousState = 0x61 };

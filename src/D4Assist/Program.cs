@@ -134,6 +134,7 @@ internal static class Program
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
         // ACD flags are read for gizmos (used) and NPCs (quest followers) only: monsters and the player carry hundreds of attributes.
         Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
+        Func<int, bool> isMultiUseSwitch = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { MultiUseSwitch: true }; };
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
         Func<int, IReadOnlyList<QuestPhaseObjects>> questMarkers =
             quest => { lock (cascGate) return questScripts.PhaseObjects(quest); };
@@ -151,7 +152,7 @@ internal static class Program
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
-                questsHere, health, actorSnos.Contains),
+                questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -397,7 +398,8 @@ internal static class Program
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         var loops = new ActorLoopBridge(
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
-        var objectiveMemory = new ObjectiveMemory(session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius);
+        var objectiveMemory = new ObjectiveMemory(
+            session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld);
         loops.ObjectivesLooping += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null);

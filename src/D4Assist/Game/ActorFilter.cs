@@ -45,7 +45,8 @@ public static class ActorFilter
             QuestStep: current,
             ClientOnly: r.AcdId == RActorRecord.NoAcd,
             GizmoStateSet: Has(AcdFlagReader.GizmoState),
-            Talkable: Has(AcdFlagReader.NpcHasInteractOptions) || conversation);
+            Talkable: Has(AcdFlagReader.NpcHasInteractOptions) || conversation,
+            NamedByQuest: naming == QuestNaming.It);
     }
 
     /// <summary>Rotation about Z of a unit quaternion, from +X towards +Y.</summary>

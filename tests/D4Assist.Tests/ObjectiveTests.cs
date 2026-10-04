@@ -29,7 +29,7 @@ public class ObjectiveTests
         [OtherReceptacleSno] = ("Receptacle_Bloodstone", new(Gizmo, Conventions.GizmoCarryableReceptacle, AcceptedCarryables: [])),
         [QuestSwitchSno] = ("QST_Stake", new(Gizmo, Conventions.GizmoQuestSwitch)),
         [QuestChestSno] = ("QST_Chest", new(Gizmo, Conventions.GizmoQuestChest)),
-        [DpoSwitchSno] = ("DGN_Standard_Sitting_Skeleton_Switch", new(Gizmo, DoorGizmo)),
+        [DpoSwitchSno] = ("DGN_Standard_Sitting_Skeleton_Switch", new(Gizmo, Conventions.GizmoSwitch)),
         [DpoMonsterSno] = ("cannibal_brute_Unique", new(Monster, NotGizmo)),
         [PlainPropSno] = ("Plain_Prop", new(Prop, NotGizmo)),
         [PrisonerDoorSno] = ("DGN_Standard_Prisoner_Cage", new(Gizmo, DoorGizmo)),
@@ -248,8 +248,8 @@ public class ObjectiveTests
         var otherAltar = new ActorState(3, OtherReceptacleSno, 20, 0, 0, QuestLocked: true);
         var idolStand = new ActorState(4, QuestSwitchSno, 0, 0, 0, QuestStep: true); // the Glacier altar's Dummy, on the minimap
 
-        var carrying = selector.WithCarryGoals([held, altar, otherAltar, idolStand]);
-        var notCarrying = selector.WithCarryGoals([held with { ClientOnly = false }, altar, otherAltar, idolStand]);
+        var carrying = selector.WithQuestGoals([held, altar, otherAltar, idolStand]);
+        var notCarrying = selector.WithQuestGoals([held with { ClientOnly = false }, altar, otherAltar, idolStand]);
 
         Assert.Equal([false, true, false, false], carrying.Select(a => a.QuestStep));
         Assert.Equal([false, false, true, true], carrying.Select(a => a.Unusable));

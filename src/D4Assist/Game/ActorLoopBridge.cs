@@ -26,7 +26,7 @@ public sealed class ActorLoopBridge
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
     private Dictionary<uint, (ActorState Actor, LoopTarget Target)> _targets = [];
-    private readonly HashSet<uint> _loggedUnusable = [];
+    private readonly HashSet<uint> _loggedSilent = [];
     private readonly HashSet<uint> _sheltered = [];
     private PlayerState? _lastPlayer;
 
@@ -64,7 +64,7 @@ public sealed class ActorLoopBridge
     private void Reset(int worldSno, bool isDungeon)
     {
         _targets = [];
-        _loggedUnusable.Clear();
+        _loggedSilent.Clear();
         _sheltered.Clear();
         _lastPlayer = null;
         _sightings?.Reset();
@@ -75,7 +75,7 @@ public sealed class ActorLoopBridge
 
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
-        actors = _selector.WithCarryGoals(actors);
+        actors = _selector.WithQuestGoals(actors);
         _sightings?.Note(actors, _lastPlayer);
         _used?.Observe(actors, _lastPlayer);
         var selected = actors
@@ -86,10 +86,13 @@ public sealed class ActorLoopBridge
         var next = selected.Where(kv => !Silent(kv.Value.Actor, kv.Value.Target!))
             .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, Target: kv.Value.Target!));
         if (_log is not null)
+        {
+            // Once per actor: silent from the first sight, or after its loop stopped (LogChanges).
             foreach (var (actor, target) in selected.Values.Where(x =>
-                         x.Target!.SilentWhileUnusable && x.Actor.Unusable && !_targets.ContainsKey(x.Actor.Id) && _loggedUnusable.Add(x.Actor.Id)))
-                Log("silent", actor, target!, "unusable");
-        if (_log is not null) LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
+                         !next.ContainsKey(x.Actor.Id) && !_targets.ContainsKey(x.Actor.Id) && _loggedSilent.Add(x.Actor.Id)))
+                Log("silent", actor, target!, target!.SilentWhileUnusable && actor.Unusable ? "unusable" : "used");
+            LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
+        }
         _targets = next;
         ObjectivesLooping?.Invoke([.. next.Values.Where(t => t.Target.Kind == LoopKind.Objective).Select(t => t.Actor)]);
     }
@@ -108,7 +111,8 @@ public sealed class ActorLoopBridge
     }
 
     private bool Silent(ActorState actor, LoopTarget target) =>
-        (target.SilentWhileUnusable && actor.Unusable) || (target.StopsWhenUsed && _isUsed(actor));
+        (target.SilentWhileUnusable && actor.Unusable)
+        || (target.StopsWhenUsed && (target.UsedWhenOpened ? actor.Operated || actor.GizmoStateSet : _isUsed(actor)));
 
     // Inside a safe zone its loop has done its job: silent until the player steps out.
     private bool Sheltered(ActorState actor, LoopTarget target, PlayerState p)
@@ -140,7 +144,10 @@ public sealed class ActorLoopBridge
     {
         foreach (var t in after.Where(t => !before.ContainsKey(t.Key)).Select(t => t.Value)) Log("started", t.Actor, t.Target, null);
         foreach (var t in before.Where(t => !after.ContainsKey(t.Key)).Select(t => t.Value))
+        {
+            _loggedSilent.Add(t.Actor.Id);
             Log("stopped", t.Actor, t.Target, !present.TryGetValue(t.Actor.Id, out var now) ? "gone" : now.Unusable ? "unusable" : "used");
+        }
     }
 
     private void Log(string what, ActorState a, LoopTarget target, string? cause)

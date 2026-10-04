@@ -32,6 +32,11 @@ Across all DPO quests: 658 actor filters, 316 distinct actors. Event types (L/M,
 actors carry them): **0** = kill (bosses, minibosses), **32** = interact/operate (switches, doors, chests,
 cages), **77/78** = carryable placed in a receptacle, **50** = enter a LevelArea.
 
+More types (offline census of the 147 DPO quests, build 3.2.2, M): **19** = collect items (motes, `nNeeded` 18), **42** = N of the
+callbacks beside it (the kill callbacks flagged 0x6), **51** = player in range of an actor, **52** = enter a trigger, **72** = kill
+inside a level area, **74** = no filters (unknown). `QuestCallback.nNeeded` (+8) is the count; `eIndicatorType` (+88) is 2 for an
+objective the game shows and 3 for a hidden one ([client-memory](client-memory.md) §4).
+
 Examples:
 
 | Dungeon quest | Objective actors (SNO, event) |
@@ -398,3 +403,64 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   on the 1-unit grid (the door footprint, rotated by yaw), remembers it while the client drops it far away, and drops it once
   the player is within 20 units of its spot without it; `BarrierBridge` hands the cells to the guide's routes
   (`NavigationBridge.SetBlockedCells`) and to the radar (wall cells).
+
+## 14. Carry-and-place dungeons and the doors their receptacles open (offline, build 3.2.2, 2026-10-03)
+
+- **Census (H):** 32 DPO quests ask the player to carry items to receptacles. Every `Receptacle_*` has `nMaxCount` 1, so "place 2"
+  means two receptacles side by side: the placing callback (event 77/78) carries `nNeeded` = how many, the pickup callback event
+  32 with flags 0x3.
+  - Statues ×2 (`Receptacle_AncientsStatue` 466091 ← `Carryable_AncientsStatue` 466092): Hawe_AncientReservoir, Kehj_CollapsedVault,
+    Kehj_HakansRefuge, Step_AncientsLament, Step_CarrionFields, Step_ShiftingCity.
+  - Bloodstone ×2: AkkhansGrasp, FetidMausoleum, LeviathansMaw, BetrayersRow; ×3: PathoftheBlind, Frac_Zenith.
+  - Stone carving ×2: HauntedRefuge, SunkenRuins; ×3: ChampionsDemise. Mechanical ×2: LostArchives, MercysReach, SanguineChapel.
+- **Where:** Carrion Fields' pedestals are in `Step_Grassland_FLEX_POI_SilentMonolith_01 (DGN_Step_CarrionFields_SilentMonolith)`,
+  25 units apart; Ancient Reservoir's in `Ancients_Flooded_FLEX_POI_BossRoom (DGN_Hawe_AncientReservoir)`.
+- **Receptacles beside a door (H):** `DOV_Kehj_HakansRefuge_PedestalsAndDoor` 1199321 (`DRLG_Blocker_Protodun_South_01`),
+  `DGN_Step_AncientsLaments_DoorandReceptacles` 1303486 and `DGN_Step_ShiftingCity_SaintsGate` 1093330
+  (`DRLG_Blocker_Ancients_Sand_01`), `DGN_Frac_AnicasClaim_BossDoor` 1202279 (one receptacle), `DGN_Scos_Underroot_BlockerAndReceptacle`
+  1988089, the S03 Infernal Device vault doors (four receptacles). Door to receptacle: 2.2–6.0 units. No DPO names these doors and
+  their data says player-operable, not starting disabled: the script opens them once the receptacles are filled.
+- **Live report (2026-10-03, tester):** in a two-statue dungeon the guide led to the pedestal instead of the second statue, and the
+  door beside the pedestals looped the quest sound. The app (`Game/CarryGoals`): a receptacle leads the guide only while the player
+  holds an item it takes (then in the quest tier), and a closed door within 8 units of a receptacle still empty, not named by the
+  DPO, waits silent (quest-locked). Filled receptacles carry `Gizmo_Has_Been_Operated` (§3).
+
+## 15. Boss summoners: monoliths (offline, build 3.2.2, 2026-10-03)
+
+- **Placement (H):** each sits on the very spot of a boss spawner, in a `DOV_*` marker set no other set nests (server-placed):
+  `SilentMonolith_DYN` 540576 (door gizmo 0) with `DRLG_Spawner_Skeleton_Boss_Monolith` (`DOV_Step_CarrionFields_SilentMonolith`
+  466280, `DOV_Hawe_AncientReservoir_Boss` 691662; Halls of the Damned has its own spawner), `FrozenMonolith_DYN` 1039288 with the
+  vampire boss spawner (`DOV_Frac_Zenith_FrozenMonolith`), `MegaDemon_Monolith_01_Dyn_DGN_Step_GrinningLabyrinth` 1059548 (starts
+  disabled) and, as a switch, `DGN_Frac_LostArchives_Coffin` with the ghost boss spawner.
+- **DPO naming varies (H):** Carrion Fields names none; Ancient Reservoir and Zenith: event 32, shown; Halls of the Damned: event 32,
+  hidden; Grinning Labyrinth: event 51 (player in range).
+- **Live report (2026-10-03, tester):** a monolith was silent until used, then "looped": most likely the boss (`skeleton_boss`, a DPO
+  kill target) standing on the same spot. The app makes every door gizmo named `*Monolith*` an objective (reason `monolith`). A
+  door-type objective counts as used only by the ACD marks (`Gizmo_Has_Been_Operated`, `Gizmo_State`), not by the RActor state word,
+  which is validated on chests and clickables only. `--debug` logs `LOOP silent … cause=used|unusable` once for an objective silent
+  at first sight.
+
+## 16. Bosses a quest phase names, and monster rarity (offline, build 3.2.2, 2026-10-03)
+
+- **Rarity (H):** `ActorMonsterData.eOverriddenMonsterRarity` (+532) holds only -1 (5,991 ordinary monsters), 2 (969 uniques,
+  `DRLG_Structure_*`) and 4 (552 bosses and minibosses, e.g. `skeleton_boss`, `Frac_Prologue_demon_mega_miniboss`).
+- **Quests naming monsters (H):** 1,459 callback tokens name a hostile monster, 716 distinct; a few are ordinary ones by the dozen
+  (`zombie_brute_phys` in `QST_Naha_Ormus1_02`, event 5, need 2; `Flayer` in `SMP_Ambush_Swarm`). So the app loops a monster the
+  followed quest's current phase names only when it is a hostile unique or boss (reason `killtarget`, quest tier); its remains
+  (no ACD, as the tumor's, §12) are silent.
+- **The first campaign dungeon (M):** `CSD_Frac_Prologue_AbandonedTower` 450383 (DRLG, no DPO, no quest named after it). Its quest is
+  `QST_Frac_Prologue_Taiga_01` 449539: phase uid 0 opens `Frac_Prologue_Tower_Gate`, uid 8 kills `Frac_Prologue_demon_mega_miniboss`
+  1227632 (shown, level area `CSD_Frac_Prologue_AbandonedTower_03`), uid 34 a corpse in `ProtoDun_Keep_FLEX_POI_BossRoom`. The boss
+  comes from `Prologue_ManualBossFight` 652902, which no set nests: no offline position.
+- **DPO phases are not followed:** the statue and monolith DPOs name actors by SNO only (no markers) and no live tracked quest was a
+  DPO, so `ActiveQuests` never follows one; DPO kill targets stay phase-blind (§13).
+
+## 17. Fire-bowl puzzles: switches lit again and again (offline, build 3.2.2, 2026-10-03)
+
+- `QST_Naha_TombOfAkarat_EruTrial_LightsOut` 1807947: 4× `QST_Naha_TombOfAkarat_EruTrial_Brazier` 1957286 (switch 57,
+  `fSwitchCanOperateMultipleTimes` 1, team 1) with `BrazierVFX` markers 1808569. Base game: `SMP_LightsOut` 1257632 with
+  9× `SMP_Brazier` 1257617 (same kind).
+- 200 of the 847 switches are multi-use (`SwitchGizmoData.fSwitchCanOperateMultipleTimes` +248).
+- **Lit signal unknown.** `--debug` logs every multi-use switch once seen and on each change:
+  `SWITCH <name> sno=<sno> at (x,y): seen PreviousState=… Gizmo_State=… Gizmo_Has_Been_Operated=… Gizmo_Disabled_By_Script=…
+  Operatable=… Disabled=…`, then `SWITCH … : <signal>=<old>→<new>` (`Game/SwitchStateLog`). Light and unlight one to find it.

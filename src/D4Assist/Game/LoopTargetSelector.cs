@@ -11,9 +11,11 @@ public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
 /// <param name="StopsWhenUsed">A used gizmo falls silent; beacons (the Undercity pad activates on approach) and NPCs never do.</param>
 /// <param name="QuietWithin">The loop falls silent while the player is this close (sheltered in a safe zone); 0 = never.</param>
 /// <param name="Reusable">A gizmo used again and again (the Horadric vessels): silent only while the game doesn't let the player use it.</param>
+/// <param name="UsedWhenOpened">A door-type objective (a monolith, a blocker) is used once the game marks it operated or open; the
+/// state word that marks a used chest or clickable is not validated on these.</param>
 public sealed record LoopTarget(
     LoopKind Kind, string Sound, LoopProfile Profile, string Reason, SoundCue Cue, bool StopsWhenUsed = false, float QuietWithin = 0,
-    bool Reusable = false)
+    bool Reusable = false, bool UsedWhenOpened = false)
 {
     /// <summary>A gizmo the game can lock (quest-restricted, script-disabled): silent until it is allowed.</summary>
     public bool SilentWhileUnusable => StopsWhenUsed || Reusable;
@@ -52,6 +54,7 @@ public sealed class LoopTargetSelector
     private readonly Func<int, IReadOnlySet<int>> _dpoActors;
     private readonly Dictionary<ObjectiveReason, LoopTarget> _objectiveTargets;
     private readonly Dictionary<ObjectiveReason, LoopTarget> _npcObjectiveTargets;
+    private readonly CarryGoals? _carry;
     private readonly InteractableClassifier? _interactables;
     private readonly Func<int, bool>? _isPortal;
     private readonly Func<int, float?>? _safeZoneRadius;
@@ -71,6 +74,7 @@ public sealed class LoopTargetSelector
         _isPortal = isPortal;
         _safeZoneRadius = safeZoneRadius;
         _objectives = objectives;
+        _carry = objectives is null ? null : new CarryGoals(objectives);
         _dpoActors = dpoActors;
         _interactables = interactables;
         _beacon = new LoopTarget(LoopKind.ExitBeacon, QuestItemSound, LoopProfiles.Beacon, BeaconReason, SoundCue.Portal);
@@ -84,6 +88,7 @@ public sealed class LoopTargetSelector
     {
         _worldDpoActors = _objectives is null ? new HashSet<int>() : _dpoActors(worldSno);
         _inDungeon = isDungeon;
+        _carry?.Reset();
     }
 
     /// <summary>Null when the actor gets no loop.</summary>
@@ -91,16 +96,26 @@ public sealed class LoopTargetSelector
     {
         if (_safeZoneRadius?.Invoke(actor.ActorSno) is { } inside) return _safeZone with { QuietWithin = inside };
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
-        if (_objectives is not null && actor.QuestStep) return (actor.Talkable ? _npcObjectiveTargets : _objectiveTargets)[ObjectiveReason.Quest];
-        if (IsHeld(actor)) return null;
+        if (_objectives is not null && actor.QuestStep)
+            return _objectives.IsBossOrUnique(actor.ActorSno) ? _npcObjectiveTargets[ObjectiveReason.KillTarget]
+                : ObjectiveFor(actor, ObjectiveReason.Quest, gizmo: !actor.Talkable);
+        if (_carry?.IsHeld(actor) == true) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
-            return reason == ObjectiveReason.Destructible && actor.ClientOnly ? null // destroyed: the remains have no game record
-                : (_objectives.IsGizmo(actor.ActorSno) ? _objectiveTargets : _npcObjectiveTargets)[reason];
+            return reason is ObjectiveReason.Destructible or ObjectiveReason.KillTarget && actor.ClientOnly ? null // remains: no game record
+                : ObjectiveFor(actor, reason, _objectives.IsGizmo(actor.ActorSno));
         if (_interactables?.Classify(actor.ActorSno) is not { } thing) return null;
         if (thing.Kind == InteractableKind.Door && actor.GizmoStateSet) return null; // already open: nothing to do
         return new LoopTarget(
             thing.Kind == InteractableKind.Door ? LoopKind.Door : LoopKind.Container, thing.Sound, LoopProfiles.Container,
             thing.Kind.ToString().ToLowerInvariant(), CueOf(thing), StopsWhenUsed: thing.Kind != InteractableKind.PointOfInterest);
+    }
+
+    // An NPC or monster has no "used" signal and loops until it leaves the actor list.
+    private LoopTarget ObjectiveFor(ActorState actor, ObjectiveReason reason, bool gizmo)
+    {
+        if (!gizmo) return _npcObjectiveTargets[reason];
+        var target = _objectiveTargets[reason];
+        return _objectives!.IsDoor(actor.ActorSno) ? target with { UsedWhenOpened = true } : target;
     }
 
     // Only a gizmo has a "used" signal; the Horadric vessels are used once per barrier.
@@ -133,18 +148,21 @@ public sealed class LoopTargetSelector
             _ => SoundCue.PointOfInterest,
         };
 
-    /// <summary>While the player holds a carryable, delivering it is the quest step: a receptacle that takes it is the step
-    /// even when quest-locked, and every other quest step waits (research/dungeon-objectives.md §3).</summary>
-    public IReadOnlyList<ActorState> WithCarryGoals(IReadOnlyList<ActorState> actors)
+    /// <summary>The actors with the quest steps the game's flags don't mark: delivering a carried item (CarryGoals) and a boss or
+    /// unique the followed quests' current phase names; called on every actor poll before <see cref="Select"/>.</summary>
+    public IReadOnlyList<ActorState> WithQuestGoals(IReadOnlyList<ActorState> actors)
     {
         if (_objectives is not { } objectives) return actors;
-        var held = actors.Where(IsHeld).Select(a => a.ActorSno).ToHashSet();
-        if (held.Count == 0) return actors;
-        return [.. actors.Select(a => held.Any(c => objectives.Accepts(a.ActorSno, c))
-            ? a.QuestLocked ? a with { QuestLocked = false, QuestStep = true } : a
-            : a.QuestStep ? a with { QuestStep = false, QuestLocked = true } : a)];
+        actors = _carry!.Apply(actors, _worldDpoActors);
+        return actors.Any(a => IsQuestFoe(a, objectives))
+            ? [.. actors.Select(a => IsQuestFoe(a, objectives) ? a with { QuestStep = true } : a)]
+            : actors;
     }
 
-    // The carryable on the ground has a game record; the copy in the player's hands has none (research/dungeon-objectives.md §3).
-    private bool IsHeld(ActorState actor) => actor.ClientOnly && _objectives?.IsCarryable(actor.ActorSno) == true;
+    /// <summary>For a receptacle, whether it takes the carryable the player holds now; null for any other actor (ObjectiveMemory).</summary>
+    public bool? ReceptacleTakesHeld(int actorSno) => _carry?.TakesHeld(actorSno);
+
+    // A dead monster's remains have no game record.
+    private static bool IsQuestFoe(ActorState actor, ObjectiveClassifier objectives) =>
+        actor.NamedByQuest && !actor.QuestStep && !actor.ClientOnly && objectives.IsBossOrUnique(actor.ActorSno);
 }

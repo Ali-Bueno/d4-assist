@@ -42,17 +42,22 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private bool _flagsMissing;
     private uint? _playerAcdId;
     private readonly ReadHealth? _health;
+    private readonly SwitchStateLog? _switches;
 
     // The actors' flags, plus the player's cinematic flag.
     private static readonly string[] AcdNames = [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying];
+
+    // With the switch log, its attributes too, when the game's table has them.
+    private static readonly string[] DiagnosticAcdNames = [.. AcdNames, .. SwitchStateLog.Attributes.Except(AcdNames)];
 
     private LiveDungeonSessionReader(
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
         Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers,
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
-        Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health)
+        Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, SwitchStateLog? switches)
     {
         _health = health;
+        _switches = switches;
         (_conversations, _build, _moduleData) = (conversations, build, moduleData);
         _worldSno = worldSno;
         _readsFlags = readsFlags;
@@ -76,11 +81,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="health">Told whether the addresses, rooms, actors, attributes and menus read; null checks nothing.</param>
     /// <param name="isActorSno">True for an actor SNO the game files hold; with it the structure layout is checked live
     /// (LayoutDiscovery), null keeps it as known.</param>
+    /// <param name="switches">Debug log of the multi-use switches' state signals, one per world session; null for none.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
         MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
         ConversationAddresses? conversations = null, Func<QuestSearchArea, IReadOnlyList<int>>? questsHere = null,
-        ReadHealth? health = null, Func<int, bool>? isActorSno = null)
+        ReadHealth? health = null, Func<int, bool>? isActorSno = null, SwitchStateLog? switches = null)
     {
         ProcessReader process;
         using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
@@ -135,7 +141,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (offsets is not null && isActorSno is not null) offsets = LayoutFor(process, liveModule, build, offsets, found, isActorSno);
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
-            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health);
+            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health, switches);
     }
 
     // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer
@@ -308,7 +314,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             return null;
         }
         if (!AcdReader.TryOpen(_process, _moduleBase, offsets, out _)) return null;
-        _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, AcdNames);
+        _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, _switches is null ? AcdNames : DiagnosticAcdNames);
         var missing = AcdNames.Except(_flags?.Known ?? []).ToList();
         if (missing.Count > 0) Console.WriteLine($"ACD attributes not found: {string.Join(", ", missing)}.");
         _health?.Report(ReadCheck.Attributes, missing.Count == 0, $"attributes not found: {string.Join(", ", missing)}");
@@ -324,8 +330,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var player = PlayerRecord(records, position);
             ReportOwnActor(player, position, records.Count);
             var flags = FlagReader(offsets);
+            flags?.Refresh();
+            _switches?.Observe(records, r => r.AcdId == RActorRecord.NoAcd ? null : flags?.Values(r.AcdId), flags?.Known ?? []);
             if (flags is null) return ActorFilter.Placed(records);
-            flags.Refresh();
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
             var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();

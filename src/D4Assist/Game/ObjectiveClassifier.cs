@@ -4,7 +4,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget, Monolith }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -41,6 +41,10 @@ public sealed class ObjectiveClassifier(
     // (Frac_Cursed_Tumor_01_Corner_2x2_01_Multistage), cracked walls, cocoons, a demon gate (research/dungeon-objectives.md §12).
     private const string DestructibleToken = "_Multistage";
 
+    // Door gizmos used to summon a dungeon's boss (SilentMonolith_DYN, FrozenMonolith_DYN, the Grinning Labyrinth's), each beside
+    // its boss spawner; not every DPO names them (research/dungeon-objectives.md §15).
+    private const string MonolithToken = "Monolith";
+
     // Gizmo types that are objectives in every dungeon.
     private static readonly HashSet<int> AlwaysGizmos =
     [
@@ -48,7 +52,8 @@ public sealed class ObjectiveClassifier(
     ];
 
     // The world-independent part of the answer, cached per actor SNO.
-    private readonly record struct Traits(ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsCarryable, IReadOnlyList<int>? Accepts);
+    private readonly record struct Traits(
+        ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsDoor, bool IsCarryable, bool IsBossOrUnique, IReadOnlyList<int>? Accepts);
 
     private readonly Dictionary<int, Traits?> _traits = [];
 
@@ -74,15 +79,25 @@ public sealed class ObjectiveClassifier(
     /// <summary>True for an item the player carries to a receptacle (relics, idols, stone carvings).</summary>
     public bool IsCarryable(int actorSno) => TraitsOf(actorSno)?.IsCarryable == true;
 
+    /// <summary>True for a receptacle a carryable goes into (altars, pedestals).</summary>
+    public bool IsReceptacle(int actorSno) => TraitsOf(actorSno)?.Accepts is not null;
+
     /// <summary>True when the receptacle <paramref name="receptacleSno"/> takes the carryable <paramref name="carryableSno"/>.</summary>
     public bool Accepts(int receptacleSno, int carryableSno) => TraitsOf(receptacleSno)?.Accepts?.Contains(carryableSno) == true;
+
+    /// <summary>True for door gizmos (doors, blockers, cages, monoliths).</summary>
+    public bool IsDoor(int actorSno) => TraitsOf(actorSno)?.IsDoor == true;
+
+    /// <summary>True for a hostile unique or boss: a quest phase that names one asks for that kill, while the ordinary monsters a
+    /// few phases name come by the dozen (research/dungeon-objectives.md §16).</summary>
+    public bool IsBossOrUnique(int actorSno) => TraitsOf(actorSno)?.IsBossOrUnique == true;
 
     private Traits? TraitsOf(int actorSno)
     {
         if (_traits.TryGetValue(actorSno, out var cached)) return cached;
         Traits? traits = definition(actorSno) is { } info
             ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster, info.GizmoType >= 0,
-                info.GizmoType == Conventions.GizmoCarryable,
+                info.GizmoType == Conventions.GizmoDoor, info.GizmoType == Conventions.GizmoCarryable, IsBossOrUnique(info),
                 info.AcceptedCarryables)
             : null;
         return _traits[actorSno] = traits;
@@ -98,6 +113,8 @@ public sealed class ObjectiveClassifier(
             return ObjectiveReason.WardBreaker;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(EnticementToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.Enticement;
+        if (info.GizmoType == Conventions.GizmoDoor && name?.Contains(MonolithToken, StringComparison.OrdinalIgnoreCase) == true)
+            return ObjectiveReason.Monolith;
         if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
@@ -108,6 +125,10 @@ public sealed class ObjectiveClassifier(
         info.GizmoType < 0 && info.DefaultTeam == Conventions.HostileTeam
         && name?.Contains(DestructibleToken, StringComparison.OrdinalIgnoreCase) == true
         && namedByAnyQuest?.Invoke(actorSno) == true;
+
+    private static bool IsBossOrUnique(ActorDefinitionInfo info) =>
+        info.EType == Conventions.ActorTypeMonster && info.DefaultTeam == Conventions.HostileTeam
+        && info.MonsterRarity is Conventions.MonsterRarityUnique or Conventions.MonsterRarityBoss;
 
     private static bool IsPrisoner(string? name, ActorDefinitionInfo info) =>
         name is not null

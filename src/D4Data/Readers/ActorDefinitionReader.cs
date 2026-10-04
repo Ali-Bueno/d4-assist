@@ -14,10 +14,12 @@ namespace D4Data.Readers;
 /// <param name="AcceptedCarryables">CarryableReceptacleGizmoData.arCarryables: the carryable SNOs a receptacle takes; null otherwise.</param>
 /// <param name="TriggerRadius">A trigger gizmo's ground radius from its proximity shape (sphere or capsule radius, a box's
 /// narrower half-extent); null for other actors or an unknown shape (research/dungeon-objectives.md §10).</param>
+/// <param name="MonsterRarity">ActorMonsterData.eOverriddenMonsterRarity (Conventions.MonsterRarity*); none for ordinary monsters.</param>
+/// <param name="MultiUseSwitch">SwitchGizmoData.fSwitchCanOperateMultipleTimes: a switch used again and again (levers, braziers).</param>
 public readonly record struct ActorDefinitionInfo(
     int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default,
     int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1, IReadOnlyList<int>? AcceptedCarryables = null,
-    float? TriggerRadius = null);
+    float? TriggerRadius = null, int MonsterRarity = Conventions.MonsterRarityNone, bool MultiUseSwitch = false);
 
 /// <summary>Reads (and caches per SNO) <see cref="ActorDefinitionInfo"/> from ActorDefinition meta records.</summary>
 public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
@@ -25,7 +27,7 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
     private const string ActorDefinition = "ActorDefinition";
     private const string Aabb = "AABB";
     private const string MonsterData = "ActorMonsterData";
-    private const string ReceptacleData = "CarryableReceptacleGizmoData";
+    private const string ReceptacleData = "CarryableReceptacleGizmoData", SwitchData = "SwitchGizmoData";
     private const string TriggerGizmo = "TriggerGizmoData", Trigger = "TriggerData", TriggerProximity = "TriggerProximityData";
     private const string ShapeBase = "ProximityDataBase", Sphere = "SphereProximityData", Capsule = "CapsuleProximityData", Box = "BoxProximityData";
     private const int SnoIdSize = 4; // DT_SNO
@@ -50,14 +52,22 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
             {
                 IsNpc = meta!.I32(monster + schema.Offset(MonsterData, "fIsNPC")) != 0,
                 MonsterFamilySno = meta.I32(monster + schema.Offset(MonsterData, "snoMonsterFamily")),
+                MonsterRarity = meta.I32(monster + schema.Offset(MonsterData, "eOverriddenMonsterRarity")),
             };
         if (info is { GizmoType: Conventions.GizmoCarryableReceptacle } receptacle)
             info = receptacle with { AcceptedCarryables = AcceptedCarryables(meta!) };
         if (info is { GizmoType: Conventions.GizmoTrigger } trigger)
             info = trigger with { TriggerRadius = TriggerRadius(meta!) };
+        if (info is { GizmoType: Conventions.GizmoSwitch } lever)
+            info = lever with { MultiUseSwitch = MultiUse(meta!) };
         _cache[actorSno] = info;
         return info;
     }
+
+    // ptGizmoData holds one SwitchGizmoData.
+    private bool MultiUse(SnoBlob meta) =>
+        meta.PolymorphicArray(schema.Offset(ActorDefinition, "ptGizmoData"), schema.Size(SwitchData)).Take(1)
+            .Any(gizmo => meta.I32(gizmo + schema.Offset(SwitchData, "fSwitchCanOperateMultipleTimes")) != 0);
 
     // ptGizmoData holds one polymorphic element, here a CarryableReceptacleGizmoData.
     private int[] AcceptedCarryables(SnoBlob meta) =>

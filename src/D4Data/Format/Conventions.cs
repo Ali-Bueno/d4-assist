@@ -31,6 +31,12 @@ public static class Conventions
     public const int ActorTypePlayer = 7;           // only the player-class actors (<class>M / <class>F)
     public const int HostileTeam = 19;              // ActorDefinition.eDefaultTeam of hostile monsters, incl. hostile NPC stand-ins
 
+    // ActorMonsterData.eOverriddenMonsterRarity: build 3.2.2 holds only -1 (5,991 ordinary monsters), 2 (969 uniques) and 4
+    // (552 bosses and minibosses). research/dungeon-objectives.md §16.
+    public const int MonsterRarityNone = -1;
+    public const int MonsterRarityUnique = 2;
+    public const int MonsterRarityBoss = 4;
+
     // ActorDefinition.eActorGizmoType (+392); each value is named after the data class at ptGizmoData
     // (definitions.json has no enum strings). research/dungeon-objectives.md �3.
     public const int GizmoDoor = 0;                 // DoorGizmoData

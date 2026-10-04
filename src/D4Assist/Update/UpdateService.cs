@@ -12,6 +12,8 @@ namespace D4Assist.Update;
 public sealed class UpdateService(
     ISpeechSink speech, LanguageSetting language, Action<string> log, Action restart, string appFolder, string exeName, bool canReplaceItself)
 {
+    private const int ProgressStep = 25;
+
     private int _busy;
     private Version? _askedFor;
 
@@ -76,12 +78,16 @@ public sealed class UpdateService(
         return UpdatePrompt.AskYesNo(UpdatePrompt.Text(text.UpdateDialogFormat, release.Version, current, release.Notes), text.AppName);
     }
 
+    // "25 %", "50 %", "75 %": the zip is ~50 MB, a slow line takes a while and the player can't see a bar.
+    private Action<int> SpeakProgress() =>
+        ProgressMilestones.Every(ProgressStep, percent => speech.Speak(string.Format(Lines.UpdateProgressFormat, percent), interrupt: false));
+
     private async Task InstallAsync(ReleaseInfo release, ReleaseClient client)
     {
         speech.Speak(Lines.UpdateDownloading, interrupt: true);
         try
         {
-            var files = await UpdatePackage.PrepareAsync(release, client);
+            var files = await UpdatePackage.PrepareAsync(release, client, SpeakProgress());
             var report = FileReplacement.Apply(appFolder, files, exeName, UpdatePackage.BackupPath(release.Version));
             log($"Updated to {release.Version.ToString(3)}: copied {string.Join(", ", report.Copied)}; kept {string.Join(", ", report.Kept)}.");
         }

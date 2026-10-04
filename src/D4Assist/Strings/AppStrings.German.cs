@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "Das Update ist fehlgeschlagen: Der Programmordner ist nicht beschreibbar. Deine Version ist unverändert.",
         UpToDate: "Du hast die neueste Version.",
         UpdateCheckFailed: "Die Suche nach Updates ist fehlgeschlagen.",
-        UpdateOnlyDownloaded: "Updates funktionieren nur in der heruntergeladenen Version.");
+        UpdateOnlyDownloaded: "Updates funktionieren nur in der heruntergeladenen Version.",
+        UpdateProgressFormat: "{0} %",
+        UpdatedToFormat: "Auf Version {0} aktualisiert.");
 }

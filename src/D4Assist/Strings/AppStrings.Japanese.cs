@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "更新に失敗しました。アプリのフォルダーに書き込めません。バージョンは変わっていません。",
         UpToDate: "最新バージョンです。",
         UpdateCheckFailed: "更新を確認できませんでした。",
-        UpdateOnlyDownloaded: "更新はダウンロードしたバージョンでのみ使えます。");
+        UpdateOnlyDownloaded: "更新はダウンロードしたバージョンでのみ使えます。",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "バージョン {0} に更新しました。");
 }

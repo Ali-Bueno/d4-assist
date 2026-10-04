@@ -59,7 +59,9 @@ internal static class Program
         using var log = LogFile.Start(AppContext.BaseDirectory);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.Error.WriteLine($"Unhandled error: {e.ExceptionObject}");
         Console.WriteLine($"Diablo 4 Assist {AppVersion}");
-        FileReplacement.DeleteLeftover(AppContext.BaseDirectory, Path.GetFileName(Environment.ProcessPath!)); // the exe a finished update renamed
+        var exeName = Path.GetFileName(Environment.ProcessPath!);
+        bool justUpdated = FileReplacement.HasLeftover(AppContext.BaseDirectory, exeName);
+        if (justUpdated) _ = FileReplacement.DeleteLeftoverSoon(AppContext.BaseDirectory, exeName); // the exe the update renamed
 
         bool noSpeech = args.Contains("--no-speech");
         bool debug = args.Contains("--debug");
@@ -89,6 +91,7 @@ internal static class Program
         using ISpeechSink speech = noSpeech || !config.SpeechEnabled ? new ConsoleSpeechSink() : new PrismSpeechSink();
         Console.WriteLine($"Speech backend: {speech.BackendName}");
         speech.Speak(AppStrings.For(language.Current).AssistantActive, interrupt: true);
+        if (justUpdated) speech.Speak(string.Format(AppStrings.For(language.Current).UpdatedToFormat, UpdateVersion.Current.ToString(3)), interrupt: false);
         // A crash would otherwise end in silence.
         AppDomain.CurrentDomain.UnhandledException += (_, _) => speech.Speak(AppStrings.For(language.Current).Stopped, interrupt: true);
         // A read that keeps failing after a game update is said once, so the player knows what stopped working.

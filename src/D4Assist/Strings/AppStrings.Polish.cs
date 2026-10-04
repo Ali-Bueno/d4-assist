@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "Aktualizacja się nie powiodła: folder aplikacji jest tylko do odczytu. Twoja wersja pozostała bez zmian.",
         UpToDate: "Masz najnowszą wersję.",
         UpdateCheckFailed: "Nie udało się sprawdzić aktualizacji.",
-        UpdateOnlyDownloaded: "Aktualizacje działają tylko w pobranej wersji.");
+        UpdateOnlyDownloaded: "Aktualizacje działają tylko w pobranej wersji.",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "Zaktualizowano do wersji {0}.");
 }

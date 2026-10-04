@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "L'aggiornamento non è riuscito: la cartella dell'app non è scrivibile. La tua versione è invariata.",
         UpToDate: "Hai l'ultima versione.",
         UpdateCheckFailed: "Impossibile cercare gli aggiornamenti.",
-        UpdateOnlyDownloaded: "Gli aggiornamenti funzionano solo nella versione scaricata.");
+        UpdateOnlyDownloaded: "Gli aggiornamenti funzionano solo nella versione scaricata.",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "Aggiornato alla versione {0}.");
 }

@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "La mise à jour a échoué : le dossier de l'application n'est pas accessible en écriture. Votre version n'a pas changé.",
         UpToDate: "Vous avez la dernière version.",
         UpdateCheckFailed: "Impossible de rechercher les mises à jour.",
-        UpdateOnlyDownloaded: "Les mises à jour ne fonctionnent que dans la version téléchargée.");
+        UpdateOnlyDownloaded: "Les mises à jour ne fonctionnent que dans la version téléchargée.",
+        UpdateProgressFormat: "{0} %",
+        UpdatedToFormat: "Mis à jour vers la version {0}.");
 }

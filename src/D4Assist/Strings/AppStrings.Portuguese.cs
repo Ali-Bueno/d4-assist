@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "A atualização falhou: a pasta do aplicativo não permite gravação. Sua versão não foi alterada.",
         UpToDate: "Você está com a versão mais recente.",
         UpdateCheckFailed: "Não foi possível verificar se há atualizações.",
-        UpdateOnlyDownloaded: "As atualizações só funcionam na versão baixada.");
+        UpdateOnlyDownloaded: "As atualizações só funcionam na versão baixada.",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "Atualizado para a versão {0}.");
 }

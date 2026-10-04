@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "Не удалось обновить: папка приложения недоступна для записи. Ваша версия не изменилась.",
         UpToDate: "У вас последняя версия.",
         UpdateCheckFailed: "Не удалось проверить обновления.",
-        UpdateOnlyDownloaded: "Обновления работают только в скачанной версии.");
+        UpdateOnlyDownloaded: "Обновления работают только в скачанной версии.",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "Обновлено до версии {0}.");
 }

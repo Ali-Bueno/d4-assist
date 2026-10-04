@@ -15,16 +15,29 @@ public static class FileReplacement
     private const string OldSuffix = ".old";
     private const string WriteProbeName = "d4assist-write-test.tmp";
     private const string ConfigFileName = "d4assist.json";
+    // The old process may still hold its exe for a moment after the new copy starts.
+    private const int LeftoverDeleteAttempts = 10;
+    private static readonly TimeSpan LeftoverRetryDelay = TimeSpan.FromMilliseconds(500);
 
     /// <summary>The running exe's renamed copy a replacement leaves behind.</summary>
     public static string OldPath(string appFolder, string runningExeName) => Path.Combine(appFolder, runningExeName + OldSuffix);
 
+    /// <summary>True when an update renamed the previous exe: this is the first start of the new version.</summary>
+    public static bool HasLeftover(string appFolder, string runningExeName) => File.Exists(OldPath(appFolder, runningExeName));
+
     /// <summary>Deletes the ".old" exe a previous update left (it can only go once that process has ended); best effort.</summary>
-    public static void DeleteLeftover(string appFolder, string runningExeName)
+    public static bool DeleteLeftover(string appFolder, string runningExeName)
     {
-        try { File.Delete(OldPath(appFolder, runningExeName)); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        try { File.Delete(OldPath(appFolder, runningExeName)); return true; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
+
+    /// <summary><see cref="DeleteLeftover"/>, retried in the background while the previous process ends.</summary>
+    public static Task DeleteLeftoverSoon(string appFolder, string runningExeName) => Task.Run(async () =>
+    {
+        for (int attempt = 0; attempt < LeftoverDeleteAttempts && !DeleteLeftover(appFolder, runningExeName); attempt++)
+            await Task.Delay(LeftoverRetryDelay);
+    });
 
     /// <summary>
     /// Replaces the exe named <paramref name="runningExeName"/> and copies the other files of <paramref name="extractedFolder"/>

@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "Güncelleme başarısız oldu: uygulama klasörüne yazılamıyor. Sürümünüz değişmedi.",
         UpToDate: "En son sürümü kullanıyorsunuz.",
         UpdateCheckFailed: "Güncellemeler denetlenemedi.",
-        UpdateOnlyDownloaded: "Güncellemeler yalnızca indirilen sürümde çalışır.");
+        UpdateOnlyDownloaded: "Güncellemeler yalnızca indirilen sürümde çalışır.",
+        UpdateProgressFormat: "%{0}",
+        UpdatedToFormat: "{0} sürümüne güncellendi.");
 }

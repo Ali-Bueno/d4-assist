@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "업데이트에 실패했습니다. 앱 폴더에 쓸 수 없습니다. 현재 버전은 그대로입니다.",
         UpToDate: "최신 버전입니다.",
         UpdateCheckFailed: "업데이트를 확인하지 못했습니다.",
-        UpdateOnlyDownloaded: "업데이트는 내려받은 버전에서만 작동합니다.");
+        UpdateOnlyDownloaded: "업데이트는 내려받은 버전에서만 작동합니다.",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "버전 {0}(으)로 업데이트했습니다.");
 }

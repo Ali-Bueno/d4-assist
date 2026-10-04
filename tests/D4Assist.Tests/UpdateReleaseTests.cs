@@ -106,12 +106,25 @@ public class UpdateReleaseTests
         var app = AppStrings.For(language);
         var settings = SettingsStrings.For(language);
         Assert.Contains("{0}", app.UpdateAvailableFormat);
+        Assert.Contains("{0}", app.UpdateProgressFormat);
+        Assert.Contains("{0}", app.UpdatedToFormat);
         Assert.Contains("{2}", settings.UpdateDialogFormat);
         Assert.All(new[]
         {
             app.UpdateDownloading, app.UpdateRestarting, app.UpdateFailed, app.UpdateFolderNotWritable, app.UpToDate,
             app.UpdateCheckFailed, app.UpdateOnlyDownloaded, settings.MenuCheckUpdates, settings.CheckForUpdates, settings.CompassDirections,
         }, text => Assert.False(string.IsNullOrWhiteSpace(text)));
+    }
+
+    [Fact]
+    public void Download_progress_is_spoken_once_per_quarter()
+    {
+        var spoken = new List<int>();
+        var sink = ProgressMilestones.Every(25, spoken.Add);
+
+        foreach (var percent in new[] { 3, 24, 25, 26, 60, 61, 99, 100, 100 }) sink(percent);
+
+        Assert.Equal([25, 50, 75], spoken);
     }
 
     public static TheoryData<SpeechLanguage> Languages => [.. SpeechLanguages.Supported];
@@ -166,6 +179,14 @@ public sealed class FileReplacementTests : IDisposable
 
         Assert.Equal("starting config", Read("d4assist.json"));
         Assert.Empty(report.Kept);
+    }
+
+    [Fact]
+    public void Only_a_renamed_exe_marks_the_first_start_after_an_update()
+    {
+        Assert.False(FileReplacement.HasLeftover(App, Exe));
+        FileReplacement.Apply(App, Files, Exe, Backup);
+        Assert.True(FileReplacement.HasLeftover(App, Exe));
     }
 
     [Fact]

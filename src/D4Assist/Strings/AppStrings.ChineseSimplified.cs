@@ -40,5 +40,7 @@ public sealed partial record AppStrings
         UpdateFolderNotWritable: "更新失败：无法写入应用程序文件夹。当前版本保持不变。",
         UpToDate: "你已使用最新版本。",
         UpdateCheckFailed: "无法检查更新。",
-        UpdateOnlyDownloaded: "更新仅适用于下载的版本。");
+        UpdateOnlyDownloaded: "更新仅适用于下载的版本。",
+        UpdateProgressFormat: "{0}%",
+        UpdatedToFormat: "已更新到版本 {0}。");
 }

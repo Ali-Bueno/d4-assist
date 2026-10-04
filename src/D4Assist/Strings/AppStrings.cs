@@ -10,7 +10,8 @@ public sealed partial record AppStrings(
     string AssistantClosed, string Restarting, string SkillsStolen, string SkillsRecovered,
     IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped,
     string UpdateAvailableFormat, string UpdateDownloading, string UpdateRestarting, string UpdateFailed,
-    string UpdateFolderNotWritable, string UpToDate, string UpdateCheckFailed, string UpdateOnlyDownloaded)
+    string UpdateFolderNotWritable, string UpToDate, string UpdateCheckFailed, string UpdateOnlyDownloaded,
+    string UpdateProgressFormat, string UpdatedToFormat)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -38,7 +39,9 @@ public sealed partial record AppStrings(
         "La actualización falló: no se puede escribir en la carpeta de la aplicación. Tu versión no ha cambiado.",
         "Tienes la última versión.",
         "No se pudo comprobar si hay actualizaciones.",
-        "Las actualizaciones solo funcionan en la versión descargada.");
+        "Las actualizaciones solo funcionan en la versión descargada.",
+        "{0} %",
+        "Actualizado a la versión {0}.");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -66,7 +69,9 @@ public sealed partial record AppStrings(
         "The update failed: the app folder is not writable. Your version is unchanged.",
         "You have the latest version.",
         "Couldn't check for updates.",
-        "Updates only work in the downloaded build.");
+        "Updates only work in the downloaded build.",
+        "{0}%",
+        "Updated to version {0}.");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {

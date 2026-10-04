@@ -102,9 +102,9 @@ public sealed class ObjectiveMemory
     {
         lock (_gate)
         {
-            ObservePlacedByTiles([.. places.Where(p => p.PlacedByTile)]);
+            ObserveAhead([.. places.Where(p => p.Ahead)]);
             var named = new HashSet<Objective>();
-            foreach (var place in places.Where(p => !p.PlacedByTile))
+            foreach (var place in places.Where(p => !p.Ahead))
             {
                 var objective = _places.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
                 if (objective is null)
@@ -132,7 +132,7 @@ public sealed class ObjectiveMemory
 
     // A gizmo the phase names, placed by a loaded tile, is an objective before it's heard: like a heard one it's done once silent
     // near the player (already used), and dropped unheard when the phase stops naming it.
-    private void ObservePlacedByTiles(List<QuestPlace> placed)
+    private void ObserveAhead(List<QuestPlace> placed)
     {
         var named = new HashSet<Objective>();
         foreach (var place in placed)
@@ -143,7 +143,7 @@ public sealed class ObjectiveMemory
                 objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y))
                     { Quest = true, PlacedOnly = true };
                 _objectives.Add(objective);
-                Log("seen (placed by its tile)", objective);
+                Log("seen ahead", objective);
             }
             named.Add(objective);
         }

@@ -216,7 +216,7 @@ public class ObjectiveMemoryTests
     }
 
     // Live 2026-10-04 (S15_Triad_A_Labyrinth): the phase names S15_TriadA_Lever1 by SNO; four copies stand in the tiles.
-    private static QuestPlace PlacedLever(float x, float y) => new(LeverSno, x, y, PlacedByTile: true);
+    private static QuestPlace PlacedLever(float x, float y) => new(LeverSno, x, y, Ahead: true);
 
     [Fact]
     public void A_gizmo_a_tile_places_leads_as_a_quest_step_before_it_is_heard()

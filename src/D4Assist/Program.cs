@@ -136,6 +136,8 @@ internal static class Program
         // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
         bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
+        // Where far quest objectives stand: the map's markers (research/dungeon-objectives.md §19); one line in every log.
+        var mapMarkers = MapMarkerTracker.ForLiveProcess(Console.WriteLine);
         // ACD flags are read for gizmos (used), NPCs (quest followers) and bosses and uniques (invulnerable) only: other monsters and
         // the player carry hundreds of attributes.
         Func<int, bool> readsFlags = sno =>
@@ -174,7 +176,7 @@ internal static class Program
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
-                scene => { lock (cascGate) return tileGizmos.In(scene); }),
+                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 

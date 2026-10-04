@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using D4Data.Format;
 using D4Data.Readers;
 
@@ -27,16 +28,14 @@ public sealed class SafeZoneClassifier(Func<int, ActorDefinitionInfo?> definitio
     /// <summary>The player counts as inside only this far within the edge, so the cue never drops on the rim.</summary>
     public const float EdgeMargin = 1f;
 
-    private readonly Dictionary<int, float?> _cache = [];
+    // Filled from several poll threads (timer ticks overlap); no lock is held while classifying, which takes the CASC gate.
+    private readonly ConcurrentDictionary<int, float?> _cache = new();
 
     /// <summary>Distance from the actor within which the player is sheltered; null when the actor is no safe zone.</summary>
     public float? InsideRadius(int actorSno)
     {
-        lock (_cache)
-        {
-            if (_cache.TryGetValue(actorSno, out var cached)) return cached;
-            return _cache[actorSno] = Classify(actorSno);
-        }
+        if (_cache.TryGetValue(actorSno, out var cached)) return cached;
+        return _cache[actorSno] = Classify(actorSno);
     }
 
     private float? Classify(int actorSno)

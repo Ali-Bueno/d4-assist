@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using D4Data.Format;
 using D4Data.Readers;
 
@@ -14,15 +15,13 @@ public sealed class PortalClassifier(Func<int, ActorDefinitionInfo?> definition,
     private static readonly string[] SwitchPortalTokens = ["Portal", "WarpPad"];
     private const string TownPortalToken = "TownPortal";
 
-    private readonly Dictionary<int, bool> _cache = [];
+    // Filled from several poll threads (timer ticks overlap); no lock is held while classifying, which takes the CASC gate.
+    private readonly ConcurrentDictionary<int, bool> _cache = new();
 
     public bool IsPortal(int actorSno)
     {
-        lock (_cache)
-        {
-            if (_cache.TryGetValue(actorSno, out var cached)) return cached;
-            return _cache[actorSno] = Classify(actorSno);
-        }
+        if (_cache.TryGetValue(actorSno, out var cached)) return cached;
+        return _cache[actorSno] = Classify(actorSno);
     }
 
     private bool Classify(int actorSno)

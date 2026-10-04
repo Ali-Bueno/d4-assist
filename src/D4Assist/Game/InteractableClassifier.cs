@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using D4Data.Format;
 using D4Data.Readers;
 
@@ -32,7 +33,8 @@ public sealed class InteractableClassifier(Func<int, ActorDefinitionInfo?> defin
 
     private static readonly HashSet<int> ChestGizmos = [Conventions.GizmoChest, Conventions.GizmoRewardChest, Conventions.GizmoLockedChest];
 
-    private readonly Dictionary<int, Interactable?> _cache = [];
+    // Filled from several poll threads (timer ticks overlap); no lock is held while classifying, which takes the CASC gate.
+    private readonly ConcurrentDictionary<int, Interactable?> _cache = new();
 
     public Interactable? Classify(int actorSno)
     {

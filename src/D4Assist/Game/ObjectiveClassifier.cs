@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using D4Data.Format;
 using D4Data.Readers;
 
@@ -55,7 +56,8 @@ public sealed class ObjectiveClassifier(
     private readonly record struct Traits(
         ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsDoor, bool IsCarryable, bool IsBossOrUnique, IReadOnlyList<int>? Accepts);
 
-    private readonly Dictionary<int, Traits?> _traits = [];
+    // Filled from several poll threads (timer ticks overlap); no lock is held while classifying, which takes the CASC gate.
+    private readonly ConcurrentDictionary<int, Traits?> _traits = new();
 
     /// <param name="dpoActors">Actors the current dungeon's DPO quest names (DungeonObjectiveReader.ActorSnos).</param>
     public ObjectiveReason? Classify(int actorSno, IReadOnlySet<int> dpoActors)

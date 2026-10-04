@@ -98,6 +98,7 @@ public sealed class LoopTargetSelector
     public LoopTarget? Select(ActorState actor)
     {
         if (_safeZoneRadius?.Invoke(actor.ActorSno) is { } inside) return _safeZone with { QuietWithin = inside };
+        if (actor.QuestFollower) return null; // walks beside the player: a loop would only blur the quest sounds (user, 2026-10-04)
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
         if (_objectives is not null && actor.QuestStep)
             return _objectives.IsBossOrUnique(actor.ActorSno) ? _npcObjectiveTargets[ObjectiveReason.KillTarget]

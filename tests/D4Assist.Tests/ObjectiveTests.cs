@@ -132,6 +132,8 @@ public class ObjectiveTests
         Assert.Equal("dpo", selector.Select(Placed(DpoSwitchSno))!.Reason);
         Assert.Equal("killtarget", selector.Select(Placed(MinibossSno))!.Reason);
         Assert.False(selector.Select(Placed(MinibossSno))!.StopsWhenUsed); // loops until it dies and leaves the actor list
+        // A companion following the player for the quest (live: S15_Warrior_NPC_Combat, which the hub quest names) never loops.
+        Assert.Null(selector.Select(Placed(MinibossSno) with { QuestFollower = true, QuestStep = true }));
     }
 
     [Fact]

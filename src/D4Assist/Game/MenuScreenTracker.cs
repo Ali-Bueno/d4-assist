@@ -15,6 +15,10 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
     // each miss doubles the wait up to the cap, so a layout that no longer matches (game update) doesn't keep the cores busy.
     public static readonly TimeSpan FirstRetryDelay = TimeSpan.FromSeconds(5), MaxRetryDelay = TimeSpan.FromSeconds(60);
 
+    /// <summary>A screen open this long gets the records checked once against a fresh scan, whenever the stale one came from
+    /// (a scan during a loading screen, a character switch): at worst a false menu mutes the cues this long.</summary>
+    public static readonly TimeSpan VerifyOpenAfter = TimeSpan.FromSeconds(15);
+
     private const string ScreenPrefix = "screen_";
 
     private readonly object _gate = new();
@@ -23,6 +27,8 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
     private bool _scanning, _needsScan = true;
     private TimeSpan _nextScanAt, _retryDelay = FirstRetryDelay;
     private int _generation;
+    private TimeSpan? _openSince;
+    private bool _openVerified;
 
     /// <summary>The scan opens its own handle so it outlives the world session that triggered it.</summary>
     public static MenuScreenTracker ForLiveProcess(Action<string>? log = null)
@@ -35,7 +41,9 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
     /// validate with its open byte at 1, which muted every cue until the app restarted (live 2026-10-04).</summary>
     public void Relocate()
     {
-        lock (_gate) (_records, _needsScan, _nextScanAt, _retryDelay, _generation) = ([], true, TimeSpan.Zero, FirstRetryDelay, _generation + 1);
+        lock (_gate)
+            (_records, _needsScan, _nextScanAt, _retryDelay, _generation, _openSince, _openVerified) =
+                ([], true, TimeSpan.Zero, FirstRetryDelay, _generation + 1, null, false);
     }
 
     /// <summary>Names of the open watched screens; null while the records are not located or one just failed validation.</summary>
@@ -61,9 +69,22 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         {
             foreach (var name in invalid) _records.Remove(name);
             if (invalid.Count > 0) _needsScan = true;
+            if (records.Count > 0 && invalid.Count == 0) VerifyLongOpenLocked(open.Count > 0);
             TryStartScanLocked();
         }
         return records.Count == 0 || invalid.Count > 0 ? null : open;
+    }
+
+    // Once per stretch of open menus: a menu really open is found open again; a stale record is replaced by the live one.
+    private void VerifyLongOpenLocked(bool anyOpen)
+    {
+        if (!anyOpen) { (_openSince, _openVerified) = (null, false); return; }
+        var now = clock();
+        _openSince ??= now;
+        if (_openVerified || now - _openSince < VerifyOpenAfter) return;
+        _openVerified = true;
+        log?.Invoke($"MENU open for {VerifyOpenAfter.TotalSeconds:F0} s: locating the screens again");
+        (_records, _needsScan, _nextScanAt, _retryDelay, _generation) = ([], true, TimeSpan.Zero, FirstRetryDelay, _generation + 1);
     }
 
     private void TryStartScanLocked()

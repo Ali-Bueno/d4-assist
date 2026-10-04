@@ -47,6 +47,25 @@ public class MenuScreenTrackerTests
     }
 
     [Fact]
+    public void A_screen_open_too_long_is_checked_against_a_fresh_scan()
+    {
+        // Live 2026-10-04: a stale record read open for minutes and muted every cue.
+        var memory = new HeapReader();
+        var clock = new Clock();
+        var scans = 0;
+        var tracker = new MenuScreenTracker(() => { scans++; return memory; }, clock.Now);
+        tracker.Read(memory, Module);
+        WaitFor(() => tracker.Read(memory, Module) is not null);
+        memory.SetOpen(true);
+        memory.MoveRecord(RecordAddress + 0x100);
+
+        Assert.Equal([MenuScreens.MainMenu], tracker.Read(memory, Module)); // the stale record
+        clock.Advance(MenuScreenTracker.VerifyOpenAfter);
+        tracker.Read(memory, Module);
+        WaitFor(() => scans == 2 && tracker.Read(memory, Module) is { Count: 0 });
+    }
+
+    [Fact]
     public void RescansOnlyAfterTheRetryDelayOnceARecordStopsValidating()
     {
         var memory = new HeapReader();
@@ -115,6 +134,13 @@ public class MenuScreenTrackerTests
         }
 
         public void SetOpen(bool open) => BinaryPrimitives.WriteUInt32LittleEndian(_table.AsSpan((int)(RecordAddress - TableAddress) + FlagOffset), open ? 1u : 0u);
+
+        // The UI rebuilt: the registry now points to a new record (closed); the old one still validates and reads open.
+        public void MoveRecord(long to)
+        {
+            BinaryPrimitives.WriteInt64LittleEndian(_table.AsSpan(EntryOffset + 16), to);
+            BinaryPrimitives.WriteInt64LittleEndian(_table.AsSpan((int)(to - TableAddress) + ModulePointerOffset), ModulePointer);
+        }
 
         public void Corrupt() => BinaryPrimitives.WriteInt64LittleEndian(_table.AsSpan((int)(RecordAddress - TableAddress) + ModulePointerOffset), 0);
 

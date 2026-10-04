@@ -90,7 +90,7 @@ public sealed class ActorLoopBridge
             // Once per actor: silent from the first sight, or after its loop stopped (LogChanges).
             foreach (var (actor, target) in selected.Values.Where(x =>
                          !next.ContainsKey(x.Actor.Id) && !_targets.ContainsKey(x.Actor.Id) && _loggedSilent.Add(x.Actor.Id)))
-                Log("silent", actor, target!, target!.SilentWhileUnusable && actor.Unusable ? "unusable" : "used");
+                Log("silent", actor, target!, Cause(actor, target!));
             LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
         }
         _targets = next;
@@ -111,7 +111,7 @@ public sealed class ActorLoopBridge
     }
 
     private bool Silent(ActorState actor, LoopTarget target) =>
-        (target.SilentWhileUnusable && actor.Unusable)
+        (target.SilentWhileUnusable && actor.Unusable) || (target.SilentWhileInvulnerable && actor.Invulnerable)
         || (target.StopsWhenUsed && (target.UsedWhenOpened ? actor.Operated || actor.GizmoStateSet : _isUsed(actor)));
 
     // Inside a safe zone its loop has done its job: silent until the player steps out.
@@ -146,9 +146,13 @@ public sealed class ActorLoopBridge
         foreach (var t in before.Where(t => !after.ContainsKey(t.Key)).Select(t => t.Value))
         {
             _loggedSilent.Add(t.Actor.Id);
-            Log("stopped", t.Actor, t.Target, !present.TryGetValue(t.Actor.Id, out var now) ? "gone" : now.Unusable ? "unusable" : "used");
+            Log("stopped", t.Actor, t.Target, !present.TryGetValue(t.Actor.Id, out var now) ? "gone" : Cause(now, t.Target));
         }
     }
+
+    private static string Cause(ActorState actor, LoopTarget target) =>
+        target.SilentWhileInvulnerable && actor.Invulnerable ? "invulnerable"
+        : target.SilentWhileUnusable && actor.Unusable ? "unusable" : "used";
 
     private void Log(string what, ActorState a, LoopTarget target, string? cause)
     {

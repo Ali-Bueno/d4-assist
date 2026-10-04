@@ -43,6 +43,9 @@ public sealed class AcdFlagReader
     /// <summary>The quest a companion NPC follows the player for (live 2026-09-30: Neyrelle and Vigo, and no other NPC).</summary>
     public const string FollowerQuest = "Follower_Quest";
 
+    /// <summary>A unit no damage hurts (live 2026-10-04: the Echo of Diablo while its clone gates stand).</summary>
+    public const string Invulnerable = "Invulnerable";
+
     /// <summary>On the player during a real-time (in-engine) cinematic, 0 again when it ends (live 2026-09-30: 1 during the
     /// Inarius door scene, 0 after it; the player's other scene-time flags also turn on in NPC menus and teleports).</summary>
     public const string RtcPlaying = "RTC Playing";

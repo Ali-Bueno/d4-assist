@@ -156,6 +156,40 @@ public class QuestGoalTests
         Assert.Null(selector.Select(zombie));
     }
 
+    [Fact]
+    public void A_boss_to_kill_falls_silent_while_invulnerable()
+    {
+        // Live 2026-10-04: the Echo of Diablo is invulnerable while its clone gates stand; its loop would drown theirs.
+        var log = new List<string>();
+        var (feed, player) = Bridge(log);
+        var boss = new ActorState(1, BossSno, 5, 0, 0, QuestStep: true);
+
+        feed.RaiseActors(boss);
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(1, player.ActiveCount);
+
+        feed.RaiseActors(boss with { Invulnerable = true });
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(0, player.ActiveCount);
+        Assert.Contains(log, l => l.Contains("stopped") && l.Contains("cause=invulnerable"));
+
+        feed.RaiseActors(boss);
+        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
+        Assert.Equal(1, player.ActiveCount);
+    }
+
+    [Fact]
+    public void Clone_gates_reach_as_far_as_a_portal_beacon()
+    {
+        var gate = new LoopTargetSelector(new HashSet<int>(), new ObjectiveClassifier(
+            sno => sno == 1 ? new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam) : null,
+            sno => sno == 1 ? "MorluGate_Triad_A_Boss_terrorCloneSource" : null), _ => new HashSet<int>()).Select(new ActorState(9, 1, 0, 0, 0));
+
+        Assert.Equal("clonegate", gate!.Reason);
+        Assert.Equal(D4Assist.Audio.LoopProfiles.Beacon, gate.Profile);
+        Assert.False(gate.SilentWhileInvulnerable);
+    }
+
     private static (FakeFeed Feed, D4Assist.Audio.SpatialLoopPlayer Player) Bridge(List<string> log)
     {
         var feed = new FakeFeed();

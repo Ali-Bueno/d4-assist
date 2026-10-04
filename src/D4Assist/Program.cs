@@ -14,6 +14,7 @@ using D4Assist.Strings;
 using D4Assist.Ui;
 using D4Assist.Update;
 using D4Data.Casc;
+using D4Data.Format;
 using D4Data.Readers;
 using D4Data.Schema;
 using D4Memory.Safety;
@@ -135,8 +136,14 @@ internal static class Program
         // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
         bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
-        // ACD flags are read for gizmos (used) and NPCs (quest followers) only: monsters and the player carry hundreds of attributes.
-        Func<int, bool> readsFlags = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { } d && (d.GizmoType >= 0 || d.IsNpc); };
+        // ACD flags are read for gizmos (used), NPCs (quest followers) and bosses and uniques (invulnerable) only: other monsters and
+        // the player carry hundreds of attributes.
+        Func<int, bool> readsFlags = sno =>
+        {
+            lock (cascGate)
+                return actorDefinitions.Read(sno) is { } d
+                    && (d.GizmoType >= 0 || d.IsNpc || d.MonsterRarity is Conventions.MonsterRarityUnique or Conventions.MonsterRarityBoss);
+        };
         Func<int, bool> isMultiUseSwitch = sno => { lock (cascGate) return actorDefinitions.Read(sno) is { MultiUseSwitch: true }; };
         var questScripts = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
         Func<int, IReadOnlyList<QuestPhaseObjects>> questMarkers =

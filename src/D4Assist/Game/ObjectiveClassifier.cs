@@ -5,7 +5,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget, Monolith }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget, Monolith, CloneGate }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -123,7 +123,7 @@ public sealed class ObjectiveClassifier(
             return ObjectiveReason.Monolith;
         if (info.EType == Conventions.ActorTypeMonster && info.DefaultTeam == Conventions.HostileTeam
             && name?.Contains(CloneSourceToken, StringComparison.OrdinalIgnoreCase) == true)
-            return ObjectiveReason.KillTarget;
+            return ObjectiveReason.CloneGate;
         if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));

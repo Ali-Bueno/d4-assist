@@ -11,11 +11,12 @@ public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
 /// <param name="StopsWhenUsed">A used gizmo falls silent; beacons (the Undercity pad activates on approach) and NPCs never do.</param>
 /// <param name="QuietWithin">The loop falls silent while the player is this close (sheltered in a safe zone); 0 = never.</param>
 /// <param name="Reusable">A gizmo used again and again (the Horadric vessels): silent only while the game doesn't let the player use it.</param>
+/// <param name="SilentWhileInvulnerable">A monster to kill falls silent while nothing hurts it (a boss behind its clone gates).</param>
 /// <param name="UsedWhenOpened">A door-type objective (a monolith, a blocker) is used once the game marks it operated or open; the
 /// state word that marks a used chest or clickable is not validated on these.</param>
 public sealed record LoopTarget(
     LoopKind Kind, string Sound, LoopProfile Profile, string Reason, SoundCue Cue, bool StopsWhenUsed = false, float QuietWithin = 0,
-    bool Reusable = false, bool UsedWhenOpened = false)
+    bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false)
 {
     /// <summary>A gizmo the game can lock (quest-restricted, script-disabled): silent until it is allowed.</summary>
     public bool SilentWhileUnusable => StopsWhenUsed || Reusable;
@@ -105,7 +106,7 @@ public sealed class LoopTargetSelector
                 : ObjectiveFor(actor, ObjectiveReason.Quest, gizmo: !actor.Talkable);
         if (_carry?.IsHeld(actor) == true) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
-            return reason is ObjectiveReason.Destructible or ObjectiveReason.KillTarget && actor.ClientOnly ? null // remains: no game record
+            return reason is ObjectiveReason.Destructible or ObjectiveReason.KillTarget or ObjectiveReason.CloneGate && actor.ClientOnly ? null // remains: no game record
                 : ObjectiveFor(actor, reason, _objectives.IsGizmo(actor.ActorSno));
         if (_interactables?.Classify(actor.ActorSno) is not { } thing) return null;
         if (thing.Kind == InteractableKind.Door && actor.GizmoStateSet) return null; // already open: nothing to do
@@ -127,8 +128,10 @@ public sealed class LoopTargetSelector
     {
         var (sound, cue) = SoundOf(reason);
         bool reusable = reason == ObjectiveReason.WardBreaker;
-        return new LoopTarget(LoopKind.Objective, sound, LoopProfiles.Quest, reason.ToString().ToLowerInvariant(), cue,
-            StopsWhenUsed: gizmo && !reusable, Reusable: gizmo && reusable);
+        // Clone gates are spread over a boss arena, past a quest loop's 27 units: they reach as far as a portal's beacon.
+        var profile = reason == ObjectiveReason.CloneGate ? LoopProfiles.Beacon : LoopProfiles.Quest;
+        return new LoopTarget(LoopKind.Objective, sound, profile, reason.ToString().ToLowerInvariant(), cue,
+            StopsWhenUsed: gizmo && !reusable, Reusable: gizmo && reusable, SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget);
     }
 
     private static (string Sound, SoundCue Cue) SoundOf(ObjectiveReason reason) => reason switch

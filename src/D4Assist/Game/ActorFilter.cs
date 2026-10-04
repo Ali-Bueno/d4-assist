@@ -14,7 +14,8 @@ public static class ActorFilter
     public static readonly string[] AcdFlags =
         [AcdFlagReader.GizmoOperated, AcdFlagReader.FollowerQuest, AcdFlagReader.GizmoQuestRestricted, AcdFlagReader.GizmoDisabledByScript,
          AcdFlagReader.MinimapActive, AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest, AcdFlagReader.GizmoState,
-         AcdFlagReader.NpcHasInteractOptions, AcdFlagReader.ConversationIcon, AcdFlagReader.ConversationIconQuest];
+         AcdFlagReader.NpcHasInteractOptions, AcdFlagReader.ConversationIcon, AcdFlagReader.ConversationIconQuest,
+         AcdFlagReader.Invulnerable];
 
     /// <param name="flags">The actor's set ACD flags (AcdFlagReader.Read); null when unavailable or not read for it.</param>
     /// <param name="namedByQuest">How the active quests' scripts name an actor (QuestScriptMarkerReader); null for none.</param>
@@ -46,7 +47,8 @@ public static class ActorFilter
             ClientOnly: r.AcdId == RActorRecord.NoAcd,
             GizmoStateSet: Has(AcdFlagReader.GizmoState),
             Talkable: Has(AcdFlagReader.NpcHasInteractOptions) || conversation,
-            NamedByQuest: naming == QuestNaming.It);
+            NamedByQuest: naming == QuestNaming.It,
+            Invulnerable: Has(AcdFlagReader.Invulnerable));
     }
 
     /// <summary>Rotation about Z of a unit quaternion, from +X towards +Y.</summary>

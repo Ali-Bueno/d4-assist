@@ -39,8 +39,8 @@ public class PortalTests
     private static readonly TileState HubTile = new(HubTileSno, "S15_ZigOut_Naha_Trav_POI_NE_01", -32, -32, 32, 32, 5, 1, 1);
     private static readonly (float X, float Y) TilePortalAt = (-12.1f, -26.3f);
 
-    private static IReadOnlyList<ScenePortal> TilePortals(int scene) =>
-        scene == HubTileSno ? [new ScenePortal(PortalSno, 19.9f, 5.7f)] : [];
+    private static IReadOnlyList<TileActor> TilePortals(int scene) =>
+        scene == HubTileSno ? [new TileActor(PortalSno, new System.Numerics.Vector3(19.9f, 5.7f, 0))] : [];
 
     private static (Feed Feed, PortalMemory Memory) NewMemory(
         bool tilePortals = false, string world = "DGN_Test", IReadOnlySet<int>? objectiveActors = null)

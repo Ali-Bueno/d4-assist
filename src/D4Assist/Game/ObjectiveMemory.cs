@@ -37,6 +37,8 @@ public sealed class ObjectiveMemory
         public bool Quest { get; set; }
         public bool Pending { get; set; } = true;
         public bool Reached { get; set; }
+        /// <summary>Known only from the tile that places it; cleared once heard.</summary>
+        public bool PlacedOnly { get; set; }
     }
 
     // An item or NPC a quest phase names: close enough to interact.
@@ -79,13 +81,30 @@ public sealed class ObjectiveMemory
                     x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius))];
     }
 
+    /// <summary>The objectives heard here and not done yet, to outlive a restart of the app (quest places are named again).</summary>
+    public IReadOnlyList<SavedObjective> Export()
+    {
+        lock (_gate)
+            return [.. _objectives.Where(o => o.Pending && !o.PlacedOnly).Select(o => new SavedObjective(o.Sno, o.Name, o.Position.X, o.Position.Y, o.Quest))];
+    }
+
+    /// <summary>Adds back the objectives an earlier run heard in this instance and not done: still waiting, as when out of earshot.</summary>
+    public void Restore(IEnumerable<SavedObjective> saved)
+    {
+        lock (_gate)
+            foreach (var s in saved)
+                if (!_objectives.Any(o => o.Sno == s.Sno && Distance(o.Position, (s.X, s.Y)) <= SameSpotUnits))
+                    _objectives.Add(new Objective(s.Sno, s.Name, (s.X, s.Y)) { Quest = s.Quest });
+    }
+
     /// <summary>Takes the places the active quests' current phases name (GameSession.QuestPlacesRead, every actor poll).</summary>
     public void ObservePlaces(IReadOnlyList<QuestPlace> places)
     {
         lock (_gate)
         {
+            ObservePlacedByTiles([.. places.Where(p => p.PlacedByTile)]);
             var named = new HashSet<Objective>();
-            foreach (var place in places)
+            foreach (var place in places.Where(p => !p.PlacedByTile))
             {
                 var objective = _places.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
                 if (objective is null)
@@ -111,6 +130,30 @@ public sealed class ObjectiveMemory
         }
     }
 
+    // A gizmo the phase names, placed by a loaded tile, is an objective before it's heard: like a heard one it's done once silent
+    // near the player (already used), and dropped unheard when the phase stops naming it.
+    private void ObservePlacedByTiles(List<QuestPlace> placed)
+    {
+        var named = new HashSet<Objective>();
+        foreach (var place in placed)
+        {
+            var objective = _objectives.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
+            if (objective is null)
+            {
+                objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y))
+                    { Quest = true, PlacedOnly = true };
+                _objectives.Add(objective);
+                Log("seen (placed by its tile)", objective);
+            }
+            named.Add(objective);
+        }
+        foreach (var objective in _objectives.Where(o => o.PlacedOnly && o.Pending && !named.Contains(o)))
+        {
+            objective.Pending = false;
+            Log("done (phase moved on)", objective);
+        }
+    }
+
     /// <summary>Takes the objective actors looping now (ActorLoopBridge.ObjectivesLooping, every actor poll).</summary>
     public void Observe(IReadOnlyList<ActorState> looping)
     {
@@ -123,6 +166,7 @@ public sealed class ObjectiveMemory
                 objective.ActorId = actor.Id;
                 objective.Position = (actor.X, actor.Y);
                 objective.Quest = actor.QuestStep;
+                objective.PlacedOnly = false;
                 if (!objective.Pending) Log("looping again", objective);
                 objective.Pending = true;
                 heard.Add(objective);
@@ -181,3 +225,6 @@ public sealed class ObjectiveMemory
 
     private static float Distance((float X, float Y) a, (float X, float Y) b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 }
+
+/// <summary>A remembered objective as ExplorationStore saves it.</summary>
+public sealed record SavedObjective(int Sno, string Name, float X, float Y, bool Quest);

@@ -34,6 +34,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // Where each scene was placed this visit (tile reads), to land scene-local quest markers in the world.
     private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
+    private IReadOnlyList<(int Sno, Vector3 Position)> _questTileGizmos = [];
+    private readonly Func<int, IReadOnlyList<TileActor>>? _tileGizmos;
     private readonly ConversationAddresses? _conversations;
     private readonly uint _build;
     private readonly IReadOnlyList<MemoryRegion> _moduleData;
@@ -54,10 +56,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         ProcessReader process, CandidateIndex candidates, GameBuildOffsets? offsets, ModuleRange module, long positionAddress, MenuScreenTracker? menus,
         Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers,
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
-        Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, SwitchStateLog? switches)
+        Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, SwitchStateLog? switches,
+        Func<int, IReadOnlyList<TileActor>>? tileGizmos)
     {
         _health = health;
         _switches = switches;
+        _tileGizmos = tileGizmos;
         (_conversations, _build, _moduleData) = (conversations, build, moduleData);
         _worldSno = worldSno;
         _readsFlags = readsFlags;
@@ -82,11 +86,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="isActorSno">True for an actor SNO the game files hold; with it the structure layout is checked live
     /// (LayoutDiscovery), null keeps it as known.</param>
     /// <param name="switches">Debug log of the multi-use switches' state signals, one per world session; null for none.</param>
+    /// <param name="tileGizmos">The gizmos a scene places that a quest may name by SNO (TileActorReader.In); null for none.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
         MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
         ConversationAddresses? conversations = null, Func<QuestSearchArea, IReadOnlyList<int>>? questsHere = null,
-        ReadHealth? health = null, Func<int, bool>? isActorSno = null, SwitchStateLog? switches = null)
+        ReadHealth? health = null, Func<int, bool>? isActorSno = null, SwitchStateLog? switches = null,
+        Func<int, IReadOnlyList<TileActor>>? tileGizmos = null)
     {
         ProcessReader process;
         using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
@@ -141,7 +147,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (offsets is not null && isActorSno is not null) offsets = LayoutFor(process, liveModule, build, offsets, found, isActorSno);
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
-            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health, switches);
+            conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health, switches, tileGizmos);
     }
 
     // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer
@@ -337,6 +343,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var named = NamedByActiveQuests(player, flags, records);
             var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();
             _questPlaces = places;
+            _questTileGizmos = PlacedByTiles(named.ActorSnos);
             return ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
                 r => Naming(r, named, places));
         }
@@ -393,7 +400,21 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     }
 
     public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>
-        _activeQuests is null ? null : [.. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z))];
+        _activeQuests is null ? null :
+        [
+            .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z)),
+            .. _questTileGizmos.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, PlacedByTile: true)),
+        ];
+
+    // The gizmos the current phases name by SNO alone (the Labyrinth's levers), wherever the loaded tiles place them.
+    private List<(int Sno, Vector3 Position)> PlacedByTiles(IReadOnlySet<int> snos)
+    {
+        if (_tileGizmos is null || snos.Count == 0) return [];
+        List<(int Scene, Vector3 Wp, Quaternion Q)> placed;
+        lock (_placements) placed = [.. _placements.SelectMany(kv => kv.Value.Select(p => (kv.Key, p.Wp, p.Q)))];
+        return [.. placed.SelectMany(p => _tileGizmos(p.Scene).Where(g => snos.Contains(g.ActorSno))
+            .Select(g => (g.ActorSno, p.Wp + Vector3.Transform(g.Local, p.Q))))];
+    }
 
     public IReadOnlyList<TileState> ReadTilesViaFullScan() =>
         ToTileStates(new SceneScanner().Scan(_process, _candidates).Tiles);

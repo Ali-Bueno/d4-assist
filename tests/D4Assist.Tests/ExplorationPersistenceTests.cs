@@ -6,7 +6,7 @@ namespace D4Assist.Tests;
 
 public class ExplorationPersistenceTests : IDisposable
 {
-    private const int PortalSno = 7;
+    private const int PortalSno = 7, LeverSno = 8;
     private static readonly DateTime GameStart = new(2026, 9, 30, 8, 0, 0, DateTimeKind.Utc);
     private static readonly TileState TileA = new(10, "A", 0, 0, 32, 32, 4, 1, 1);
     private static readonly TileState TileB = new(11, "B", 0, 32, 32, 32, 8, 2, 2);
@@ -43,7 +43,7 @@ public class ExplorationPersistenceTests : IDisposable
         public void Dispose() { }
     }
 
-    private sealed record App(Feed Feed, NavigationBridge Navigation, PortalMemory Portals, List<string> Log);
+    private sealed record App(Feed Feed, NavigationBridge Navigation, PortalMemory Portals, ObjectiveMemory Objectives, List<string> Log);
 
     // One run of the app: created after the game already entered the world, like a restart mid-dungeon.
     private App Start(DateTime? gameStart = null, string instance = "524290")
@@ -51,9 +51,10 @@ public class ExplorationPersistenceTests : IDisposable
         var feed = new Feed { CurrentInstance = instance };
         var navigation = new NavigationBridge(feed, new SilentSpeech(), announcementsEnabled: false, diagnostics: false);
         var portals = new PortalMemory(feed, a => a.ActorSno == PortalSno, _ => "Portal");
+        var objectives = new ObjectiveMemory(feed, _ => "Lever");
         var log = new List<string>();
-        _ = new ExplorationPersistence(feed, new ExplorationStore(_dir), navigation, portals, () => gameStart ?? GameStart, log.Add);
-        return new App(feed, navigation, portals, log);
+        _ = new ExplorationPersistence(feed, new ExplorationStore(_dir), navigation, portals, () => gameStart ?? GameStart, log.Add, objectives);
+        return new App(feed, navigation, portals, objectives, log);
     }
 
     // Arrives beside a portal in tile A, then the next tile poll saves.
@@ -81,6 +82,24 @@ public class ExplorationPersistenceTests : IDisposable
         var portal = Assert.Single(restarted.Portals.Destinations());
         Assert.Equal(1, portal.Tier); // arrived by: leads back, not on
         Assert.Contains(restarted.Log, l => l.StartsWith("Exploration: restored"));
+    }
+
+    [Fact]
+    public void A_restart_in_the_same_instance_keeps_the_objectives_heard_and_not_done()
+    {
+        // Live 2026-10-04: a restart forgot the Labyrinth's last lever, heard once, so the guide never led there.
+        var app = Start();
+        app.Feed.RaiseTiles(TileA, TileB);
+        app.Feed.RaisePlayer(16, 16);
+        app.Objectives.Observe([new ActorState(5, LeverSno, 60, 40, 0, QuestStep: true)]);
+        app.Feed.RaiseTiles(TileA, TileB); // the next tile poll saves
+
+        var restarted = Start();
+        restarted.Feed.RaiseTiles(TileB);
+
+        var lever = Assert.Single(restarted.Objectives.Destinations());
+        Assert.Equal((60f, 40f), lever.Position);
+        Assert.Equal(ObjectiveMemory.QuestTier, lever.Tier);
     }
 
     [Fact]

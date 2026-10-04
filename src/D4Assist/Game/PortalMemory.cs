@@ -48,7 +48,7 @@ public sealed class PortalMemory
 
     private readonly Func<ActorState, bool> _isBeacon;
     private readonly Func<int, string?> _nameOf;
-    private readonly Func<int, IReadOnlyList<ScenePortal>>? _tilePortals;
+    private readonly Func<int, IReadOnlyList<TileActor>>? _tilePortals;
     private readonly Func<IReadOnlySet<int>>? _objectiveActors;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
@@ -62,13 +62,13 @@ public sealed class PortalMemory
 
     /// <param name="isBeacon">True for an actor that gets the exit beacon (LoopTargetSelector).</param>
     /// <param name="log">Debug sink for sightings and uses; null when not debugging.</param>
-    /// <param name="tilePortals">The portals a scene places, in its own axes (ScenePortalReader.In); null knows portals only once
+    /// <param name="tilePortals">The portals a scene places, in its own axes (TileActorReader.In); null knows portals only once
     /// seen. Not used in the endgame worlds, whose guide keeps its tuned order (GuideSwitch).</param>
     /// <param name="objectiveActors">The actors the current world's objective names (LoopTargetSelector.WorldObjectiveActors): such a
     /// portal is an objective until used (the Travincal hub's side dungeons); null for none.</param>
     public PortalMemory(
         IDungeonFeed feed, Func<ActorState, bool> isBeacon, Func<int, string?> nameOf, Action<string>? log = null,
-        Func<int, IReadOnlyList<ScenePortal>>? tilePortals = null, Func<IReadOnlySet<int>>? objectiveActors = null)
+        Func<int, IReadOnlyList<TileActor>>? tilePortals = null, Func<IReadOnlySet<int>>? objectiveActors = null)
     {
         _isBeacon = isBeacon;
         _nameOf = nameOf;
@@ -229,10 +229,10 @@ public sealed class PortalMemory
 
     // Only unrotated tiles: TileRotation's turn direction is unverified against a live rotated tile, and a wrong spot would
     // send the guide astray. Every DRLG tile seen so far is unrotated (research/client-memory.md §3).
-    private static IEnumerable<(int Sno, (float X, float Y) Position)> InWorld(TileState tile, IReadOnlyList<ScenePortal> portals)
+    private static IEnumerable<(int Sno, (float X, float Y) Position)> InWorld(TileState tile, IReadOnlyList<TileActor> portals)
     {
         if (portals.Count == 0 || TileRotation.QuarterTurns(tile.YawDegrees) != 0) yield break;
-        foreach (var p in portals) yield return (p.ActorSno, (tile.OriginX + p.LocalX, tile.OriginY + p.LocalY));
+        foreach (var p in portals) yield return (p.ActorSno, (tile.OriginX + p.Local.X, tile.OriginY + p.Local.Y));
     }
 
     private void Place(int sno, (float X, float Y) position, string? tile)

@@ -214,4 +214,47 @@ public class ObjectiveMemoryTests
         memory.ObservePlaces([]);
         Assert.Empty(memory.Destinations());
     }
+
+    // Live 2026-10-04 (S15_Triad_A_Labyrinth): the phase names S15_TriadA_Lever1 by SNO; four copies stand in the tiles.
+    private static QuestPlace PlacedLever(float x, float y) => new(LeverSno, x, y, PlacedByTile: true);
+
+    [Fact]
+    public void A_gizmo_a_tile_places_leads_as_a_quest_step_before_it_is_heard()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+
+        memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]);
+
+        Assert.Equal(2, memory.Destinations().Count);
+        Assert.All(memory.Destinations(), d => Assert.Equal(ObjectiveMemory.QuestTier, d.Tier));
+    }
+
+    [Fact]
+    public void A_placed_gizmo_silent_near_the_player_was_used_and_stays_done()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]);
+
+        feed.RaisePlayer(At(100 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
+        memory.Observe([]); // pulled earlier: no loop
+        memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]); // still named on every poll
+
+        Assert.Equal([(-100f, 0f)], memory.Destinations().Select(d => d.Position));
+    }
+
+    [Fact]
+    public void A_placed_gizmo_heard_is_the_same_objective_and_unheard_ones_drop_when_the_phase_moves_on()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]);
+
+        memory.Observe([Lever(100.2f, 0, quest: true)]);
+        Assert.Equal(2, memory.Destinations().Count);
+
+        memory.ObservePlaces([]); // the phase moved on
+        Assert.Equal([(100.2f, 0f)], memory.Destinations().Select(d => d.Position)); // heard: done once silent near the player
+    }
 }

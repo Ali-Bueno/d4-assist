@@ -3,7 +3,7 @@ using D4Assist.Navigation;
 namespace D4Assist.Game;
 
 /// <summary>
-/// Saves the current dungeon's map, explored tiles and portals (ExplorationStore) and restores them when the app restarts
+/// Saves the current dungeon's map, explored tiles, portals and objectives heard (ExplorationStore) and restores them when the app restarts
 /// in the same instance of the same game run, so the guide never leads back over explored ground and the arrival portal
 /// is not taken for a new one. Leaving the dungeon discards the save.
 /// </summary>
@@ -12,6 +12,7 @@ public sealed class ExplorationPersistence
     private readonly ExplorationStore _store;
     private readonly NavigationBridge _navigation;
     private readonly PortalMemory? _portals;
+    private readonly ObjectiveMemory? _objectives;
     private readonly Func<DateTime?> _gameStartedUtc;
     private readonly Action<string>? _log;
     // Feed events arrive on different poll threads.
@@ -22,11 +23,12 @@ public sealed class ExplorationPersistence
     /// <param name="gameStartedUtc">When the running game process started; null when unknown (then nothing is kept).</param>
     public ExplorationPersistence(
         IDungeonFeed feed, ExplorationStore store, NavigationBridge navigation, PortalMemory? portals, Func<DateTime?> gameStartedUtc,
-        Action<string>? log = null)
+        Action<string>? log = null, ObjectiveMemory? objectives = null)
     {
         _store = store;
         _navigation = navigation;
         _portals = portals;
+        _objectives = objectives;
         _gameStartedUtc = gameStartedUtc;
         _log = log;
 
@@ -61,7 +63,8 @@ public sealed class ExplorationPersistence
         }
         var state = _navigation.ExportExploration();
         _store.Save(new ExplorationSnapshot(
-            key.World, key.Instance, key.GameStartedUtc, state.Tiles, [.. state.Visited.Select(c => new[] { c.X, c.Y })], _portals?.Export() ?? []));
+            key.World, key.Instance, key.GameStartedUtc, state.Tiles, [.. state.Visited.Select(c => new[] { c.X, c.Y })], _portals?.Export() ?? [],
+            _objectives?.Export() ?? []));
     }
 
     private void Restore(ExplorationSnapshot saved, IReadOnlyList<TileState> live)
@@ -75,6 +78,8 @@ public sealed class ExplorationPersistence
         }
         _navigation.RestoreExploration(new ExplorationState(saved.Tiles, [.. saved.Visited.Where(c => c.Length == 2).Select(c => (c[0], c[1]))]));
         _portals?.Restore(saved.Portals);
-        _log?.Invoke($"Exploration: restored {saved.Tiles.Count} tiles ({saved.Visited.Count} explored) and {saved.Portals.Count} portals from the last run.");
+        _objectives?.Restore(saved.Objectives ?? []);
+        _log?.Invoke($"Exploration: restored {saved.Tiles.Count} tiles ({saved.Visited.Count} explored), {saved.Portals.Count} portals and " +
+            $"{saved.Objectives?.Count ?? 0} objectives from the last run.");
     }
 }

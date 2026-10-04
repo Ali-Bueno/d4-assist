@@ -40,8 +40,8 @@ are machine translations, so if something sounds weird in your language, let me 
 
 All the directions are the ones from your stick, on the screen: up, down, left, right and the diagonals. If it says an
 exit is up-left, push the stick up-left and you're going there. If you'd rather hear north, east and so on, there's a
-check box for that in the settings: north is up, so up-left is northwest. And the sounds come from where things are: something on
-your right plays on your right, and it gets louder as you get closer.
+check box for that in the settings: north is up, so up-left is northwest. And the sounds come from where things are:
+something on your right plays on your right, and it gets louder as you get closer.
 
 **Rooms.** When you walk into a junction, a big room or a dead end, it tells you what it is and where the exits are,
 like "Junction. Exits: up, right unexplored." The ones you haven't been through yet are marked as unexplored.

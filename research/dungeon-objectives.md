@@ -505,3 +505,76 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   - It looped silent (`cause=unusable`) until the hub quest was followed. Named by phase 8, it is the quest step.
   - It replaced `S15_Prop_Compelling_Orb_Dummy` 2679384 at the same spot when phase 8 began.
 - `D4MemScan quest --sno <quest>` lists each phase's `waits on quest …` and `--find` its live pair.
+
+## 19. Quest objective markers (live, build 3.2.2, 2026-10-04)
+
+- **The list (H):** the client keeps one doubly-linked list of map markers, 0xA0-byte nodes from a pool, for actors the map
+  shows whether streamed or not: quest gizmos (levers, doors, portals), invisible quest triggers (`Trigger_Box_2m`,
+  `Trigger_Sphere_8m`), quest NPCs, followers and their pets, the player, the mercenary, the boss, DRLG blockers, dungeon doors.
+  In `S15_Triad_A_Labyrinth` 2624849: 21 nodes at 08:54, 11 after a rebuild at 09:10. `S15_TriadA_Door1` 2640816 was there at
+  (−1115, −219) while the player was 800 units away and the door was no actor. No waypoint in this world, so whether overworld
+  waypoints and dungeon entrances are listed is unknown; the dungeon portal `S15_Portal_ToLibrary` 2669439 is.
+- **Node** (offsets from the node; next/prev first):
+
+  | Off | Meaning | Conf. |
+  |---|---|---|
+  | +0x00 / +0x08 | next / prev (the last node's next and the first's prev are the head) | H |
+  | +0x10, +0x18 | same u32 in every node, 19 → 21 when the list was rebuilt (generation?) | M |
+  | +0x14 | marker id; not the ACD or RActor id; reissued when an actor re-registers (`gen << 19 \| index` is a guess) | M |
+  | +0x1C | actor SNO | H |
+  | +0x20 | position x, y, z (moving units update live) | H |
+  | +0x2C | 0xA2252272 in every node (world instance id?) | L |
+  | +0x38 | level area SNO (group 22) of the position | H |
+  | +0x4C | TeamID (boss 19, player/followers 2, gizmos 1, a quest NPC 0; matches the ACD attribute) | M |
+  | +0x50 | kind: 1 player, 2 follower/pet/mercenary, 8 NPC, 10 boss, 11 gizmo/trigger | M |
+  | +0x54 | flags; 0x80 below | M |
+  | +0x58 | game tick of the last update | M |
+  | +0x68 | SNO of group 51 on the quest NPC (`S15_QST_OgdensSign_SnotspillVis`), else −1 | L |
+  | +0x6C, +0x70 | portals: destination world and level area (`Portal_Hell_Boss`: 2624849, `S15_Triad_A_Hell_04` 2611573) | M |
+  | +0x74, +0x78 | icon override: Texture SNO (group 44, `2DUIMinimapIcons*`) and frame, else −1 | M |
+  | +0x88 | float seconds of the last move for moving units, else −1.0 | L |
+
+- **Head (H):** a 0x68-byte allocation {+0 pool descriptor, +8 first, +0x10 last, +0x18 count}. The head H (what the nodes point
+  back to) is that allocation + 8. The pool descriptor right before it (0x38 bytes) holds the chunk array, chunk count, node
+  size 0xA0 at +0x20, and `0x600DF00D` at +0x34.
+- **No pointer route (H):** process-wide pointer scans (heap and image regions, write-copy pages included) find nothing outside
+  the cluster pointing at the head, its pool or the 0x18-byte block {pool, list, arena} before them. The only references are the
+  first and last nodes, those sibling allocations and stale stack slots. 32-bit offsets: none. A 240,000-object BFS from G (depth
+  4) reaches only the next allocation (a `make_shared` control block at H + 0x68, via G+0xB10 → +0x2E0), never the list, so that
+  is adjacency, not ownership. The on-disk `.text` is encrypted, so the owner cannot be found statically.
+- **Route = structure scan (H):** the head is in the startup arena of G's own heap reservation, next to job-system allocations:
+  the AllocationBase of G is one 883 MB `MEM_PRIVATE` region, and H = base + 0x41DF70 = G + 0x24D230, so it is allocated once
+  per process. Scan only that region for H with: [H−8] = pool P with u32 [P+0x20] = 0xA0; [H], [H+8] = first, last; [H+0x10] =
+  count 1..20000; [first+8] = H; [last] = H; walking next from first returns to H after count nodes, all with the same +0x10.
+  In a scratch tool that took 1.0 s to scan plus 0.9 s to check ≈ 4,500 doubly-linked candidates, with exactly one hit. A
+  full-process scan (18.9 GB, 11.5 s) found the same single head. Resolved from scratch three times (about 09:08, 09:09, 09:13):
+  always 0x1BD8041DF70. Base + 0x41DF70 can be tried first and validated (untested across restarts).
+- **Liveness (H):** H stayed fixed from 08:54 to 09:13 while the nodes changed. Pool slots are reused and ids reissued
+  (`Portal_ToLibrary` 0x805C4 → 0xC00A03 → 0xA80162 → 0xF80A0A). The boss node came and went with new ids (respawns), and the
+  09:10 rebuild dropped the door, the levers, the triggers and `Portal_Hell_Boss`.
+- **Which marker is the objective:** no node holds a quest SNO or an objective field; the quest phase names the actor SNO and
+  the list gives its position. Hub quest 2625608: phase 91 names Door1 (and `S15_Warrior_NPC_Combat`), phase 134
+  `S15_TriadA_Portal_Hell_Boss` 2641510, phase 0 `Triad_A_Boss_QST` 2669049 (the module pair read phase 0 from about 09:01).
+  Flag 0x80 (M): Door1 had it (0xB4) while phase 91 named it, and had lost it (0x34) by 09:00. Both portals had it all along:
+  `Portal_Hell_Boss` 0xB0 from when it appeared until the rebuild, though phase 0 had already begun, and `Portal_ToLibrary`
+  0x80BC, never an objective. The boss objective never had it (0x430 / 0x8430). So 0x80 means "pinned on the map" (portals,
+  and a gizmo while it is the objective), not "objective". Match the phase's actor SNOs instead.
+
+## 20. Server-placed objectives and boss clone gates (live, build 3.2.2, 2026-10-04)
+
+- **Levers (H):** `S15_TriadA_Lever1` 2640808 (hub quest 2625608 phase 49, by SNO only) is in no tile layer: the marker sets
+  `S15_TriadA_Hell_Ambush1` 2641387 (two levers, 4.2 apart), `_Ambush2` 2641422 and `_Ambush3` 2641423 (one each) place them,
+  and the server picks where those ambushes go. They are known only once heard, about 28 units away; a restart of the app used
+  to forget them, so heard objectives not done are now saved with the exploration (`ObjectiveMemory.Export/Restore`).
+- **The lair door** `S15_TriadA_Door1` 2640816 (phase 91) is in no marker set at all; its position was only in the map-marker
+  list (§19).
+- **Tile-placed quest gizmos:** a gizmo a phase names by SNO and a loaded tile places (Game/Shared layers) is an objective before
+  it is heard (`QuestPlace.PlacedByTile`); done once silent within 20 units, dropped unheard when the phase moves on. None
+  in the Labyrinth; the earlier case is QST_Frac_GaleValley2_HoradricBook.
+- **The Echo of Diablo** (`Triad_A_Boss_QST` 2669049): while `MorluGate_Triad_A_Boss_terrorCloneSource` 2628237 gates stand
+  (hostile monsters, 18 HP, not invulnerable, up to ~47 units away), the boss and its `Triad_A_Boss_terrorClone` 2628190 copies
+  read ACD `Invulnerable` = 1. Breaking the gates ends it (user). `*CloneSource*` hostile monsters (2628237 and its `_jakarta`
+  variant 2650056) loop as `clonegate` with the beacon's 60-unit reach; kill-target loops fall silent while `Invulnerable`,
+  now read on bosses and uniques too.
+- **Quest companions:** `S15_Warrior_NPC_Combat` 2628769 (`Follower_Quest` 2625608, `Is_NPC`, `Invulnerable`) is named by the
+  phase and was looping as a kill target; a quest follower never loops now.

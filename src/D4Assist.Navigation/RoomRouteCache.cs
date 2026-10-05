@@ -61,6 +61,30 @@ public sealed class RoomRouteCache
         return new PathBearing(goal.Position, 0f, true);
     }
 
+    /// <summary>BFS path from the player to the floor within <paramref name="reach"/> of <paramref name="point"/> (an object stands
+    /// on cells of its own), and the farthest visible point along it. Falls back to the point itself when the room has no grid or no path.</summary>
+    public static PathBearing TraceToPoint(Room room, (float X, float Y) player, (float X, float Y) point, float reach)
+    {
+        if (room.NavGrid is { } grid &&
+            RoomPathfinder.TryFindPath(grid, player, FloorWithin(grid, point, reach), out var path, out var length))
+        {
+            var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
+            return new PathBearing(Distance(player, farthest) < MinBearingDistanceUnits ? point : farthest, length, false);
+        }
+        return new PathBearing(point, 0f, true);
+    }
+
+    private static List<(int Row, int Col)> FloorWithin(WalkGrid grid, (float X, float Y) point, float reach)
+    {
+        var (row, col) = grid.CellAt(point.X, point.Y);
+        var span = (int)MathF.Ceiling(reach / grid.Resolution);
+        var cells = new List<(int, int)>();
+        for (var r = row - span; r <= row + span; r++)
+            for (var c = col - span; c <= col + span; c++)
+                if (grid.IsWalkable(r, c) && Distance(grid.CellCenter(r, c), point) <= reach) cells.Add((r, c));
+        return cells;
+    }
+
     private static OpeningRoute Resolve(Room room, (float X, float Y) player, RoomOpening opening)
     {
         var trace = Trace(room, player, opening);

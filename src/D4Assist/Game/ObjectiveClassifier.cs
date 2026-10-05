@@ -58,7 +58,8 @@ public sealed class ObjectiveClassifier(
 
     // The world-independent part of the answer, cached per actor SNO.
     private readonly record struct Traits(
-        ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsDoor, bool IsCarryable, bool IsBossOrUnique, IReadOnlyList<int>? Accepts);
+        ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsDoor, bool IsCarryable, bool IsBossOrUnique, IReadOnlyList<int>? Accepts,
+        bool IsTrigger);
 
     // Filled from several poll threads (timer ticks overlap); no lock is held while classifying, which takes the CASC gate.
     private readonly ConcurrentDictionary<int, Traits?> _traits = new();
@@ -69,6 +70,9 @@ public sealed class ObjectiveClassifier(
         if (TraitsOf(actorSno) is not { } traits) return null;
         if (traits.Fixed is { } reason) return reason;
         if (!dpoActors.Contains(actorSno)) return null;
+        // An "enter the trigger" zone is invisible and never used: looped, it would sound at nothing for good, and its generic SNO
+        // names every copy in the dungeon (research/dungeon-objectives.md §2). The followed phase leads into it instead.
+        if (traits.IsTrigger) return null;
         // A monster the DPO names is a target the dungeon's objective asks the player to kill, which the game's objective
         // tracker shows: a unique elite or a structure (live 2026-10-01, Maulwood: the sentinel that holds a barrier).
         // Other monsters stay silent.
@@ -104,7 +108,7 @@ public sealed class ObjectiveClassifier(
         Traits? traits = definition(actorSno) is { } info
             ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster, info.GizmoType >= 0,
                 info.GizmoType == Conventions.GizmoDoor, info.GizmoType == Conventions.GizmoCarryable, IsBossOrUnique(info),
-                info.AcceptedCarryables)
+                info.AcceptedCarryables, info.GizmoType == Conventions.GizmoTrigger)
             : null;
         return _traits[actorSno] = traits;
     }

@@ -91,7 +91,11 @@ haven't done, then to unexplored stuff, and when everything's explored, to a
 portal. It's on by default in the Undercity and the Pit, and off in normal
 dungeons. It knows where your quest's objective is even when it's far away, if
 the game marks it on the map (a door or a lever at the other end of the
-dungeon). In the big seasonal dungeons with side dungeons inside, it also
+dungeon), and if that's somewhere you haven't explored yet, it explores toward
+it. At an objective it plays three notes and goes quiet until you use it, so
+the object's own sound guides the last steps; step away and it points you
+back. If you walk well away from it without using it (say it needs a key), it
+moves on. In the big seasonal dungeons with side dungeons inside, it also
 leads to the side dungeons' entrances you haven't used yet, even before you've
 seen them.
 

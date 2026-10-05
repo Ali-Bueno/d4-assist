@@ -5,6 +5,12 @@ using D4Assist.Navigation;
 
 namespace D4Assist.Game;
 
+/// <summary>One actor poll as the objective memory needs it.</summary>
+/// <param name="Looping">The objective actors looping now, whatever their volume.</param>
+/// <param name="Silent">The objective actors silent now: used, or locked until the game allows them.</param>
+/// <param name="Present">Every actor read.</param>
+public sealed record ObjectiveSighting(IReadOnlyList<ActorState> Looping, IReadOnlyList<ActorState> Silent, IReadOnlyList<ActorState> Present);
+
 /// <summary>
 /// Turns live actor and player snapshots into positional loops (SpatialLoopPlayer) at the actors the
 /// <see cref="LoopTargetSelector"/> picks, the nearest few per kind. The feed fires only while a memory session is open (dungeon, radar-only world, overworld); every world change stops every loop.
@@ -55,8 +61,8 @@ public sealed class ActorLoopBridge
         feed.PlayerMoved += p => { lock (_gate) OnPlayer(p); };
     }
 
-    /// <summary>Raised on every actor poll with the objective actors looping now, whatever their volume (ObjectiveMemory).</summary>
-    public event Action<IReadOnlyList<ActorState>>? ObjectivesLooping;
+    /// <summary>Raised on every actor poll with the objective actors looping and silent, and every actor read (ObjectiveMemory).</summary>
+    public event Action<ObjectiveSighting>? ObjectivesSeen;
 
     /// <summary>True while an actor of <paramref name="kind"/> has been detected in the current dungeon.</summary>
     public bool HasTarget(LoopKind kind) { lock (_gate) return _targets.Values.Any(t => t.Target.Kind == kind); }
@@ -94,7 +100,10 @@ public sealed class ActorLoopBridge
             LogChanges(_targets, next, selected.ToDictionary(kv => kv.Key, kv => kv.Value.Actor));
         }
         _targets = next;
-        ObjectivesLooping?.Invoke([.. next.Values.Where(t => t.Target.Kind == LoopKind.Objective).Select(t => t.Actor)]);
+        var objectives = selected.Values.Where(x => x.Target!.Kind == LoopKind.Objective).ToList();
+        ObjectivesSeen?.Invoke(new ObjectiveSighting(
+            [.. objectives.Where(x => next.ContainsKey(x.Actor.Id)).Select(x => x.Actor)],
+            [.. objectives.Where(x => !next.ContainsKey(x.Actor.Id)).Select(x => x.Actor)], actors));
     }
 
     // Switched-off cues are dropped before the per-kind cap, so a silent chest never takes a corpse's voice.

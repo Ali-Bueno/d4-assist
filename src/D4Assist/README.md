@@ -161,7 +161,8 @@ used (research/dungeon-objectives.md §18). `--debug` logs `PORTAL seen` (with i
 The same bridge loops the quest sound (never spoken, positional, D2R quest profile at full near gain) at the dungeon's
 objectives: actors the world's DPO quest names (`D4Data` `DungeonObjectiveReader`: world SNO, Global `zone_progress`,
 `DPO_*` quest callbacks; a monster it names is a kill target, reason `killtarget`, such as Maulwood's sentinel; other
-monsters stay silent), plus every carryable (on the ground; the copy in the player's hands, with no
+monsters stay silent; the "enter the trigger" zones it names, `Trigger_Sphere_8m` and kin, never loop: invisible, never used, and
+their generic SNO names every copy, research/dungeon-objectives.md §2), plus every carryable (on the ground; the copy in the player's hands, with no
 ACD, stays silent), carryable receptacle (a quest-locked one only while the player holds a carryable it takes; other quest steps
 wait meanwhile), quest
 switch and quest chest, switches and notes named for a quest (`QST_`, `Quest`, `Prologue`), boss-summoning monoliths (door gizmos
@@ -310,14 +311,24 @@ D2R taps one, user request 2026-10-02). Each repeats on its own rhythm, faster a
 
 `Game/ExplorationGuideBridge` asks the navigation engine's `ExplorationGuide` for a waypoint on every player poll
 and tile update and aims `GuidePingPlayer` at it (no buttons). Outside the endgame it first leads to an objective heard
-earlier and not done: `Game/ObjectiveMemory` remembers every objective loop (`ActorLoopBridge.ObjectivesLooping`), the
+earlier and not done: `Game/ObjectiveMemory` remembers every objective loop (`ActorLoopBridge.ObjectivesSeen`), the
 tracked quest's step before the dungeon's own objectives (prisoners, altars, levers, carryables). A receptacle leads only while
 the player holds an item it takes, then in the quest tier; empty-handed, the guide looks for the next carryable. An objective that falls
-silent within 20 units of the player is done (used, locked or removed); one the player came within a quarter tile of is
-passed over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again.
+silent within 20 units of the player is done (used, locked or removed). The guide walks the last stretch over the room's floor (the
+walk-grid path to the floor within reach of the object, not a straight line through what stands before it) and, once the player is
+within reach (3 units past the edge of the actor's box, a trigger's own radius), chimes once and holds silent while the objective's
+own loop sounds; a step away it points again. One the player stood at and then walked 20 units away from, still undone, is passed
+over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again.
+A gizmo the current phase names is a goal before it is heard: where a loaded tile places it (not triggers: the map marks the copy
+a phase means) or where the game's map marks it (research/dungeon-objectives.md §19-20). Near the player it is done once its actor
+is silent (used); a tile's copy with no actor there was never spawned; one standing there that loops as something else (a door) or
+not at all waits for the phase to move on, as does any copy the map marks. An objective the live game placed in this world (heard,
+or on the map) but on ground not loaded or reachable yet draws exploring towards it: each unexplored target costs its route plus the
+straight distance on to the objective, and the guide says it leads to the objective.
 Pit and Undercity keep the order below unchanged (user, 2026-09-30). Switching the guide on says where it leads ("Hacia el
 objetivo de la misión." / "Hacia un objetivo de la mazmorra." / "Hacia zona sin explorar." / the portal lines / "Todo explorado.");
-while on, a change of goal is spoken once, and a new floor starts exploring without a word. `--debug` logs `OBJECTIVE seen|reached|done|re-armed`.
+while on, a change of goal is spoken once, and a new floor starts exploring without a word. `--debug` logs
+`OBJECTIVE seen|seen ahead|seen ahead (map)|reached|left undone|done|re-armed` and `GUIDE holding at <id>`.
 It mutes while an unused portal is in sight (`PortalMemory.FreshInSight`: its
 beacon takes over) unless an objective still leads, stops on a world change, and when every reachable part is visited leads to the portals seen earlier:
 the reachable unused ones, or else the ones already used ("Todo explorado. Te llevo a un portal." / "... al portal por el que

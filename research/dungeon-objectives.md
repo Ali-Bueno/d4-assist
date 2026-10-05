@@ -46,6 +46,16 @@ Examples:
 | `DPO_Frac_KorValarRamparts` | `DGN_Standard_Prisoner_Cage` 1086042 (32), `DGN_Standard_DeadPrisoner_Cage` 1260903 (32), `Generic_Lorebook_Chest_01_Dyn` 1309361 (32), `DGN_Frac_KorValarRamparts_Door_Boss` 711624 (32), `knight_melee_frac_unique_…` 709872 (0) |
 | `DPO_Hawe_HeathensKeep` | `vampire_boss` 237232 (0), enter `DGN_Hawe_HeathensKeep_Boss` 854916 (50), `knight_caster_…_HighInquisitor` 854770 (0) |
 
+**Census of the actors DPOs name** (offline, build 3.2.2, 2026-10-05; 147 worlds, one DPO each, 272 distinct actors, H): 184
+monsters (all hostile team 19; `druid_miniboss` 1000166 and `golem_bramble_hollow_boss` 2363345 also carry `IsNpc`), 41 doors, 20
+chests, 15 switches, 4 carryables, 4 receptacles, 1 portal, and 3 **triggers** (gizmo 44), named only with event 52 "enter a trigger":
+`Trigger_Sphere_8m` 42298 (6 DPOs, radius 4), `DRLG_Generic_Boss_Trigger_Sphere_20m` 1102733 (5 DPOs, radius 10),
+`Trigger_BossRoom_Entrance` 243360 (1 DPO, radius 4). No effects, props or spawners. Event outliers: the door
+`DGN_Step_DarkRavine_DemonStatue` 969149 is named with event 0 (kill), the monolith `MegaDemon_Monolith_01_Dyn_DGN_Step_GrinningLabyrinth`
+1059548 with event 51 (player in range). The triggers looped as objectives until 2026-10-05: invisible, never "used", every copy of
+the generic SNO in the dungeon, from every phase at once (tester: "objetivos invisibles que se quedaron ahí todo el rato"). They now
+get no loop; the followed phase leads into them (map marker or quest place).
+
 **Gaps:** the list is not complete. `DPO_Hawe_HeathensKeep` does not name its boss door
 (`DGN_Hawe_HeathensKeep_Lockable_Boss_Door` 854889). Generic dungeon events are separate quests with no
 actor references. Examples: `DGN_Standard_NPC_PrisonerAndStake` 991162, `…_PrisonerInCage` 1086039,
@@ -569,8 +579,11 @@ the player to unexplored ground behind a bone wall near the entrance, because th
 - **The lair door** `S15_TriadA_Door1` 2640816 (phase 91) is in no marker set at all; its position was only in the map-marker
   list (§19).
 - **Tile-placed quest gizmos:** a gizmo a phase names by SNO and a loaded tile places (Game/Shared layers) is an objective before
-  it is heard (`QuestPlace.PlacedByTile`); done once silent within 20 units, dropped unheard when the phase moves on. None
-  in the Labyrinth; the earlier case is QST_Frac_GaleValley2_HoradricBook.
+  it is heard (`QuestPlace.Ahead`); dropped unheard when the phase moves on. None in the Labyrinth; the earlier case is
+  QST_Frac_GaleValley2_HoradricBook. Since 2026-10-05: near the player it is done only when its actor there is a silent objective
+  (used) or, for a tile's copy the map doesn't mark, when no actor of its SNO stands there (never spawned). Until then a copy that
+  loops as something else (a door) or not at all waits for the phase: the old "silent within 20 units" rule dropped those 20 units
+  short of them. Triggers are not taken from tiles (a generic SNO is everywhere), only from the map list (§19).
 - **The Echo of Diablo** (`Triad_A_Boss_QST` 2669049): while `MorluGate_Triad_A_Boss_terrorCloneSource` 2628237 gates stand
   (hostile monsters, 18 HP, not invulnerable, up to ~47 units away), the boss and its `Triad_A_Boss_terrorClone` 2628190 copies
   read ACD `Invulnerable` = 1. Breaking the gates ends it (user). `*CloneSource*` hostile monsters (2628237 and its `_jakarta`

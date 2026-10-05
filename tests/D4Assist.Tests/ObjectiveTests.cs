@@ -13,7 +13,7 @@ public class ObjectiveTests
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
-        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32;
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -49,12 +49,13 @@ public class ObjectiveTests
         [TumorPieceSno] = ("Frac_Cursed_Tumor_Core_01_Dyn", new(Gizmo, 48)),
         [PlainMonsterSno] = ("werewolf_warg_phys", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [CloneGateSno] = ("MorluGate_Triad_A_Boss_terrorCloneSource", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
+        [DpoTriggerSno] = ("Trigger_Sphere_8m", new(Gizmo, Conventions.GizmoTrigger, TriggerRadius: 4)),
     };
 
     // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
     private static readonly HashSet<int> QuestNamed = [TumorSno, TumorPieceSno];
 
-    private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno };
+    private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno, DpoTriggerSno };
 
     private static ObjectiveClassifier Classifier() => new(
         sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, sno => Actors.TryGetValue(sno, out var a) ? a.Name : null, QuestNamed.Contains);
@@ -96,6 +97,7 @@ public class ObjectiveTests
     [InlineData(UnreadableSno)]       // no ActorDefinition record
     [InlineData(MummySno)]            // a breakable prop no quest names
     [InlineData(TumorPieceSno)]       // the tumor's breakable pieces: destroyables, not the structure
+    [InlineData(DpoTriggerSno)]       // an invisible "enter the trigger" zone the DPO names: looped forever at nothing (tester, 2026-10-05)
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));
 

@@ -91,7 +91,7 @@ public class ExplorationPersistenceTests : IDisposable
         var app = Start();
         app.Feed.RaiseTiles(TileA, TileB);
         app.Feed.RaisePlayer(16, 16);
-        app.Objectives.Observe([new ActorState(5, LeverSno, 60, 40, 0, QuestStep: true)]);
+        app.Objectives.Heard(new ActorState(5, LeverSno, 60, 40, 0, QuestStep: true));
         app.Feed.RaiseTiles(TileA, TileB); // the next tile poll saves
 
         var restarted = Start();

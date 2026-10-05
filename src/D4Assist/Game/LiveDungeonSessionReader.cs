@@ -34,7 +34,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // Where each scene was placed this visit (tile reads), to land scene-local quest markers in the world.
     private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
-    private IReadOnlyList<(int Sno, Vector3 Position)> _questGizmosAhead = [];
+    private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
     private readonly Func<int, IReadOnlyList<TileActor>>? _tileGizmos;
     private readonly MapMarkerTracker? _mapMarkers;
     private readonly ConversationAddresses? _conversations;
@@ -354,7 +354,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var named = NamedByActiveQuests(player, flags, records);
             var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();
             _questPlaces = places;
-            _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos), .. MarkedOnMap(named.ActorSnos, offsets)];
+            _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
+                .. MarkedOnMap(named.ActorSnos, offsets).Select(g => (g.Sno, g.Position, true))];
             return ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
                 r => Naming(r, named, places));
         }
@@ -414,7 +415,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _activeQuests is null ? null :
         [
             .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z)),
-            .. _questGizmosAhead.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, Ahead: true)),
+            .. _questGizmosAhead.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, Ahead: true, g.Marked)),
         ];
 
     // The gizmos and triggers the current phases name that the map marks, wherever they are: the server places some (the

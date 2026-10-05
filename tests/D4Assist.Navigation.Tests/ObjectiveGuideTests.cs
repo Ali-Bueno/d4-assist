@@ -68,4 +68,40 @@ public class ObjectiveGuideTests
         Assert.Equal(0, guide.Step(Centre(0), objectives: lever).Arrivals); // still offered: not yet
         Assert.Equal(1, guide.Step(Centre(0)).Arrivals);
     }
+
+    [Fact]
+    public void In_the_players_room_the_guide_walks_round_what_stands_before_the_objective()
+    {
+        // One room, a wall across it (local Y 16) open only at its west end (X 0-3); the player south of it, the lever north.
+        var cells = new bool[32, 32];
+        for (var x = 0; x < 32; x++)
+            for (var y = 0; y < 32; y++) cells[x, y] = y != 16 || x < 4;
+        var map = new DungeonMap();
+        map.AddOrUpdate([Tile(0, E)]);
+        var guide = new ExplorationGuide(map, new FakeTileWalkability().Add(1, new WalkGrid(1f, 0f, 0f, 32, 32, cells)));
+
+        var step = guide.Step(new PlayerInput(8.5f, 8.5f, 0), objectives: [new("lever", (8, 24), 0, Radius: 3)]);
+
+        Assert.Equal("lever", step.Target!.Id);
+        Assert.True(step.Waypoint.X < 4, $"heads for the gap, not through the wall: {step.Waypoint}");
+        Assert.True(step.RemainingLength > 16, "the route round the wall is longer than the straight line");
+    }
+
+    [Fact]
+    public void An_objective_known_beyond_the_explored_map_draws_exploring_towards_it()
+    {
+        // Seven tiles along +Y, the player in tile 4: unexplored tile 6 is nearer, tile 0 lies on the way to the lever the map marks.
+        var map = new DungeonMap();
+        map.AddOrUpdate([Tile(0, E), .. Enumerable.Range(1, 5).Select(cy => Tile(cy, W | E)), Tile(6, W)]);
+        foreach (int cy in Enumerable.Range(1, 5)) map.MarkVisited(Half, cy * 32 + Half);
+        var guide = new ExplorationGuide(map);
+        Assert.Equal("tile:0,6", guide.Step(Centre(4)).Target!.Id);
+
+        Assert.Equal("tile:0,6", guide.Step(Centre(4), objectives: [new("script", (Half, -200), 0)]).Target!.Id); // maybe another world
+
+        var step = guide.Step(Centre(4), objectives: [new("lever", (Half, -200), 0, Located: true)]);
+
+        Assert.Equal("tile:0,0", step.Target!.Id);
+        Assert.Equal("lever", step.Toward!.Id);
+    }
 }

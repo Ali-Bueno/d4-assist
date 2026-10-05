@@ -9,8 +9,8 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Feeds the exploration guide's waypoint to the guide ping on every player poll and tile update. Toggled by D-pad left (off outside endgame worlds by default);
-/// switching it on says where it leads. Outside the endgame it leads first to an objective heard earlier (ObjectiveMemory). Chimes on
-/// each target reached, yields to the beacon while an unused portal is in sight, stays off in Undercity's boss room, and
+/// switching it on says where it leads. Outside the endgame it leads first to an objective heard earlier (ObjectiveMemory) and holds,
+/// silent, while the player stands at it. Chimes on each target reached, yields to the beacon while an unused portal is in sight, stays off in Undercity's boss room, and
 /// once nothing is left to explore leads to the portals seen earlier (PortalMemory) or says so once.
 /// </summary>
 public sealed class ExplorationGuideBridge
@@ -49,10 +49,10 @@ public sealed class ExplorationGuideBridge
     private string? _heldAt;
     private string? _heightToldFor;
 
-    // A quest place is reached inside its radius and on its floor: a height gap up to this (or the radius, if larger) is the
+    // An objective is reached inside its radius and on its floor: a height gap up to this (or the radius, if larger) is the
     // same floor. Live 2026-10-01: the Rathma temple's trigger lay 23 units below the walkway the player stood on.
     private const float SameFloorUnits = 3f;
-    // Over or under a quest place within this flat distance, the guide says once that it is lower or higher.
+    // Over or under an objective within this flat distance, the guide says once that it is lower or higher.
     private const float HeightHintUnits = ExplorationGuide.DestinationArrivalUnits;
 
     /// <param name="step">Asks the navigation engine for the next guide step: the flag asks it to re-check exit candidates when nothing is left to explore,
@@ -168,7 +168,7 @@ public sealed class ExplorationGuideBridge
             case GuideStatus.Guiding:
                 LogTargetChange(step);
                 AnnounceGoal(step, destinations, objectives);
-                if (HoldsAtQuestPlace(step, objectives)) { _ping.Silence(); break; }
+                if (HoldsAtObjective(step, objectives)) { _ping.Silence(); break; }
                 var (right, up) = ScreenDirections.ToScreen(step.Waypoint.X - _player.X, step.Waypoint.Y - _player.Y);
                 _ping.Aim(right, up, step.RemainingLength);
                 break;
@@ -202,10 +202,11 @@ public sealed class ExplorationGuideBridge
             return;
         }
 
+        // Exploring towards an objective the map knows of is leading to that objective.
         string? goal = target.Kind switch
         {
-            GuideTargetKind.Objective => objectives.FirstOrDefault(o => o.Id == target.Id)?.Tier == ObjectiveMemory.QuestTier ? QuestGoal : DungeonGoal,
-            GuideTargetKind.UnvisitedTile or GuideTargetKind.Frontier => ExploreGoal,
+            GuideTargetKind.Objective => GoalOf(objectives.FirstOrDefault(o => o.Id == target.Id)),
+            GuideTargetKind.UnvisitedTile or GuideTargetKind.Frontier => step.Toward is { } toward ? GoalOf(toward) : ExploreGoal,
             _ => null,
         };
         if (goal is null || goal == _announcedGoal) return;
@@ -213,6 +214,8 @@ public sealed class ExplorationGuideBridge
         _announcedGoal = goal;
         if (speak) _speech.Speak(goal switch { QuestGoal => phrases.ToQuestObjective, DungeonGoal => phrases.ToDungeonObjective, _ => phrases.ToUnexplored }, interrupt: false);
     }
+
+    private static string GoalOf(GuideDestination? objective) => objective?.Tier == ObjectiveMemory.QuestTier ? QuestGoal : DungeonGoal;
 
     private void AnnounceRound(GuideStep step)
     {
@@ -222,19 +225,18 @@ public sealed class ExplorationGuideBridge
         _speech.Speak(NavigationPhrases.For(_language.Current).Rechecking, interrupt: false);
     }
 
-    // A quest place stays the target until its phase moves on (ObjectiveMemory): inside it (its radius, its floor), one arrival
-    // chime, then silence; over or under it, the guide says once which way it is and keeps pointing.
-    private bool HoldsAtQuestPlace(GuideStep step, IReadOnlyList<GuideDestination> objectives)
+    // An objective stays the target until it is done or its phase moves on (ObjectiveMemory): at it (its radius, its floor), one
+    // arrival chime, then silence while its own loop sounds; over or under it, the guide says once which way it is and keeps pointing.
+    private bool HoldsAtObjective(GuideStep step, IReadOnlyList<GuideDestination> objectives)
     {
-        if (step.Target is not { Kind: GuideTargetKind.Objective } target || !target.Id.StartsWith(ObjectiveMemory.QuestPlaceKind, StringComparison.Ordinal)
-            || objectives.FirstOrDefault(o => o.Id == target.Id) is not { } place)
+        if (step.Target is not { Kind: GuideTargetKind.Objective } target || objectives.FirstOrDefault(o => o.Id == target.Id) is not { Radius: > 0 } place)
         {
             _heldAt = null;
             return false;
         }
         var player = _player!;
         float flat = MathF.Sqrt(MathF.Pow(target.Position.X - player.X, 2) + MathF.Pow(target.Position.Y - player.Y, 2));
-        float radius = place.Radius > 0 ? place.Radius : ExplorationGuide.DestinationArrivalUnits;
+        float radius = place.Radius;
         float rise = place.Z is { } z ? z - player.Z : 0;
         bool sameFloor = MathF.Abs(rise) <= MathF.Max(radius, SameFloorUnits);
         if (flat > HeightHintUnits * 2) _heightToldFor = null;

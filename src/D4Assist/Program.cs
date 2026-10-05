@@ -157,7 +157,9 @@ internal static class Program
         // portals (PortalMemory) and the other gizmos a quest phase may name by SNO alone (the Labyrinth's levers).
         var markerScenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false);
         var tilePortals = new TileActorReader(markerScenes, portalRule.IsPortal);
-        var tileGizmos = new TileActorReader(markerScenes, sno => definitionOf(sno) is { GizmoType: >= 0 } && !portalRule.IsPortal(sno));
+        // Not triggers: a generic trigger SNO is placed all over a tileset; the map marks the copy a phase means (same doc, §19).
+        var tileGizmos = new TileActorReader(
+            markerScenes, sno => definitionOf(sno) is { GizmoType: >= 0 and not Conventions.GizmoTrigger } && !portalRule.IsPortal(sno));
         // The world's own objective quest too: a seasonal hub's zone quest names its steps by actor, with no marker to find it by,
         // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18).
         Func<QuestSearchArea, IReadOnlyList<int>> questsHere = area =>
@@ -424,8 +426,9 @@ internal static class Program
         var loops = new ActorLoopBridge(
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
         var objectiveMemory = new ObjectiveMemory(
-            session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld);
-        loops.ObjectivesLooping += objectiveMemory.Observe;
+            session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
+            sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null);
+        loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(
             session, actor => selector.Select(actor)?.Kind == LoopKind.ExitBeacon, store.Name, debug ? Console.WriteLine : null,

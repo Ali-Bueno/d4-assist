@@ -4,8 +4,9 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Remembers the objective loops heard in the current dungeon (quest steps, dungeon objectives) so the exploration guide
-/// can lead back to one out of earshot. One that falls silent near the player is done; one the player reached waits until
-/// another objective is done (a key found may open the door visited earlier) or the guide is switched on again.
+/// can lead back to one out of earshot. One that falls silent near the player is done. One the player stood at stays the goal
+/// until it is done; walked away from undone, it waits until another objective is done (a key found may open the door visited
+/// earlier) or the guide is switched on again.
 /// The places the active quest's current phase names (a trigger to walk into: "chase Lilith") lead in the quest tier too,
 /// until the phase moves on: reaching one is not the end of the step (live 2026-10-01: phase 154's trigger is one of the
 /// step's hidden callbacks; the shown one waits for a group of enemies), so the guide holds there (ExplorationGuideBridge).
@@ -16,6 +17,13 @@ public sealed class ObjectiveMemory
     /// 22-34; research/dungeon-objectives.md §5), so no loop there means it was used, locked or removed.</summary>
     public const float ConfirmRadiusUnits = ExplorationGuide.SeenRadiusUnits;
 
+    /// <summary>Walking this far from an objective the player stood at, still undone, sets it aside: it can't be used yet, or
+    /// its use went unseen. The distance that confirms a silent one, so a player who used it learns that first.</summary>
+    public const float LeaveUnits = ConfirmRadiusUnits;
+
+    /// <summary>Close enough to use an object or talk to an NPC, past the edge of its own footprint.</summary>
+    public const float InteractUnits = 3f;
+
     /// <summary>Guide tiers: the tracked quest's step leads before the dungeon's own objectives.</summary>
     public const int QuestTier = 0, DungeonTier = 1;
 
@@ -25,10 +33,10 @@ public sealed class ObjectiveMemory
     // A placed gizmo never moves; a re-created actor (new id) lands on the same spot.
     private const float SameSpotUnits = 1f;
 
-    private sealed class Objective(int sno, string name, (float X, float Y) position, string kind = "objective")
+    private sealed class Objective(int sno, string name, (float X, float Y) position, float radius, string kind = "objective")
     {
-        public float? Z { get; init; }
-        public float Radius { get; init; }
+        public float? Z { get; set; }
+        public float Radius { get; } = radius;
         public int Sno { get; } = sno;
         public string Name { get; } = name;
         public string Id { get; } = $"{kind}:{sno}:{MathF.Round(position.X)},{MathF.Round(position.Y)}";
@@ -36,16 +44,19 @@ public sealed class ObjectiveMemory
         public uint ActorId { get; set; }
         public bool Quest { get; set; }
         public bool Pending { get; set; } = true;
+        /// <summary>The player stands within its radius.</summary>
+        public bool AtIt { get; set; }
+        /// <summary>Set aside: the player stood at it and walked away while it was still undone.</summary>
         public bool Reached { get; set; }
-        /// <summary>Known only from the tile that places it; cleared once heard.</summary>
+        /// <summary>Known only from the tile that places it or the map that marks it; cleared once heard.</summary>
         public bool PlacedOnly { get; set; }
+        /// <summary>The game's map marks it now.</summary>
+        public bool Marked { get; set; }
     }
-
-    // An item or NPC a quest phase names: close enough to interact.
-    private const float PlaceRadiusUnits = 3f;
 
     private readonly Func<int, string?> _nameOf;
     private readonly Func<int, float?> _triggerRadius;
+    private readonly Func<int, float?> _footprint;
     private readonly Func<int, bool?> _takesHeld;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
@@ -59,26 +70,29 @@ public sealed class ObjectiveMemory
     /// <param name="takesHeld">For a receptacle, whether it takes what the player holds (LoopTargetSelector.ReceptacleTakesHeld): it
     /// leads only then, in the quest tier; empty-handed, the next carryable or unexplored ground comes first
     /// (research/dungeon-objectives.md §14). Null for none.</param>
+    /// <param name="footprint">Half the ground size of an actor's box (ActorDefinitionInfo bounds), so a big altar is reached at its
+    /// edge; null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
-        Func<int, bool?>? takesHeld = null)
+        Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null)
     {
         _nameOf = nameOf;
         _triggerRadius = triggerRadius ?? (_ => null);
+        _footprint = footprint ?? (_ => null);
         _takesHeld = takesHeld ?? (_ => null);
         _log = log;
         feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
-    /// <summary>The objectives to lead to: looping when last heard and not reached yet; quest steps in <see cref="QuestTier"/>.</summary>
+    /// <summary>The objectives to lead to: looping when last heard and not set aside; quest steps in <see cref="QuestTier"/>.</summary>
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
             return [.. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
                 .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false)
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
-                    x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius))];
+                    x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius, Located(x.Objective)))];
     }
 
     /// <summary>The objectives heard here and not done yet, to outlive a restart of the app (quest places are named again).</summary>
@@ -94,7 +108,7 @@ public sealed class ObjectiveMemory
         lock (_gate)
             foreach (var s in saved)
                 if (!_objectives.Any(o => o.Sno == s.Sno && Distance(o.Position, (s.X, s.Y)) <= SameSpotUnits))
-                    _objectives.Add(new Objective(s.Sno, s.Name, (s.X, s.Y)) { Quest = s.Quest });
+                    _objectives.Add(new Objective(s.Sno, s.Name, (s.X, s.Y), Reach(s.Sno)) { Quest = s.Quest });
     }
 
     /// <summary>Takes the places the active quests' current phases name (GameSession.QuestPlacesRead, every actor poll).</summary>
@@ -109,8 +123,8 @@ public sealed class ObjectiveMemory
                 var objective = _places.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
                 if (objective is null)
                 {
-                    objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y), QuestPlaceKind)
-                        { Quest = true, Z = place.Z, Radius = _triggerRadius(place.ActorSno) ?? PlaceRadiusUnits };
+                    objective = new Objective(place.ActorSno, NameOf(place.ActorSno), (place.X, place.Y), Reach(place.ActorSno), QuestPlaceKind)
+                        { Quest = true, Z = place.Z };
                     _places.Add(objective);
                     Log("seen (quest place)", objective);
                 }
@@ -124,14 +138,13 @@ public sealed class ObjectiveMemory
             foreach (var objective in _places.Where(o => o.Pending && !named.Contains(o)))
             {
                 objective.Pending = false;
-                objective.Reached = false;
                 Log("done (phase moved on)", objective);
             }
         }
     }
 
-    // A gizmo the phase names, placed by a loaded tile, is an objective before it's heard: like a heard one it's done once silent
-    // near the player (already used), and dropped unheard when the phase stops naming it.
+    // A gizmo the phase names, placed by a loaded tile or marked on the map, is an objective before it's heard. It's done once
+    // silent near the player (already used), or when the phase stops naming it; a tile's copy with nothing there was never spawned.
     private void ObserveAhead(List<QuestPlace> placed)
     {
         var named = new HashSet<Objective>();
@@ -140,31 +153,35 @@ public sealed class ObjectiveMemory
             var objective = _objectives.FirstOrDefault(o => o.Sno == place.ActorSno && Distance(o.Position, (place.X, place.Y)) <= SameSpotUnits);
             if (objective is null)
             {
-                objective = new Objective(place.ActorSno, _nameOf(place.ActorSno) ?? place.ActorSno.ToString(), (place.X, place.Y))
-                    { Quest = true, PlacedOnly = true };
+                objective = new Objective(place.ActorSno, NameOf(place.ActorSno), (place.X, place.Y), Reach(place.ActorSno))
+                    { Quest = true, PlacedOnly = true, Z = place.Z };
                 _objectives.Add(objective);
-                Log("seen ahead", objective);
+                Log(place.Marked ? "seen ahead (map)" : "seen ahead", objective);
             }
+            objective.Marked = place.Marked || (named.Contains(objective) && objective.Marked);
             named.Add(objective);
         }
-        foreach (var objective in _objectives.Where(o => o.PlacedOnly && o.Pending && !named.Contains(o)))
+        foreach (var objective in _objectives.Where(o => o.PlacedOnly && !named.Contains(o)))
         {
+            objective.Marked = false;
+            if (!objective.Pending) continue;
             objective.Pending = false;
             Log("done (phase moved on)", objective);
         }
     }
 
-    /// <summary>Takes the objective actors looping now (ActorLoopBridge.ObjectivesLooping, every actor poll).</summary>
-    public void Observe(IReadOnlyList<ActorState> looping)
+    /// <summary>Takes one actor poll (ActorLoopBridge.ObjectivesSeen): the objective actors looping and silent, and every actor read.</summary>
+    public void Observe(ObjectiveSighting seen)
     {
         lock (_gate)
         {
             var heard = new HashSet<Objective>();
-            foreach (var actor in looping)
+            foreach (var actor in seen.Looping)
             {
                 var objective = Find(actor) ?? Add(actor);
                 objective.ActorId = actor.Id;
                 objective.Position = (actor.X, actor.Y);
+                objective.Z = actor.Z;
                 objective.Quest = actor.QuestStep;
                 objective.PlacedOnly = false;
                 if (!objective.Pending) Log("looping again", objective);
@@ -173,17 +190,29 @@ public sealed class ObjectiveMemory
             }
             if (_player is not { } here) return;
 
-            var done = _objectives.Where(o => o.Pending && !heard.Contains(o) && Distance(o.Position, here) <= ConfirmRadiusUnits).ToList();
+            var done = _objectives.Where(o => o.Pending && !heard.Contains(o) && Distance(o.Position, here) <= ConfirmRadiusUnits && Ended(o, seen)).ToList();
             foreach (var objective in done)
             {
                 objective.Pending = false;
+                objective.AtIt = false;
                 Log("done", objective);
             }
             if (done.Count > 0) RearmReached();
         }
     }
 
-    /// <summary>Lets the objectives the player already reached lead again (the guide was just switched on by a lost player).</summary>
+    // Heard earlier: silent now. Not heard yet: its actor there is silent (used), or a tile's copy the map doesn't mark has no actor.
+    // A door's or a trigger's copy loops as something else or not at all: it waits for the phase.
+    private static bool Ended(Objective objective, ObjectiveSighting seen) =>
+        !objective.PlacedOnly || Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
+
+    // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to.
+    private bool Located(Objective objective) => _objectives.Contains(objective) && (!objective.PlacedOnly || objective.Marked);
+
+    private static bool Stands(Objective objective, IReadOnlyList<ActorState> actors) =>
+        actors.Any(a => a.ActorSno == objective.Sno && Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits);
+
+    /// <summary>Lets the objectives the player walked away from lead again (the guide was just switched on by a lost player).</summary>
     public void Rearm()
     {
         lock (_gate) RearmReached();
@@ -201,12 +230,28 @@ public sealed class ObjectiveMemory
     private void OnPlayer((float X, float Y) here)
     {
         _player = here;
-        foreach (var objective in _objectives.Where(o => o.Pending && !o.Reached && Distance(o.Position, here) <= ExplorationGuide.DestinationArrivalUnits))
+        foreach (var objective in _objectives.Where(o => o.Pending && !o.Reached))
         {
-            objective.Reached = true;
-            Log("reached", objective);
+            float distance = Distance(objective.Position, here);
+            if (distance <= objective.Radius)
+            {
+                if (objective.AtIt) continue;
+                objective.AtIt = true;
+                Log("reached", objective);
+            }
+            else if (objective.AtIt && distance > LeaveUnits)
+            {
+                objective.AtIt = false;
+                objective.Reached = true;
+                Log("left undone", objective);
+            }
         }
     }
+
+    // How close counts as there: inside a trigger, else within reach of the object's edge.
+    private float Reach(int sno) => _triggerRadius(sno) ?? (_footprint(sno) ?? 0) + InteractUnits;
+
+    private string NameOf(int sno) => _nameOf(sno) ?? sno.ToString();
 
     private Objective? Find(ActorState actor) =>
         _objectives.FirstOrDefault(o => o.ActorId == actor.Id && o.Sno == actor.ActorSno)
@@ -214,7 +259,7 @@ public sealed class ObjectiveMemory
 
     private Objective Add(ActorState actor)
     {
-        var objective = new Objective(actor.ActorSno, _nameOf(actor.ActorSno) ?? actor.ActorSno.ToString(), (actor.X, actor.Y));
+        var objective = new Objective(actor.ActorSno, NameOf(actor.ActorSno), (actor.X, actor.Y), Reach(actor.ActorSno));
         _objectives.Add(objective);
         Log(actor.QuestStep ? "seen (quest)" : "seen (dungeon)", objective);
         return objective;

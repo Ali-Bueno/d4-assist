@@ -33,7 +33,8 @@ public sealed record ActorState(
 /// <summary>A place the active quest's current phase names (a marker in world space): where its step happens.</summary>
 /// <param name="Ahead">A gizmo the phase names by SNO alone, where a loaded tile places it or the map marks it: an objective to use, known before
 /// it streams in, rather than a spot to stand in (research/dungeon-objectives.md §18).</param>
-public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false);
+/// <param name="Marked">The game's map marks it (an Ahead gizmo): the server has it there, even before it streams in (§19).</param>
+public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false, bool Marked = false);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

@@ -36,7 +36,7 @@ public class ObjectiveMemoryTests
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(0, 0));
 
-        memory.Observe([Lever(50, 0, quest: true), Altar(0, 50)]);
+        memory.Heard(Lever(50, 0, quest: true), Altar(0, 50));
 
         var points = memory.Destinations();
         Assert.Equal(2, points.Count);
@@ -49,29 +49,48 @@ public class ObjectiveMemoryTests
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(0, 0));
-        memory.Observe([Lever(50, 0)]);
+        memory.Heard(Lever(50, 0));
 
         feed.RaisePlayer(At(-Far, 0));
-        memory.Observe([]);
+        memory.Heard();
         Assert.Single(memory.Destinations());
 
         feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
-        memory.Observe([]); // used, locked or removed
+        memory.Heard(); // used, locked or removed
         Assert.Empty(memory.Destinations());
     }
 
     [Fact]
-    public void A_reached_objective_waits_until_another_one_is_done()
+    public void An_objective_stays_the_goal_while_the_player_stands_at_it_and_is_done_once_used()
+    {
+        // Players' reports (2026-10-05): beside the objective, before it was used, the guide turned to unexplored ground.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+
+        feed.RaisePlayer(At(1, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+
+        memory.Heard(Altar(100, 0)); // pulled
+        Assert.Equal((100f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void An_objective_walked_away_from_undone_waits_until_another_one_is_done()
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(0, 0));
-        memory.Observe([Lever(0, 0), Altar(100, 0)]);
+        memory.Heard(Lever(0, 0), Altar(100, 0));
 
-        feed.RaisePlayer(At(1, 0)); // at the lever: the player saw it, the guide moves on
+        feed.RaisePlayer(At(1, 0)); // at the lever, which can't be used yet
+        feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits - 1, 0));
+        Assert.Equal(2, memory.Destinations().Count);
+        feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0)); // the player gave up on it
         Assert.Equal((100f, 0f), Assert.Single(memory.Destinations()).Position);
 
         feed.RaisePlayer(At(100, 0));
-        memory.Observe([Lever(0, 0)]); // the altar was used: the lever may open now
+        memory.Heard(Lever(0, 0)); // the altar was used: the lever may open now
         Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
@@ -80,7 +99,7 @@ public class ObjectiveMemoryTests
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(0, 0));
-        memory.Observe([Lever(0, 0)]);
+        memory.Heard(Lever(0, 0));
         feed.RaisePlayer(At(1, 0));
         feed.RaisePlayer(At(-Far, 0)); // walked past it and got lost
         Assert.Empty(memory.Destinations());
@@ -95,11 +114,11 @@ public class ObjectiveMemoryTests
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(30, 0));
-        memory.Observe([Lever(50, 0)]);
-        memory.Observe([]); // locked while the player carries an item elsewhere
+        memory.Heard(Lever(50, 0));
+        memory.Heard(); // locked while the player carries an item elsewhere
         Assert.Empty(memory.Destinations());
 
-        memory.Observe([Lever(50, 0)]);
+        memory.Heard(Lever(50, 0));
 
         Assert.Single(memory.Destinations());
     }
@@ -109,10 +128,10 @@ public class ObjectiveMemoryTests
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(-Far, 0));
-        memory.Observe([Lever(50, 0, id: 1)]);
+        memory.Heard(Lever(50, 0, id: 1));
         string id = memory.Destinations()[0].Id;
 
-        memory.Observe([Lever(50.4f, 0, id: 9)]);
+        memory.Heard(Lever(50.4f, 0, id: 9));
 
         Assert.Equal(id, Assert.Single(memory.Destinations()).Id);
     }
@@ -121,7 +140,7 @@ public class ObjectiveMemoryTests
     public void A_world_change_forgets_every_objective()
     {
         var (feed, memory) = NewMemory();
-        memory.Observe([Lever(50, 0)]);
+        memory.Heard(Lever(50, 0));
 
         feed.RaiseWorld();
 
@@ -129,20 +148,22 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
-    public void The_loop_bridge_reports_only_objectives_that_loop()
+    public void The_loop_bridge_reports_objectives_looping_and_silent_and_every_actor()
     {
         var feed = new FakeFeed();
         var classifier = new ObjectiveClassifier(sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, NameOf);
         var interactables = new InteractableClassifier(sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, NameOf);
         var selector = new LoopTargetSelector(new HashSet<int>(), classifier, _ => new HashSet<int>(), interactables);
         var bridge = new ActorLoopBridge(feed, LoopTestKit.Player(), selector, NameOf, isUsed: _ => false);
-        IReadOnlyList<ActorState> heard = [];
-        bridge.ObjectivesLooping += actors => heard = actors;
+        ObjectiveSighting? seen = null;
+        bridge.ObjectivesSeen += s => seen = s;
 
         var locked = new ActorState(3, AltarSno, 5, 5, 0, QuestLocked: true);
         feed.RaiseActors(Lever(1, 1), locked, new ActorState(4, ChestSno, 2, 2, 0));
 
-        Assert.Equal(LeverSno, Assert.Single(heard).ActorSno);
+        Assert.Equal(LeverSno, Assert.Single(seen!.Looping).ActorSno);
+        Assert.Equal(AltarSno, Assert.Single(seen.Silent).ActorSno);
+        Assert.Equal(3, seen.Present.Count);
     }
 
     [Fact]
@@ -153,7 +174,7 @@ public class ObjectiveMemoryTests
         var feed = new FakeFeed();
         var memory = new ObjectiveMemory(feed, NameOf, takesHeld: sno => sno == AltarSno ? holds : null);
         feed.RaisePlayer(At(0, 0));
-        memory.Observe([Altar(50, 0), Lever(0, 50)]);
+        memory.Heard(Altar(50, 0), Lever(0, 50));
 
         Assert.Equal((0f, 50f), Assert.Single(memory.Destinations()).Position);
 
@@ -171,7 +192,7 @@ public class ObjectiveMemoryTests
     {
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(40, 50));
-        memory.Observe([Altar(100, 0)]);
+        memory.Heard(Altar(100, 0));
 
         memory.ObservePlaces([new QuestPlace(TriggerSno, -1, 51)]);
 
@@ -238,10 +259,64 @@ public class ObjectiveMemoryTests
         memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]);
 
         feed.RaisePlayer(At(100 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
-        memory.Observe([]); // pulled earlier: no loop
+        memory.Heard(); // pulled earlier: no loop
         memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]); // still named on every poll
 
         Assert.Equal([(-100f, 0f)], memory.Destinations().Select(d => d.Position));
+    }
+
+    [Fact]
+    public void A_placed_gizmo_that_stands_there_without_an_objective_loop_waits_for_the_phase()
+    {
+        // A door the phase names loops as a door, a trigger not at all: near it, neither is done before the phase moves on.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(95, 0));
+        memory.ObservePlaces([PlacedLever(100, 0)]);
+
+        memory.Observe(new ObjectiveSighting([], [], [Altar(0, 0), new ActorState(7, LeverSno, 100, 0, 0)]));
+        Assert.Single(memory.Destinations());
+
+        memory.ObservePlaces([]);
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void A_placed_gizmo_silent_as_an_objective_was_used_and_a_tile_copy_with_nothing_there_was_never_spawned()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(1, 0)); // (0,0,0) reads as a world unloading
+        memory.ObservePlaces([PlacedLever(10, 0), PlacedLever(-10, 0)]);
+        var used = new ActorState(7, LeverSno, 10, 0, 0, Operated: true);
+
+        memory.Observe(new ObjectiveSighting([], [used], [used]));
+
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void A_gizmo_the_map_marks_waits_for_the_phase_even_with_no_actor_near()
+    {
+        // Live 2026-10-04: the map listed the Labyrinth's lair door while it was no actor; its trigger kin never stream in at all.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(1, 0)); // (0,0,0) reads as a world unloading
+        memory.ObservePlaces([PlacedLever(10, 0) with { Marked = true }, PlacedLever(-10, 0), new QuestPlace(TriggerSno, 0, 40)]);
+
+        memory.Heard();
+
+        Assert.True(Assert.Single(memory.Destinations(), d => d.Position == (10, 0)).Located);
+        Assert.False(Assert.Single(memory.Destinations(), d => d.Position == (0, 40)).Located); // script data: maybe another world
+    }
+
+    [Fact]
+    public void An_objective_is_reached_within_reach_of_its_footprint()
+    {
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, footprint: sno => sno == AltarSno ? 5f : null);
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Altar(30, 0), Lever(-30, 0));
+
+        Assert.Equal(5 + ObjectiveMemory.InteractUnits, memory.Destinations().Single(d => d.Position == (30, 0)).Radius);
+        Assert.Equal(ObjectiveMemory.InteractUnits, memory.Destinations().Single(d => d.Position == (-30, 0)).Radius);
     }
 
     [Fact]
@@ -251,7 +326,7 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(0, 0));
         memory.ObservePlaces([PlacedLever(100, 0), PlacedLever(-100, 0)]);
 
-        memory.Observe([Lever(100.2f, 0, quest: true)]);
+        memory.Heard(Lever(100.2f, 0, quest: true));
         Assert.Equal(2, memory.Destinations().Count);
 
         memory.ObservePlaces([]); // the phase moved on

@@ -348,7 +348,7 @@ public class ExplorationGuideBridgeTests
     {
         // Live 2026-10-01: reaching phase 154's trigger turned the guide to unexplored ground while the step went on there.
         string id = $"{ObjectiveMemory.QuestPlaceKind}:42298:0,3";
-        var rig = new Rig { Objectives = [new(id, (0, 3), ObjectiveMemory.QuestTier)] };
+        var rig = new Rig { Objectives = [new(id, (0, 3), ObjectiveMemory.QuestTier, Radius: ExplorationGuide.DestinationArrivalUnits)] };
         rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Objective, id, (0, 3)), (0, 3), 3);
         rig.Feed.RaiseWorld("DGN_Test");
         rig.Pad.Press(); // on
@@ -362,6 +362,36 @@ public class ExplorationGuideBridgeTests
         Assert.True(rig.Hear().Right > 0 || rig.Hear().Left > 0);
         rig.Feed.RaisePlayer(0, 0);
         Assert.Equal(2, rig.Log.Count(l => l.Contains($"GUIDE holding at {id}")));
+    }
+
+    [Fact]
+    public void At_an_objective_heard_earlier_the_guide_holds_instead_of_turning_to_unexplored_ground()
+    {
+        // Players' reports (2026-10-05): the guide led to the objective, then on to exploring before it was used.
+        string id = "objective:1:0,3";
+        var rig = new Rig { Objectives = [new(id, (0, 3), ObjectiveMemory.DungeonTier, Radius: 4)] };
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Objective, id, (0, 3)), (0, 3), 3);
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Pad.Press(); // on
+
+        rig.Feed.RaisePlayer(0, 0);
+        rig.Feed.RaisePlayer(0, 1);
+
+        Assert.Single(rig.Log, l => l.Contains($"GUIDE holding at {id}"));
+    }
+
+    [Fact]
+    public void Exploring_towards_an_objective_the_map_marks_is_spoken_as_leading_to_it()
+    {
+        var rig = new Rig(guideInDungeons: true);
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.UnvisitedTile, "t", (5, 6)), (5, 6), 12,
+            Toward: new("objective:1:0,300", (0, 300), ObjectiveMemory.QuestTier));
+
+        rig.Feed.RaisePlayer();
+        rig.Feed.RaisePlayer();
+
+        Assert.Equal([(NavigationPhrases.Spanish.ToQuestObjective, false)], rig.Speech.Spoken);
     }
 
     [Fact]

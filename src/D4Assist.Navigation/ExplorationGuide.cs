@@ -3,8 +3,9 @@ namespace D4Assist.Navigation;
 /// <summary>
 /// Leads the player to an objective seen earlier, else to the nearest unexplored part of the dungeon: a known tile not yet explored (stood in, or seen from a connected doorway), or an exit
 /// whose far side never loaded (a frontier); with nothing left, to the caller's known destinations (portals seen earlier).
-/// "Nearest" is route length over the tile graph; the next waypoint
-/// is the look-ahead point on the room's walk-grid path to the opening that leaves the player's room.
+/// "Nearest" is route length over the tile graph, plus the straight distance on to an objective known beyond the explored map; the next
+/// waypoint is the look-ahead point on the room's walk-grid path to the opening that leaves the player's room, or to the objective itself
+/// once it is in the player's room.
 /// </summary>
 public sealed class ExplorationGuide
 {
@@ -27,7 +28,8 @@ public sealed class ExplorationGuide
     /// <summary>Standing this close to a destination reaches it: the same quarter tile, where its beacon loop takes over.</summary>
     public const float DestinationArrivalUnits = FrontierArrivalUnits;
 
-    private sealed record Candidate(GuideTarget Target, float Cost, TileNode Node, TileHop? FrontierHop);
+    /// <param name="Reach">How close to a point target counts as there (GuideDestination.Radius); 0 for the arrival distance.</param>
+    private sealed record Candidate(GuideTarget Target, float Cost, TileNode Node, TileHop? FrontierHop, float Reach = 0);
 
     private readonly DungeonMap _map;
     private readonly ITileWalkability? _walkability;
@@ -152,6 +154,10 @@ public sealed class ExplorationGuide
         var exploring = Candidates(routes, start).ToList();
         if (_current is { } previous && objectiveCandidates.Concat(exploring).All(c => c.Target.Id != previous.Target.Id) && Reached(previous, here))
             Arrivals++;
+        // An objective known beyond the explored map (the game's map marks it): explore the way towards it, as a sighted player would.
+        var waiting = objectiveCandidates.Count > 0 ? [] : Waiting(graph, routes, objectives);
+        if (waiting.Count > 0)
+            exploring = [.. exploring.Select(c => c with { Cost = c.Cost + waiting.Min(w => TileRoutes.Distance(c.Target.Position, w.Position)) })];
         var candidates = objectiveCandidates.Count > 0 ? objectiveCandidates : exploring;
         _rechecking = false;
         if (candidates.Count == 0 && exitMissing)
@@ -175,10 +181,20 @@ public sealed class ExplorationGuide
 
         var hops = routes.HopsTo(chosen.Node);
         if (chosen.FrontierHop is { } exit) hops.Add(new RouteHop(exit.Opening, null, chosen.Cost));
-        float remaining = chosen.Cost;
         var status = _rechecking ? GuideStatus.Rechecking : GuideStatus.Guiding;
-        var waypoint = hops.Count == 0 ? chosen.Target.Position : Waypoint(hops, chosen.Cost, player, out remaining); // no hops: the target is in the player's tile
-        return new GuideStep(status, chosen.Target, waypoint, remaining, Arrivals, _rechecking ? _round : 0);
+        var waypoint = Waypoint(hops, chosen, player, out var remaining);
+        var toward = waiting.Count > 0 && exploring.Contains(chosen) ? waiting.MinBy(w => TileRoutes.Distance(chosen.Target.Position, w.Position)) : null;
+        return new GuideStep(status, chosen.Target, waypoint, remaining, Arrivals, _rechecking ? _round : 0, toward);
+    }
+
+    // The located objectives of the lowest tier among those the routes can't reach yet: on a tile not loaded, or cut off.
+    private List<GuideDestination> Waiting(TileGraph graph, TileRoutes routes, IReadOnlyList<GuideDestination> objectives)
+    {
+        var waiting = objectives.Where(d => d.Located && (_map.TileAt(d.Position.X, d.Position.Y) is not { } tile
+            || graph.NodeAt(tile, d.Position) is not { } node || !routes.Reaches(node))).ToList();
+        if (waiting.Count == 0) return waiting;
+        int tier = waiting.Min(d => d.Tier);
+        return [.. waiting.Where(d => d.Tier == tier)];
     }
 
     // A target left the candidate list because the player got there, not because its far side merely loaded.
@@ -186,7 +202,7 @@ public sealed class ExplorationGuide
     {
         GuideTargetKind.ExitCandidate => false, // counted when passed, see MarkRechecked
         GuideTargetKind.Destination => _reachedDestinations.Contains(target.Target.Id),
-        GuideTargetKind.Objective => TileRoutes.Distance(player, target.Target.Position) <= DestinationArrivalUnits,
+        GuideTargetKind.Objective => TileRoutes.Distance(player, target.Target.Position) <= MathF.Max(target.Reach, DestinationArrivalUnits),
         _ => target.FrontierHop is null ? _map.IsVisited(target.Node.Tile) : _spentFrontiers.Contains(target.Target.Id),
     };
 
@@ -203,7 +219,7 @@ public sealed class ExplorationGuide
         int tier = reachable.Min(r => r.Destination.Tier);
         return [.. reachable.Where(r => r.Destination.Tier == tier && open(r.Destination)).Select(r => new Candidate(
             new GuideTarget(kind, r.Destination.Id, r.Destination.Position),
-            routes.LengthTo(r.Node) + TileRoutes.Distance(routes.EntryPoint(r.Node), r.Destination.Position), r.Node, null))];
+            routes.LengthTo(r.Node) + TileRoutes.Distance(routes.EntryPoint(r.Node), r.Destination.Position), r.Node, null, r.Destination.Radius))];
     }
 
     private IEnumerable<Candidate> Candidates(TileRoutes routes, TileNode start)
@@ -279,17 +295,30 @@ public sealed class ExplorationGuide
 
     private static string RecheckId(MapTile tile) => $"exit-candidate:{tile.CellX},{tile.CellY}";
 
-    // Heads for the first opening that leaves the player's room; a target inside the room is the route's last hop.
-    private (float X, float Y) Waypoint(List<RouteHop> hops, float total, PlayerInput player, out float remaining)
+    // Heads for the first opening that leaves the player's room; a target tile inside the room is the route's last hop, and a
+    // point target there (an objective, a portal) is walked to over the room's floor.
+    private (float X, float Y) Waypoint(List<RouteHop> hops, Candidate chosen, PlayerInput player, out float remaining)
     {
+        float total = chosen.Cost;
+        remaining = total;
+        bool point = chosen.FrontierHop is null && chosen.Target.Kind is GuideTargetKind.Objective or GuideTargetKind.Destination;
+        if (hops.Count == 0 && !point) return chosen.Target.Position; // the target is in the player's tile
         var room = RoomModel.TryGetRoom(_map, player.X, player.Y, out var found, _walkability, _blocked) ? found : null;
         var roomTiles = room?.Tiles.Select(TileGraph.Key).ToHashSet() ?? [];
-        var hop = hops.FirstOrDefault(h => h.To is null || !roomTiles.Contains(TileGraph.Key(h.To.Tile))) ?? hops[^1];
-        if (room is null)
+        if (point && room is not null && hops.All(h => h.To is { } next && roomTiles.Contains(TileGraph.Key(next.Tile))))
         {
-            remaining = total;
-            return hop.Opening.Position;
+            float reach = chosen.Reach > 0 ? chosen.Reach : DestinationArrivalUnits;
+            var near = RoomRouteCache.TraceToPoint(room, (player.X, player.Y), chosen.Target.Position, reach);
+            if (!near.UsedFallback)
+            {
+                remaining = near.Length;
+                return near.Point;
+            }
         }
+        if (hops.Count == 0) return chosen.Target.Position;
+
+        var hop = hops.FirstOrDefault(h => h.To is null || !roomTiles.Contains(TileGraph.Key(h.To.Tile))) ?? hops[^1];
+        if (room is null) return hop.Opening.Position;
 
         var trace = RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening);
         remaining = trace.UsedFallback ? total : trace.Length + (total - hop.LengthSoFar);

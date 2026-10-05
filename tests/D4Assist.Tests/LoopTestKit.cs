@@ -30,3 +30,10 @@ internal sealed class FakeFeed : IDungeonFeed
     public void RaiseActors(params ActorState[] actors) => ActorsUpdated?.Invoke(actors);
     public void RaiseTiles() => TilesUpdated?.Invoke([]);
 }
+
+internal static class ObjectiveMemoryTestKit
+{
+    /// <summary>One actor poll where the given objective actors loop and nothing else stands around.</summary>
+    public static void Heard(this ObjectiveMemory memory, params ActorState[] looping) =>
+        memory.Observe(new ObjectiveSighting(looping, [], looping));
+}

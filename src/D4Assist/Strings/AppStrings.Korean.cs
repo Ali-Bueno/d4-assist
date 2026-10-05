@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "사물의 상태를 읽을 수 없어 이미 쓴 사물의 소리가 계속 날 수 있고 퀘스트를 추적하지 못합니다",
             [ReadCheck.Menus] = "게임 메뉴를 찾을 수 없어 메뉴에서 소리가 멈추지 않습니다",
         },
-        ReadWarningFormat: "경고: {0}. Diablo IV가 업데이트되었을 수 있습니다. 로그를 보내 주세요.",
+        ReadWarningFormat: "경고: {0}. 로그를 보내 주세요.",
         Stopped: "오류로 도우미가 멈췄습니다. 로그를 보내 주세요.",
         UpdateAvailableFormat: "Diablo 4 Assist {0}을(를) 사용할 수 있습니다. 지금 업데이트할까요?",
         UpdateDownloading: "업데이트를 내려받는 중입니다.",

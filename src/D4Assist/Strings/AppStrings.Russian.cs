@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "не могу прочитать состояние объектов, использованные объекты могут продолжать звучать, а задания не отслеживаются",
             [ReadCheck.Menus] = "не нахожу меню игры, звуки в них не будут приостанавливаться",
         },
-        ReadWarningFormat: "Внимание: {0}. Возможно, Diablo IV обновилась. Отправьте журнал.",
+        ReadWarningFormat: "Внимание: {0}. Отправьте журнал.",
         Stopped: "Помощник остановился из-за ошибки. Отправьте журнал.",
         UpdateAvailableFormat: "Доступен Diablo 4 Assist {0}. Обновить сейчас?",
         UpdateDownloading: "Загрузка обновления.",

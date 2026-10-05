@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "オブジェクトの状態を読み取れません。使用済みのオブジェクトの音が鳴り続けたり、クエストを追跡できなかったりします",
             [ReadCheck.Menus] = "ゲームのメニューが見つかりません。メニュー中も音が止まりません",
         },
-        ReadWarningFormat: "警告：{0}。Diablo IVが更新された可能性があります。ログを送ってください。",
+        ReadWarningFormat: "警告：{0}。ログを送ってください。",
         Stopped: "エラーのためアシスタントが停止しました。ログを送ってください。",
         UpdateAvailableFormat: "Diablo 4 Assist {0} が利用できます。今すぐ更新しますか？",
         UpdateDownloading: "更新をダウンロードしています。",

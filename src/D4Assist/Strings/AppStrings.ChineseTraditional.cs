@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "無法讀取物件狀態，已使用的物件可能仍會發聲，任務也無法追蹤",
             [ReadCheck.Menus] = "找不到遊戲選單，選單中音效不會暫停",
         },
-        ReadWarningFormat: "警告：{0}。Diablo IV 可能已更新。請傳送記錄檔。",
+        ReadWarningFormat: "警告：{0}。請傳送記錄檔。",
         Stopped: "助手因錯誤而停止。請傳送記錄檔。",
         UpdateAvailableFormat: "Diablo 4 Assist {0} 已推出。現在更新嗎？",
         UpdateDownloading: "正在下載更新。",

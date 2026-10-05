@@ -120,8 +120,11 @@ public static class ScreenRegistryReader
     }
 
     /// <summary>Scans heap regions in parallel and returns name to record address, stopping once every name is found.</summary>
-    /// <remarks>Each name has one record that validates (research/client-memory.md §5), so the scan order doesn't matter.</remarks>
-    public static Dictionary<string, long> Locate(IMemoryReader memory, IReadOnlyCollection<string> names, ModuleRange module)
+    /// <remarks>A name usually has one record that validates, but a stale one can too after a character switch
+    /// (research/client-memory.md §5); the first found wins, so the caller passes the records it already distrusts.</remarks>
+    /// <param name="exclude">Record addresses never returned.</param>
+    public static Dictionary<string, long> Locate(
+        IMemoryReader memory, IReadOnlyCollection<string> names, ModuleRange module, IReadOnlySet<long>? exclude = null)
     {
         var found = new ConcurrentDictionary<string, long>();
         var keys = names.ToDictionary(Hash);
@@ -134,7 +137,7 @@ public static class ScreenRegistryReader
             foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
             {
                 if (loop.IsStopped) break;
-                FindInWindow(memory, module, keys, filter, found, address, data.Span);
+                FindInWindow(memory, module, keys, filter, exclude, found, address, data.Span);
                 if (found.Count == keys.Count) { loop.Stop(); break; }
             }
             return buffer;
@@ -143,7 +146,7 @@ public static class ScreenRegistryReader
     }
 
     private static void FindInWindow(
-        IMemoryReader memory, ModuleRange module, Dictionary<uint, string> keys, bool[] filter,
+        IMemoryReader memory, ModuleRange module, Dictionary<uint, string> keys, bool[] filter, IReadOnlySet<long>? exclude,
         ConcurrentDictionary<string, long> found, long address, ReadOnlySpan<byte> data)
     {
         int first = (int)((EntryAlignment - address % EntryAlignment) % EntryAlignment);
@@ -157,7 +160,7 @@ public static class ScreenRegistryReader
             long entry = address + first + (long)i * EntryAlignment - KeyOffsetInEntry;
             if (!memory.TryRead(entry + ValueOffsetInEntry, word, sizeof(long))) continue;
             long record = BinaryPrimitives.ReadInt64LittleEndian(word);
-            if (TryReadOpen(memory, record, module) is not null) found.TryAdd(name, record);
+            if (exclude?.Contains(record) != true && TryReadOpen(memory, record, module) is not null) found.TryAdd(name, record);
         }
     }
 

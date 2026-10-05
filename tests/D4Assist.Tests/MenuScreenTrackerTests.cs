@@ -10,7 +10,9 @@ public class MenuScreenTrackerTests
     // Windows constants: MEM_PRIVATE and PAGE_READWRITE (MEMORY_BASIC_INFORMATION).
     private const uint Private = 0x20000, ReadWrite = 0x04;
     private const long TableAddress = 0x1000_0000, RecordAddress = 0x1000_0800, ModulePointer = 0x7FF70064D210;
-    private const int TableSize = 0x1000, FlagOffset = 0x10, ModulePointerOffset = 0x58, EntryOffset = 0x100;
+    private const int TableSize = 0x1000, FlagOffset = 0x10, ModulePointerOffset = 0x58, EntryOffset = 0x100, LaterEntryOffset = 0x200;
+    // A second record for the same screen, behind a later registry entry: the live one when the first is stale.
+    private const long LiveRecordAddress = RecordAddress + 0x200;
     private static readonly ModuleRange Module = new(0x7FF700000000, 0x4000000);
 
     [Fact]
@@ -44,6 +46,49 @@ public class MenuScreenTrackerTests
         tracker.Relocate();
         Assert.Null(tracker.Read(memory, Module)); // records dropped: nothing mutes until they are found again
         WaitFor(() => scans == 2 && tracker.Read(memory, Module) is not null);
+    }
+
+    [Fact]
+    public void A_record_open_when_located_never_mutes_and_its_live_record_is_found_at_once()
+    {
+        // Live 2026-10-04: after a character switch a stale record read open for 6 minutes and muted every cue.
+        var memory = new HeapReader();
+        memory.SetOpen(true); // the stale record, first in the registry
+        memory.AddEntry(LaterEntryOffset, LiveRecordAddress); // the live one, closed
+        var clock = new Clock();
+        int scans = 0, located = 0;
+        var tracker = new MenuScreenTracker(() => { scans++; return memory; }, clock.Now, line => CountLocated(line, ref located));
+        tracker.Read(memory, Module);
+        WaitFor(() => located == 1);
+
+        Assert.Empty(tracker.Read(memory, Module)!); // read open, never seen closed: not muted
+        WaitFor(() => located == 2); // the clock never moved: no retry delay
+        Assert.Empty(tracker.Read(memory, Module)!); // the live record
+
+        memory.SetOpen(LiveRecordAddress, true);
+        Assert.Equal([MenuScreens.MainMenu], tracker.Read(memory, Module));
+        Assert.Equal(2, scans);
+    }
+
+    [Fact]
+    public void A_menu_already_open_when_located_counts_once_it_has_closed()
+    {
+        var memory = new HeapReader();
+        memory.SetOpen(true);
+        var clock = new Clock();
+        var located = 0;
+        var tracker = new MenuScreenTracker(() => memory, clock.Now, line => CountLocated(line, ref located));
+        tracker.Read(memory, Module);
+        WaitFor(() => located == 1);
+
+        Assert.Empty(tracker.Read(memory, Module)!);
+        WaitFor(() => located == 2); // no other record: this one is kept
+        Assert.Empty(tracker.Read(memory, Module)!);
+
+        memory.SetOpen(false);
+        Assert.Empty(tracker.Read(memory, Module)!);
+        memory.SetOpen(true);
+        Assert.Equal([MenuScreens.MainMenu], tracker.Read(memory, Module));
     }
 
     [Fact]
@@ -108,6 +153,11 @@ public class MenuScreenTrackerTests
         WaitFor(() => scans == 3);
     }
 
+    private static void CountLocated(string line, ref int located)
+    {
+        if (line.StartsWith("MENU located", StringComparison.Ordinal)) Interlocked.Increment(ref located);
+    }
+
     private static void WaitFor(Func<bool> condition)
     {
         Assert.True(SpinWait.SpinUntil(condition, TimeSpan.FromSeconds(5)));
@@ -133,7 +183,18 @@ public class MenuScreenTrackerTests
             BinaryPrimitives.WriteInt64LittleEndian(_table.AsSpan((int)(RecordAddress - TableAddress) + ModulePointerOffset), ModulePointer);
         }
 
-        public void SetOpen(bool open) => BinaryPrimitives.WriteUInt32LittleEndian(_table.AsSpan((int)(RecordAddress - TableAddress) + FlagOffset), open ? 1u : 0u);
+        public void SetOpen(bool open) => SetOpen(RecordAddress, open);
+
+        public void SetOpen(long record, bool open) =>
+            BinaryPrimitives.WriteUInt32LittleEndian(_table.AsSpan((int)(record - TableAddress) + FlagOffset), open ? 1u : 0u);
+
+        // Another registry entry for the main menu, pointing to a record that validates.
+        public void AddEntry(int entryOffset, long record)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(_table.AsSpan(entryOffset + 8), ScreenRegistryReader.Hash(MenuScreens.MainMenu));
+            BinaryPrimitives.WriteInt64LittleEndian(_table.AsSpan(entryOffset + 16), record);
+            BinaryPrimitives.WriteInt64LittleEndian(_table.AsSpan((int)(record - TableAddress) + ModulePointerOffset), ModulePointer);
+        }
 
         // The UI rebuilt: the registry now points to a new record (closed); the old one still validates and reads open.
         public void MoveRecord(long to)

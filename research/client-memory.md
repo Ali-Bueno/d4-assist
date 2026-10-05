@@ -424,7 +424,10 @@ StoreDetails_v2, Mailbox_Right, and after a character switch InGameLogout, World
   makes the record invalid. **But a stale record can still validate** (live 2026-10-04): after a character switch,
   `screen_Hall_Of_Fallen_Heroes` read 1 from entering the open world for 6 minutes (Darkened Way included), muting every cue,
   while a fresh locate found its new record at another address reading 0. The app now locates every record again on each
-  world change (`MenuScreenTracker.Relocate`). The tabs of the character panel (`screen_Mercenary_Default`,
+  world change (`MenuScreenTracker.Relocate`), and (2026-10-05) counts a record as open only once it has been seen closed:
+  the stale record read open from the moment it was located, a real menu toggles from 0. A record read open first never
+  mutes, and a scan that skips it (`Locate(..., exclude)`) looks for the live record at once; the 15 s re-check stays as
+  a last resort for a record that goes stale after it was seen closed (not seen live). The tabs of the character panel (`screen_Mercenary_Default`,
 `screen_WarPlanActivities_Default`) open inside `screen_MenuPanel_Default`. `screen_InteractPopup` was open ~4 s during an
 interaction: the NPC interaction menu, watched since 2026-09-30.
 
@@ -477,6 +480,14 @@ view is mapped, so before the fix the app lost everything but the position on so
 tries discovery in each copy (the player's first), and reads the player record, the screens, the conversations and the
 quest phases from the copy that holds G. Unknown: whether the view's pages are the same memory under another protection
 (the writable-region filter would then hide them) or a stale copy.
+
+**The view can hold G too (live 2026-10-05, same build).** On another game start the view came first again and its data held
+G at the image's RVA 0x3670918, so discovery stopped there: no attribute table (its names point into the running copy), 0/89
+screens (their +0x58 points there too), `Self-check: Attributes FAILED` spoken as "maybe Diablo IV was updated". NPCs went
+silent (no interact flag) while gizmo loops and the radar kept working; a tester reported it as a game update breaking the
+app. So the view mirrors the image's live data at another base. `FindOffsets` now takes the first copy where the whole
+discovery succeeds (G and the attribute table), a copy with G alone only when none does; the log line names the copies
+passed over. Live after the fix: attributes ok, 89/89 screens, NPC taps back.
 
 **Structure layout check** (`D4Memory/SceneRoute/LayoutDiscovery.cs`, 2026-10-01): the slot fields live in the layout
 (`GameBuildOffsets.ActorFields`, `AcdOffsets.Fields`, `SceneRecordOffset`) instead of reader constants. At the first session

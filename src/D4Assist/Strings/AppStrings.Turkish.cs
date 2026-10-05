@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "nesnelerin durumu okunamıyor, kullanılmış nesneler ses çıkarmaya devam edebilir ve görevler izlenmez",
             [ReadCheck.Menus] = "oyun menüleri bulunamıyor, sesler menülerde duraklatılmayacak",
         },
-        ReadWarningFormat: "Uyarı: {0}. Diablo IV güncellenmiş olabilir. Lütfen günlüğü gönder.",
+        ReadWarningFormat: "Uyarı: {0}. Lütfen günlüğü gönder.",
         Stopped: "Yardımcı bir hata nedeniyle durdu. Lütfen günlüğü gönder.",
         UpdateAvailableFormat: "Diablo 4 Assist {0} kullanılabilir. Şimdi güncellensin mi?",
         UpdateDownloading: "Güncelleme indiriliyor.",

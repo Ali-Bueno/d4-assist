@@ -40,6 +40,23 @@ public class ScreenRegistryReaderTests
     }
 
     [Fact]
+    public void Locate_SkipsAnExcludedRecord()
+    {
+        // After a character switch a stale record validates as well as the live one (live 2026-10-04).
+        var memory = new FakeMemoryReader();
+        var table = new byte[0x1000];
+        Entry(table, 0x100, MenuScreens.MainMenu, RecordRegion);
+        Entry(table, 0x200, MenuScreens.MainMenu, LaterRegion);
+        memory.AddRegion(TableRegion, table, Private, ReadWrite);
+        memory.AddRegion(RecordRegion, Record(open: true), Private, ReadWrite);
+        memory.AddRegion(LaterRegion, Record(open: false), Private, ReadWrite);
+
+        var found = ScreenRegistryReader.Locate(memory, [MenuScreens.MainMenu], Module, new HashSet<long> { RecordRegion });
+
+        Assert.Equal(LaterRegion, found[MenuScreens.MainMenu]);
+    }
+
+    [Fact]
     public void Locate_IgnoresNonPrivateRegions()
     {
         var memory = new FakeMemoryReader();

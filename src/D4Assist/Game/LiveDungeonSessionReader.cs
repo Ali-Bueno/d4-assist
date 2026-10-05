@@ -155,18 +155,26 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer
     // is not always the one the player record is found in (live 2026-10-01: the player in the first copy, G only in another).
+    // A copy can hold G and still not be the one the game runs at (live 2026-10-05: the mapped view had G at the image's RVA
+    // but no attribute table, and 0/89 screens), because the attribute names and the screen records point into the running
+    // copy: the first copy where the whole discovery succeeds wins, and a copy with G alone only when none does.
     private static (GameBuildOffsets? Offsets, ModuleRange Module, string Report) FindOffsets(
         ProcessReader process, IReadOnlyList<MemoryRegion> regions, ModuleRange playerModule, List<MainModule> modules, uint build)
     {
         var misses = new List<string>();
+        (GameBuildOffsets Offsets, ModuleRange Module, string Report)? partial = null;
         var copies = modules.Select(m => new ModuleRange(m.Base, m.SizeOfImage)).OrderBy(m => m.Base == playerModule.Base ? 0 : 1);
         foreach (var module in copies)
         {
-            if (OffsetsFor(process, regions, module, build, out string report) is { } offsets)
-                return (offsets, module, $"addresses in 0x{module.Base:X}: {report}");
+            var offsets = OffsetsFor(process, regions, module, build, out string report);
             misses.Add($"0x{module.Base:X}: {report}");
+            if (offsets is null) continue;
+            string found = $"addresses in 0x{module.Base:X}: {report}";
+            if (offsets.Acd is not null)
+                return (offsets, module, misses.Count > 1 ? $"{found} (passed over {string.Join("; ", misses[..^1])})" : found);
+            partial ??= (offsets, module, found);
         }
-        return (null, playerModule, string.Join("; ", misses));
+        return partial ?? (null, playerModule, string.Join("; ", misses));
     }
 
     // The structure layout holds for the whole build: checked once per build and copy, when the pools could be read.

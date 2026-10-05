@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "impossible de lire l'état des objets, des objets déjà utilisés peuvent continuer à sonner et les quêtes ne sont pas suivies",
             [ReadCheck.Menus] = "menus du jeu introuvables, les sons ne se couperont pas dans les menus",
         },
-        ReadWarningFormat: "Attention : {0}. Diablo IV a peut-être été mis à jour. Envoyez le journal.",
+        ReadWarningFormat: "Attention : {0}. Envoyez le journal.",
         Stopped: "L'assistant s'est arrêté à cause d'une erreur. Envoyez le journal.",
         UpdateAvailableFormat: "Diablo 4 Assist {0} est disponible. Mettre à jour maintenant ?",
         UpdateDownloading: "Téléchargement de la mise à jour.",

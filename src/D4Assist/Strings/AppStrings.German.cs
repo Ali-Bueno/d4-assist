@@ -31,7 +31,7 @@ public sealed partial record AppStrings
             [ReadCheck.Attributes] = "Der Zustand der Objekte kann nicht gelesen werden, benutzte Objekte tönen eventuell weiter und Quests werden nicht verfolgt",
             [ReadCheck.Menus] = "Die Spielmenüs wurden nicht gefunden, die Töne pausieren dort nicht",
         },
-        ReadWarningFormat: "Warnung: {0}. Diablo IV wurde möglicherweise aktualisiert. Bitte sende das Protokoll.",
+        ReadWarningFormat: "Warnung: {0}. Bitte sende das Protokoll.",
         Stopped: "Der Assistent wurde wegen eines Fehlers beendet. Bitte sende das Protokoll.",
         UpdateAvailableFormat: "Diablo 4 Assist {0} ist verfügbar. Jetzt aktualisieren?",
         UpdateDownloading: "Das Update wird heruntergeladen.",

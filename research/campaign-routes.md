@@ -68,3 +68,20 @@ holds only a row of 6 invisible collision cubes at X≈−491, Y 22..59.
 - Whether the wisps exist only while a storm blows. That would give a "storm now" signal.
 - Whether the static player record (client-memory §3) resolves in `Sanctuary_Eastern_Continent`. It carries the
   world SNO, so it should (M), but it has only been seen live in dungeons and the Mercenary den.
+
+## 4. The Lycander crow (secret cow quest chain, Skovos)
+
+Lookup 2026-10-11, build 3.2.2.73764, CoreTOC + `QuestScriptMarkerReader` on the local install. A player asked to follow
+the "Large Crow" that flies a route in Lycander and resets if you fall behind (community guides, May 2026).
+
+- The secret chain's assets share the `OWCSMP` token (quests `OWCSMP_Raven`, `_Tracking`, `_Fire`, `_Secret_Ritual`…). The
+  crow step is quest `OWCSMP_Raven` (2546728); its MarkerSet is `Skov_Lycander (OWCSMP_Raven)` (2549003) (H).
+- The crow is `OWCSMP_Fly` (2547143): a sign gizmo (eType 2, gizmo 98), named by phase 138, placed at
+  (2655.3, −260.3, 22.9). `npc_crow` and the `*_Raven_*` actors are unrelated (H).
+- Three `Trigger_Sphere_16m` markers: phase 77 at (2627.1, −343.0), phase 141 at (2698.6, −167.4), phase 151 at
+  (2651.6, −257.2). They are 85–100 units apart, beyond the ~65-unit actor range (H for positions; L that they are the
+  crow's stops).
+- Lycander is part of `Sanctuary_Eastern_Continent` (chunks `_S28..S30_W02..W04` cover the route), so the app runs
+  there as `WorldKind.Overworld`: beacons and routes, no radar (H).
+- Open: the order of the stops (phase links not read), and whether the flying crow is `OWCSMP_Fly` itself moving or
+  another actor (needs a live `--debug` session in the step).

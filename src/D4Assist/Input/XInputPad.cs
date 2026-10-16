@@ -33,7 +33,7 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
 
     private readonly Func<int, ushort?> _readButtons;
     private readonly Action<string>? _log;
-    private readonly nint _library;
+    private nint _library;
     private readonly bool[] _held = new bool[MaxUsers];
     private readonly bool[] _connected = new bool[MaxUsers];
     private Timer? _timer;
@@ -84,10 +84,21 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
         }
     }
 
+    // A poll can take longer than this only when XInput itself hangs.
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(1);
+
     public void Dispose()
     {
-        _timer?.Dispose();
-        _timer = null;
-        if (_library != 0) NativeLibrary.Free(_library);
+        bool idle = true;
+        if (_timer is { } timer)
+        {
+            _timer = null;
+            // Freeing XInput under a poll still inside XInputGetState is an access violation: wait for it to return first.
+            var pollsDone = new ManualResetEvent(false);
+            idle = !timer.Dispose(pollsDone) || pollsDone.WaitOne(StopTimeout);
+            if (idle) pollsDone.Dispose(); // else the timer still signals it later
+        }
+        // A poll that never returned keeps the library: the process exit unloads it.
+        if (idle && _library != 0) { NativeLibrary.Free(_library); _library = 0; }
     }
 }

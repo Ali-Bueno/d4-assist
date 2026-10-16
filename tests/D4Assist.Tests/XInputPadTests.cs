@@ -5,6 +5,30 @@ namespace D4Assist.Tests;
 public class XInputPadTests
 {
     [Fact]
+    public async Task Dispose_waits_for_a_poll_still_running()
+    {
+        using var inPoll = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var pad = new XInputPad(_ => { inPoll.Set(); release.Wait(); return null; });
+        pad.Start();
+        Assert.True(inPoll.Wait(TimeSpan.FromSeconds(5)));
+
+        var disposing = Task.Run(pad.Dispose);
+        Assert.NotSame(disposing, await Task.WhenAny(disposing, Task.Delay(200)));
+
+        release.Set();
+        Assert.Same(disposing, await Task.WhenAny(disposing, Task.Delay(TimeSpan.FromSeconds(5))));
+    }
+
+    [Fact]
+    public void Dispose_without_start_or_twice_is_harmless()
+    {
+        var pad = new XInputPad(_ => null);
+        pad.Dispose();
+        pad.Dispose();
+    }
+
+    [Fact]
     public void Fires_on_the_press_edge_only_not_while_held()
     {
         ushort?[] slots = [0, null, null, null];

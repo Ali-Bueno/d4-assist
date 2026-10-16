@@ -15,7 +15,8 @@ namespace D4Assist.Game;
 /// quests' places), or when the player stands at the quest's own marker. It ends at its end (or last point), when the
 /// player leaves its area, or on a world change; a finished route doesn't restart in the same world visit. After each
 /// point the ping holds while the player stays there (a shelter is where they wait out the storm) and leads on once they
-/// step away. D-pad left mutes and unmutes the ping while a route leads.
+/// step away. D-pad left mutes and unmutes the ping while a route leads; a route that ends drops the mute, so the next
+/// one starts audible.
 /// </summary>
 public sealed class QuestRouteBridge
 {
@@ -168,6 +169,7 @@ public sealed class QuestRouteBridge
         _active = null;
         _guide = null;
         _holdAt = null;
+        _muted = false; // the mute is for the route leading now: the next one starts audible, as its announcement says
         _ping.Silence();
     }
 

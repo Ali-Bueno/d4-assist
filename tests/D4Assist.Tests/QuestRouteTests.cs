@@ -339,6 +339,26 @@ public class QuestRouteTests
     }
 
     [Fact]
+    public void A_muted_route_that_stops_restarts_audible()
+    {
+        var rig = new Rig();
+        rig.Move(Start);
+        rig.Pad.Press();
+        Assert.False(rig.Pings());
+
+        rig.Move(new Vector2(-900, 45)); // left the area: the route stops
+        rig.Move(Start);
+        Assert.True(rig.Pings());
+
+        rig.Pad.Press();
+        rig.Feed.RaiseWorld("DGN_Kehj_HakansRefuge");
+        rig.Feed.RaiseWorld(World);
+        rig.Move(Start);
+        Assert.True(rig.Pings());
+        Assert.Equal(["Guía de refugios.", "Guía desactivada.", "Guía de refugios.", "Guía desactivada.", "Guía de refugios."], rig.Speech.Texts);
+    }
+
+    [Fact]
     public void Other_worlds_never_start_the_route()
     {
         var rig = new Rig();

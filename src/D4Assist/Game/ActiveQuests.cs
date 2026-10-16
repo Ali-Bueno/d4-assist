@@ -102,8 +102,25 @@ public sealed class ActiveQuests(
         var named = questsHere(area());
         var candidates = named.Union(SubQuests([.. tracked, .. named, .. running.Keys])).Where(q => !running.ContainsKey(q))
             .ToDictionary(q => q, q => (IReadOnlySet<uint>)phases(q).Select(p => p.PhaseUid).ToHashSet());
-        var found = candidates.Count == 0 ? new Dictionary<int, long>() : QuestPhaseLocator.FindAll(memory, moduleData, candidates);
-        return _inProgressHere = running.Concat(found).ToDictionary();
+        if (candidates.Count == 0) return _inProgressHere = running;
+        var found = QuestPhaseLocator.FindAllCandidates(memory, moduleData, candidates);
+        foreach (var (quest, pairs) in found) LogCandidates(quest, pairs);
+        return _inProgressHere = running.Concat(found.Select(kv => KeyValuePair.Create(kv.Key, QuestPhaseLocator.Pick(kv.Value))))
+            .ToDictionary();
+    }
+
+    // Which pairs a search found, whenever that changes: a quest holding its pair in several spots (or a stray {quest, 0}) shows
+    // which one the phase is read at (live 2026-10-16: the Lost Archives read phase 0 from the entrance on).
+    private readonly Dictionary<int, string> _loggedCandidates = [];
+
+    private void LogCandidates(int quest, IReadOnlyList<PhaseCandidate> pairs)
+    {
+        if (pairs.Count == 0) return;
+        long read = QuestPhaseLocator.Pick(pairs);
+        string text = string.Join(", ", pairs.Select(p => $"0x{p.Address:X}={p.Phase}{(p.Address == read ? " (read)" : "")}"));
+        if (_loggedCandidates.GetValueOrDefault(quest) == text) return;
+        _loggedCandidates[quest] = text;
+        Console.WriteLine($"Quest phase pairs: {quest}: {text}.");
     }
 
     // The quests some phase of these quests waits on, and theirs: while one runs the game shows its phase in place of the
@@ -131,7 +148,9 @@ public sealed class ActiveQuests(
             uint? phase = quest.PhaseAddress is { } at ? QuestPhaseLocator.Read(memory, at, quest.Sno, quest.Uids) : null;
             if (phase is null && Now >= quest.NextSearch)
             {
-                quest.PhaseAddress = QuestPhaseLocator.Find(memory, moduleData, quest.Sno, quest.Uids) is [var found, ..] ? found : null;
+                var pairs = QuestPhaseLocator.FindCandidates(memory, moduleData, quest.Sno, quest.Uids);
+                LogCandidates(quest.Sno, pairs);
+                quest.PhaseAddress = pairs.Count > 0 ? QuestPhaseLocator.Pick(pairs) : null;
                 quest.NextSearch = Now + PhaseSearchInterval;
                 phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
             }

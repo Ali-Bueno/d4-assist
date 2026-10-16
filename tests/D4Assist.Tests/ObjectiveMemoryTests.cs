@@ -110,6 +110,31 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void An_objective_left_undone_twice_no_longer_returns_when_another_one_is_done()
+    {
+        // Live 2026-10-16, the Light's Watch: a lectern drew the guide back four times, and the second guard was never found.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0, id: 2), Altar(0, 100, id: 3));
+        for (int i = 0; i < ObjectiveMemory.MaxTimesLeft; i++)
+        {
+            feed.RaisePlayer(At(1, 0));
+            feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0));
+            if (i > 0) break;
+            feed.RaisePlayer(At(100, 0));
+            memory.Heard(Lever(0, 0), Altar(0, 100, id: 3)); // the first altar was used: the lever leads again
+            Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+        }
+
+        feed.RaisePlayer(At(0, 100));
+        memory.Heard(Lever(0, 0)); // the second altar was used
+        Assert.Empty(memory.Destinations());
+
+        memory.Rearm();
+        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
     public void Switching_the_guide_on_lets_a_reached_objective_lead_again()
     {
         var (feed, memory) = NewMemory();

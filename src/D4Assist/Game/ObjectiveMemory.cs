@@ -21,6 +21,9 @@ public sealed class ObjectiveMemory
     /// its use went unseen. The distance that confirms a silent one, so a player who used it learns that first.</summary>
     public const float LeaveUnits = ConfirmRadiusUnits;
 
+    /// <summary>An objective left undone this often stays set aside when another one is done; switching the guide on re-arms it.</summary>
+    public const int MaxTimesLeft = 2;
+
     /// <summary>Close enough to use an object or talk to an NPC, past the edge of its own footprint.</summary>
     public const float InteractUnits = 3f;
 
@@ -48,6 +51,8 @@ public sealed class ObjectiveMemory
         public bool AtIt { get; set; }
         /// <summary>Set aside: the player stood at it and walked away while it was still undone.</summary>
         public bool Reached { get; set; }
+        /// <summary>How often the player walked away from it undone.</summary>
+        public int TimesLeft { get; set; }
         /// <summary>Known only from the tile that places it or the map that marks it; cleared once heard.</summary>
         public bool PlacedOnly { get; set; }
         /// <summary>The game's map marks it now.</summary>
@@ -208,7 +213,7 @@ public sealed class ObjectiveMemory
                 objective.AtIt = false;
                 Log("done", objective);
             }
-            if (done.Count > 0) RearmReached();
+            if (done.Count > 0) RearmReached(MaxTimesLeft);
         }
     }
 
@@ -228,12 +233,14 @@ public sealed class ObjectiveMemory
     /// <summary>Lets the objectives the player walked away from lead again (the guide was just switched on by a lost player).</summary>
     public void Rearm()
     {
-        lock (_gate) RearmReached();
+        lock (_gate) RearmReached(int.MaxValue);
     }
 
-    private void RearmReached()
+    // Another objective done may have unlocked one set aside; one left undone MaxTimesLeft times waits for the guide's toggle
+    // (live 2026-10-16: the Light's Watch lectern drew the guide back four times, and the second guard was never found).
+    private void RearmReached(int belowTimesLeft)
     {
-        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached))
+        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft))
         {
             objective.Reached = false;
             Log("re-armed", objective);
@@ -256,6 +263,7 @@ public sealed class ObjectiveMemory
             {
                 objective.AtIt = false;
                 objective.Reached = true;
+                objective.TimesLeft++;
                 Log("left undone", objective);
             }
         }

@@ -18,6 +18,9 @@ public sealed class CarryGoals(ObjectiveClassifier objectives)
     /// <summary>True for the carryable in the player's hands: the copy that follows the player has no game record.</summary>
     public bool IsHeld(ActorState actor) => actor.ClientOnly && objectives.IsCarryable(actor.ActorSno);
 
+    /// <summary>For a carryable, whether it waits for the player's hands (they hold another one now); null for any other actor.</summary>
+    public bool? WaitsForHands(int actorSno) => objectives.IsCarryable(actorSno) ? _held.Count > 0 : null;
+
     /// <summary>For a receptacle, whether it takes the carryable the player holds now; null for any other actor.</summary>
     public bool? TakesHeld(int actorSno) =>
         objectives.IsReceptacle(actorSno) ? _held.Any(carryable => objectives.Accepts(actorSno, carryable)) : null;

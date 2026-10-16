@@ -178,6 +178,9 @@ public sealed class LoopTargetSelector
     /// <summary>For a receptacle, whether it takes the carryable the player holds now; null for any other actor (ObjectiveMemory).</summary>
     public bool? ReceptacleTakesHeld(int actorSno) => _carry?.TakesHeld(actorSno);
 
+    /// <summary>For a carryable, whether it waits while the player holds another one (CarryGoals.WaitsForHands); null for any other actor.</summary>
+    public bool? CarryableWaits(int actorSno) => _carry?.WaitsForHands(actorSno);
+
     // A dead monster's remains have no game record.
     private static bool IsQuestFoe(ActorState actor, ObjectiveClassifier objectives) =>
         actor.NamedByQuest && !actor.QuestStep && !actor.ClientOnly && objectives.IsBossOrUnique(actor.ActorSno);

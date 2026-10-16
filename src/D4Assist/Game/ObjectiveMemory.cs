@@ -59,6 +59,7 @@ public sealed class ObjectiveMemory
     private readonly Func<int, float?> _footprint;
     private readonly Func<int, bool?> _takesHeld;
     private readonly Func<int, (float X, float Y), bool> _locked;
+    private readonly Func<int, bool?> _carryableWaits;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
     private readonly List<Objective> _objectives = [];
@@ -74,10 +75,16 @@ public sealed class ObjectiveMemory
     /// <param name="footprint">Half the ground size of an actor's box (ActorDefinitionInfo bounds), so a big altar is reached at its
     /// edge; null for none.</param>
     /// <param name="locked">True for a door of that SNO at that spot the player can't open yet (LockedDoors.IsLocked); null for none.</param>
+    /// <param name="carryableWaits">For a carryable, whether the player's hands are full (LoopTargetSelector.CarryableWaits); null
+    /// for any other actor. A carryable falls silent while another is carried, so it is done only once it left the ground (picked up,
+    /// then delivered), and it leads only with empty hands (live 2026-10-16, the Lost Archives' second crate; the same in every
+    /// statue, bloodstone and carving dungeon, research/dungeon-objectives.md §14). Null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
-        Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null)
+        Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null,
+        Func<int, bool?>? carryableWaits = null)
     {
+        _carryableWaits = carryableWaits ?? (_ => null);
         _nameOf = nameOf;
         _triggerRadius = triggerRadius ?? (_ => null);
         _footprint = footprint ?? (_ => null);
@@ -93,7 +100,8 @@ public sealed class ObjectiveMemory
     {
         lock (_gate)
             return [.. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
-                .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position))
+                .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position)
+                    && _carryableWaits(x.Objective.Sno) != true)
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
                     x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius, Located(x.Objective)))];
     }
@@ -206,8 +214,10 @@ public sealed class ObjectiveMemory
 
     // Heard earlier: silent now. Not heard yet: its actor there is silent (used), or a tile's copy the map doesn't mark has no actor.
     // A door's or a trigger's copy loops as something else or not at all: it waits for the phase.
-    private static bool Ended(Objective objective, ObjectiveSighting seen) =>
-        !objective.PlacedOnly || Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
+    // A carryable: once no copy lies on the ground there (the one in the player's hands has no game record).
+    private bool Ended(Objective objective, ObjectiveSighting seen) =>
+        _carryableWaits(objective.Sno) is not null ? !Stands(objective, [.. seen.Present.Where(a => !a.ClientOnly)])
+        : !objective.PlacedOnly || Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
 
     // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to.
     private bool Located(Objective objective) => _objectives.Contains(objective) && (!objective.PlacedOnly || objective.Marked);

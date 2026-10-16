@@ -199,6 +199,47 @@ public class ObjectiveMemoryTests
         Assert.Equal(ObjectiveMemory.DungeonTier, Assert.Single(memory.Destinations(), d => d.Position == (0, 50)).Tier);
     }
 
+    [Fact]
+    public void A_crate_silent_while_another_is_carried_is_not_done_and_leads_again_once_the_hands_are_free()
+    {
+        // The Lost Archives' two crates (live 2026-10-16): carrying the first, the second fell silent beside it and was taken for
+        // done, so the guide never led back to it. The same in every statue, bloodstone and carving dungeon.
+        const int CrateSno = 983768;
+        bool holding = false;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, carryableWaits: sno => sno == CrateSno ? holding : null);
+        ActorState Crate(float x, uint id) => new(id, CrateSno, x, 0, 0, QuestStep: true);
+        var first = Crate(30, 11);
+        var second = Crate(33, 12);
+        feed.RaisePlayer(At(30, 0));
+        memory.Heard(first, second);
+        Assert.Equal(2, memory.Destinations().Count);
+
+        holding = true; // the first is picked up: its copy follows the player, the second waits silent beside it
+        var inHands = new ActorState(99, CrateSno, 30, 0, 0, ClientOnly: true);
+        memory.Observe(new ObjectiveSighting([], [second], [second, inHands]));
+        Assert.Empty(memory.Destinations()); // laden: the receptacle leads, not another crate
+
+        feed.RaisePlayer(At(100, 0)); // delivered far away, hands free again
+        holding = false;
+        memory.Observe(new ObjectiveSighting([], [], []));
+        Assert.Equal((33f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_crate_is_done_once_it_left_the_ground()
+    {
+        const int CrateSno = 983768;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, carryableWaits: sno => sno == CrateSno ? false : null);
+        feed.RaisePlayer(At(30, 0));
+        memory.Heard(new ActorState(11, CrateSno, 30, 0, 0, QuestStep: true));
+
+        memory.Observe(new ObjectiveSighting([], [], [new ActorState(99, CrateSno, 30, 0, 0, ClientOnly: true)])); // in the hands
+
+        Assert.Empty(memory.Destinations());
+    }
+
     // The Ancient Mausoleum's "chase Lilith" step (QST_Frac_Underworld2_02 phase 80, live 2026-10-01): a trigger to walk into.
     private const int TriggerSno = 42298;
 

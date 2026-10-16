@@ -51,6 +51,13 @@ public static class ActorFilter
             Invulnerable: Has(AcdFlagReader.Invulnerable));
     }
 
+    /// <summary>Locks the objects that belong to a quest not followed now (QuestOwnerIndex): the game lets nobody without that quest
+    /// use them, yet flags none of them (live 2026-10-16, the Light's Watch lecterns: <c>flags=none</c>).</summary>
+    /// <param name="ownerOf">The quest an actor SNO belongs to; null for none.</param>
+    /// <param name="followed">The quests followed now (ActiveQuests.Followed).</param>
+    public static IReadOnlyList<ActorState> LockOthersQuests(IReadOnlyList<ActorState> actors, Func<int, int?> ownerOf, IReadOnlyList<int> followed) =>
+        [.. actors.Select(a => !a.QuestStep && ownerOf(a.ActorSno) is { } quest && !followed.Contains(quest) ? a with { QuestLocked = true } : a)];
+
     /// <summary>Rotation about Z of a unit quaternion, from +X towards +Y.</summary>
     public static float Yaw(Quaternion q) =>
         MathF.Atan2(2 * (q.W * q.Z + q.X * q.Y), 1 - 2 * (q.Y * q.Y + q.Z * q.Z));

@@ -165,14 +165,22 @@ internal static class Program
         // Not triggers: a generic trigger SNO is placed all over a tileset; the map marks the copy a phase means (same doc, §19).
         var tileGizmos = new TileActorReader(
             markerScenes, sno => definitionOf(sno) is { GizmoType: >= 0 and not Conventions.GizmoTrigger } && !portalRule.IsPortal(sno));
+        // A quest chest belongs to the quest its name starts with (QuestOwnerIndex): silent while that quest isn't followed.
+        var questOwners = new QuestOwnerIndex(store.AllEntries(schema.SnoGroup("QuestDefinition")));
+        var chestOwners = new System.Collections.Concurrent.ConcurrentDictionary<int, int?>();
+        Func<int, int?> questOwner = sno => chestOwners.GetOrAdd(sno, s =>
+            definitionOf(s) is { GizmoType: Conventions.GizmoQuestChest } && store.Name(s) is { } name ? questOwners.OwnerOf(name) : null);
         // The world's own objective quest too: a seasonal hub's zone quest names its steps by actor, with no marker to find it by,
-        // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18).
+        // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18). And the quest of a
+        // quest chest nearby, so the chest sounds once its quest runs.
         Func<QuestSearchArea, IReadOnlyList<int>> questsHere = area =>
         {
+            var owners = area.Actors.Select(a => questOwner(a.ActorSno)).OfType<int>().ToList();
             lock (cascGate)
                 return [.. questScripts.QuestsWithMarkersIn(new[] { area.WorldSno }.Concat(area.Scenes).Select(store.Name).OfType<string>())
                     .Union(questScripts.QuestsNaming(area.Actors, ActiveQuests.MarkerReach))
-                    .Union(dpo.QuestSnos(area.WorldSno))];
+                    .Union(dpo.QuestSnos(area.WorldSno))
+                    .Union(owners)];
         };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
@@ -183,7 +191,7 @@ internal static class Program
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
-                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers),
+                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 

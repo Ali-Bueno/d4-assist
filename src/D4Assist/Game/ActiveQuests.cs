@@ -40,6 +40,9 @@ public sealed class ActiveQuests(
     public static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
 
     private int[] _followed = [];
+
+    /// <summary>The quests followed now: the tracked ones and those in progress here.</summary>
+    public IReadOnlyList<int> Followed => _followed;
     private List<FollowedQuest> _quests = [];
 
     /// <summary>How often a followed quest has moved on from a known phase; read from other threads.</summary>

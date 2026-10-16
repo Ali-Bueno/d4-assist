@@ -29,6 +29,28 @@ public class NavigationEngineTests
     }
 
     [Fact]
+    public void The_room_is_built_again_only_when_the_map_or_the_players_tile_changes()
+    {
+        var grid = FakeTileWalkability.GridFromRows([.. Enumerable.Repeat(new string('#', 32), 32)]);
+        var walkability = new FakeTileWalkability().Add(1, grid).Add(3, grid);
+        var engine = new NavigationEngine(walkability);
+        var east = new TileInput(3, "east", 0, 32, 32, 32, ExitMaskBits.West, 2, 2);
+        engine.OnTiles([JunctionTile, east]);
+
+        engine.OnPlayer(InTile, TimeSpan.Zero);
+        int afterFirst = walkability.Lookups;
+        for (int i = 1; i <= 20; i++) engine.OnPlayer(InTile with { X = 10 + i % 5 }, TimeSpan.FromMilliseconds(100 * i)); // walking inside the tile
+        Assert.Equal(afterFirst, walkability.Lookups);
+
+        engine.OnTiles([JunctionTile, east]); // the same window again, as every second
+        engine.OnPlayer(InTile, TimeSpan.FromSeconds(3));
+        Assert.Equal(afterFirst, walkability.Lookups);
+
+        engine.OnPlayer(new PlayerInput(16, 48, 0), TimeSpan.FromSeconds(4)); // into the next tile
+        Assert.True(walkability.Lookups > afterFirst);
+    }
+
+    [Fact]
     public void Staying_in_the_same_room_does_not_repeat_the_announcement()
     {
         var engine = new NavigationEngine();

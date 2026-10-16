@@ -78,7 +78,11 @@ public sealed class NpcCuePlayer : IDisposable
     public void Tick()
     {
         List<NpcAim> due;
-        lock (_gate) due = _schedule.TakeDue(_nowSeconds(), n => IntervalSeconds(n.DistanceUnits, RangeUnits) / Math.Max(Rate, MinRate));
+        lock (_gate)
+        {
+            if (_schedule.IsEmpty) return; // every 25 ms, mostly with nobody to tap: allocates nothing then
+            due = _schedule.TakeDue(_nowSeconds(), n => IntervalSeconds(n.DistanceUnits, RangeUnits) / Math.Max(Rate, MinRate));
+        }
 
         if (Volume <= 0) return; // keeps its schedule, plays nothing
         foreach (var npc in due)

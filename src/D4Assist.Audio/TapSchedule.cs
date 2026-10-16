@@ -26,6 +26,8 @@ public sealed class TapSchedule<TAim>(double staleSeconds)
         foreach (uint gone in _entries.Keys.Where(k => !aimed.Contains(k)).ToList()) _entries.Remove(gone);
     }
 
+    public bool IsEmpty => _entries.Count == 0;
+
     public void Clear() => _entries.Clear();
 
     /// <summary>The aims due at <paramref name="now"/>, most overdue first and at most <paramref name="max"/>; each one taken is

@@ -42,14 +42,21 @@ public sealed class AudioMixer
     private readonly List<LoopVoice> _loops = [];
     private readonly object _lock = new();
     private long _nextStartOrder;
+    // Render's mix bus, kept between calls: the audio thread renders 50 buffers a second.
+    private float[] _mix = [];
+
+    // The Play* calls come from the tick, the guide-ping and the NPC timers at once.
+    private long NextStartOrder() => Interlocked.Increment(ref _nextStartOrder);
 
     /// <summary><paramref name="samples"/> is mono, already cue-shaped by RadarCueSynth.
     /// <paramref name="pan"/> is -1..1. <paramref name="priority"/> follows RadarCueKindExtensions.Priority
-    /// and decides which voice is stolen first when the mixer is already at MaxVoices.</summary>
-    public void Play(float[] samples, double gain, double pan, int priority = 0)
+    /// and decides which voice is stolen first when the mixer is already at MaxVoices. <paramref name="delaySeconds"/> starts it
+    /// that much later, holding its voice meanwhile.</summary>
+    public void Play(float[] samples, double gain, double pan, int priority = 0, double delaySeconds = 0)
     {
         if (_paused) return;
-        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority, _nextStartOrder++);
+        int delayFrames = (int)Math.Round(Math.Max(0, delaySeconds) * AudioFormat.SampleRate);
+        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority, NextStartOrder(), delayFrames);
         lock (_lock)
         {
             if (_voices.Count >= MaxVoices)
@@ -72,7 +79,7 @@ public sealed class AudioMixer
     public void PlayGuide(float[] samples, double gain, double pan)
     {
         if (_paused) return;
-        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, _nextStartOrder++);
+        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, NextStartOrder());
         lock (_lock)
         {
             if (_guideVoices.Count >= MaxGuideVoices) _guideVoices.RemoveAt(0);
@@ -84,7 +91,7 @@ public sealed class AudioMixer
     public void PlayEntity(float[] samples, double gain, double pan)
     {
         if (_paused) return;
-        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, _nextStartOrder++);
+        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, NextStartOrder());
         lock (_lock)
         {
             if (_entityVoices.Count >= MaxEntityVoices) _entityVoices.RemoveAt(0);
@@ -101,7 +108,7 @@ public sealed class AudioMixer
     /// <summary>Plays a settings-window preview on its own single voice, replacing one still playing; audible even while <see cref="Paused"/>.</summary>
     public void PlayPreview(float[] samples, double gain, double pan)
     {
-        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, _nextStartOrder++);
+        var voice = new Voice(samples, gain, Math.Clamp(pan, -1.0, 1.0), priority: 0, NextStartOrder());
         lock (_lock)
         {
             _previewVoices.Clear();
@@ -157,10 +164,12 @@ public sealed class AudioMixer
     public void Render(short[] buffer, int frameCount)
     {
         int sampleCount = frameCount * AudioFormat.Channels;
-        var mix = new float[sampleCount];
 
         lock (_lock)
         {
+            if (_mix.Length < sampleCount) _mix = new float[sampleCount];
+            else Array.Clear(_mix, 0, sampleCount);
+            var mix = _mix;
             if (_paused)
             {
                 _voices.Clear(); _guideVoices.Clear(); _entityVoices.Clear(); _loops.RemoveAll(l => l.Stopping);
@@ -178,10 +187,10 @@ public sealed class AudioMixer
                 }
             }
             MixVoices(_previewVoices, mix, frameCount);
-        }
 
-        for (int i = 0; i < sampleCount; i++)
-            buffer[i] = (short)(SoftLimit(mix[i]) * short.MaxValue);
+            for (int i = 0; i < sampleCount; i++)
+                buffer[i] = (short)(SoftLimit(mix[i]) * short.MaxValue);
+        }
     }
 
     // Caller holds the lock; removes voices that finish.

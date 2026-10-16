@@ -101,6 +101,7 @@ internal static class Program
         // Checked before the slow loading: just started from the desktop, the app may still bring its question to the front.
         using var exit = new ManualResetEventSlim();
         bool restart = false, updated = false;
+        if (UpdatePackage.DeleteWorkFolders(Path.GetTempPath()) is { } cleaned) Console.WriteLine(cleaned); // the last update's download
         var updates = UpdateService.ForThisApp(speech, language, Console.WriteLine, () => { restart = updated = true; exit.Set(); });
         if (config.CheckForUpdates) { updates.CheckAtStart(); updates.CheckPeriodically(); }
 

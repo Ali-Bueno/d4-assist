@@ -20,16 +20,38 @@ public static class UpdatePackage
     /// <summary>Downloads, verifies and extracts <paramref name="release"/>; returns the folder holding the new files.</summary>
     public static async Task<string> PrepareAsync(ReleaseInfo release, ReleaseClient client, Action<int>? percentDone = null)
     {
+        // GitHub publishes a SHA-256 for every asset (every release from 0.1.0 on has one): a zip without it is not installed
+        // unchecked, nor even downloaded.
+        if (release.Sha256 is not { } sha256)
+            throw new InvalidDataException($"The release {release.Version.ToString(3)} publishes no SHA-256 for {ReleaseInfo.ZipAssetName}.");
         var work = WorkPath(release.Version);
         if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
         Directory.CreateDirectory(work);
         var zip = Path.Combine(work, ZipFileName);
         await client.DownloadAsync(release.ZipUrl, zip, percentDone);
-        if (release.Sha256 is not null && !Sha256Matches(zip, release.Sha256))
+        if (!Sha256Matches(zip, sha256))
             throw new InvalidDataException("The downloaded update does not match its published SHA-256.");
         var files = Path.Combine(work, ExtractedFolder);
         ZipFile.ExtractToDirectory(zip, files);
         return files;
+    }
+
+    /// <summary>Removes every update's work folder (zip, unpacked files, backups: ~100 MB each) under <paramref name="tempPath"/>.
+    /// Called at start, before any check: an update finishes or rolls back before the app restarts, so nothing there is
+    /// still needed. Never throws; returns what it did for the log, or null when there was nothing.</summary>
+    public static string? DeleteWorkFolders(string tempPath)
+    {
+        var root = Path.Combine(tempPath, WorkFolder);
+        if (!Directory.Exists(root)) return null;
+        try
+        {
+            Directory.Delete(root, recursive: true);
+            return $"Update: removed the temporary files in {root}.";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Update: could not remove {root}: {e.Message}";
+        }
     }
 
     /// <summary>True when the file's SHA-256 equals <paramref name="expectedHex"/> (any case).</summary>

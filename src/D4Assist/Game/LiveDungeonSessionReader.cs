@@ -103,6 +103,26 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             try { process = ProcessReader.Open(game.Id); }
             catch (InvalidOperationException e) { throw new GameUnreadableException(e.Message); }
         }
+        // Any failure from here on (the exe locked by an update, a read that throws) must not leak the process handle.
+        try
+        {
+            return OpenWith(process, installPath, candidates, playerActorSnos, worldSno, sceneSnos, menus, readsFlags, questMarkers,
+                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers);
+        }
+        catch
+        {
+            process.Dispose();
+            throw;
+        }
+    }
+
+    private static LiveDungeonSessionReader OpenWith(
+        ProcessReader process, string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno,
+        IReadOnlySet<int> sceneSnos, MenuScreenTracker? menus, Func<int, bool>? readsFlags,
+        Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers, ConversationAddresses? conversations,
+        Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, Func<int, bool>? isActorSno,
+        SwitchStateLog? switches, Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers)
+    {
         string exePath = Path.Combine(installPath, ExecutableFileName);
         // A store that keeps the exe outside the data root: identify the module by the running game's own file.
         if (!File.Exists(exePath) && ProcessLocator.ExecutablePath() is { } runningExe) exePath = runningExe;
@@ -110,10 +130,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         var modules = ModuleLocator.LocateAll(regions, process, exePath);
         uint build = PeHeaderReader.ReadFromFile(exePath).TimeDateStamp;
         if (modules.Count == 0)
-        {
-            process.Dispose();
             throw new GameUnreadableException($"game module not found in the process (installed exe build 0x{build:X8}).");
-        }
 
         PlayerRecordHit? player = null;
         ModuleRange liveModule = default;
@@ -128,7 +145,6 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (player is not { } found)
         {
             string records = DescribePlayerRecords(process, regions, modules, playerActorSnos, worldSno, sceneSnos);
-            process.Dispose();
             throw new GameUnreadableException($"player not found in world {worldSno}; {records}");
         }
 

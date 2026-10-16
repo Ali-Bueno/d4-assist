@@ -74,7 +74,19 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
                 int read = stream.Read(buffer, 0, toRead);
                 _position += ProcessCompleteLines(Encoding.UTF8.GetString(buffer, 0, read));
             }
-            catch (IOException) { } // file briefly locked while rotating; retried next poll
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { } // file briefly locked while rotating; retried next poll
+        }
+    }
+
+    // Runs on the timer thread, where an escaping exception ends the process; and a listener's IOException must not look like
+    // a locked file to PollOnce, which would then replay the same lines on every poll. Each listener runs on its own.
+    private static void Notify<T>(string feed, Action<T>? handlers, T value)
+    {
+        if (handlers is null) return;
+        foreach (var handler in handlers.GetInvocationList().Cast<Action<T>>())
+        {
+            try { handler(value); }
+            catch (Exception e) { Console.Error.WriteLine($"A {feed} listener failed on {value}: {e}"); }
         }
     }
 
@@ -86,9 +98,9 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
         string complete = text[..(lastNewline + 1)];
         foreach (var line in complete.Split('\n'))
         {
-            if (GameLocale.ExtractTextLocale(line) is { } locale) TextLocaleChanged?.Invoke(locale);
-            if (ExtractWorldEntry(line) is { } world) WorldChanged?.Invoke(world);
-            if (ExtractCutsceneState(line) is { } state) CutsceneStateChanged?.Invoke(state);
+            if (GameLocale.ExtractTextLocale(line) is { } locale) Notify("text locale", TextLocaleChanged, locale);
+            if (ExtractWorldEntry(line) is { } world) Notify("world", WorldChanged, world);
+            if (ExtractCutsceneState(line) is { } state) Notify("cutscene", CutsceneStateChanged, state);
         }
         return Encoding.UTF8.GetByteCount(complete);
     }

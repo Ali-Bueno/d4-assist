@@ -46,6 +46,25 @@ public class WorldLogWatcherTests
     }
 
     [Fact]
+    public void PollOnce_AFailingListener_NeitherEscapesNorReplaysTheLinesNorStarvesTheOthers()
+    {
+        string dir = MakeTempInstallDir();
+        string path = Path.Combine(dir, WorldLogWatcher.LogFileName);
+        File.WriteAllText(path, "");
+
+        using var watcher = new WorldLogWatcher(dir);
+        var seen = new List<string>();
+        watcher.WorldChanged += _ => throw new IOException("Diablo IV.exe is locked by the update");
+        watcher.WorldChanged += world => seen.Add(world.Name);
+
+        File.AppendAllText(path, $"{Marker}DGN_Naha_SleeplessHollow\n");
+        watcher.PollOnce();
+        watcher.PollOnce();
+
+        Assert.Equal(["DGN_Naha_SleeplessHollow"], seen);
+    }
+
+    [Fact]
     public void PollOnce_FiresCutsceneStateChangedWithTheState()
     {
         string dir = MakeTempInstallDir();

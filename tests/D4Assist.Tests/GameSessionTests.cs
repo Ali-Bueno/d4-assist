@@ -199,6 +199,143 @@ public class GameSessionTests
     }
 
     [Fact]
+    public void OpenSessionThrowingIOException_StaysIdleAndALaterRetryOpensIt()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        Exception? failure = new IOException("Diablo IV.exe is being used by another process");
+        var session = NewSession(feed, classifier, (_, _) => failure is { } e ? throw e : new FakeDungeonSessionReader());
+
+        feed.Raise(DungeonName);
+        Assert.Equal(SessionState.Idle, session.State);
+
+        failure = new UnauthorizedAccessException("Access to Diablo IV.exe is denied");
+        session.RetryOpenOnce();
+        Assert.Equal(SessionState.Idle, session.State);
+
+        failure = null;
+        session.RetryOpenOnce();
+        Assert.Equal(SessionState.InDungeon, session.State);
+    }
+
+    [Fact]
+    public void PollPlayerOnce_AReaderThatThrows_NeitherEscapesNorStopsTheNextPoll()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        var reader = new FakeDungeonSessionReader { NextPlayer = new PlayerState(1f, 2f, 3f, 1234), ReadFailure = new ObjectDisposedException("handle") };
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        int moves = 0;
+        session.PlayerMoved += _ => moves++;
+
+        session.PollPlayerOnce();
+        session.PollPlayerOnce();
+        reader.ReadFailure = null;
+        session.PollPlayerOnce();
+
+        Assert.Equal(1, moves);
+        Assert.Equal(SessionState.InDungeon, session.State);
+    }
+
+    [Fact]
+    public void PollActorsAndTilesOnce_AReaderThatThrows_NeitherEscapesNorStopsTheNextPoll()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        var reader = new FakeDungeonSessionReader { ReadFailure = new ArgumentOutOfRangeException("offset") };
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        int actorReads = 0, tileReads = 0;
+        session.ActorsUpdated += _ => actorReads++;
+        session.TilesUpdated += _ => tileReads++;
+
+        session.PollActorsOnce();
+        session.PollTilesOnce();
+        reader.ReadFailure = null;
+        session.PollActorsOnce();
+        session.PollTilesOnce();
+
+        Assert.Equal((1, 1), (actorReads, tileReads));
+    }
+
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
+
+    [Fact]
+    public async Task APlayerReadStillRunningAtAWorldChange_NeverReachesTheListenersAndClosesTheSessionWhenDone()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true).Map(OverworldName, OverworldSno, isDungeon: false);
+        var reader = new FakeDungeonSessionReader { NextPlayer = new PlayerState(1f, 2f, 3f, 1234) };
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        var events = new List<string>();
+        session.PlayerMoved += _ => { lock (events) events.Add("player"); };
+        session.WorldChanged += (_, name, _) => { lock (events) events.Add(name); };
+        using var inRead = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        reader.BeforeRead = () => { inRead.Set(); release.Wait(); };
+
+        var poll = Task.Run(session.PollPlayerOnce);
+        Assert.True(inRead.Wait(Patience));
+        feed.Raise(OverworldName);
+        Assert.Equal(0, reader.DisposeCount); // the read still uses its process handle
+
+        release.Set();
+        Assert.Same(poll, await Task.WhenAny(poll, Task.Delay(Patience)));
+        lock (events) Assert.Equal([OverworldName], events);
+        Assert.Equal(1, reader.DisposeCount);
+    }
+
+    [Fact]
+    public async Task AnActorTickWhileTheLastReadStillRuns_IsSkipped()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true);
+        var reader = new FakeDungeonSessionReader();
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        int reads = 0;
+        using var inRead = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        reader.BeforeRead = () => { Interlocked.Increment(ref reads); inRead.Set(); release.Wait(); };
+
+        var first = Task.Run(session.PollActorsOnce);
+        Assert.True(inRead.Wait(Patience));
+        session.PollActorsOnce();
+        Assert.Equal(1, reads);
+
+        release.Set();
+        Assert.Same(first, await Task.WhenAny(first, Task.Delay(Patience)));
+        session.PollActorsOnce();
+        Assert.Equal(2, reads);
+    }
+
+    [Fact]
+    public void AFullScanOverAWorldChange_DeliversNoTilesAndClosesTheSessionWhenDone()
+    {
+        var feed = new FakeWorldNameSource();
+        var classifier = new FakeClassifier().Map(DungeonName, DungeonSno, isDungeon: true).Map(OverworldName, OverworldSno, isDungeon: false);
+        var reader = new FakeDungeonSessionReader { NextRouteTiles = null }; // no route: the fallback scan runs
+        var session = NewSession(feed, classifier, (_, _) => reader);
+        feed.Raise(DungeonName);
+        int tileEvents = 0;
+        session.TilesUpdated += _ => Interlocked.Increment(ref tileEvents);
+        using var inScan = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        reader.BeforeRead = () => { inScan.Set(); release.Wait(); };
+
+        session.PollTilesOnce();
+        Assert.True(inScan.Wait(Patience));
+        feed.Raise(OverworldName);
+        Assert.Equal(0, reader.DisposeCount);
+
+        release.Set();
+        Assert.True(SpinWait.SpinUntil(() => reader.DisposeCount == 1, Patience));
+        Assert.Equal(0, tileEvents);
+    }
+
+    [Fact]
     public void AnUnreadableGame_CountsAgainstThePosition_AClosedOneDoesNot()
     {
         var feed = new FakeWorldNameSource();
@@ -495,15 +632,22 @@ public class GameSessionTests
         public IReadOnlyList<TileState>? NextRouteTiles { get; set; } = [];
         public IReadOnlyList<ActorState>? NextActors { get; set; } = [];
 
-        public PlayerState? ReadPlayer() => NextPlayer;
+        /// <summary>Thrown by every player, tile and actor read while set, like a read over memory that changed under it.</summary>
+        public Exception? ReadFailure { get; set; }
+
+        /// <summary>Runs at the start of every player, actor and full-scan read, e.g. to hold one on another thread.</summary>
+        public Action? BeforeRead { get; set; }
+
+        public PlayerState? ReadPlayer() { BeforeRead?.Invoke(); return ReadFailure is { } e ? throw e : NextPlayer; }
         public int RouteReads { get; private set; }
-        public IReadOnlyList<TileState>? ReadTilesViaRoute() { RouteReads++; return NextRouteTiles; }
-        public IReadOnlyList<ActorState>? ReadActors() => NextActors;
+        public IReadOnlyList<TileState>? ReadTilesViaRoute() { RouteReads++; return ReadFailure is { } e ? throw e : NextRouteTiles; }
+        public IReadOnlyList<ActorState>? ReadActors() { BeforeRead?.Invoke(); return ReadFailure is { } e ? throw e : NextActors; }
         public bool? NextCinematic { get; set; }
         public bool? ReadCinematic() => NextCinematic;
 
         public IReadOnlyList<TileState> ReadTilesViaFullScan()
         {
+            BeforeRead?.Invoke();
             Interlocked.Increment(ref FullScanCount);
             return [];
         }

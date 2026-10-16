@@ -114,6 +114,7 @@ internal static class Program
         }
         using var storeLifetime = store;
         var schema = definitionsPath is null ? LoadEmbeddedDefinitions() : TypeSchema.Load(definitionsPath);
+        LogSchemaCheck(store, schema, definitionsPath);
         var worldReader = new WorldReader(store, schema);
         var classifier = new WorldClassifier(store, worldReader, config.RadarOnlyWorlds, config.OutsideDungeonsEnabled);
 
@@ -407,6 +408,27 @@ internal static class Program
     {
         using var stream = typeof(Program).Assembly.GetManifestResourceStream(EmbeddedDefinitions)!;
         return TypeSchema.Load(stream);
+    }
+
+    // After a game patch the schema can go stale without a word: every offset would read garbage. The check reads ~100
+    // records (tens of ms) and logs which ones disagree, so a tester's log says whether definitions.json still fits.
+    private static void LogSchemaCheck(SnoStore store, TypeSchema schema, string? definitionsPath)
+    {
+        string source = definitionsPath ?? $"embedded, d4data {EmbeddedDefinitionsBuild() ?? "build unknown"}";
+        var result = SchemaCheck.Run(store, schema);
+        if (result.Passed)
+        {
+            Console.WriteLine($"Schema: definitions.json ({source}) fits game build {store.BuildVersion} ({result.Records} records checked).");
+            return;
+        }
+        Console.WriteLine($"Schema: definitions.json ({source}) does NOT fit game build {store.BuildVersion}, rooms, quests and objects "
+            + $"may read wrong: {string.Join("; ", result.Failures)} ({result.Records} records checked).");
+    }
+
+    private static string? EmbeddedDefinitionsBuild()
+    {
+        using var stream = typeof(Program).Assembly.GetManifestResourceStream("definitions-build.txt");
+        return stream is null ? null : new StreamReader(stream).ReadToEnd().Trim();
     }
 
     private static Dictionary<string, float[]>? LoadLoopSounds()

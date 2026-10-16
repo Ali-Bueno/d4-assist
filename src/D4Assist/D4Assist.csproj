@@ -42,6 +42,8 @@
     <None Update="d4assist.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
     <!-- d4data type registry (data/ is not in git: see README "Setup"), embedded in the exe: the default when DefinitionsPath is empty. -->
     <EmbeddedResource Include="..\..\data\definitions.json" LogicalName="definitions.json" Condition="Exists('..\..\data\definitions.json')" />
+    <!-- d4data's buildVersion.txt beside it, for the log only: it names d4data's latest build, not the one definitions.json was dumped from. -->
+    <EmbeddedResource Include="..\..\data\buildVersion.txt" LogicalName="definitions-build.txt" Condition="Exists('..\..\data\buildVersion.txt')" />
   </ItemGroup>
 
   <ItemGroup>

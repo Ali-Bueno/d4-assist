@@ -30,7 +30,8 @@ public class TvfsSnoArchiveRealDataTests
                     bool expectedFound, found;
                     byte[] expected, actual;
                     try { expectedFound = storage.TryReadSno(entry.Group, entry.Id, folder, out expected); }
-                    catch (CascEncryptedContentException) { continue; }
+                    // Optional content may not be downloaded (e.g. other languages' speech on a deDE-only install).
+                    catch (CascException e) when (e is CascContentNotFoundException or CascEncryptedContentException) { continue; }
                     found = archive.TryReadSno((int)entry.Group, entry.Id, folder, out actual);
                     Assert.Equal(expectedFound, found);
                     Assert.Equal(expected, actual);

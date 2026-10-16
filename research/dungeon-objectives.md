@@ -591,3 +591,27 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   now read on bosses and uniques too.
 - **Quest companions:** `S15_Warrior_NPC_Combat` 2628769 (`Follower_Quest` 2625608, `Is_NPC`, `Invulnerable`) is named by the
   phase and was looping as a kill target; a quest follower never loops now.
+
+## 21. Key doors and sealed doors: Derelict Lodge (offline, build 3.2.2, 2026-10-16)
+
+- **Report (tester, 2026-10-16, no log):** in `DGN_Frac_DerelictLodge` the guide kept leading to the locked door while the key
+  lay on a villager corpse, turned back to the first area's corners once the door was open, did the same at the second area's
+  sealed door (open once two monsters died), and never led on to the boss room.
+- **World (H):** `DGN_Frac_DerelictLodge` 486112 (DRLG, no placed scenes), level areas 486114, `_02` 603366, `_Boss` 607913
+  (named only by the quest), DPO `DPO_Frac_DerelictLodge` 604299.
+- **Phases (H for the callbacks, M for the order, read from the pairing of callbacks):** #4 pick up `DGN_Frac_DerelictLodge_Key`
+  1172070 (ev 18) by searching `Corpse_Frac_Villager_M_01` 528403 / `_F_01` 528405 (ev 32, need 5; gizmo 1, corpse sound);
+  #5 use `DRLG_Blocker_Protodun_Keep_DGN_Frac_DerelictLodge` 1172068 (ev 32; door gizmo, half-extents (0.5, 2.2, 2.2));
+  #6 enter `_02`; #0 kill `fallen_brute_cold_unique_DGN_Frac_derelictlodge_01` 742179 and `_02` 742180 (ev 42, need 2);
+  #1 hidden lore corpse 1216430; #2 kill `fallen_shaman_miniboss_cold` 732608; #3 enter `_Boss` 607913.
+- **The sealed door (L):** no quest actor names it. Either a door gizmo the game unlocks when the brutes die, or a server
+  spawned wall as in §13. Unconfirmed until a log of this dungeon.
+- **The boss room (H):** nothing offline places it (the DRLG graph is server-only, [dungeon-data](dungeon-data.md)); only the
+  map-marker list (§19, +0x38 level area) or the phase's enter trigger could locate it live.
+- **Cause in the app (M, from code):** a doorway is baked walkable and a closed door was a wall for the radar only, so the guide
+  routed through the locked door to the unexplored ground behind it. Once a door opened, nearest-first exploring preferred the
+  first area's leftovers. **App rules since 2026-10-16:** `LockedDoors` lays closed doors the game won't let the player use
+  (`QuestLocked` = quest-restricted and not the current step, or `ScriptDisabled`) and doors tried and left closed on the guide's
+  routes; an objective at such a door never leads; when any barrier falls the guide explores what it held back first. Not
+  live-tested: whether the blocker reads quest-locked during phase #4 is unknown (if it reads usable and loops as the quest step,
+  the "tried" rule covers it after one visit). `DOOR …` lines in the log tell which.

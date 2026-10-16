@@ -6,7 +6,7 @@ namespace D4Assist.Game;
 /// Remembers the objective loops heard in the current dungeon (quest steps, dungeon objectives) so the exploration guide
 /// can lead back to one out of earshot. One that falls silent near the player is done. One the player stood at stays the goal
 /// until it is done; walked away from undone, it waits until another objective is done (a key found may open the door visited
-/// earlier) or the guide is switched on again.
+/// earlier) or the guide is switched on again. A door the player can't open yet (LockedDoors) never leads.
 /// The places the active quest's current phase names (a trigger to walk into: "chase Lilith") lead in the quest tier too,
 /// until the phase moves on: reaching one is not the end of the step (live 2026-10-01: phase 154's trigger is one of the
 /// step's hidden callbacks; the shown one waits for a group of enemies), so the guide holds there (ExplorationGuideBridge).
@@ -58,6 +58,7 @@ public sealed class ObjectiveMemory
     private readonly Func<int, float?> _triggerRadius;
     private readonly Func<int, float?> _footprint;
     private readonly Func<int, bool?> _takesHeld;
+    private readonly Func<int, (float X, float Y), bool> _locked;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
     private readonly List<Objective> _objectives = [];
@@ -72,25 +73,27 @@ public sealed class ObjectiveMemory
     /// (research/dungeon-objectives.md §14). Null for none.</param>
     /// <param name="footprint">Half the ground size of an actor's box (ActorDefinitionInfo bounds), so a big altar is reached at its
     /// edge; null for none.</param>
+    /// <param name="locked">True for a door of that SNO at that spot the player can't open yet (LockedDoors.IsLocked); null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
-        Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null)
+        Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null)
     {
         _nameOf = nameOf;
         _triggerRadius = triggerRadius ?? (_ => null);
         _footprint = footprint ?? (_ => null);
         _takesHeld = takesHeld ?? (_ => null);
+        _locked = locked ?? ((_, _) => false);
         _log = log;
         feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
-    /// <summary>The objectives to lead to: looping when last heard and not set aside; quest steps in <see cref="QuestTier"/>.</summary>
+    /// <summary>The objectives to lead to: looping when last heard, not set aside and not a locked door; quest steps in <see cref="QuestTier"/>.</summary>
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
             return [.. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
-                .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false)
+                .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position))
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
                     x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius, Located(x.Objective)))];
     }

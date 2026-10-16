@@ -204,14 +204,16 @@ internal static class Program
         var doors = config.RadarClosedDoorsEnabled ? new DoorObstacles(interactables, definitionOf) : null;
         var radarWorld = new DungeonRadarWorld(walkability);
         _ = new RadarBridge(session, radarWorld, radarPlayer, radarSettings, diagnostics: debug, doors);
-        // Barrier walls a dungeon raises until its objective is done: walls for the radar and the guide while they stand.
-        if (config.LiveBarriersEnabled)
-            _ = new BarrierBridge(session, new BarrierObstacles(store.Name, definitionOf, Console.WriteLine),
-                cells => { navigation.SetBlockedCells(cells); radarWorld.SetBarriers(cells); });
+        // Barrier walls a dungeon raises until its objective is done: walls for the radar and the guide while they stand. Doors the
+        // player can't open yet: walls for the guide only (the radar sounds every closed door).
+        var lockedDoors = new LockedDoors(doors ?? new DoorObstacles(interactables, definitionOf), store.Name, Console.WriteLine);
+        _ = new BarrierBridge(
+            session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
+            radarWorld.SetBarriers, navigation.SetBlockedCells);
 
         var loopMemory = loopSounds is null ? null : StartLoops(
             session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, dpo, portalRule,
-            scene => { lock (cascGate) return tilePortals.In(scene); }, cue => liveSound.Current.Level(cue));
+            scene => { lock (cascGate) return tilePortals.In(scene); }, cue => liveSound.Current.Level(cue), lockedDoors.IsLocked);
         var portals = loopMemory?.Portals;
         var objectives = loopMemory?.Objectives;
         using var npcTap = new NpcCuePlayer(mixer);
@@ -279,7 +281,7 @@ internal static class Program
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
                 pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations,
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
-                objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); });
+                objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); });
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
@@ -402,7 +404,8 @@ internal static class Program
     private static LoopMemory StartLoops(
         GameSession session, AudioMixer mixer, Dictionary<string, float[]> sounds, AppConfig config, SnoStore store, TypeSchema schema,
         object cascGate, bool debug, Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables,
-        DungeonObjectiveReader dpo, PortalClassifier portalRule, Func<int, IReadOnlyList<TileActor>> tilePortals, Func<SoundCue, CueLevel> levelOf)
+        DungeonObjectiveReader dpo, PortalClassifier portalRule, Func<int, IReadOnlyList<TileActor>> tilePortals, Func<SoundCue, CueLevel> levelOf,
+        Func<int, (float X, float Y), bool> lockedDoor)
     {
         int actorGroup = schema.SnoGroup(ActorDefinitionType);
         var beaconSnos = BeaconTargets.Resolve(
@@ -427,7 +430,7 @@ internal static class Program
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
-            sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null);
+            sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor);
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(

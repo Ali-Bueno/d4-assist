@@ -279,6 +279,14 @@ the wall crosses into regions and never routes through it, src/D4Assist.Navigati
 `DungeonRadarWorld.SetBarriers` (wall cells). The log always says `BARRIER standing …` and `BARRIER gone …`. Config
 `LiveBarriersEnabled` (research/dungeon-objectives.md §13).
 
+`Game/LockedDoors` adds, for the guide's routes only (the radar sounds every closed door), the closed doors the player can't open
+yet: the game won't let them be used (`QuestLocked` or `ScriptDisabled`, e.g. a key door before its key), or the player stood
+within 3 units of the door and walked 20 away with it still closed (tried). A tried door waits until its quest state
+(`Unusable`, `QuestStep`, `NamedByQuest`) changes or the guide is switched on; any locked door is open once seen open, or missing
+within 15 units of its spot, and stays a wall while the client drops it far away. An objective at a locked door never leads
+(`ObjectiveMemory`). The log always says `DOOR locked|unlocked|tried|re-armed|open …`. When a barrier or locked door falls, the
+guide explores the ground it held back first (src/D4Assist.Navigation/README.md).
+
 ## Cutscenes
 
 `Game/CutscenePause` sets `AudioMixer.Paused` on the log's `ptCutscene->m_eCutsceneState: PLAYBACK` line. A paused
@@ -318,7 +326,9 @@ silent within 20 units of the player is done (used, locked or removed). The guid
 walk-grid path to the floor within reach of the object, not a straight line through what stands before it) and, once the player is
 within reach (3 units past the edge of the actor's box, a trigger's own radius), chimes once and holds silent while the objective's
 own loop sounds; a step away it points again. One the player stood at and then walked 20 units away from, still undone, is passed
-over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again.
+over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again. A door
+the player can't open yet is a wall for the guide and never its goal; once it or a barrier falls, the ground past it is explored
+before the ground left behind (Barriers in the radar and the guide).
 A gizmo the current phase names is a goal before it is heard: where a loaded tile places it (not triggers: the map marks the copy
 a phase means) or where the game's map marks it (research/dungeon-objectives.md §19-20). Near the player it is done once its actor
 is silent (used); a tile's copy with no actor there was never spawned; one standing there that loops as something else (a door) or

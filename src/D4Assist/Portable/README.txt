@@ -125,9 +125,14 @@ those yet. Against the Echo of Diablo, the gates it summons its clones from
 play the quest sound from far away, and the boss goes quiet while nothing can
 hurt it: break the gates and it can be hit again.
 
-Barriers. Some dungeons block a path with a wall until you kill someone. While
-the wall is there, the radar hears it as a wall and the guide doesn't send you
-behind it. Once it opens, the guide counts with that part again.
+Barriers and locked doors. Some dungeons block a path with a wall until you
+kill someone, or with a door you can't open yet (it needs a key, or it opens
+once some monsters die). While the wall is there, the radar hears it as a wall,
+and the guide doesn't send you behind the wall or the locked door. If you stand
+at a closed door and walk away without it opening, the guide also takes it as
+locked, until your quest moves on or you turn the guide off and on again. Once
+a wall or a locked door opens, the guide takes you through it first, before
+going back to anything you left behind.
 
 Silence. All the sounds stop during conversations, cutscenes, game menus and
 when you switch to another window.

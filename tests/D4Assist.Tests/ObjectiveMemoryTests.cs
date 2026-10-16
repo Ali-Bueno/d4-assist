@@ -77,6 +77,21 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_door_the_player_cant_open_yet_never_leads()
+    {
+        var feed = new FakeFeed();
+        bool locked = true;
+        var memory = new ObjectiveMemory(feed, NameOf, locked: (sno, at) => locked && sno == LeverSno && at == (50, 0));
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(50, 0, quest: true), Altar(0, 50));
+
+        Assert.Equal((0f, 50f), Assert.Single(memory.Destinations()).Position);
+
+        locked = false; // the key found
+        Assert.Equal(2, memory.Destinations().Count);
+    }
+
+    [Fact]
     public void An_objective_walked_away_from_undone_waits_until_another_one_is_done()
     {
         var (feed, memory) = NewMemory();

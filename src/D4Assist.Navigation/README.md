@@ -87,7 +87,10 @@ its free part or closes it (never a midpoint fallback), and `RoomWalkGrid` leave
 floor loses cells is split into its 4-connected floor regions (`TileRegions`), one graph node each; openings and room-internal
 crossings join only the regions their cells touch. The player starts in the region holding (or nearest) their position, an
 unexplored tile counts when any of its regions is reached, and an objective or portal needs its own point's region. The set is
-compared by content (a fresh equal set is free); a different one rebuilds the graph, and `Reset` clears it.
+compared by content (a fresh equal set is free); a different one rebuilds the graph, and `Reset` clears it. When cells go (a
+door unlocked, a wall gone), the next step notes what the player could reach with the old set (tiles, and dead exits by id):
+exploring then picks only targets past it while any is left, so the guide goes on through the door instead of back to nearer
+corners (tester, Derelict Lodge, 2026-10-16); with none left, nearest-first again.
 
 ## D2R correspondence
 

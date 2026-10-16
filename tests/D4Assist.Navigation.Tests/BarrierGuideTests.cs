@@ -51,6 +51,31 @@ public class BarrierGuideTests
     }
 
     [Fact]
+    public void Once_a_barrier_falls_the_ground_past_it_leads_before_nearer_ground_left_behind()
+    {
+        // Tester, Derelict Lodge (2026-10-16): past the door just unlocked, the guide turned back to the first area's corners.
+        var (map, guide) = Corridor();
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5));
+        Assert.Equal("tile:0,0", guide.Step(Centre(1)).Target!.Id);
+
+        guide.SetBlockedCells(new HashSet<(int X, int Y)>());
+        Assert.Equal("tile:0,6", guide.Step(Centre(1)).Target!.Id);
+
+        map.MarkVisited(Half, 6 * 32 + Half);
+        Assert.Equal("tile:0,0", guide.Step(Centre(1)).Target!.Id);
+    }
+
+    [Fact]
+    public void A_barrier_that_only_rises_keeps_the_nearest_ground_first()
+    {
+        var (_, guide) = Corridor();
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5));
+        guide.SetBlockedCells(WallAcross(BarrierTile * 32 + 5).Concat(WallAcross(BarrierTile * 32 + 6)).ToHashSet());
+
+        Assert.Equal("tile:0,0", guide.Step(Centre(1)).Target!.Id);
+    }
+
+    [Fact]
     public void Ground_left_only_behind_a_barrier_is_all_explored()
     {
         var (_, guide) = Corridor(alsoVisited: 0);

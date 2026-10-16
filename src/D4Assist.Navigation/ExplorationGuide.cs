@@ -5,7 +5,7 @@ namespace D4Assist.Navigation;
 /// whose far side never loaded (a frontier); with nothing left, to the caller's known destinations (portals seen earlier).
 /// "Nearest" is route length over the tile graph, plus the straight distance on to an objective known beyond the explored map; the next
 /// waypoint is the look-ahead point on the room's walk-grid path to the opening that leaves the player's room, or to the objective itself
-/// once it is in the player's room.
+/// once it is in the player's room. Once a barrier falls (a door unlocked, a wall gone) the ground it held back is explored first.
 /// </summary>
 public sealed class ExplorationGuide
 {
@@ -42,6 +42,11 @@ public sealed class ExplorationGuide
     private int _recheckVersion;
     private BlockedCells _blocked = BlockedCells.None;
     private int _blockedVersion;
+    // The barriers as they stood before some fell, until the next step notes the ground they held back.
+    private BlockedCells? _beforeOpening;
+    // What the player could reach before the last barrier fell (tiles, and dead exits by id): it waits while ground past it is left.
+    private HashSet<(int, int)> _behindTiles = [];
+    private HashSet<string> _behindFrontiers = [];
     private int _round = 1;
     private bool _rechecking;
     private bool _cachedExitMissing;
@@ -71,6 +76,7 @@ public sealed class ExplorationGuide
     public void SetBlockedCells(IReadOnlySet<(int X, int Y)> cells)
     {
         if (_blocked.Cells.SetEquals(cells)) return;
+        if (!_blocked.Cells.IsSubsetOf(cells)) _beforeOpening ??= _blocked;
         _blocked = new BlockedCells(cells);
         _blockedVersion++;
     }
@@ -86,6 +92,9 @@ public sealed class ExplorationGuide
         _round = 1;
         _rechecking = false;
         _blocked = BlockedCells.None;
+        _beforeOpening = null;
+        _behindTiles = [];
+        _behindFrontiers = [];
         _graph = null;
         _graphVersion = -1;
         _current = null;
@@ -105,6 +114,11 @@ public sealed class ExplorationGuide
         if (_map.TileAt(player.X, player.Y) is not { } tile) return GuideStep.Unknown;
 
         var graph = CurrentGraph();
+        if (_beforeOpening is { } before)
+        {
+            _beforeOpening = null;
+            NoteBehind(before, tile, player);
+        }
         MarkSeenNeighbours(graph, tile, player);
         SpendReachedFrontiers(graph, player);
         if (exitMissing && _rechecking) MarkRechecked(graph, player);
@@ -154,6 +168,7 @@ public sealed class ExplorationGuide
         var exploring = Candidates(routes, start).ToList();
         if (_current is { } previous && objectiveCandidates.Concat(exploring).All(c => c.Target.Id != previous.Target.Id) && Reached(previous, here))
             Arrivals++;
+        exploring = PastOpeningFirst(exploring);
         // An objective known beyond the explored map (the game's map marks it): explore the way towards it, as a sighted player would.
         var waiting = objectiveCandidates.Count > 0 ? [] : Waiting(graph, routes, objectives);
         if (waiting.Count > 0)
@@ -185,6 +200,28 @@ public sealed class ExplorationGuide
         var waypoint = Waypoint(hops, chosen, player, out var remaining);
         var toward = waiting.Count > 0 && exploring.Contains(chosen) ? waiting.MinBy(w => TileRoutes.Distance(chosen.Target.Position, w.Position)) : null;
         return new GuideStep(status, chosen.Target, waypoint, remaining, Arrivals, _rechecking ? _round : 0, toward);
+    }
+
+    // A dungeon goes on through the door it just unlocked: the ground a barrier held back leads, the ground left behind waits
+    // until none of it is left (tester, Derelict Lodge, 2026-10-16: the guide turned back to the first area's corners).
+    private void NoteBehind(BlockedCells before, MapTile tile, PlayerInput player)
+    {
+        var graph = TileGraph.Build(_map, _walkability, before);
+        if (graph.NodeAt(tile, (player.X, player.Y)) is not { } start) return;
+        var routes = TileRoutes.From(start, (player.X, player.Y));
+        _behindTiles = [.. routes.Reached.Select(n => TileGraph.Key(n.Tile))];
+        _behindFrontiers = [.. routes.Reached.SelectMany(n => n.Hops.Where(h => h.To is null).Select(h => FrontierId(n, h.Opening)))];
+    }
+
+    private List<Candidate> PastOpeningFirst(List<Candidate> exploring)
+    {
+        if (_behindTiles.Count == 0) return exploring;
+        var past = exploring.Where(c => c.FrontierHop is null
+            ? !_behindTiles.Contains(TileGraph.Key(c.Node.Tile)) : !_behindFrontiers.Contains(c.Target.Id)).ToList();
+        if (past.Count > 0) return past;
+        _behindTiles = [];
+        _behindFrontiers = [];
+        return exploring;
     }
 
     // The located objectives of the lowest tier among those the routes can't reach yet: on a tile not loaded, or cut off.

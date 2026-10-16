@@ -84,10 +84,14 @@ public sealed class ActiveQuests(
         public bool RequirePhase { get; init; }
         public DateTime NextSearch { get; set; } = DateTime.MinValue;
 
-        // The current phase. Before the phase is ever found, every phase (a later step can then sound early);
-        // once seen, a lost phase names nothing: the quest ended while it stays tracked (live 2026-09-30, ~50 s).
+        // The current phase. Before the phase is ever found, every phase's actors (a later step can then sound early), but no
+        // world-space marker: those of every phase span worlds, and the guide led to one in another world (live 2026-10-16:
+        // tracked quest 1931517 named Neyrelle's archive spots in the Light's Watch); once seen, a lost phase names nothing: the quest ended while it
+        // stays tracked (live 2026-09-30, ~50 s).
         public IEnumerable<QuestPhaseObjects> Current =>
-            Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : Phases;
+            Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : _anyPhase ??= [.. Phases.Select(p => p with { Markers = [] })];
+
+        private IReadOnlyList<QuestPhaseObjects>? _anyPhase;
     }
 
     // The quests named in the area, or handed over to by a followed quest, whose {quest, phase} pair the module data holds, plus

@@ -105,6 +105,19 @@ public class ActiveQuestsTests
         Assert.Equal(Bases, named.Markers);
     }
 
+    // Live 2026-10-16: tracked quest 1931517, phase never found, led the guide in the Light's Watch to Neyrelle's archive spots
+    // in another world; its phases' actors may still sound.
+    [Fact]
+    public void A_tracked_quest_whose_phase_is_unknown_names_its_actors_but_no_world_marker()
+    {
+        var quests = Create(new ModuleReader());
+
+        var named = quests.Update(tracked: [FieldsOfRuin, CampaignQuest], AreaWith(PetalSno));
+
+        Assert.Empty(named.Markers);
+        Assert.Equal([PetalSno], named.ActorSnos);
+    }
+
     // Finds a quest by one of its objects, as QuestScriptMarkerReader.QuestsNaming does.
     private static ActiveQuests Create(ModuleReader memory, Func<DateTime>? clock = null) =>
         new(memory, memory.Regions(), q => Phases.GetValueOrDefault(q) ?? [],

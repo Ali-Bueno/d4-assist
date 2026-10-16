@@ -6,16 +6,16 @@ public class AnnouncementPolicyTests
 {
     private static readonly PlayerInput Player = new(16, 16, 0);
 
-    private static Room JunctionRoom(bool unexplored = true)
+    private static Room JunctionRoom(bool unexplored = true, float originX = 0)
     {
-        var tile = new MapTile(new TileInput(1, "t", 0, 0, 32, 32, 0, 1, 1));
+        var tile = new MapTile(new TileInput(1, "t", originX, 0, 32, 32, 0, 1, 1));
         var openings = new[]
         {
-            new RoomOpening(ExitSide.North, (0f, 16f), unexplored),
-            new RoomOpening(ExitSide.South, (32f, 16f), unexplored),
-            new RoomOpening(ExitSide.East, (16f, 32f), unexplored),
+            new RoomOpening(ExitSide.North, (originX, 16f), unexplored),
+            new RoomOpening(ExitSide.South, (originX + 32f, 16f), unexplored),
+            new RoomOpening(ExitSide.East, (originX + 16f, 32f), unexplored),
         };
-        return new Room(new RoomKey(0, 0, true), new[] { tile }, openings);
+        return new Room(new RoomKey(originX, 0, true), new[] { tile }, openings);
     }
 
     private static Room CorridorRoom()
@@ -76,6 +76,28 @@ public class AnnouncementPolicyTests
 
         Assert.NotNull(first);
         Assert.Null(second);
+    }
+
+    [Fact]
+    public void Another_room_that_reads_the_same_is_announced_even_after_a_silent_corridor()
+    {
+        var policy = new AnnouncementPolicy();
+        var first = policy.Describe(JunctionRoom(), Player).Text;
+        Assert.Null(policy.Describe(CorridorRoom(), Player).Text);
+        var second = policy.Describe(JunctionRoom(originX: 64), new PlayerInput(80, 16, 0)).Text;
+
+        Assert.NotNull(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void Back_in_the_same_room_after_a_silent_corridor_with_nothing_new_stays_quiet()
+    {
+        var policy = new AnnouncementPolicy();
+        policy.Describe(JunctionRoom(), Player);
+        policy.Describe(CorridorRoom(), Player);
+
+        Assert.Null(policy.Describe(JunctionRoom(), Player).Text);
     }
 
     [Fact]

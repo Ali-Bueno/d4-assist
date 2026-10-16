@@ -64,8 +64,11 @@ get there. Press it again to turn it off. When you turn it on, it tells you wher
 where your quest wants you (even if you don't have the quest tracked), then to objectives you already heard and haven't
 done, then to unexplored stuff, and when everything's explored, to a portal. It's on by default in the Undercity and the
 Pit, and off in normal dungeons. It knows where your quest's objective is even when it's far away, if the game marks it on
-the map (a door or a lever at the other end of the dungeon). In the big seasonal dungeons with side dungeons inside, it
-also leads to the side dungeons' entrances you haven't used yet, even before you've seen them.
+the map (a door or a lever at the other end of the dungeon), and if that's somewhere you haven't explored yet, it explores
+toward it. At an objective it plays three notes and goes quiet until you use it, so the object's own sound guides the last
+steps; step away and it points you back. If you walk well away from it without using it (say it needs a key), it moves on.
+In the big seasonal dungeons with side dungeons inside, it also leads to the side dungeons' entrances you haven't used yet,
+even before you've seen them.
 
 **Sounds on things.** They repeat from where the thing is, louder as you get closer:
 
@@ -87,8 +90,11 @@ Akarat's lights and the Horadric Guardian's vessels, but I haven't tested those 
 it summons its clones from play the quest sound from far away, and the boss goes quiet while nothing can hurt it: break the
 gates and it can be hit again.
 
-**Barriers.** Some dungeons block a path with a wall until you kill someone. While the wall is there, the radar hears it
-as a wall and the guide doesn't send you behind it. Once it opens, the guide counts with that part again.
+**Barriers and locked doors.** Some dungeons block a path with a wall until you kill someone, or with a door you can't
+open yet (it needs a key, or it opens once some monsters die). While the wall is there, the radar hears it as a wall, and
+the guide doesn't send you behind the wall or the locked door. If you stand at a closed door and walk away without it
+opening, the guide also takes it as locked, until your quest moves on or you turn the guide off and on again. Once a wall
+or a locked door opens, the guide takes you through it first, before going back to anything you left behind.
 
 **Silence.** All the sounds stop during conversations, cutscenes, game menus and when you switch to another window.
 

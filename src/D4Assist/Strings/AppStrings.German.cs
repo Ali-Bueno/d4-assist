@@ -44,5 +44,6 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0} %",
         UpdatedToFormat: "Auf Version {0} aktualisiert.",
         GuideDungeonsOnly: "Die Führung funktioniert nur in Dungeons.",
-        ShelterRouteEnd: "Unterschlupf-Führung beendet.");
+        ShelterRouteEnd: "Unterschlupf-Führung beendet.",
+        DebugMode: "Debug-Modus aktiv.");
 }

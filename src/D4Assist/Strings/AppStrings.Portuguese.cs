@@ -44,5 +44,6 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Atualizado para a versão {0}.",
         GuideDungeonsOnly: "O guia só funciona em masmorras.",
-        ShelterRouteEnd: "Guia de abrigos concluído.");
+        ShelterRouteEnd: "Guia de abrigos concluído.",
+        DebugMode: "Modo de depuração ativo.");
 }

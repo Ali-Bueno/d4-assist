@@ -44,5 +44,6 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Zaktualizowano do wersji {0}.",
         GuideDungeonsOnly: "Przewodnik działa tylko w lochach.",
-        ShelterRouteEnd: "Przewodnik po schronieniach zakończony.");
+        ShelterRouteEnd: "Przewodnik po schronieniach zakończony.",
+        DebugMode: "Tryb debugowania włączony.");
 }

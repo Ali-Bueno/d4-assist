@@ -44,5 +44,6 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "バージョン {0} に更新しました。",
         GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。",
-        ShelterRouteEnd: "避難所ガイド終了。");
+        ShelterRouteEnd: "避難所ガイド終了。",
+        DebugMode: "デバッグモード有効。");
 }

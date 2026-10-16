@@ -44,5 +44,6 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "已更新至版本 {0}。",
         GuideDungeonsOnly: "導引僅在地城中有效。",
-        ShelterRouteEnd: "避難所導引結束。");
+        ShelterRouteEnd: "避難所導引結束。",
+        DebugMode: "偵錯模式已開啟。");
 }

@@ -44,5 +44,6 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0} %",
         UpdatedToFormat: "Mis à jour vers la version {0}.",
         GuideDungeonsOnly: "Le guide ne fonctionne que dans les donjons.",
-        ShelterRouteEnd: "Guide des abris terminé.");
+        ShelterRouteEnd: "Guide des abris terminé.",
+        DebugMode: "Mode débogage activé.");
 }

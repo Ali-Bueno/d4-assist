@@ -93,6 +93,7 @@ internal static class Program
         using ISpeechSink speech = noSpeech || !config.SpeechEnabled ? new ConsoleSpeechSink() : new PrismSpeechSink();
         Console.WriteLine($"Speech backend: {speech.BackendName}");
         speech.Speak(AppStrings.For(language.Current).AssistantActive, interrupt: true);
+        if (debug) speech.Speak(AppStrings.For(language.Current).DebugMode, interrupt: false);
         if (justUpdated) speech.Speak(string.Format(AppStrings.For(language.Current).UpdatedToFormat, UpdateVersion.Current.ToString(3)), interrupt: false);
         // A crash would otherwise end in silence.
         AppDomain.CurrentDomain.UnhandledException += (_, _) => speech.Speak(AppStrings.For(language.Current).Stopped, interrupt: true);

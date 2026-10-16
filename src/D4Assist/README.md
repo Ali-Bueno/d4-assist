@@ -19,7 +19,7 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
     build, with further rescans only on demand (`GameSession.RescanTiles`).
 - Speaks "Diablo 4 Assist activo" at startup and dungeon-enter/leave announcements through PRISM, in
   the game's language (`Strings/AppStrings`, one file per language; see `Language` below). The NVDA voice itself is your choice.
-- `--debug` logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
+- `--debug` says "Debug mode on" after the startup line and logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
   swaps PRISM for a console sink so you can run it without a screen reader.
 - Everything printed also goes to `d4assist-log.txt` next to the exe, timestamped (`Logging/LogFile`; the previous
   run's log becomes `d4assist-log.old.txt`). Always logged, even without `--debug`: why memory can't be read

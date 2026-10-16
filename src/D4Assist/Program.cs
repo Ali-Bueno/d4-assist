@@ -348,7 +348,7 @@ internal static class Program
         tray.CheckUpdatesRequested += updates.CheckNow;
         tray.Start();
 
-        Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings.");
+        Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings, Ctrl+Alt+Shift+Q exits.");
         exit.Wait();
         var farewell = AppStrings.For(language.Current);
         if (!updated) speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true); // the updater said it already

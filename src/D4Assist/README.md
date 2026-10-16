@@ -111,7 +111,7 @@ the next start. Only the single-file portable build replaces itself; a dev build
 
 The app has no console window: it puts an icon ("D4") in the notification area (`Ui/TrayApp`, its own STA thread). Enter,
 a click or the context-menu key on the icon opens its menu: **Settings…**, **Check for updates**, **Restart assistant**, **Exit** (speaks
-"Diablo 4 Assist cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere. A second copy refuses to start
+"Diablo 4 Assist cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere, **Ctrl+Alt+Shift+Q** exits at once (as the tray's Exit). A second copy refuses to start
 (`SingleInstance`, a session mutex) and says where the running one is; a restart starts a new copy with `--restarted`, which
 waits for the old one to exit. Startup errors (no install, bad `d4assist.json`) show a message box as well as the log.
 
@@ -426,6 +426,7 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
 - **Ctrl+Alt+Shift+G** (keyboard, anywhere) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
+- **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 
 ## Command-line flags
 

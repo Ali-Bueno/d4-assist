@@ -157,7 +157,7 @@ already does a good job there.
 
 Settings and shortcuts
 
-Ctrl+Alt+Shift+C opens the settings from anywhere (also from the tray icon).
+Ctrl+Alt+Shift+C opens the settings from anywhere (also from the tray icon). Ctrl+Alt+Shift+Q exits the app at once.
 You can turn off any sound, change its volume, and change how fast the
 repeating ones repeat, by group or one by one. The master volume starts at
 50%. The General tab has the Diablo IV folder and a Browse button to choose

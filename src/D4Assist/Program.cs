@@ -70,7 +70,8 @@ internal static class Program
         var configPath = Path.Combine(AppContext.BaseDirectory, AppConfig.FileName);
         AppConfig config;
         try { config = AppConfig.Load(configPath); }
-        catch (Exception e) when (e is InvalidDataException or JsonException or IOException) { return Fail($"{AppConfig.FileName}: {e.Message}"); }
+        catch (Exception e) when (e is InvalidDataException or JsonException or IOException or UnauthorizedAccessException)
+        { return Fail($"{AppConfig.FileName}: {e.Message}"); }
         var installPath = config.ResolveInstallPath(Directory.Exists, LocateInstall) ?? SearchOrAskForInstall(config, configPath);
         if (installPath is null)
             return Fail($"Diablo IV install not found. Start Diablo IV and open Diablo 4 Assist again, or set InstallPath in {AppConfig.FileName}, "

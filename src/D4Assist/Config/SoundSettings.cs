@@ -53,13 +53,13 @@ public sealed class SoundSettings
     public Dictionary<string, CueSetting> Groups
     {
         get => _groups;
-        set => _groups = new(value, StringComparer.OrdinalIgnoreCase);
+        set => _groups = new(value ?? [], StringComparer.OrdinalIgnoreCase); // "Groups": null = the defaults
     }
 
     public Dictionary<string, CueSetting> Cues
     {
         get => _cues;
-        set => _cues = new(value, StringComparer.OrdinalIgnoreCase);
+        set => _cues = new(value ?? [], StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>The group's entry, created with the defaults when missing.</summary>

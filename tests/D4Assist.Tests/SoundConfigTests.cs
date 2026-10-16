@@ -71,6 +71,33 @@ public sealed class SoundConfigTests : IDisposable
     }
 
     [Fact]
+    public void Null_fields_load_as_their_defaults()
+    {
+        File.WriteAllText(PathOf(), """
+            { "InstallPath": null, "DefinitionsPath": null, "Language": null, "BeaconActorNames": null, "RadarOnlyWorlds": [null, "X"],
+              "Sound": { "Groups": null, "Cues": null } }
+            """);
+
+        var config = AppConfig.Load(PathOf());
+
+        var defaults = new AppConfig();
+        Assert.Equal((defaults.InstallPath, defaults.DefinitionsPath, defaults.Language), (config.InstallPath, config.DefinitionsPath, config.Language));
+        Assert.Null(config.ForcedLanguage());
+        Assert.Equal(defaults.BeaconActorNames, config.BeaconActorNames);
+        Assert.Equal(["X"], config.RadarOnlyWorlds);
+        Assert.True(config.Sound.Cue(SoundCue.Chest).Enabled);
+        Assert.Equal(CueSetting.MaxVolume, config.Sound.Group(SoundGroup.Radar).Volume);
+    }
+
+    [Fact]
+    public void A_null_sound_section_loads_the_defaults()
+    {
+        File.WriteAllText(PathOf(), """{ "Sound": null }""");
+
+        Assert.Equal(SoundSettings.DefaultMasterVolume, AppConfig.Load(PathOf()).Sound.MasterVolume);
+    }
+
+    [Fact]
     public void Unknown_keys_and_null_entries_do_not_break_loading()
     {
         File.WriteAllText(PathOf(), """{ "Sound": { "Cues": { "NoSuchCue": { "Volume": 5 }, "Chest": null }, "Groups": { "Nope": { "Enabled": false } } } }""");

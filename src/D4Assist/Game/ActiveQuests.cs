@@ -29,10 +29,14 @@ public sealed record QuestNames(IReadOnlyList<PlacedMarker> Markers, IReadOnlySe
 /// <param name="phases">The objects each phase of a quest names (QuestScriptMarkerReader.PhaseObjects).</param>
 /// <param name="questsHere">The quests that name something in an area (QuestScriptMarkerReader); null follows tracked quests only.</param>
 /// <param name="clock">UTC now; null for the system clock.</param>
+/// <param name="worldSno">The world this session reads.</param>
+/// <param name="history">The last phase of each quest read in any world; null keeps this session's own.</param>
 public sealed class ActiveQuests(
     IMemoryReader memory, IReadOnlyList<MemoryRegion> moduleData, Func<int, IReadOnlyList<QuestPhaseObjects>> phases,
-    Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, Func<DateTime>? clock = null)
+    Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, Func<DateTime>? clock = null, int worldSno = 0, QuestPhaseHistory? history = null)
 {
+    private readonly QuestPhaseHistory _history = history ?? new();
+
     /// <summary>A quest's marker and the actor it placed share a spot (live: the Darkened Way gate, 0.0 apart).</summary>
     public const float MarkerReach = 2f;
 
@@ -44,10 +48,12 @@ public sealed class ActiveQuests(
     /// <summary>The quests followed now: the tracked ones and those in progress here.</summary>
     public IReadOnlyList<int> Followed => _followed;
 
-    /// <summary>The quests whose objects are the player's to use: those followed now, and any found in progress here before. The
-    /// module data holds one quest's pair at a time (live 2026-10-17, the Light's Watch: the side quest QST_Frac_PaleKnightsKin and
-    /// the dungeon's own quest took turns at one address), so a quest still running drops out of <see cref="Followed"/> while
-    /// another one's step is shown, and its third lectern stayed silent.</summary>
+    /// <summary>The quests whose objects are the player's to use here: those followed now, and any found in progress here before,
+    /// while the step they are at (read here, else last read anywhere) is shown in this world or in none. The module data holds one
+    /// quest's pair at a time (live 2026-10-17, the Light's Watch: the side quest QST_Frac_PaleKnightsKin and the dungeon's own
+    /// quest took turns at one address), so a quest still running drops out of <see cref="Followed"/> while another one's step is
+    /// shown, and its third lectern stayed silent. Its journals found, the side quest stays tracked until handed in, and its
+    /// lecterns in a new Light's Watch drew the guide away from the guards (the same day).</summary>
     public IReadOnlyList<int> Owned => _owned;
 
     private readonly HashSet<int> _seenHere = [];
@@ -70,8 +76,11 @@ public sealed class ActiveQuests(
         var here = InProgressHere(tracked, area);
         _seenHere.UnionWith(here.Keys);
         int[] followed = [.. tracked.Concat(here.Keys).Distinct().Order()];
-        _owned = [.. _seenHere.Union(followed).Order()];
-        if (followed.SequenceEqual(_followed)) return _names;
+        if (followed.SequenceEqual(_followed))
+        {
+            RefreshOwned();
+            return _names;
+        }
         _followed = followed;
         _quests = [.. followed.Select(q => _quests.FirstOrDefault(old => old.Sno == q && old.RequirePhase != tracked.Contains(q))
             ?? new FollowedQuest(q, phases(q))
@@ -79,10 +88,31 @@ public sealed class ActiveQuests(
                 RequirePhase = !tracked.Contains(q), PhaseAddress = here.TryGetValue(q, out long at) ? at : null,
             })];
         UpdatePhases(log: false);
+        RefreshOwned();
         _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
         Console.WriteLine($"Quest tracked: {List(tracked)}; in progress here: {List(here.Keys.Except(tracked))}; " +
             $"{_names.Count} object(s) named{PhaseText()}.");
         return _names;
+    }
+
+    // Logged whenever it changes, with the quests left out for a step shown elsewhere.
+    private void RefreshOwned()
+    {
+        var candidates = _seenHere.Union(_followed).Order().ToList();
+        int[] owned = [.. candidates.Where(StepIsHere)];
+        if (owned.SequenceEqual(_owned)) return;
+        _owned = owned;
+        var elsewhere = candidates.Except(owned).ToList();
+        Console.WriteLine($"Quest objects owned: {List(owned)}" +
+            (elsewhere.Count > 0 ? $"; step elsewhere: {string.Join(", ", elsewhere.Select(q => $"{q} at {_history.Last(q)}"))}" : "") + ".");
+    }
+
+    // The quest's step, read here or else last read anywhere, is shown in this world or in none; true while it was never read.
+    private bool StepIsHere(int quest)
+    {
+        if ((_quests.FirstOrDefault(q => q.Sno == quest)?.Phase ?? _history.Last(quest)) is not { } phase) return true;
+        var worlds = phases(quest).FirstOrDefault(p => p.PhaseUid == phase)?.Worlds;
+        return worlds is null || worlds.Contains(worldSno);
     }
 
     // A quest's phases (offline) and where its current phase is read (found in the module's data).
@@ -172,6 +202,7 @@ public sealed class ActiveQuests(
                 quest.NextSearch = Now + PhaseSearchInterval;
                 phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
             }
+            if (phase is { } read) _history.Record(quest.Sno, read);
             if (phase == quest.Phase) continue;
             if (quest.Phase is not null) PhaseChanges++; // moved on from a known phase, not just found
             quest.Phase = phase;

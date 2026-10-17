@@ -99,6 +99,23 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void EachPhaseKnowsTheWorldItsStepIsShownIn()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        var phases = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Frac_PaleKnightsKin"));
+
+        // Live 2026-10-17: "Legacies of Light's Watch", the journals found in the dungeon (152), brought back to Margrave (15).
+        int world = schema.SnoGroup("WorldDefinition");
+        Assert.Equal([store.Resolve(world, "DGN_Frac_LightsWatch")], phases.Single(p => p.PhaseUid == 152).Worlds!);
+        Assert.Equal([store.Resolve(world, "Sanctuary_Eastern_Continent")], phases.Single(p => p.PhaseUid == 15).Worlds!);
+        Assert.Null(phases.Single(p => p.PhaseUid == 3).Worlds);
+    }
+
+    [Fact]
     public void AnOverworldSideQuestIsFoundByTheObjectsItsStepNames()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

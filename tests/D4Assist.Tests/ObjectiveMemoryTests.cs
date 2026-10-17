@@ -179,7 +179,7 @@ public class ObjectiveMemoryTests
     public void An_objective_that_loops_again_leads_again()
     {
         var (feed, memory) = NewMemory();
-        feed.RaisePlayer(At(30, 0));
+        feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
         memory.Heard(Lever(50, 0));
         memory.Heard(); // locked while the player carries an item elsewhere
         Assert.Empty(memory.Destinations());

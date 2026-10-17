@@ -12,9 +12,11 @@ public sealed record SceneMarker(int SceneSno, PlacedMarker Marker);
 /// <summary>One quest phase's objects: the markers its scripts name in world space and in scenes, and the actor SNOs its callbacks name.</summary>
 /// <param name="SubQuests">The quests the phase waits on (ScriptEventParamQuest): the game then shows their phase instead of this one's
 /// (live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 hands over to the hub's quest S15_Triad_C_Travincal). Null for none.</param>
+/// <param name="Worlds">The worlds the phase's callbacks show their step in (QuestCallback.snoWorld): QST_Frac_PaleKnightsKin's
+/// phase 152 (find the journals) shows DGN_Frac_LightsWatch, phase 15 (bring them back) Sanctuary_Eastern_Continent. Null for none.</param>
 public sealed record QuestPhaseObjects(
     uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
-    IReadOnlySet<int>? SubQuests = null);
+    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null);
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
@@ -53,8 +55,10 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         var handles = Handles(quest).ToList();
         var actors = ActorTokens(quest).ToList();
         var subQuests = SubQuests(quest, questSno).ToList();
+        var worlds = CallbackWorlds(quest).ToList();
         return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
+            var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
                 .Select(h => (Scene: SceneOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
@@ -63,7 +67,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 [.. named.Where(m => m.Scene is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
                 [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))],
-                waitsOn.Count > 0 ? waitsOn : null);
+                waitsOn.Count > 0 ? waitsOn : null,
+                shownIn.Count > 0 ? shownIn : null);
         })];
     }
 
@@ -134,6 +139,16 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private IEnumerable<int> Callbacks(SnoBlob quest, int phase) =>
         quest.Array(phase + schema.Offset(Phase, "arCallbackSets"), schema.Size(Set))
             .SelectMany(set => quest.Array(set + schema.Offset(Set, "arCallbacks"), schema.Size(Callback)));
+
+    // The world a callback's step is shown in (DT_SNO; none is -1 or 0).
+    private IEnumerable<(uint PhaseUid, int World)> CallbackWorlds(SnoBlob quest)
+    {
+        if (!schema.HasField(Callback, "snoWorld")) yield break;
+        int at = schema.Offset(Callback, "snoWorld");
+        foreach (int phase in Phases(quest))
+        foreach (int callback in Callbacks(quest, phase))
+            if (quest.I32(callback + at) is > 0 and var world) yield return (PhaseUid(quest, phase), world);
+    }
 
     // A callback's SNO references are DT_SNO_NAME {group, id}; only actors are kept.
     private IEnumerable<(uint PhaseUid, int Sno)> ActorTokens(SnoBlob quest)

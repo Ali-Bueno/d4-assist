@@ -60,7 +60,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         Func<int, bool> readsFlags, int playerActorSno, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers,
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
         Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, SwitchStateLog? switches,
-        Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner)
+        Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner,
+        QuestPhaseHistory? questHistory)
     {
         _questOwner = questOwner;
         _health = health;
@@ -71,7 +72,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _worldSno = worldSno;
         _readsFlags = readsFlags;
         _playerActorSno = playerActorSno;
-        _activeQuests = questMarkers is null ? null : new ActiveQuests(process, moduleData, questMarkers, questsHere);
+        _activeQuests = questMarkers is null ? null : new ActiveQuests(process, moduleData, questMarkers, questsHere, worldSno: worldSno, history: questHistory);
         _process = process;
         _candidates = candidates;
         _offsets = offsets;
@@ -95,12 +96,14 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="mapMarkers">The client's map-marker list, where server-placed objectives stand (doors, levers); null for none.</param>
     /// <param name="questOwner">The quest a quest chest belongs to by name (QuestOwnerIndex); it stays locked while that quest is not
     /// followed. Null for none.</param>
+    /// <param name="questHistory">The last phase of each quest read in any world, shared by every world session; null for this one's own.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
         MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
         ConversationAddresses? conversations = null, Func<QuestSearchArea, IReadOnlyList<int>>? questsHere = null,
         ReadHealth? health = null, Func<int, bool>? isActorSno = null, SwitchStateLog? switches = null,
-        Func<int, IReadOnlyList<TileActor>>? tileGizmos = null, MapMarkerTracker? mapMarkers = null, Func<int, int?>? questOwner = null)
+        Func<int, IReadOnlyList<TileActor>>? tileGizmos = null, MapMarkerTracker? mapMarkers = null, Func<int, int?>? questOwner = null,
+        QuestPhaseHistory? questHistory = null)
     {
         ProcessReader process;
         using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
@@ -112,7 +115,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         try
         {
             return OpenWith(process, installPath, candidates, playerActorSnos, worldSno, sceneSnos, menus, readsFlags, questMarkers,
-                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers, questOwner);
+                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers, questOwner, questHistory);
         }
         catch
         {
@@ -126,7 +129,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         IReadOnlySet<int> sceneSnos, MenuScreenTracker? menus, Func<int, bool>? readsFlags,
         Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers, ConversationAddresses? conversations,
         Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, Func<int, bool>? isActorSno,
-        SwitchStateLog? switches, Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner)
+        SwitchStateLog? switches, Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner,
+        QuestPhaseHistory? questHistory)
     {
         string exePath = Path.Combine(installPath, ExecutableFileName);
         // A store that keeps the exe outside the data root: identify the module by the running game's own file.
@@ -172,7 +176,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
             conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health, switches, tileGizmos, mapMarkers,
-            questOwner);
+            questOwner, questHistory);
     }
 
     // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer

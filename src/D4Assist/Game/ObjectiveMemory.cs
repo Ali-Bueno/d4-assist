@@ -13,13 +13,14 @@ namespace D4Assist.Game;
 /// </summary>
 public sealed class ObjectiveMemory
 {
-    /// <summary>Within this distance an objective's actor is loaded (props seen up to ~65 units, the Undercity pad from
-    /// 22-34; research/dungeon-objectives.md §5), so no loop there means it was used, locked or removed.</summary>
-    public const float ConfirmRadiusUnits = ExplorationGuide.SeenRadiusUnits;
+    /// <summary>Within this distance the client lists an objective's actor while it stands (LockedDoors.ListedWithinUnits), so no
+    /// loop there means it was used, locked or removed. Farther out it drops from the list now and then: at 16-19 units a lectern,
+    /// corpses and the gate read done and looped again a poll later, over and over (live 2026-10-17, the Light's Watch).</summary>
+    public const float ConfirmRadiusUnits = LockedDoors.ListedWithinUnits;
 
     /// <summary>Walking this far from an objective the player stood at, still undone, sets it aside: it can't be used yet, or
-    /// its use went unseen. The distance that confirms a silent one, so a player who used it learns that first.</summary>
-    public const float LeaveUnits = ConfirmRadiusUnits;
+    /// its use went unseen. Beyond the distance that confirms a silent one, so a player who used it learns that first.</summary>
+    public const float LeaveUnits = ExplorationGuide.SeenRadiusUnits;
 
     /// <summary>An objective left undone this often stays set aside when another one is done; switching the guide on re-arms it.</summary>
     public const int MaxTimesLeft = 2;

@@ -186,12 +186,13 @@ internal static class Program
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
         var conversationAddresses = new ConversationAddresses(
             Path.Combine(AppContext.BaseDirectory, "d4assist-addresses.json"), conversationSnos.Contains, debug ? Console.WriteLine : null);
+        var questHistory = new QuestPhaseHistory();
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
-                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner),
+                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner, questHistory),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 

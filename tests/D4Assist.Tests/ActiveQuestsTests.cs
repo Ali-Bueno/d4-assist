@@ -137,6 +137,62 @@ public class ActiveQuestsTests
         Assert.Equal([FieldsOfRuin], quests.Owned);
     }
 
+    // QST_Frac_PaleKnightsKin: phase 152 finds the journals in the Light's Watch, phase 15 brings them back to Margrave.
+    private const int SideQuest = 699940, LightsWatch = 573900, Overworld = 69068, LecternSno = 400;
+    private const uint FindPhase = 152, ReturnPhase = 15;
+
+    private static readonly IReadOnlyList<QuestPhaseObjects> SideQuestPhases =
+    [
+        new(FindPhase, [], new HashSet<int>(), [], Worlds: new HashSet<int> { LightsWatch }),
+        new(ReturnPhase, [Marker(CollectionSno, -1182, 301)], new HashSet<int>(), [], Worlds: new HashSet<int> { Overworld }),
+    ];
+
+    private static ActiveQuests SideQuestSession(ModuleReader memory, int world, QuestPhaseHistory history, Func<DateTime>? clock = null) =>
+        new(memory, memory.Regions(), q => q == SideQuest ? SideQuestPhases : [],
+            area => area.Actors.Any(a => a.ActorSno == LecternSno) ? [SideQuest] : [], clock, world, history);
+
+    // Live 2026-10-17: the journals found, the side quest stayed tracked until handed in, and its lecterns in a new Light's Watch
+    // drew the guide away from the guards; its phase was read only in the overworld.
+    [Fact]
+    public void A_quest_whose_last_read_step_is_shown_in_another_world_owns_nothing_here()
+    {
+        var history = new QuestPhaseHistory();
+        SideQuestSession(new ModuleReader((SideQuest, ReturnPhase)), Overworld, history).Update(tracked: [SideQuest], AreaWith(PetalSno));
+
+        var dungeon = SideQuestSession(new ModuleReader(), LightsWatch, history); // the dungeon's quest holds the pair here
+        dungeon.Update(tracked: [SideQuest], AreaWith(LecternSno));
+
+        Assert.Equal([SideQuest], dungeon.Followed);
+        Assert.Empty(dungeon.Owned);
+    }
+
+    [Fact]
+    public void A_quest_whose_step_is_shown_here_keeps_its_objects_after_another_quest_takes_the_pair()
+    {
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((SideQuest, FindPhase));
+        var quests = SideQuestSession(memory, LightsWatch, new QuestPhaseHistory(), () => now);
+        quests.Update(tracked: [], AreaWith(LecternSno));
+        Assert.Equal([SideQuest], quests.Owned);
+
+        memory.Hold(CampaignQuest, CampaignPhase);
+        now += TimeSpan.FromSeconds(10);
+        quests.Update(tracked: [], AreaWith(LecternSno));
+
+        Assert.Empty(quests.Followed);
+        Assert.Equal([SideQuest], quests.Owned);
+    }
+
+    [Fact]
+    public void A_tracked_quest_never_read_keeps_its_objects()
+    {
+        var quests = SideQuestSession(new ModuleReader(), LightsWatch, new QuestPhaseHistory());
+
+        quests.Update(tracked: [SideQuest], AreaWith(PetalSno));
+
+        Assert.Equal([SideQuest], quests.Owned);
+    }
+
     // Finds a quest by one of its objects, as QuestScriptMarkerReader.QuestsNaming does.
     private static ActiveQuests Create(ModuleReader memory, Func<DateTime>? clock = null) =>
         new(memory, memory.Regions(), q => Phases.GetValueOrDefault(q) ?? [],

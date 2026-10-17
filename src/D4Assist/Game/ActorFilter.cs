@@ -7,7 +7,7 @@ namespace D4Assist.Game;
 /// its SNO named outright), <see cref="ItsKind"/> a marker of its SNO elsewhere.</summary>
 public enum QuestNaming { None, ItsKind, It }
 
-/// <summary>Keeps the actors the beacons can point at: placed in the world, with a finite position.</summary>
+/// <summary>Keeps the actors the beacons can point at: placed in the world, with a finite position other than the origin.</summary>
 public static class ActorFilter
 {
     /// <summary>The ACD flags the app reads (AcdFlagReader).</summary>
@@ -19,11 +19,14 @@ public static class ActorFilter
 
     /// <param name="flags">The actor's set ACD flags (AcdFlagReader.Read); null when unavailable or not read for it.</param>
     /// <param name="namedByQuest">How the active quests' scripts name an actor (QuestScriptMarkerReader); null for none.</param>
+    /// <remarks>An actor at exactly (0,0,0) is junk the pool holds while a world unloads or the game disconnects (`gbuffer_*`,
+    /// `PostFX *`, a `Journey_…_Tracker`): read as doors and chests, it started loops (live 2026-09-30 and 2026-10-16).</remarks>
     public static IReadOnlyList<ActorState> Placed(
         IEnumerable<RActorRecord> records, Func<RActorRecord, IReadOnlySet<string>?>? flags = null,
         Func<RActorRecord, QuestNaming>? namedByQuest = null) =>
         [.. records
-            .Where(r => r.IsPlaced && float.IsFinite(r.Position.X) && float.IsFinite(r.Position.Y) && float.IsFinite(r.Position.Z))
+            .Where(r => r.IsPlaced && float.IsFinite(r.Position.X) && float.IsFinite(r.Position.Y) && float.IsFinite(r.Position.Z)
+                && r.Position != Vector3.Zero)
             .Select(r => ToState(r, flags?.Invoke(r), namedByQuest?.Invoke(r) ?? QuestNaming.None))];
 
     private static ActorState ToState(RActorRecord r, IReadOnlySet<string>? flags, QuestNaming naming)

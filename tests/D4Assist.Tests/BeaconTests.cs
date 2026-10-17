@@ -25,7 +25,7 @@ public class BeaconTests
     }
 
     [Fact]
-    public void ActorFilter_KeepsOnlyPlacedActorsWithFinitePositions()
+    public void ActorFilter_KeepsOnlyPlacedActorsWithFinitePositionsOffTheOrigin()
     {
         var records = new[]
         {
@@ -33,11 +33,13 @@ public class BeaconTests
             Record(2, Vector3.One, placement: -1),
             Record(3, new Vector3(float.NaN, 0, 0), placement: 0),
             Record(4, new Vector3(0, float.PositiveInfinity, 0), placement: 0),
+            Record(5, Vector3.Zero, placement: 0),      // junk read while the world unloads
+            Record(6, new Vector3(0, 0, 1), placement: 0),
         };
 
         var placed = ActorFilter.Placed(records);
 
-        Assert.Equal([1u], placed.Select(a => a.Id));
+        Assert.Equal([1u, 6u], placed.Select(a => a.Id));
     }
 
     [Fact]

@@ -14,9 +14,12 @@ public sealed record SceneMarker(int SceneSno, PlacedMarker Marker);
 /// (live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 hands over to the hub's quest S15_Triad_C_Travincal). Null for none.</param>
 /// <param name="Worlds">The worlds the phase's callbacks show their step in (QuestCallback.snoWorld): QST_Frac_PaleKnightsKin's
 /// phase 152 (find the journals) shows DGN_Frac_LightsWatch, phase 15 (bring them back) Sanctuary_Eastern_Continent. Null for none.</param>
+/// <param name="KindMarkers">The markers in a blueprint's marker set (<c>&lt;Name&gt;_BPMS</c>, no layer), whose spot is the
+/// blueprint's, not the world's: the instance moves it (live 2026-10-17, the ship to Skovos: QST_Skov_Prologue_Apostle stood at
+/// (6,-58) and Lorath at (16,-46), their markers said (38,69) and (48,81)). They name a kind of object, never a place. Null for none.</param>
 public sealed record QuestPhaseObjects(
     uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
-    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null);
+    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<PlacedMarker>? KindMarkers = null);
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
@@ -33,6 +36,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> _phaseCache = [];
     private Dictionary<string, List<int>>? _questsByFrame;
     private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
+    private Dictionary<int, List<int>>? _questsByWorld;
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -60,15 +64,17 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
-                .Select(h => (Scene: SceneOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
+                .Select(h => (Scene: SceneOf(h.MarkerSet), Blueprint: IsBlueprint(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
+            var kinds = named.Where(m => m.Blueprint).Select(m => m.Marker!).ToList();
             return new QuestPhaseObjects(uid,
-                [.. named.Where(m => m.Scene is null).Select(m => m.Marker!)],
+                [.. named.Where(m => m.Scene is null && !m.Blueprint).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
                 [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))],
                 waitsOn.Count > 0 ? waitsOn : null,
-                shownIn.Count > 0 ? shownIn : null);
+                shownIn.Count > 0 ? shownIn : null,
+                kinds.Count > 0 ? kinds : null);
         })];
     }
 
@@ -92,11 +98,21 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             .Select(n => n.Quest).Distinct()];
     }
 
-    // One pass over every quest builds both indexes; each world-space marker set is read once.
+    /// <summary>The quests some phase of which shows its step in <paramref name="worldSno"/> (QuestCallback.snoWorld). A world's
+    /// own marker set can be named neither after a layer nor after the world (live 2026-10-17: QST_Skov_Prologue_04 marks the
+    /// Skovos docks in CSD_Hawe_SailtoSkovos_Docks_BPMS, and its spots move with the generated layout), so no marker finds it.</summary>
+    public IReadOnlyList<int> QuestsShownIn(int worldSno)
+    {
+        BuildIndexes();
+        return _questsByWorld!.TryGetValue(worldSno, out var quests) ? quests : [];
+    }
+
+    // One pass over every quest builds the indexes; each world-space marker set is read once.
     private void BuildIndexes()
     {
         if (_questsByFrame is not null) return;
         var byFrame = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+        var byWorld = new Dictionary<int, List<int>>();
         var handles = new List<(int Quest, int MarkerSet, int Id)>();
         int group = schema.SnoGroup(Quest);
         foreach (var (questSno, _) in store.AllEntries(group))
@@ -105,6 +121,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             var named = Handles(quest).Select(h => (questSno, h.MarkerSet, h.Id)).Distinct().ToList();
             foreach (string frame in named.Select(h => FrameOf(store.Name(h.MarkerSet))).OfType<string>().Distinct())
                 (byFrame.TryGetValue(frame, out var list) ? list : byFrame[frame] = []).Add(questSno);
+            foreach (int world in CallbackWorlds(quest).Select(w => w.World).Distinct())
+                (byWorld.TryGetValue(world, out var list) ? list : byWorld[world] = []).Add(questSno);
             handles.AddRange(named);
         }
         var byActor = new Dictionary<int, List<(int Quest, Vector3 Position)>>();
@@ -116,13 +134,17 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 if (top.TryGetValue(id, out var marker) && marker.Group == actorGroup)
                     (byActor.TryGetValue(marker.Sno, out var list) ? list : byActor[marker.Sno] = []).Add((quest, marker.Position));
         }
-        (_questsByFrame, _questsByActor) = (byFrame, byActor);
+        (_questsByFrame, _questsByActor, _questsByWorld) = (byFrame, byActor, byWorld);
     }
 
     // "Ancients_Blood_FLEX_POI_CentralChamber_01 (CSD_Frac_Underworld_AncientMausoleum_CentralChamber)": the frame (a world or a
     // scene) comes before the layer.
     private static string? FrameOf(string? markerSetName) =>
         markerSetName?.IndexOf(" (", StringComparison.Ordinal) is > 0 and var cut ? markerSetName[..cut] : null;
+
+    // A blueprint's own marker set: "CSD_Hawe_SailtoSkovos_Docks_BPMS", no layer (QuestPhaseObjects.KindMarkers).
+    private bool IsBlueprint(int markerSet) =>
+        store.Name(markerSet) is { } name && FrameOf(name) is null && name.EndsWith("_BPMS", StringComparison.OrdinalIgnoreCase);
 
     // The scene a marker set belongs to, or null for a world's layer set.
     private int? SceneOf(int markerSet)

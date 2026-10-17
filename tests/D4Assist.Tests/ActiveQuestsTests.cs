@@ -193,6 +193,18 @@ public class ActiveQuestsTests
         Assert.Equal([SideQuest], quests.Owned);
     }
 
+    [Fact]
+    public void A_blueprint_marker_names_a_kind_and_never_a_place()
+    {
+        var phase = new QuestPhaseObjects(1, [Marker(PortalSno, 5, 5)], new HashSet<int>(), [], KindMarkers: [Marker(PetalSno, 13, -17)]);
+
+        var names = QuestNames.Of([phase]);
+
+        Assert.Equal([PortalSno], names.Markers.Select(m => m.Sno));
+        Assert.Equal([PetalSno], names.KindMarkers.Select(m => m.Sno));
+        Assert.Equal(2, names.Count);
+    }
+
     // Finds a quest by one of its objects, as QuestScriptMarkerReader.QuestsNaming does.
     private static ActiveQuests Create(ModuleReader memory, Func<DateTime>? clock = null) =>
         new(memory, memory.Regions(), q => Phases.GetValueOrDefault(q) ?? [],

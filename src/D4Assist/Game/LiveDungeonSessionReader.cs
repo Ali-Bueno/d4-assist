@@ -425,7 +425,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         [.. new[] { AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest }
             .Select(name => playerFlags.TryGetValue(name, out uint sno) ? (int)sno : 0).Where(sno => sno > 0).Distinct().Order()];
 
-    // A named marker of the actor's SNO at its spot, or its SNO named outright, names this actor; one elsewhere, its kind.
+    // A named marker of the actor's SNO at its spot, or its SNO named outright, names this actor; one elsewhere (or a blueprint's,
+    // whose spot is not the world's), its kind.
     private static QuestNaming Naming(RActorRecord r, QuestNames named, IReadOnlyList<PlacedMarker> places)
     {
         if (named.ActorSnos.Contains(r.ActorSno)) return QuestNaming.It;
@@ -436,7 +437,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             if (Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach) return QuestNaming.It;
             kind = true;
         }
-        return kind ? QuestNaming.ItsKind : QuestNaming.None;
+        return kind || named.KindMarkers.Any(m => m.Sno == r.ActorSno) ? QuestNaming.ItsKind : QuestNaming.None;
     }
 
     public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>

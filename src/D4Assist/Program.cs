@@ -172,7 +172,8 @@ internal static class Program
             definitionOf(s) is { GizmoType: Conventions.GizmoQuestChest } && store.Name(s) is { } name ? questOwners.OwnerOf(name) : null);
         // The world's own objective quest too: a seasonal hub's zone quest names its steps by actor, with no marker to find it by,
         // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18). And the quest of a
-        // quest chest nearby, so the chest sounds once its quest runs.
+        // quest chest nearby, so the chest sounds once its quest runs. Outside the open world, every quest whose step is shown in
+        // this world (the open world shows 2041 quests' steps, a story instance a handful).
         Func<QuestSearchArea, IReadOnlyList<int>> questsHere = area =>
         {
             var owners = area.Actors.Select(a => questOwner(a.ActorSno)).OfType<int>().ToList();
@@ -180,6 +181,7 @@ internal static class Program
                 return [.. questScripts.QuestsWithMarkersIn(new[] { area.WorldSno }.Concat(area.Scenes).Select(store.Name).OfType<string>())
                     .Union(questScripts.QuestsNaming(area.Actors, ActiveQuests.MarkerReach))
                     .Union(dpo.QuestSnos(area.WorldSno))
+                    .Union(store.Name(area.WorldSno) == WorldClassifier.OpenWorldName ? [] : questScripts.QuestsShownIn(area.WorldSno))
                     .Union(owners)];
         };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).

@@ -10,15 +10,17 @@ namespace D4Assist.Game;
 public sealed record QuestSearchArea(int WorldSno, IReadOnlyCollection<int> Scenes, IReadOnlyList<(int ActorSno, Vector3 Position)> Actors);
 
 /// <summary>What the followed quests' current phases name: markers (world space, or scene-local until the scene is placed),
-/// matched by spot, and actors named by SNO alone (any placed copy).</summary>
-public sealed record QuestNames(IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers)
+/// matched by spot, actors named by SNO alone (any placed copy), and markers whose spot is not the world's, naming only a kind.</summary>
+public sealed record QuestNames(
+    IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<PlacedMarker> KindMarkers)
 {
-    public static readonly QuestNames None = new([], new HashSet<int>(), []);
+    public static readonly QuestNames None = new([], new HashSet<int>(), [], []);
 
     public static QuestNames Of(IEnumerable<QuestPhaseObjects> phases) =>
-        new([.. phases.SelectMany(p => p.Markers)], phases.SelectMany(p => p.ActorSnos).ToHashSet(), [.. phases.SelectMany(p => p.SceneMarkers)]);
+        new([.. phases.SelectMany(p => p.Markers)], phases.SelectMany(p => p.ActorSnos).ToHashSet(), [.. phases.SelectMany(p => p.SceneMarkers)],
+            [.. phases.SelectMany(p => p.KindMarkers ?? [])]);
 
-    public int Count => Markers.Count + ActorSnos.Count + SceneMarkers.Count;
+    public int Count => Markers.Count + ActorSnos.Count + SceneMarkers.Count + KindMarkers.Count;
 }
 
 /// <summary>

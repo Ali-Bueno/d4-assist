@@ -12,13 +12,18 @@ internal readonly record struct TileHop(RoomOpening Opening, TileNode? To);
 /// <summary>
 /// The known tiles as a graph: nodes are tiles, edges are their exit openings (real walkable gaps, via
 /// OpeningFinder) that land on another known tile. Exit bits are assumed symmetric — only the side that
-/// carries the bit gets an edge. Touching tiles of one room (RoomModel) are always linked, because preset
-/// rooms' live exit masks can omit their internal sides (research/client-memory.md §1). A tile that live
-/// barriers split is one node per floor region (TileRegions), joined only where its floor meets the crossing.
+/// carries the bit gets an edge. Touching tiles of one room (RoomModel) are linked without an exit bit, because preset
+/// rooms' live exit masks can omit their internal sides (research/client-memory.md §1), but only where both walk maps
+/// have floor at their shared edge: the Skovos docks are one room, water parts two of its tiles, and the guide led to the
+/// far one across it (live 2026-10-17). A tile that live barriers split is one node per floor region (TileRegions),
+/// joined only where its floor meets the crossing.
 /// </summary>
 internal sealed class TileGraph
 {
     private const float HalfCell = BlockedCells.CellSizeUnits / 2f;
+
+    /// <summary>How far in from a shared edge floor still counts as reaching it: a walk map can stop short of its tile's edge.</summary>
+    public const float EdgeFloorUnits = 3f;
 
     private readonly Dictionary<(int, int), TileRegions> _tiles = [];
 
@@ -48,7 +53,7 @@ internal sealed class TileGraph
         foreach (var room in graph._tiles.Values.GroupBy(t => t.Tile.Input.NodeId))
             foreach (var near in room)
                 foreach (var far in room)
-                    if (near != far && RoomModel.Adjacent(near.Tile, far.Tile))
+                    if (near != far && RoomModel.Adjacent(near.Tile, far.Tile) && FloorMeets(near.Tile, far.Tile, walkability))
                         foreach (var (from, to, crossing) in Contacts(near, far, SharedEdge(near.Tile, far.Tile)))
                             if (!from.Hops.Any(h => h.To == to)) from.Hops.Add(new TileHop(crossing, to));
         return graph;
@@ -85,6 +90,37 @@ internal sealed class TileGraph
 
     private static (float X, float Y) Offset((float X, float Y) point, (float X, float Y) direction, float distance) =>
         (point.X + direction.X * distance, point.Y + direction.Y * distance);
+
+    // Somewhere along the shared edge both tiles have floor within EdgeFloorUnits of it; true when a walk map is unknown.
+    private static bool FloorMeets(MapTile near, MapTile far, ITileWalkability? walkability)
+    {
+        if (walkability is null || !walkability.TryGet(near.Input.SceneSno, out var nearGrid) || !walkability.TryGet(far.Input.SceneSno, out var farGrid))
+            return true;
+        int nearTurns = TileRotation.QuarterTurns(near.Input.YawDegrees), farTurns = TileRotation.QuarterTurns(far.Input.YawDegrees);
+        if (nearTurns < 0 || farTurns < 0) return true;
+        var edge = SharedEdge(near, far);
+        var normal = ExitMaskBits.Normal(edge.Side);
+        var along = (MathF.Abs(normal.Y), MathF.Abs(normal.X));
+        for (var a = -edge.Width / 2f + HalfCell; a < edge.Width / 2f; a += 1f)
+        {
+            var point = Offset(edge.Position, along, a);
+            if (HasFloorNear(nearGrid, near.Input, nearTurns, point, normal, -1f) && HasFloorNear(farGrid, far.Input, farTurns, point, normal, 1f))
+                return true;
+        }
+        return false;
+    }
+
+    // Floor within EdgeFloorUnits of the edge point, stepping into the tile (sign -1: against the normal, into the near tile).
+    private static bool HasFloorNear(WalkGrid grid, TileInput tile, int turns, (float X, float Y) edgePoint, (float X, float Y) normal, float sign)
+    {
+        for (var d = HalfCell; d <= EdgeFloorUnits; d += grid.Resolution)
+        {
+            var local = TileRotation.ToLocal(tile, Offset(edgePoint, normal, sign * d), turns);
+            var (row, col) = grid.CellAt(local.X, local.Y);
+            if (grid.IsWalkable(row, col)) return true;
+        }
+        return false;
+    }
 
     // Crossing between two touching tiles of one room: the middle of their shared edge, as wide as the edge they share.
     private static RoomOpening SharedEdge(MapTile from, MapTile to)

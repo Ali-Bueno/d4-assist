@@ -36,6 +36,29 @@ public class BarrierGuideTests
     private static (int X, int Y) CellOf(float x, float y) => ((int)MathF.Floor(x), (int)MathF.Floor(y));
 
     [Fact]
+    public void Touching_tiles_of_one_room_with_no_floor_at_their_shared_edge_are_not_joined()
+    {
+        // The Skovos docks (live 2026-10-17): one room, water between two of its tiles; the guide led to the far one across it.
+        var shore = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 8; c < 32; c++) shore[r, c] = true; // eight units of water along the west edge
+        var full = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++) full[r, c] = true;
+        var walkability = new FakeTileWalkability().Add(1, new WalkGrid(1f, 0f, 0f, 32, 32, shore)).Add(2, new WalkGrid(1f, 0f, 0f, 32, 32, full));
+        TileInput RoomTile(int sceneSno, int cy) => new(sceneSno, "t", 0, cy * 32, 32, 32, 0, 7, 0);
+        var map = new DungeonMap();
+        map.AddOrUpdate([RoomTile(2, 0), RoomTile(1, 1), RoomTile(2, 2)]);
+        map.MarkVisited(Half, 32 + Half);
+        var guide = new ExplorationGuide(map, walkability);
+
+        Assert.Equal("tile:0,2", guide.Step(Centre(1)).Target!.Id);
+
+        map.MarkVisited(Half, 64 + Half);
+        Assert.Equal(GuideStatus.AllExplored, guide.Step(Centre(1)).Status);
+    }
+
+    [Fact]
     public void A_barrier_splitting_a_corridor_tile_cuts_off_the_tiles_beyond_until_it_opens()
     {
         var (_, guide) = Corridor();

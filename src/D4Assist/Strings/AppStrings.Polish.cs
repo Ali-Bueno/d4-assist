@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "Zaktualizowano do wersji {0}.",
         GuideDungeonsOnly: "Przewodnik działa tylko w lochach.",
         ShelterRouteEnd: "Przewodnik po schronieniach zakończony.",
-        DebugMode: "Tryb debugowania włączony.");
+        DebugMode: "Tryb debugowania włączony.",
+        GuideToBossRoom: "Wszystko zbadane. Prowadzę do komnaty bossa.");
 }

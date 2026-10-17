@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "{0} sürümüne güncellendi.",
         GuideDungeonsOnly: "Rehber yalnızca zindanlarda çalışır.",
         ShelterRouteEnd: "Sığınak rehberi tamamlandı.",
-        DebugMode: "Hata ayıklama modu açık.");
+        DebugMode: "Hata ayıklama modu açık.",
+        GuideToBossRoom: "Her yer keşfedildi. Seni boss odasına götürüyorum.");
 }

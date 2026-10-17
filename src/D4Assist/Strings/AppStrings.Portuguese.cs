@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "Atualizado para a versão {0}.",
         GuideDungeonsOnly: "O guia só funciona em masmorras.",
         ShelterRouteEnd: "Guia de abrigos concluído.",
-        DebugMode: "Modo de depuração ativo.");
+        DebugMode: "Modo de depuração ativo.",
+        GuideToBossRoom: "Tudo explorado. Levando você à sala do chefe.");
 }

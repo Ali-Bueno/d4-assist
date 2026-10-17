@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "已更新至版本 {0}。",
         GuideDungeonsOnly: "導引僅在地城中有效。",
         ShelterRouteEnd: "避難所導引結束。",
-        DebugMode: "偵錯模式已開啟。");
+        DebugMode: "偵錯模式已開啟。",
+        GuideToBossRoom: "全部探索完畢。正在帶你前往首領房間。");
 }

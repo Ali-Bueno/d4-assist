@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "버전 {0}(으)로 업데이트했습니다.",
         GuideDungeonsOnly: "안내는 던전에서만 작동합니다.",
         ShelterRouteEnd: "은신처 안내 종료.",
-        DebugMode: "디버그 모드 켜짐.");
+        DebugMode: "디버그 모드 켜짐.",
+        GuideToBossRoom: "모두 탐색했습니다. 보스 방으로 안내합니다.");
 }

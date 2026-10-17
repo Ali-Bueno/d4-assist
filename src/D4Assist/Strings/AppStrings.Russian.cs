@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "Обновлено до версии {0}.",
         GuideDungeonsOnly: "Проводник работает только в подземельях.",
         ShelterRouteEnd: "Проводник по укрытиям завершён.",
-        DebugMode: "Режим отладки включён.");
+        DebugMode: "Режим отладки включён.",
+        GuideToBossRoom: "Всё исследовано. Веду в комнату босса.");
 }

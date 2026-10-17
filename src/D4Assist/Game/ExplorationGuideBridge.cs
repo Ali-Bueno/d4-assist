@@ -11,7 +11,7 @@ namespace D4Assist.Game;
 /// Feeds the exploration guide's waypoint to the guide ping on every player poll and tile update. Toggled by D-pad left (off outside endgame worlds by default);
 /// switching it on says where it leads. Outside the endgame it leads first to an objective heard earlier (ObjectiveMemory) and holds,
 /// silent, while the player stands at it. Chimes on each target reached, yields to the beacon while an unused portal is in sight, stays off in Undercity's boss room, and
-/// once nothing is left to explore leads to the portals seen earlier (PortalMemory) or says so once.
+/// once nothing is left to explore leads to the boss room and the portals seen earlier (BossRoomDestination, PortalMemory) or says so once.
 /// </summary>
 public sealed class ExplorationGuideBridge
 {
@@ -206,7 +206,9 @@ public sealed class ExplorationGuideBridge
             _announcedDestination = target.Id;
             bool back = destinations.FirstOrDefault(d => d.Id == target.Id)?.Tier > 0;
             var strings = AppStrings.For(_language.Current);
-            _speech.Speak(back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
+            _speech.Speak(
+                target.Id.StartsWith(BossRoomDestination.IdPrefix, StringComparison.Ordinal) ? strings.GuideToBossRoom
+                : back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
             return;
         }
 

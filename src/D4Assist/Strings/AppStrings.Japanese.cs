@@ -45,5 +45,6 @@ public sealed partial record AppStrings
         UpdatedToFormat: "バージョン {0} に更新しました。",
         GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。",
         ShelterRouteEnd: "避難所ガイド終了。",
-        DebugMode: "デバッグモード有効。");
+        DebugMode: "デバッグモード有効。",
+        GuideToBossRoom: "すべて探索済み。ボス部屋へ案内します。");
 }

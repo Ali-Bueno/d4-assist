@@ -28,7 +28,7 @@ internal static class QuestCommand
                 Console.WriteLine($"phase {index++,2} uid {uid} (0x{uid:X}): " +
                     string.Join(", ", markers.Select(m => $"{store.Name(m.Sno)} ({m.Position.X:F0},{m.Position.Y:F0})")
                         .Concat(sceneMarkers.Select(s => $"{store.Name(s.Marker.Sno)} ({s.Marker.Position.X:F0},{s.Marker.Position.Y:F0} in {store.Name(s.SceneSno)})"))
-                        .Concat((kindMarkers ?? []).Select(k => $"{store.Name(k.Sno)} (blueprint {k.Position.X:F0},{k.Position.Y:F0})"))
+                        .Concat((kindMarkers ?? []).Select(k => $"{store.Name(k.Marker.Sno)} (blueprint {k.Marker.Position.X:F0},{k.Marker.Position.Y:F0})"))
                         .Concat(actors.Select(a => $"{store.Name(a)} (any)"))
                         .Concat((subQuests ?? new HashSet<int>()).Select(q => $"waits on quest {q} {store.Name(q)}"))
                         .Concat((worlds ?? new HashSet<int>()).Select(w => $"shown in {store.Name(w)}"))));

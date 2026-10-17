@@ -194,14 +194,15 @@ public class ActiveQuestsTests
     }
 
     [Fact]
-    public void A_blueprint_marker_names_a_kind_and_never_a_place()
+    public void A_blueprint_marker_names_a_kind_and_no_place_of_its_own()
     {
-        var phase = new QuestPhaseObjects(1, [Marker(PortalSno, 5, 5)], new HashSet<int>(), [], KindMarkers: [Marker(PetalSno, 13, -17)]);
+        var blueprint = new Blueprint(7, []);
+        var phase = new QuestPhaseObjects(1, [Marker(PortalSno, 5, 5)], new HashSet<int>(), [], KindMarkers: [new(blueprint, Marker(PetalSno, 13, -17))]);
 
         var names = QuestNames.Of([phase]);
 
         Assert.Equal([PortalSno], names.Markers.Select(m => m.Sno));
-        Assert.Equal([PetalSno], names.KindMarkers.Select(m => m.Sno));
+        Assert.Equal([PetalSno], names.KindMarkers.Select(m => m.Marker.Sno));
         Assert.Equal(2, names.Count);
     }
 

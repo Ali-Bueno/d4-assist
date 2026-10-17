@@ -9,17 +9,25 @@ namespace D4Data.Readers;
 /// world only where that scene is placed (a DRLG dungeon's tile, live 2026-10-01: the Ancient Mausoleum's central chamber).</summary>
 public sealed record SceneMarker(int SceneSno, PlacedMarker Marker);
 
+/// <summary>A blueprint's own marker set (<c>&lt;Name&gt;_BPMS</c>, no layer) and its actor markers, which anchor it: the instance
+/// places the blueprint shifted, not turned (live 2026-10-17: the ship to Skovos by (-32,-127), CSD_Skov_Temis_SmugglersRun_02 by
+/// (-128,-128), each read off two actors standing at their markers).</summary>
+public sealed record Blueprint(int MarkerSet, IReadOnlyList<PlacedMarker> Anchors);
+
+/// <summary>A marker in a blueprint's marker set: its spot is the blueprint's until the instance's shift is known.</summary>
+public sealed record BlueprintMarker(Blueprint Frame, PlacedMarker Marker);
+
 /// <summary>One quest phase's objects: the markers its scripts name in world space and in scenes, and the actor SNOs its callbacks name.</summary>
 /// <param name="SubQuests">The quests the phase waits on (ScriptEventParamQuest): the game then shows their phase instead of this one's
 /// (live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 hands over to the hub's quest S15_Triad_C_Travincal). Null for none.</param>
 /// <param name="Worlds">The worlds the phase's callbacks show their step in (QuestCallback.snoWorld): QST_Frac_PaleKnightsKin's
 /// phase 152 (find the journals) shows DGN_Frac_LightsWatch, phase 15 (bring them back) Sanctuary_Eastern_Continent. Null for none.</param>
-/// <param name="KindMarkers">The markers in a blueprint's marker set (<c>&lt;Name&gt;_BPMS</c>, no layer), whose spot is the
-/// blueprint's, not the world's: the instance moves it (live 2026-10-17, the ship to Skovos: QST_Skov_Prologue_Apostle stood at
-/// (6,-58) and Lorath at (16,-46), their markers said (38,69) and (48,81)). They name a kind of object, never a place. Null for none.</param>
+/// <param name="KindMarkers">The markers in a blueprint's marker set, whose spot is the blueprint's, not the world's: the instance
+/// moves it (live 2026-10-17, the ship to Skovos: QST_Skov_Prologue_Apostle stood at (6,-58) and Lorath at (16,-46), their markers
+/// said (38,69) and (48,81)). They name a kind of object, and a place once the blueprint's shift is known. Null for none.</param>
 public sealed record QuestPhaseObjects(
     uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
-    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<PlacedMarker>? KindMarkers = null);
+    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<BlueprintMarker>? KindMarkers = null);
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
@@ -37,6 +45,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<string, List<int>>? _questsByFrame;
     private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
     private Dictionary<int, List<int>>? _questsByWorld;
+    private readonly Dictionary<int, Blueprint> _blueprints = [];
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -64,12 +73,12 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
-                .Select(h => (Scene: SceneOf(h.MarkerSet), Blueprint: IsBlueprint(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
+                .Select(h => (Scene: SceneOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
-            var kinds = named.Where(m => m.Blueprint).Select(m => m.Marker!).ToList();
+            var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!)).ToList();
             return new QuestPhaseObjects(uid,
-                [.. named.Where(m => m.Scene is null && !m.Blueprint).Select(m => m.Marker!)],
+                [.. named.Where(m => m.Scene is null && m.Blueprint is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
                 [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))],
                 waitsOn.Count > 0 ? waitsOn : null,
@@ -142,9 +151,15 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private static string? FrameOf(string? markerSetName) =>
         markerSetName?.IndexOf(" (", StringComparison.Ordinal) is > 0 and var cut ? markerSetName[..cut] : null;
 
-    // A blueprint's own marker set: "CSD_Hawe_SailtoSkovos_Docks_BPMS", no layer (QuestPhaseObjects.KindMarkers).
-    private bool IsBlueprint(int markerSet) =>
-        store.Name(markerSet) is { } name && FrameOf(name) is null && name.EndsWith("_BPMS", StringComparison.OrdinalIgnoreCase);
+    // A blueprint's own marker set: "CSD_Hawe_SailtoSkovos_Docks_BPMS", no layer (QuestPhaseObjects.KindMarkers); null for another set.
+    private Blueprint? BlueprintOf(int markerSet)
+    {
+        if (_blueprints.TryGetValue(markerSet, out var known)) return known;
+        if (store.Name(markerSet) is not { } name || FrameOf(name) is not null || !name.EndsWith("_BPMS", StringComparison.OrdinalIgnoreCase))
+            return null;
+        int actorGroup = schema.SnoGroup(ActorDefinition);
+        return _blueprints[markerSet] = new Blueprint(markerSet, [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)]);
+    }
 
     // The scene a marker set belongs to, or null for a world's layer set.
     private int? SceneOf(int markerSet)

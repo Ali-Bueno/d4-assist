@@ -10,6 +10,8 @@ namespace D4Assist.Game;
 /// The places the active quest's current phase names (a trigger to walk into: "chase Lilith") lead in the quest tier too,
 /// until the phase moves on: reaching one is not the end of the step (live 2026-10-01: phase 154's trigger is one of the
 /// step's hidden callbacks; the shown one waits for a group of enemies), so the guide holds there (ExplorationGuideBridge).
+/// A step naming several places sets one aside once the player stood in it and walked on, while another is still to reach:
+/// six triggers named one step through a story dungeon (live 2026-10-17, CSD_Skov_Temis_SmugglersRun_02).
 /// </summary>
 public sealed class ObjectiveMemory
 {
@@ -273,7 +275,7 @@ public sealed class ObjectiveMemory
     private void OnPlayer((float X, float Y) here)
     {
         _player = here;
-        foreach (var objective in _objectives.Where(o => o.Pending && !o.Reached))
+        foreach (var objective in _objectives.Concat(_places).Where(o => o.Pending && !o.Reached))
         {
             float distance = Distance(objective.Position, here);
             if (distance <= objective.Radius)
@@ -282,7 +284,7 @@ public sealed class ObjectiveMemory
                 objective.AtIt = true;
                 Log("reached", objective);
             }
-            else if (objective.AtIt && distance > LeaveUnits)
+            else if (objective.AtIt && distance > LeaveDistance(objective))
             {
                 objective.AtIt = false;
                 objective.Reached = true;
@@ -291,6 +293,14 @@ public sealed class ObjectiveMemory
             }
         }
     }
+
+    // Walking this far sets it aside. A quest place: just out of it while another place is still to reach (a trigger acts as it is
+    // entered, and the next one can lie closer than LeaveUnits), else never (its step may wait for enemies there).
+    private float LeaveDistance(Objective objective) =>
+        !_places.Contains(objective) ? LeaveUnits
+        : _places.Any(o => o != objective && o.Pending && !o.Reached) ? objective.Radius * PlaceLeaveFactor : float.PositiveInfinity;
+
+    private const float PlaceLeaveFactor = 1.5f;
 
     // How close counts as there: inside a trigger, else within reach of the object's edge.
     private float Reach(int sno) => _triggerRadius(sno) ?? (_footprint(sno) ?? 0) + InteractUnits;

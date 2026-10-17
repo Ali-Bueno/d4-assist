@@ -34,6 +34,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // Where each scene was placed this visit (tile reads), to land scene-local quest markers in the world.
     private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
+    private readonly BlueprintPlacement _blueprints = new();
     private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
     private IReadOnlySet<int> _questActorSnos = new HashSet<int>();
     private readonly Func<int, IReadOnlyList<TileActor>>? _tileGizmos;
@@ -378,7 +379,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             if (flags is null) return ActorFilter.Placed(records);
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
-            var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();
+            var places = named.Markers.Concat(InWorld(named.SceneMarkers))
+                .Concat(_blueprints.Place(named.KindMarkers, [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position))])).ToList();
             _questPlaces = places;
             _questActorSnos = named.ActorSnos;
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
@@ -425,8 +427,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         [.. new[] { AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest }
             .Select(name => playerFlags.TryGetValue(name, out uint sno) ? (int)sno : 0).Where(sno => sno > 0).Distinct().Order()];
 
-    // A named marker of the actor's SNO at its spot, or its SNO named outright, names this actor; one elsewhere (or a blueprint's,
-    // whose spot is not the world's), its kind.
+    // A named marker of the actor's SNO at its spot, or its SNO named outright, names this actor; one elsewhere (or a blueprint's
+    // not placed yet), its kind.
     private static QuestNaming Naming(RActorRecord r, QuestNames named, IReadOnlyList<PlacedMarker> places)
     {
         if (named.ActorSnos.Contains(r.ActorSno)) return QuestNaming.It;
@@ -437,7 +439,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             if (Vector2.Distance(new(m.Position.X, m.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach) return QuestNaming.It;
             kind = true;
         }
-        return kind || named.KindMarkers.Any(m => m.Sno == r.ActorSno) ? QuestNaming.ItsKind : QuestNaming.None;
+        return kind || named.KindMarkers.Any(m => m.Marker.Sno == r.ActorSno) ? QuestNaming.ItsKind : QuestNaming.None;
     }
 
     public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>

@@ -315,6 +315,26 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void Of_several_quest_places_one_stood_in_and_walked_on_from_gives_way_to_the_next()
+    {
+        // Live 2026-10-17 (CSD_Skov_Temis_SmugglersRun_02): one step named six triggers through the dungeon.
+        var (feed, memory) = NewMemory();
+        QuestPlace[] places = [new(TriggerSno, 0, 0), new(TriggerSno, 10, 0)];
+        feed.RaisePlayer(At(-20, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal(2, memory.Destinations().Count);
+
+        feed.RaisePlayer(At(0, 1)); // in the first
+        feed.RaisePlayer(At(8, 0)); // on into the second, closer than LeaveUnits
+        memory.ObservePlaces(places);
+        Assert.Equal((10f, 0f), Assert.Single(memory.Destinations()).Position);
+
+        feed.RaisePlayer(At(-Far, 0)); // the last one left stays the goal
+        memory.ObservePlaces(places);
+        Assert.Equal((10f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
     public void A_trigger_place_carries_its_own_radius_and_height()
     {
         var feed = new FakeFeed();

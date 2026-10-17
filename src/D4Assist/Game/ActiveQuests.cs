@@ -10,9 +10,9 @@ namespace D4Assist.Game;
 public sealed record QuestSearchArea(int WorldSno, IReadOnlyCollection<int> Scenes, IReadOnlyList<(int ActorSno, Vector3 Position)> Actors);
 
 /// <summary>What the followed quests' current phases name: markers (world space, or scene-local until the scene is placed),
-/// matched by spot, actors named by SNO alone (any placed copy), and markers whose spot is not the world's, naming only a kind.</summary>
+/// matched by spot, actors named by SNO alone (any placed copy), and blueprint markers, naming a kind until the blueprint is placed.</summary>
 public sealed record QuestNames(
-    IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<PlacedMarker> KindMarkers)
+    IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<BlueprintMarker> KindMarkers)
 {
     public static readonly QuestNames None = new([], new HashSet<int>(), [], []);
 

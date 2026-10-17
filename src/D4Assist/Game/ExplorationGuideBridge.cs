@@ -47,6 +47,7 @@ public sealed class ExplorationGuideBridge
     private bool _inBossRoom;
     private bool _muted = true;
     private int _arrivals;
+    private int _rearmedAtArrivals = -1;
     private string? _heldAt;
     private string? _heightToldFor;
 
@@ -128,6 +129,7 @@ public sealed class ExplorationGuideBridge
         _announcedRound = 0;
         _inBossRoom = false;
         _arrivals = 0;
+        _rearmedAtArrivals = -1;
         Mute();
     }
 
@@ -183,6 +185,7 @@ public sealed class ExplorationGuideBridge
             case GuideStatus.AllExplored:
                 _ping.Silence();
                 _loggedTargetId = null;
+                if (RearmWhenAllExplored(step)) { Update(); return; }
                 if (_announcedAllExplored) break;
                 _announcedAllExplored = true;
                 _speech.Speak(NavigationPhrases.For(_language.Current).AllExplored, interrupt: false);
@@ -223,6 +226,19 @@ public sealed class ExplorationGuideBridge
         bool speak = goal != ExploreGoal || _announcedGoal is null or QuestGoal or DungeonGoal;
         _announcedGoal = goal;
         if (speak) _speech.Speak(goal switch { QuestGoal => phrases.ToQuestObjective, DungeonGoal => phrases.ToDungeonObjective, _ => phrases.ToUnexplored }, interrupt: false);
+    }
+
+    // Nothing left to explore or lead to: what is left is what the player walked away from, so it leads again, as switching the
+    // guide on does; once per target reached, so a door that still won't open isn't offered in a loop. Live 2026-10-17, the
+    // Light's Watch: the key taken, the quest's phase never read as moving on to the gate, the gate stayed tried and the guide
+    // fell silent. Never in endgame worlds, whose tuned order ends with the portals.
+    private bool RearmWhenAllExplored(GuideStep step)
+    {
+        if (_rearmObjectives is null || _switch.IsEndgame || step.Arrivals <= _rearmedAtArrivals) return false;
+        _rearmedAtArrivals = step.Arrivals;
+        _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE all explored: objectives and doors left undone lead again");
+        _rearmObjectives();
+        return true;
     }
 
     private static string GoalOf(GuideDestination? objective) => objective?.Tier == ObjectiveMemory.QuestTier ? QuestGoal : DungeonGoal;

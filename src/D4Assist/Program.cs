@@ -231,6 +231,11 @@ internal static class Program
             scene => { lock (cascGate) return tilePortals.In(scene); }, cue => liveSound.Current.Level(cue), lockedDoors.IsLocked);
         var portals = loopMemory?.Portals;
         var objectives = loopMemory?.Objectives;
+        session.QuestActorsNamed += snos =>
+        {
+            lockedDoors.ObserveNamed(snos);
+            objectives?.ObserveNamed(snos);
+        };
         using var npcTap = new NpcCuePlayer(mixer);
         StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
         var markerLog = new MapMarkerLog(store.Name, Console.WriteLine, everyKind: debug);

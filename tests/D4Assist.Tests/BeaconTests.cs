@@ -33,13 +33,16 @@ public class BeaconTests
             Record(2, Vector3.One, placement: -1),
             Record(3, new Vector3(float.NaN, 0, 0), placement: 0),
             Record(4, new Vector3(0, float.PositiveInfinity, 0), placement: 0),
-            Record(5, Vector3.Zero, placement: 0),      // junk read while the world unloads
+            Record(5, Vector3.Zero, placement: 0),      // junk read while the world unloads or the game closes
             Record(6, new Vector3(0, 0, 1), placement: 0),
+            Record(7, new Vector3(1e-30f, -1e-30f, 0), placement: 0),
+            Record(8, new Vector3(1.1e21f, 1.8e31f, 0), placement: 0),
+            Record(9, new Vector3(-3000, 2500, 40), placement: 0),
         };
 
         var placed = ActorFilter.Placed(records);
 
-        Assert.Equal([1u, 6u], placed.Select(a => a.Id));
+        Assert.Equal([1u, 6u, 9u], placed.Select(a => a.Id));
     }
 
     [Fact]

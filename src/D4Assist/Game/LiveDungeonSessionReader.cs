@@ -35,6 +35,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
     private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
+    private IReadOnlySet<int> _questActorSnos = new HashSet<int>();
     private readonly Func<int, IReadOnlyList<TileActor>>? _tileGizmos;
     private readonly MapMarkerTracker? _mapMarkers;
     private readonly ConversationAddresses? _conversations;
@@ -375,11 +376,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var named = NamedByActiveQuests(player, flags, records);
             var places = named.Markers.Concat(InWorld(named.SceneMarkers)).ToList();
             _questPlaces = places;
+            _questActorSnos = named.ActorSnos;
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
                 .. MarkedOnMap(named.ActorSnos, offsets).Select(g => (g.Sno, g.Position, true))];
             var actors = ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
                 r => Naming(r, named, places));
-            return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Followed);
+            return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Owned);
         }
 
         if (_offsets is not null) _health?.Report(ReadCheck.Actors, ok: false, "the actor pool is unreadable");
@@ -446,6 +448,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _offsets is { } offsets && _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is { } markers
             ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind))]
             : null;
+
+    public IReadOnlySet<int>? ReadQuestActorSnos() => _activeQuests is null ? null : _questActorSnos;
 
     // The gizmos and triggers the current phases name that the map marks, wherever they are: the server places some (the
     // Labyrinth's lair door), and the game only streams actors in about 25 units around the player.

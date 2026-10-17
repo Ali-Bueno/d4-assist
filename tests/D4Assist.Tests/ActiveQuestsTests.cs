@@ -118,6 +118,25 @@ public class ActiveQuestsTests
         Assert.Equal([PetalSno], named.ActorSnos);
     }
 
+    // Live 2026-10-17, the Light's Watch: the side quest and the dungeon's own quest took turns at one address, and the side
+    // quest's third lectern stayed silent while the dungeon's quest held it.
+    [Fact]
+    public void A_quest_found_in_progress_here_keeps_its_objects_while_another_quest_holds_the_pair()
+    {
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((FieldsOfRuin, PlacePhase));
+        var quests = Create(memory, () => now);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+        Assert.Equal([FieldsOfRuin], quests.Owned);
+
+        memory.Hold(CampaignQuest, CampaignPhase);
+        now += TimeSpan.FromSeconds(10);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+
+        Assert.Empty(quests.Followed);
+        Assert.Equal([FieldsOfRuin], quests.Owned);
+    }
+
     // Finds a quest by one of its objects, as QuestScriptMarkerReader.QuestsNaming does.
     private static ActiveQuests Create(ModuleReader memory, Func<DateTime>? clock = null) =>
         new(memory, memory.Regions(), q => Phases.GetValueOrDefault(q) ?? [],
@@ -145,6 +164,13 @@ public class ActiveQuestsTests
                 BinaryPrimitives.WriteInt32LittleEndian(_data.AsSpan(0x100 + i * 0x40), pairs[i].Quest);
                 BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(0x104 + i * 0x40), pairs[i].Phase);
             }
+        }
+
+        // Another quest's pair takes the first one's place.
+        public void Hold(int quest, uint phase)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(_data.AsSpan(0x100), quest);
+            BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(0x104), phase);
         }
 
         public IReadOnlyList<MemoryRegion> Regions() => [new MemoryRegion(ModuleData, _data.Length)];

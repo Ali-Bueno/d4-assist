@@ -99,7 +99,29 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
     /// <summary>A new world: no door known.</summary>
     public void Reset()
     {
-        lock (_gate) _doors.Clear();
+        lock (_gate)
+        {
+            _doors.Clear();
+            _namedSnos = new HashSet<int>();
+        }
+    }
+
+    private IReadOnlySet<int> _namedSnos = new HashSet<int>();
+
+    /// <summary>Takes the actor SNOs the active quests' current phases name (GameSession.QuestActorsNamed): a tried door whose SNO a
+    /// phase starts naming may open now, though the client dropped it far away (live 2026-10-17, the Light's Watch gate after the
+    /// key: re-armed only once the player came back within earshot).</summary>
+    public void ObserveNamed(IReadOnlySet<int> snos)
+    {
+        lock (_gate)
+        {
+            foreach (var door in _doors.Values.Where(d => d.Tried && snos.Contains(d.Sno) && !_namedSnos.Contains(d.Sno)))
+            {
+                door.Tried = false;
+                Log("re-armed (named by the quest)", door);
+            }
+            _namedSnos = snos;
+        }
     }
 
     // The game's own lock follows its flags; a tried door waits for its quest to change (the key found: the phase now names it).

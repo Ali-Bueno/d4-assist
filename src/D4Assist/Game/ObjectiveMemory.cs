@@ -96,7 +96,7 @@ public sealed class ObjectiveMemory
         _takesHeld = takesHeld ?? (_ => null);
         _locked = locked ?? ((_, _) => false);
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; _namedSnos = new HashSet<int>(); } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
@@ -158,6 +158,28 @@ public sealed class ObjectiveMemory
             }
         }
     }
+
+    /// <summary>Takes the actor SNOs the active quests' current phases name (GameSession.QuestActorsNamed, every actor poll). One
+    /// heard earlier, then done or set aside, leads again as a quest step once a phase starts naming its SNO, though it is out of
+    /// earshot: the key found, the phase names the gate (live 2026-10-17, the Light's Watch: the guide fell silent with every
+    /// tile explored, and the gate sounded again only once the player came back within earshot).</summary>
+    public void ObserveNamed(IReadOnlySet<int> snos)
+    {
+        lock (_gate)
+        {
+            foreach (var objective in _objectives.Where(o => snos.Contains(o.Sno) && !_namedSnos.Contains(o.Sno) && (!o.Pending || o.Reached)))
+            {
+                objective.Pending = true;
+                objective.Reached = false;
+                objective.TimesLeft = 0;
+                objective.Quest = true;
+                Log("named by the quest", objective);
+            }
+            _namedSnos = snos;
+        }
+    }
+
+    private IReadOnlySet<int> _namedSnos = new HashSet<int>();
 
     // A gizmo the phase names, placed by a loaded tile or marked on the map, is an objective before it's heard. It's done once
     // silent near the player (already used), or when the phase stops naming it; a tile's copy with nothing there was never spawned.

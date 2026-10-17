@@ -135,6 +135,32 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void An_objective_done_or_set_aside_leads_again_as_a_quest_step_once_a_phase_names_its_sno()
+    {
+        // Live 2026-10-17, the Light's Watch: the gate read done, the key was found far away, and the guide fell silent.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        feed.RaisePlayer(At(100, 0));
+        memory.Heard(Lever(0, 0)); // the altar done
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(-Far, 0)); // the lever set aside
+        memory.ObserveNamed(new HashSet<int>());
+        Assert.Empty(memory.Destinations());
+
+        memory.ObserveNamed(new HashSet<int> { AltarSno, LeverSno });
+
+        var points = memory.Destinations();
+        Assert.Equal(2, points.Count);
+        Assert.All(points, p => Assert.Equal(ObjectiveMemory.QuestTier, p.Tier));
+
+        feed.RaisePlayer(At(99, 0));
+        memory.Heard(Lever(0, 0)); // the altar used again; still named, it stays done
+        memory.ObserveNamed(new HashSet<int> { AltarSno, LeverSno });
+        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
     public void Switching_the_guide_on_lets_a_reached_objective_lead_again()
     {
         var (feed, memory) = NewMemory();

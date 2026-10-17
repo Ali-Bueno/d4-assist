@@ -43,6 +43,15 @@ public sealed class ActiveQuests(
 
     /// <summary>The quests followed now: the tracked ones and those in progress here.</summary>
     public IReadOnlyList<int> Followed => _followed;
+
+    /// <summary>The quests whose objects are the player's to use: those followed now, and any found in progress here before. The
+    /// module data holds one quest's pair at a time (live 2026-10-17, the Light's Watch: the side quest QST_Frac_PaleKnightsKin and
+    /// the dungeon's own quest took turns at one address), so a quest still running drops out of <see cref="Followed"/> while
+    /// another one's step is shown, and its third lectern stayed silent.</summary>
+    public IReadOnlyList<int> Owned => _owned;
+
+    private readonly HashSet<int> _seenHere = [];
+    private int[] _owned = [];
     private List<FollowedQuest> _quests = [];
 
     /// <summary>How often a followed quest has moved on from a known phase; read from other threads.</summary>
@@ -59,7 +68,9 @@ public sealed class ActiveQuests(
         if (UpdatePhases(log: true)) _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
         if (tracked is null) return _names;
         var here = InProgressHere(tracked, area);
+        _seenHere.UnionWith(here.Keys);
         int[] followed = [.. tracked.Concat(here.Keys).Distinct().Order()];
+        _owned = [.. _seenHere.Union(followed).Order()];
         if (followed.SequenceEqual(_followed)) return _names;
         _followed = followed;
         _quests = [.. followed.Select(q => _quests.FirstOrDefault(old => old.Sno == q && old.RequirePhase != tracked.Contains(q))

@@ -82,6 +82,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>Every actor the game's map marks, after every actor read (IDungeonSessionReader.ReadMapMarkers).</summary>
     public event Action<IReadOnlyList<MarkedActor>>? MapMarkersRead;
 
+    /// <summary>The actor SNOs the active quests' current phases name outright, after every actor read (IDungeonSessionReader.ReadQuestActorSnos).</summary>
+    public event Action<IReadOnlySet<int>>? QuestActorsNamed;
+
     /// <summary>True while loading through <see cref="TransitWorldName"/> out of a read world; the bridges keep their
     /// state (no WorldChanged) until the next world shows whether it is the same instance.</summary>
     public event Action<bool>? TransitChanged;
@@ -340,6 +343,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             if (QuestMoved(session)) Deliver(lease, () => Raise("quest moved on", QuestMovedOn, h => h()));
             if (session.ReadQuestPlaces() is { } places) Deliver(lease, () => Raise("quest places", QuestPlacesRead, h => h(places)));
             if (session.ReadMapMarkers() is { } marks) Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
+            if (session.ReadQuestActorSnos() is { } named) Deliver(lease, () => Raise("quest actors", QuestActorsNamed, h => h(named)));
             if (session.ReadCinematic() is { } cinematic) Deliver(lease, () => Raise("cinematic", CinematicRead, h => h(cinematic)));
         }
         finally { GiveBack(lease); }

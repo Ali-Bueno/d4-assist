@@ -37,6 +37,9 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>Every actor the game's map marks; null while the marker list isn't found.</summary>
     IReadOnlyList<MarkedActor>? ReadMapMarkers() => null;
+
+    /// <summary>The actor SNOs the active quests' current phases name outright, as of the last actor read; null when unknown.</summary>
+    IReadOnlySet<int>? ReadQuestActorSnos() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

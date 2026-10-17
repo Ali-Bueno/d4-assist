@@ -78,6 +78,35 @@ public class LockedDoorTests
     }
 
     [Fact]
+    public void A_tried_door_out_of_the_clients_range_opens_up_once_a_phase_starts_naming_its_sno()
+    {
+        // Live 2026-10-17, the Light's Watch gate: the key found far away, the phase named the gate.
+        var doors = Doors();
+        doors.Update([Door], AtTheDoor);
+        doors.Update([], Away);
+        doors.ObserveNamed(new HashSet<int>());
+        Assert.True(doors.IsLocked(DoorSno, (10.5f, 20.5f)));
+
+        doors.ObserveNamed(new HashSet<int> { DoorSno });
+
+        Assert.False(doors.IsLocked(DoorSno, (10.5f, 20.5f)));
+        Assert.Empty(doors.Update([], At(80, 20.5f)));
+    }
+
+    [Fact]
+    public void A_door_tried_while_its_sno_is_already_named_stays_tried()
+    {
+        var doors = Doors();
+        doors.ObserveNamed(new HashSet<int> { DoorSno });
+        doors.Update([Door], AtTheDoor);
+        doors.Update([], Away);
+
+        doors.ObserveNamed(new HashSet<int> { DoorSno });
+
+        Assert.True(doors.IsLocked(DoorSno, (10.5f, 20.5f)));
+    }
+
+    [Fact]
     public void A_door_opened_by_the_player_at_it_is_never_tried()
     {
         var doors = Doors();

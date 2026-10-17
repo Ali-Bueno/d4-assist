@@ -28,18 +28,21 @@ public class BossRoomDestinationTests
         scene == BossSno ? [new TileActor(9, new Vector3(45.3f, 49.2f, 0.1f))] : [];
 
     [Fact]
-    public void A_boss_room_tile_leads_to_its_entrance_trigger()
+    public void A_boss_room_tile_leads_past_its_entrance_trigger_to_its_middle()
     {
+        // Live 2026-10-17: led to the entrance alone, the player walked past it while exploring and the boss stood 30 units in.
         var feed = new Feed();
         var boss = new BossRoomDestination(feed, Entrances);
 
         feed.RaiseTiles(new TileState(PlainSno, "Pale_Frac_NE_01", 0, -64, 32, 32, 5, 1, 1), BossTile);
 
-        var room = Assert.Single(boss.Destinations());
-        Assert.StartsWith(BossRoomDestination.IdPrefix, room.Id);
-        Assert.Equal(BossRoomDestination.Tier, room.Tier);
-        Assert.Equal(13.3f, room.Position.X, 0.01f);
-        Assert.Equal(-78.8f, room.Position.Y, 0.01f);
+        var spots = boss.Destinations();
+        Assert.Equal(2, spots.Count);
+        Assert.All(spots, s => Assert.StartsWith(BossRoomDestination.IdPrefix, s.Id));
+        Assert.All(spots, s => Assert.Equal(BossRoomDestination.Tier, s.Tier));
+        Assert.Equal(13.3f, spots[0].Position.X, 0.01f);
+        Assert.Equal(-78.8f, spots[0].Position.Y, 0.01f);
+        Assert.Equal((0f, -96f), spots[1].Position);
     }
 
     [Fact]
@@ -74,7 +77,7 @@ public class BossRoomDestinationTests
         var boss = new BossRoomDestination(feed, Entrances);
         feed.RaiseTiles(BossTile);
         feed.RaiseTiles(BossTile);
-        Assert.Single(boss.Destinations());
+        Assert.Equal(2, boss.Destinations().Count);
 
         feed.RaiseWorld("DGN_Frac_DerelictLodge");
 

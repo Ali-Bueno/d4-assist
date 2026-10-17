@@ -3,11 +3,12 @@ using D4Assist.Navigation;
 namespace D4Assist.Game;
 
 /// <summary>
-/// The boss room of the dungeon, once its tile loads, as a destination the guide leads to when nothing is left to explore: a
-/// sighted player heads there next. A tile named <c>…BossRoom…</c> (84 scenes in 55 tile sets, build 3.2.3); its own
-/// <c>Trigger_BossRoom_Entrance</c> (37 of them place one) is the spot, else the tile's middle. Live 2026-10-17, the Light's Watch:
+/// The boss room of the dungeon, once its tile loads, as destinations the guide leads to when nothing is left to explore: a
+/// sighted player heads there next. A tile named <c>…BossRoom…</c> (84 scenes in 55 tile sets, build 3.2.3): its middle, where the
+/// boss waits, and on the way its own <c>Trigger_BossRoom_Entrance</c> (37 of them place one). Live 2026-10-17, the Light's Watch:
 /// past the gate the quest waits on DSH_Standard and names nothing, a doorway peek counted the boss room as explored, and the
-/// guide fell silent with the room unentered. Not in endgame worlds, whose guide keeps its tuned order (GuideSwitch).
+/// guide fell silent with the room unentered; led to the entrance alone, the player walked past it while exploring, and the
+/// guide fell silent again with the boss 30 units further in. Not in endgame worlds, whose guide keeps its tuned order (GuideSwitch).
 /// </summary>
 public sealed class BossRoomDestination
 {
@@ -26,7 +27,7 @@ public sealed class BossRoomDestination
     private readonly Func<int, IReadOnlyList<TileActor>> _entrances;
     private readonly Action<string>? _log;
     private readonly object _gate = new();
-    private readonly Dictionary<(int Scene, int X, int Y), GuideDestination> _rooms = [];
+    private readonly Dictionary<(int Scene, int X, int Y), IReadOnlyList<GuideDestination>> _rooms = [];
     private bool _endgame;
 
     /// <param name="entrances">The boss-room entrance triggers a scene places, in its own axes (TileActorReader.In).</param>
@@ -42,7 +43,7 @@ public sealed class BossRoomDestination
 
     public IReadOnlyList<GuideDestination> Destinations()
     {
-        lock (_gate) return [.. _rooms.Values];
+        lock (_gate) return [.. _rooms.Values.SelectMany(r => r)];
     }
 
     public static bool IsBossRoom(string? tileName) =>
@@ -58,22 +59,25 @@ public sealed class BossRoomDestination
             fresh = [.. tiles.Where(t => IsBossRoom(t.Name) && !_rooms.ContainsKey(Key(t)))];
         }
         // The CASC read runs outside the gate, as PortalMemory's.
-        var found = fresh.Select(t => (Key: Key(t), Tile: t, Spot: Spot(t))).ToList();
+        var found = fresh.Select(t => (Key: Key(t), Tile: t, Entrance: Entrance(t))).ToList();
         lock (_gate)
-            foreach (var (key, tile, (position, entrance)) in found)
+            foreach (var (key, tile, entrance) in found)
             {
-                if (!_rooms.TryAdd(key, new GuideDestination($"{IdPrefix}:{tile.SceneSno}:{key.X},{key.Y}", position, Tier))) continue;
-                _log?.Invoke($"BOSS ROOM {tile.Name} at ({position.X:F1},{position.Y:F1}){(entrance ? ", its entrance" : ", its middle")}");
+                string id = $"{IdPrefix}:{tile.SceneSno}:{key.X},{key.Y}";
+                (float X, float Y) middle = (tile.OriginX + tile.SizeX / 2, tile.OriginY + tile.SizeY / 2);
+                GuideDestination[] spots = entrance is { } door
+                    ? [new($"{id}:entrance", door, Tier), new(id, middle, Tier)]
+                    : [new(id, middle, Tier)];
+                if (!_rooms.TryAdd(key, spots)) continue;
+                _log?.Invoke($"BOSS ROOM {tile.Name}: middle ({middle.X:F1},{middle.Y:F1})" +
+                    (entrance is { } e ? $", entrance ({e.X:F1},{e.Y:F1})" : ""));
             }
     }
 
-    // The entrance trigger only in an unrotated tile, as PortalMemory places portals: every DRLG tile seen so far is unrotated.
-    private ((float X, float Y) Position, bool Entrance) Spot(TileState tile)
-    {
-        if (TileRotation.QuarterTurns(tile.YawDegrees) == 0 && _entrances(tile.SceneSno) is [var first, ..])
-            return ((tile.OriginX + first.Local.X, tile.OriginY + first.Local.Y), true);
-        return ((tile.OriginX + tile.SizeX / 2, tile.OriginY + tile.SizeY / 2), false);
-    }
+    // Only in an unrotated tile, as PortalMemory places portals: every DRLG tile seen so far is unrotated.
+    private (float X, float Y)? Entrance(TileState tile) =>
+        TileRotation.QuarterTurns(tile.YawDegrees) == 0 && _entrances(tile.SceneSno) is [var first, ..]
+            ? (tile.OriginX + first.Local.X, tile.OriginY + first.Local.Y) : null;
 
     private static (int Scene, int X, int Y) Key(TileState tile) =>
         (tile.SceneSno, (int)MathF.Round(tile.OriginX), (int)MathF.Round(tile.OriginY));

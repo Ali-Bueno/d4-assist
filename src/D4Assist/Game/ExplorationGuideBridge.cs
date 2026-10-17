@@ -205,13 +205,14 @@ public sealed class ExplorationGuideBridge
         if (target.Kind == GuideTargetKind.Destination)
         {
             _announcedGoal = PortalGoal;
-            if (target.Id == _announcedDestination) return;
-            _announcedDestination = target.Id;
+            // The boss room's entrance and middle are one goal: said once.
+            bool boss = target.Id.StartsWith(BossRoomDestination.IdPrefix, StringComparison.Ordinal);
+            string announced = boss ? BossRoomDestination.IdPrefix : target.Id;
+            if (announced == _announcedDestination) return;
+            _announcedDestination = announced;
             bool back = destinations.FirstOrDefault(d => d.Id == target.Id)?.Tier > 0;
             var strings = AppStrings.For(_language.Current);
-            _speech.Speak(
-                target.Id.StartsWith(BossRoomDestination.IdPrefix, StringComparison.Ordinal) ? strings.GuideToBossRoom
-                : back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
+            _speech.Speak(boss ? strings.GuideToBossRoom : back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
             return;
         }
 

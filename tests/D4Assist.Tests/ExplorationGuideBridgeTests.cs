@@ -500,6 +500,21 @@ public class ExplorationGuideBridgeTests
     }
 
     [Fact]
+    public void The_boss_rooms_entrance_and_middle_are_announced_once()
+    {
+        var rig = new Rig(guideInDungeons: true);
+        rig.Feed.RaiseWorld("DGN_Test");
+        string room = $"{BossRoomDestination.IdPrefix}:20:-32,-128";
+        foreach (string id in new[] { $"{room}:entrance", room })
+        {
+            rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Destination, id, (-10, 10)), (-10, 10), 30);
+            rig.Feed.RaisePlayer();
+        }
+
+        Assert.Equal([(D4Assist.Strings.AppStrings.Spanish.GuideToBossRoom, false)], rig.Speech.Spoken);
+    }
+
+    [Fact]
     public void Endgame_runs_never_lead_to_objectives()
     {
         var rig = new Rig { Objectives = [new("d", (-10, 10), ObjectiveMemory.DungeonTier)] }; // Undercity

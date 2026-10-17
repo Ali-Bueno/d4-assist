@@ -1,10 +1,13 @@
 namespace D4Assist.Navigation;
 
 /// <summary>
-/// BFS over a room's combined walkable grid (8-connected, no cutting across a blocked corner), from
+/// Shortest-path search over a room's combined walkable grid (8-connected, no cutting across a blocked corner), from
 /// the player's cell to the nearest cell of a target opening. A room is at most ~64x64 units, i.e.
 /// ~128x128 cells at the 1-unit map resolution — cheap to search fully every time (task spec).
 /// </summary>
+/// <remarks>A step beside a wall costs more (WallPenalty), so a route runs down the middle of a walkway rather than along its
+/// edge: the shortest path hugged the edge of the Skovos docks' pier, its bearing aimed the player along that edge, and they
+/// caught on a post the edge passes, the bearing barely turning (live 2026-10-17).</remarks>
 public static class RoomPathfinder
 {
     private static readonly (int Dr, int Dc)[] Moves =
@@ -24,6 +27,13 @@ public static class RoomPathfinder
     /// between samples.</summary>
     private const float LineOfSightSamplesPerCell = 4f;
 
+    /// <summary>How far the path a bearing shortcuts may stray from the bearing's line. The path keeps off the walls, so a
+    /// bearing that follows it does too: from beside a wall it first aims toward the middle.</summary>
+    public const float BearingSlackUnits = 1.5f;
+
+    // The extra cost, per unit walked, of a step onto a cell 1 or 2 cells from a wall (none from 3 on).
+    private static float WallPenalty(int clearance) => clearance switch { 1 => 4f, 2 => 1f, _ => 0f };
+
     /// <summary>Finds the shortest cell path from <paramref name="fromWorld"/> to the nearest of
     /// <paramref name="targets"/>. False when unreachable (or off-grid) — caller falls back to a straight line.</summary>
     public static bool TryFindPath(WalkGrid grid, (float X, float Y) fromWorld, IReadOnlyList<(int Row, int Col)> targets,
@@ -38,26 +48,29 @@ public static class RoomPathfinder
         if (targetSet.Count == 0) return false;
 
         var previous = new Dictionary<(int, int), (int, int)>();
-        var visited = new HashSet<(int, int)> { start };
-        var queue = new Queue<(int, int)>();
-        queue.Enqueue(start);
-        (int, int)? found = targetSet.Contains(start) ? start : null;
+        var cost = new Dictionary<(int, int), float> { [start] = 0f };
+        var done = new HashSet<(int, int)>();
+        var queue = new PriorityQueue<(int, int), float>();
+        queue.Enqueue(start, 0f);
+        (int, int)? found = null;
 
-        while (found is null && queue.Count > 0)
+        while (queue.TryDequeue(out var current, out var soFar))
         {
-            var current = queue.Dequeue();
+            if (!done.Add(current)) continue;
+            if (targetSet.Contains(current)) { found = current; break; }
             foreach (var (dr, dc) in Moves)
             {
                 var next = (current.Item1 + dr, current.Item2 + dc);
-                if (visited.Contains(next) || !grid.IsWalkable(next.Item1, next.Item2)) continue;
+                if (done.Contains(next) || !grid.IsWalkable(next.Item1, next.Item2)) continue;
                 if (dr != 0 && dc != 0 &&
                     (!grid.IsWalkable(current.Item1 + dr, current.Item2) || !grid.IsWalkable(current.Item1, current.Item2 + dc)))
                     continue; // no corner-cutting: both orthogonal neighbours of a diagonal step must be open
 
-                visited.Add(next);
+                var step = (dr != 0 && dc != 0 ? MathF.Sqrt(2f) : 1f) * (1f + WallPenalty(grid.Clearance(next.Item1, next.Item2)));
+                if (cost.TryGetValue(next, out var known) && known <= soFar + step) continue;
+                cost[next] = soFar + step;
                 previous[next] = current;
-                if (targetSet.Contains(next)) { found = next; break; }
-                queue.Enqueue(next);
+                queue.Enqueue(next, soFar + step);
             }
         }
         if (found is not { } end) return false;
@@ -79,15 +92,31 @@ public static class RoomPathfinder
     /// along a grid axis, so a short fixed look-ahead read as a screen diagonal almost every time).
     /// Scans from the end back toward index 1 and returns the first point with clear sight of
     /// <c>path[0]</c>; falls back to <c>path[1]</c> if nothing beyond it is visible, or <c>path[0]</c>
-    /// itself for a single-point path.</summary>
+    /// itself for a single-point path. The path between must stay within <see cref="BearingSlackUnits"/> of the line.</summary>
     public static (float X, float Y) FarthestVisiblePoint(WalkGrid grid, List<(float X, float Y)> path)
     {
         if (path.Count <= 1) return path.Count == 1 ? path[0] : (0f, 0f);
 
         for (var i = path.Count - 1; i >= 1; i--)
-            if (HasLineOfSight(grid, path[0], path[i])) return path[i];
+            if (FollowsPath(path, i) && HasLineOfSight(grid, path[0], path[i])) return path[i];
 
         return path[1];
+    }
+
+    // Every path point up to path[to] lies within BearingSlackUnits of the segment path[0]..path[to].
+    private static bool FollowsPath(List<(float X, float Y)> path, int to)
+    {
+        for (var j = 1; j < to; j++)
+            if (DistanceToSegment(path[j], path[0], path[to]) > BearingSlackUnits) return false;
+        return true;
+    }
+
+    private static float DistanceToSegment((float X, float Y) p, (float X, float Y) a, (float X, float Y) b)
+    {
+        var (dx, dy) = (b.X - a.X, b.Y - a.Y);
+        var lengthSquared = dx * dx + dy * dy;
+        var t = lengthSquared == 0f ? 0f : Math.Clamp(((p.X - a.X) * dx + (p.Y - a.Y) * dy) / lengthSquared, 0f, 1f);
+        return Distance(p, (a.X + t * dx, a.Y + t * dy));
     }
 
     // Every sampled cell along the segment must be walkable; a diagonal cut around a corner samples

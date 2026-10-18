@@ -275,6 +275,17 @@ within the closing depth. A quest-restricted door stays a door: nothing in memor
 (research/client-memory.md §4). `--debug` logs `RADAR door … ends=A/B` once per door; both ends should be `Blocked`, which
 means the yaw lays the door across its doorway.
 
+## Jump points in the guide
+
+A gap the walk map can't cross may carry a jump: two `Traversal_Gizmo_Jump` points a few units apart, one on each side, used
+with the interact button (the Philios mindscape's `Sightless_Skovos_SW_Traversal_01`: one tile's floor in four islands joined
+by three pairs, live 2026-10-18). `Game/JumpLinkCollector` reads each loaded tile's jump points offline (every marker layer:
+some tiles keep them in `Traversals`), pairs each with its mutual nearest within 8 units and hands them to
+`NavigationBridge.SetJumpLinks`. `RoomPathfinder` then joins the floor within 2.5 units of one end to the floor nearest the
+other (the leap costs its length + 4), and while a route needs a jump the guide aims at the first jump point
+(`GuideStep.JumpAt`, `--debug`: `GUIDE via jump at (x,y)`, `JUMPS <tile>: …`). No sound of its own: the game sounds jump
+points (user, 2026-10-18).
+
 ## Barriers in the radar and the guide
 
 `Game/BarrierObstacles` lays every barrier wall a dungeon raises on the 1-unit grid: a non-gizmo actor named

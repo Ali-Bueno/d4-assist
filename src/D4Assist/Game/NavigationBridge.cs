@@ -64,6 +64,12 @@ public sealed class NavigationBridge
         lock (_gate) _engine.Guide.SetBlockedCells(cells);
     }
 
+    /// <summary>The jump links of the loaded tiles, for the guide's routes; an equal list is a no-op (ExplorationGuide.SetJumpLinks).</summary>
+    public void SetJumpLinks(IReadOnlyList<JumpLink> jumps)
+    {
+        lock (_gate) _engine.Guide.SetJumpLinks(jumps);
+    }
+
     public ExplorationState ExportExploration()
     {
         lock (_gate) return _engine.ExportExploration();

@@ -6,8 +6,9 @@ namespace D4Assist.Navigation;
 public sealed record OpeningRoute(RoomOpening Opening, StickDirection Direction, float PathLength, bool UsedPathFallback, bool IsEntry = false);
 
 /// <summary>A traced route to an opening: the look-ahead point to head for, the path length (0 on fallback),
-/// and whether BFS failed and the point is just the opening itself.</summary>
-public sealed record PathBearing((float X, float Y) Point, float Length, bool UsedFallback);
+/// and whether BFS failed and the point is just the opening itself. <paramref name="JumpAt"/>: the jump point the route
+/// must use first, which the point then leads to; null when it needs none.</summary>
+public sealed record PathBearing((float X, float Y) Point, float Length, bool UsedFallback, (float X, float Y)? JumpAt = null);
 
 /// <summary>
 /// Resolves each opening's spoken direction via a BFS path's farthest visible point (RoomPathfinder)
@@ -50,28 +51,38 @@ public sealed class RoomRouteCache
 
     /// <summary>BFS path from the player to <paramref name="goal"/> inside the room, and the farthest visible
     /// point along it. Falls back to the opening's own position when the room has no grid or no path.</summary>
-    public static PathBearing Trace(Room room, (float X, float Y) player, RoomOpening goal)
+    public static PathBearing Trace(Room room, (float X, float Y) player, RoomOpening goal, IReadOnlyList<JumpLink>? jumps = null)
     {
         if (room.NavGrid is { } grid &&
-            RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), out var path, out var length))
-        {
-            var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
-            return new PathBearing(Distance(player, farthest) < MinBearingDistanceUnits ? goal.Position : farthest, length, false);
-        }
+            RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), jumps ?? [], out var path, out var length, out var jump))
+            return Bearing(grid, player, path, length, jump, goal.Position);
         return new PathBearing(goal.Position, 0f, true);
     }
 
     /// <summary>BFS path from the player to the floor within <paramref name="reach"/> of <paramref name="point"/> (an object stands
     /// on cells of its own), and the farthest visible point along it. Falls back to the point itself when the room has no grid or no path.</summary>
-    public static PathBearing TraceToPoint(Room room, (float X, float Y) player, (float X, float Y) point, float reach)
+    public static PathBearing TraceToPoint(
+        Room room, (float X, float Y) player, (float X, float Y) point, float reach, IReadOnlyList<JumpLink>? jumps = null)
     {
         if (room.NavGrid is { } grid &&
-            RoomPathfinder.TryFindPath(grid, player, FloorWithin(grid, point, reach), out var path, out var length))
-        {
-            var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
-            return new PathBearing(Distance(player, farthest) < MinBearingDistanceUnits ? point : farthest, length, false);
-        }
+            RoomPathfinder.TryFindPath(grid, player, FloorWithin(grid, point, reach), jumps ?? [], out var path, out var length, out var jump))
+            return Bearing(grid, player, path, length, jump, point);
         return new PathBearing(point, 0f, true);
+    }
+
+    // Where to head on a found path: its farthest visible point, or, when the path needs a jump, the farthest visible point
+    // before it and, once near, the jump point itself: the line across the gap is no way to walk.
+    private static PathBearing Bearing(WalkGrid grid, (float X, float Y) player, List<(float X, float Y)> path, float length,
+        (int Index, (float X, float Y) At)? jump, (float X, float Y) goal)
+    {
+        if (jump is { } leap)
+        {
+            var toward = RoomPathfinder.FarthestVisiblePoint(grid, path.GetRange(0, leap.Index + 1));
+            bool near = Distance(player, leap.At) <= RoomPathfinder.JumpReachUnits || Distance(player, toward) < MinBearingDistanceUnits;
+            return new PathBearing(near ? leap.At : toward, length, false, leap.At);
+        }
+        var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
+        return new PathBearing(Distance(player, farthest) < MinBearingDistanceUnits ? goal : farthest, length, false);
     }
 
     private static List<(int Row, int Col)> FloorWithin(WalkGrid grid, (float X, float Y) point, float reach)

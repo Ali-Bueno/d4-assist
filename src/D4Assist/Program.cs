@@ -36,6 +36,8 @@ internal static class Program
     private const string WorldDefinitionType = "WorldDefinition";
     private const string MarkerSetType = "MarkerSetDefinition";
     private const string QuestDefinitionType = "QuestDefinition";
+    // The jump points a gap's two sides carry (Traversal_Gizmo_Jump; live 2026-10-18, Philios mindscape).
+    private const string JumpGizmoPrefix = "Traversal_Gizmo_Jump";
     // data/definitions.json, embedded by D4Assist.csproj when it existed at build time; the default DefinitionsPath.
     private const string EmbeddedDefinitions = "definitions.json";
     // Passed to the copy a restart starts, which then waits for this one to exit.
@@ -204,6 +206,10 @@ internal static class Program
         var navigation = new NavigationBridge(
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains,
             config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
+        // Jump points join floor the walk map splits (a gap to jump): the guide routes over them and leads to the jump point.
+        var jumpScenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false);
+        var tileJumps = new TileActorReader(jumpScenes, sno => store.Name(sno)?.StartsWith(JumpGizmoPrefix, StringComparison.Ordinal) == true);
+        _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null);
 
         // One mixer and one output for the radar cues and the beacon loops.
         var interactables = new InteractableClassifier(definitionOf, store.Name);

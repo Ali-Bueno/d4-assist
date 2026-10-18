@@ -21,9 +21,10 @@ public sealed record GuideTarget(GuideTargetKind Kind, string Id, (float X, floa
 /// <param name="RemainingLength">Route length to the target, in world units.</param>
 /// <param name="Round">Re-check round (1-based) while <see cref="GuideStatus.Rechecking"/>; otherwise 0.</param>
 /// <param name="Toward">While exploring, the objective the route heads for: known, but its tile not loaded or not reachable yet.</param>
+/// <param name="JumpAt">The jump point the route uses next, which <see cref="Waypoint"/> leads to; null when none is on the way.</param>
 public sealed record GuideStep(
     GuideStatus Status, GuideTarget? Target = null, (float X, float Y) Waypoint = default, float RemainingLength = 0f, int Arrivals = 0, int Round = 0,
-    GuideDestination? Toward = null)
+    GuideDestination? Toward = null, (float X, float Y)? JumpAt = null)
 {
     public static readonly GuideStep Unknown = new(GuideStatus.Unknown);
     public static readonly GuideStep AllExplored = new(GuideStatus.AllExplored);

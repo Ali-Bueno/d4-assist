@@ -34,19 +34,36 @@ public static class RoomPathfinder
     // The extra cost, per unit walked, of a step onto a cell 1 or 2 cells from a wall (none from 3 on).
     private static float WallPenalty(int clearance) => clearance switch { 1 => 4f, 2 => 1f, _ => 0f };
 
+    /// <summary>How near a jump point the floor must be to use it, and to land from it: jump points stand on the edge of their
+    /// floor, often on a cell the walk map leaves out (Philios mindscape, 2026-10-18).</summary>
+    public const float JumpReachUnits = 2.5f;
+
+    // Using a jump costs this much more than its length: walking around is preferred when it is about as short.
+    private const float JumpExtraCost = 4f;
+
     /// <summary>Finds the shortest cell path from <paramref name="fromWorld"/> to the nearest of
     /// <paramref name="targets"/>. False when unreachable (or off-grid) — caller falls back to a straight line.</summary>
     public static bool TryFindPath(WalkGrid grid, (float X, float Y) fromWorld, IReadOnlyList<(int Row, int Col)> targets,
-        out List<(float X, float Y)> path, out float length)
+        out List<(float X, float Y)> path, out float length) =>
+        TryFindPath(grid, fromWorld, targets, [], out path, out length, out _);
+
+    /// <summary>As the plain search, but <paramref name="jumps"/> join the floor near one jump point to the floor near the other.
+    /// <paramref name="firstJump"/> is the index in <paramref name="path"/> of the cell the path's first jump starts from, and
+    /// the jump point used there; null when the path needs no jump.</summary>
+    public static bool TryFindPath(WalkGrid grid, (float X, float Y) fromWorld, IReadOnlyList<(int Row, int Col)> targets,
+        IReadOnlyList<JumpLink> jumps, out List<(float X, float Y)> path, out float length, out (int Index, (float X, float Y) At)? firstJump)
     {
         path = [];
         length = 0f;
+        firstJump = null;
         var start = grid.CellAt(fromWorld.X, fromWorld.Y);
         if (!grid.IsWalkable(start.Row, start.Col) && !TrySnapToWalkable(grid, fromWorld, start, out start)) return false;
 
         var targetSet = new HashSet<(int, int)>(targets);
         if (targetSet.Count == 0) return false;
 
+        var takeoffs = Takeoffs(grid, jumps);
+        var jumpedFrom = new Dictionary<(int, int), (float X, float Y)>(); // landing cell -> the jump point used to reach it
         var previous = new Dictionary<(int, int), (int, int)>();
         var cost = new Dictionary<(int, int), float> { [start] = 0f };
         var done = new HashSet<(int, int)>();
@@ -70,7 +87,17 @@ public static class RoomPathfinder
                 if (cost.TryGetValue(next, out var known) && known <= soFar + step) continue;
                 cost[next] = soFar + step;
                 previous[next] = current;
+                jumpedFrom.Remove(next);
                 queue.Enqueue(next, soFar + step);
+            }
+            if (!takeoffs.TryGetValue(current, out var leaps)) continue;
+            foreach (var (landing, leapCost, at) in leaps)
+            {
+                if (done.Contains(landing) || (cost.TryGetValue(landing, out var known) && known <= soFar + leapCost)) continue;
+                cost[landing] = soFar + leapCost;
+                previous[landing] = current;
+                jumpedFrom[landing] = at;
+                queue.Enqueue(landing, soFar + leapCost);
             }
         }
         if (found is not { } end) return false;
@@ -82,9 +109,44 @@ public static class RoomPathfinder
 
         path = cells.Select(c => grid.CellCenter(c.Item1, c.Item2)).ToList();
         for (var i = 1; i < path.Count; i++)
+        {
             length += Distance(path[i - 1], path[i]);
+            if (firstJump is null && jumpedFrom.TryGetValue(cells[i], out var jumpPoint)) firstJump = (i - 1, jumpPoint);
+        }
         return true;
     }
+
+    // Every cell a jump starts from, with where it lands, what the leap costs and the jump point used; both ways. A jump whose
+    // either end has no floor within JumpReachUnits on this grid is left out.
+    private static Dictionary<(int, int), List<((int, int) Landing, float Cost, (float X, float Y) At)>> Takeoffs(
+        WalkGrid grid, IReadOnlyList<JumpLink> jumps)
+    {
+        var takeoffs = new Dictionary<(int, int), List<((int, int), float, (float X, float Y))>>();
+        foreach (var jump in jumps)
+            foreach (var (from, to) in new[] { (jump.A, jump.B), (jump.B, jump.A) })
+            {
+                if (NearestFloor(grid, to) is not { } landing) continue;
+                float leap = Distance(from, to) + JumpExtraCost;
+                foreach (var cell in FloorNear(grid, from))
+                {
+                    if (!takeoffs.TryGetValue(cell, out var list)) takeoffs[cell] = list = [];
+                    list.Add((landing, leap, from));
+                }
+            }
+        return takeoffs;
+    }
+
+    private static IEnumerable<(int Row, int Col)> FloorNear(WalkGrid grid, (float X, float Y) point)
+    {
+        var (row, col) = grid.CellAt(point.X, point.Y);
+        var span = (int)MathF.Ceiling(JumpReachUnits / grid.Resolution);
+        for (var r = row - span; r <= row + span; r++)
+            for (var c = col - span; c <= col + span; c++)
+                if (grid.IsWalkable(r, c) && Distance(grid.CellCenter(r, c), point) <= JumpReachUnits) yield return (r, c);
+    }
+
+    private static (int Row, int Col)? NearestFloor(WalkGrid grid, (float X, float Y) point) =>
+        FloorNear(grid, point).Cast<(int Row, int Col)?>().MinBy(c => Distance(grid.CellCenter(c!.Value.Row, c.Value.Col), point));
 
     /// <summary>The farthest path point still in a straight line of sight from the path's start —
     /// the route's real next heading, instead of a fixed look-ahead distance that lands on whichever

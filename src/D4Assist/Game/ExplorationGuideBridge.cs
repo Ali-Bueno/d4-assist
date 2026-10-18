@@ -287,8 +287,16 @@ public sealed class ExplorationGuideBridge
 
     private void LogTargetChange(GuideStep step)
     {
-        if (_log is null || step.Target is not { } target || target.Id == _loggedTargetId) return;
+        if (_log is null) return;
+        if (step.JumpAt != _loggedJump)
+        {
+            _loggedJump = step.JumpAt;
+            if (step.JumpAt is { } jump) _log($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE via jump at ({jump.X:F1},{jump.Y:F1})");
+        }
+        if (step.Target is not { } target || target.Id == _loggedTargetId) return;
         _loggedTargetId = target.Id;
         _log($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE target {target.Kind} {target.Id} at ({target.Position.X:F1},{target.Position.Y:F1}) route={step.RemainingLength:F1}");
     }
+
+    private (float X, float Y)? _loggedJump;
 }

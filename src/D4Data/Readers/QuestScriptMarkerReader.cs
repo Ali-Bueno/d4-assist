@@ -39,6 +39,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private const string ActorDefinition = "ActorDefinition", SnoName = "DT_SNO_NAME", SceneDefinition = "SceneDefinition";
     private const string MessageMap = "ScriptMessageMap", Filter = "ScriptMessageMapFilter";
     private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle", QuestParam = "ScriptEventParamQuest";
+    private const string ActorGroupParam = "ScriptEventParamActorGroup";
 
     private readonly Dictionary<int, IReadOnlyList<PlacedMarker>> _cache = [];
     private readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> _phaseCache = [];
@@ -46,6 +47,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
     private Dictionary<int, List<int>>? _questsByWorld;
     private readonly Dictionary<int, Blueprint> _blueprints = [];
+    private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _blueprintGroups;
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -69,6 +71,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         var actors = ActorTokens(quest).ToList();
         var subQuests = SubQuests(quest, questSno).ToList();
         var worlds = CallbackWorlds(quest).ToList();
+        var groups = ActorGroups(quest).ToList();
         return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
@@ -76,7 +79,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 .Select(h => (Scene: SceneOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
-            var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!)).ToList();
+            var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
+                .Concat(groups.Where(g => g.PhaseUid == uid).SelectMany(g => BlueprintGroupMarkers(g.Group))).Distinct().ToList();
             return new QuestPhaseObjects(uid,
                 [.. named.Where(m => m.Scene is null && m.Blueprint is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
@@ -151,12 +155,12 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private static string? FrameOf(string? markerSetName) =>
         markerSetName?.IndexOf(" (", StringComparison.Ordinal) is > 0 and var cut ? markerSetName[..cut] : null;
 
-    // A blueprint's own marker set: "CSD_Hawe_SailtoSkovos_Docks_BPMS", no layer (QuestPhaseObjects.KindMarkers); null for another set.
+    // A blueprint's own marker set: "CSD_Hawe_SailtoSkovos_Docks_BPMS" or one of its sections
+    // ("CSD_Skov_Lycander_Mindscape_02_BPMS_Section_01"), no layer (QuestPhaseObjects.KindMarkers); null for another set.
     private Blueprint? BlueprintOf(int markerSet)
     {
         if (_blueprints.TryGetValue(markerSet, out var known)) return known;
-        if (store.Name(markerSet) is not { } name || FrameOf(name) is not null || !name.EndsWith("_BPMS", StringComparison.OrdinalIgnoreCase))
-            return null;
+        if (store.Name(markerSet) is not { } name || !IsBlueprintSet(name)) return null;
         int actorGroup = schema.SnoGroup(ActorDefinition);
         return _blueprints[markerSet] = new Blueprint(markerSet, [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)]);
     }
@@ -168,6 +172,34 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         try { return store.Resolve(schema.SnoGroup(SceneDefinition), frame); }
         catch (ArgumentException) { return null; }
     }
+
+    private static bool IsBlueprintSet(string name) =>
+        FrameOf(name) is null && (name.EndsWith("_BPMS", StringComparison.OrdinalIgnoreCase) || name.Contains("_BPMS_", StringComparison.OrdinalIgnoreCase));
+
+    // The blueprint markers of an actor group a step names (ScriptEventParamActorGroup). Only blueprint sets are indexed: few
+    // (97 in 3.2.3), read once on first use; a group in a world's or scene's layer set isn't found.
+    private IEnumerable<BlueprintMarker> BlueprintGroupMarkers(uint group)
+    {
+        if (_blueprintGroups is null)
+        {
+            _blueprintGroups = [];
+            foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
+            {
+                if (!IsBlueprintSet(name)) continue;
+                foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
+                foreach (uint g in groups.Distinct())
+                    (_blueprintGroups.TryGetValue(g, out var list) ? list : _blueprintGroups[g] = []).Add((set, marker));
+            }
+        }
+        foreach (var (set, marker) in _blueprintGroups.GetValueOrDefault(group) ?? [])
+            if (BlueprintOf(set) is { } frame) yield return new BlueprintMarker(frame, marker);
+    }
+
+    // The actor groups (GBIDs) a phase's scripts name; 0 is none.
+    private IEnumerable<(uint PhaseUid, uint Group)> ActorGroups(SnoBlob quest) =>
+        Params(quest).Where(p => p.Type == ActorGroupParam)
+            .Select(p => (p.PhaseUid, Group: quest.U32(p.Param + schema.Offset(ActorGroupParam, "gbidActorGroup"))))
+            .Where(g => g.Group != 0);
 
     private IEnumerable<int> Phases(SnoBlob quest) => quest.PolymorphicArray(schema.Offset(Quest, "arQuestPhases"), schema.Size(Phase));
 

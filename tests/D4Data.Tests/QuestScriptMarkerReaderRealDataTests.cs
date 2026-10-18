@@ -154,4 +154,26 @@ public class QuestScriptMarkerReaderRealDataTests
         Assert.Equal(-672.6f, meshif.Position.X, 0.5f);
         Assert.Equal(7.0f, meshif.Position.Y, 0.5f);
     }
+
+    [Fact]
+    public void AStepNamingAnActorGroupLeadsToTheBlueprintMarkersOfThatGroup()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+        int quest = store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Philios_Mindscape_02");
+        int sphere = store.Resolve(schema.SnoGroup("ActorDefinition"), "Trigger_Sphere_8m");
+        int section = store.Resolve(schema.SnoGroup("MarkerSetDefinition"), "CSD_Skov_Lycander_Mindscape_02_BPMS_Section_01");
+
+        // Live 2026-10-18 ("Was gegeben wurde", CSD_Skov_Philios_Mindscape_02): phase 285 asks the player into actor group
+        // 1357711822, a Trigger_Sphere_8m by the exit portal in a blueprint section; no marker handle or actor names it, so the
+        // dungeon read explored and the guide had nowhere to go.
+        var phase = reader.PhaseObjects(quest).Single(p => p.PhaseUid == 285);
+        var exit = Assert.Single(phase.KindMarkers!, k => k.Marker.Sno == sphere && k.Marker.Position.Y > 150);
+        Assert.Equal(section, exit.Frame.MarkerSet);
+        Assert.Equal(-33.4f, exit.Marker.Position.X, 0.1f);
+        Assert.Equal(181.0f, exit.Marker.Position.Y, 0.1f);
+        Assert.NotEmpty(exit.Frame.Anchors);
+    }
 }

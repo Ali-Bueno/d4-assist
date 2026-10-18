@@ -53,6 +53,35 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
         return result;
     }
 
+    /// <summary>The top-level markers of a marker set that belong to actor groups, with those groups' GBIDs, in the set's frame:
+    /// Marker.ptBase holds a MarkerActorData whose ptServerData lists arActorGroups. A quest step names such a group instead of
+    /// an actor (live 2026-10-18, QST_X2_Skov_Philios_Mindscape_02 phase 285: "enter" a Trigger_Sphere_8m of group 1357711822).</summary>
+    public IReadOnlyList<(PlacedMarker Marker, IReadOnlyList<uint> Groups)> ActorGroupMarkers(int markerSetSno)
+    {
+        var result = new List<(PlacedMarker, IReadOnlyList<uint>)>();
+        if (store.Meta(MarkerSetGroup, markerSetSno) is not { } meta) return result;
+        var blob = schema.IsInPayload(MarkerSet, "tMarkerSet") ? store.Payload(MarkerSetGroup, markerSetSno) : meta;
+        if (blob is null || !schema.HasType(ActorData)) return result;
+        int nameField = schema.Offset(Marker, "snoname"), typeField = schema.Offset("MarkerDataBase", "dwType");
+        foreach (var m in blob.Array(schema.Offset(MarkerSet, "tMarkerSet"), schema.Size(Marker)))
+        {
+            var groups = new List<uint>();
+            int? sizeOf(int p) => p + typeField + sizeof(uint) <= blob.Length && schema.TypeName(blob.U32(p + typeField)) is { } t ? schema.Size(t) : null;
+            foreach (int data in blob.PolymorphicElements(m + schema.Offset(Marker, "ptBase"), sizeOf) ?? [])
+            {
+                if (schema.TypeName(blob.U32(data + typeField)) != ActorData) continue;
+                foreach (int server in blob.Array(data + schema.Offset(ActorData, "ptServerData"), schema.Size("MarkerServerData")))
+                foreach (int gbid in blob.Array(server + schema.Offset("MarkerServerData", "arActorGroups"), sizeof(uint)))
+                    groups.Add(blob.U32(gbid));
+            }
+            if (groups.Count > 0)
+                result.Add((new PlacedMarker(blob.I32(m + nameField), blob.I32(m + nameField + sizeof(int)), LocalMatrix(blob, m).Translation), groups));
+        }
+        return result;
+    }
+
+    private const string ActorData = "MarkerActorData";
+
     // Visits every non-prefab marker with its composed transform, expanding nested prefab marker sets.
     private void Walk(int markerSetSno, Matrix4x4 parent, int depth, Action<int, int, int, Matrix4x4> visit)
     {

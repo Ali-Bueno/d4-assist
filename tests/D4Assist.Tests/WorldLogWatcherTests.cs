@@ -19,6 +19,18 @@ public class WorldLogWatcherTests
     }
 
     [Fact]
+    public void ReadLastWorldAtStartup_KeepsASpaceInTheWorldName()
+    {
+        string dir = MakeTempInstallDir();
+        File.WriteAllText(Path.Combine(dir, WorldLogWatcher.LogFileName),
+            "I 2026.10.18 15:45:18.046644 162671\t[Game] Client entered world | world: CSD_Skov_Philios_ River_Skovos_MorluDungeon | CWorldID: 524291\n");
+
+        using var watcher = new WorldLogWatcher(dir);
+
+        Assert.Equal(new WorldEntry("CSD_Skov_Philios_ River_Skovos_MorluDungeon", "524291"), watcher.ReadLastWorldAtStartup());
+    }
+
+    [Fact]
     public void ReadLastWorldAtStartup_ReturnsNullWhenTheLogDoesNotExistYet()
     {
         string dir = MakeTempInstallDir();

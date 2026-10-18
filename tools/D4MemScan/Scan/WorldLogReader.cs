@@ -24,7 +24,7 @@ public static class WorldLogReader
         int i = line.IndexOf(Marker, StringComparison.Ordinal);
         if (i < 0) return null;
         var rest = line[(i + Marker.Length)..];
-        int end = rest.IndexOfAny([' ', '\t', '\r', '\n']);
+        int end = rest.IndexOf(" |", StringComparison.Ordinal); // a world name can hold a space
         return (end < 0 ? rest : rest[..end]).Trim();
     }
 }

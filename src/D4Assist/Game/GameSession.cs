@@ -131,7 +131,11 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         string worldName = entry.Name;
         (int WorldSno, WorldKind Kind) classified;
         try { classified = _classifier.Classify(worldName); }
-        catch (ArgumentException) { return; } // world name not in CoreTOC; ignore rather than crash the loop
+        catch (ArgumentException e) // world name not in CoreTOC; ignore rather than crash the loop
+        {
+            Console.WriteLine($"World: '{worldName}' not resolved, ignored: {e.Message}");
+            return;
+        }
 
         lock (_gate)
         {

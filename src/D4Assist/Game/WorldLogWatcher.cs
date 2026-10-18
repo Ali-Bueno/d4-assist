@@ -105,7 +105,8 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
         return Encoding.UTF8.GetByteCount(complete);
     }
 
-    internal static string? ExtractWorldName(string line) => WordAfter(line, EnteredWorldMarker);
+    // A world name can hold a space ("CSD_Skov_Philios_ River_Skovos_MorluDungeon"), so it runs to the " | " field separator.
+    internal static string? ExtractWorldName(string line) => FieldAfter(line, EnteredWorldMarker);
 
     internal static WorldEntry? ExtractWorldEntry(string line) =>
         ExtractWorldName(line) is { } name ? new WorldEntry(name, WordAfter(line, InstanceMarker)) : null;
@@ -118,6 +119,15 @@ public sealed class WorldLogWatcher : IWorldNameSource, IDisposable
         if (i < 0) return null;
         var rest = line[(i + marker.Length)..];
         int end = rest.IndexOfAny([' ', '\t', '\r', '\n']);
+        return (end < 0 ? rest : rest[..end]).Trim();
+    }
+
+    private static string? FieldAfter(string line, string marker)
+    {
+        int i = line.IndexOf(marker, StringComparison.Ordinal);
+        if (i < 0) return null;
+        var rest = line[(i + marker.Length)..];
+        int end = rest.IndexOf(" |", StringComparison.Ordinal);
         return (end < 0 ? rest : rest[..end]).Trim();
     }
 

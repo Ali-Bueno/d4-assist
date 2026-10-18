@@ -62,6 +62,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>IsDungeon is true only for DRLG dungeons; a radar-only world reports false here (bridges stay silent) and true in <see cref="CurrentWorldRadarOnly"/>.</summary>
     public (string Name, bool IsDungeon)? CurrentWorld { get; private set; }
 
+    /// <summary>The current world's SNO; <see cref="NoWorldSno"/> before the first world and after the game closed.</summary>
+    public int CurrentWorldSno { get { lock (_gate) return _currentWorldSno; } }
+
     public bool CurrentWorldRadarOnly { get; private set; }
 
     public WorldKind CurrentWorldKind { get; private set; }

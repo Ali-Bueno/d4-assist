@@ -53,6 +53,17 @@ public class WaypointListBridgeTests
         Assert.EndsWith("2 of 2.", speech.Last);
     }
 
+    // Live 2026-10-18: the app started in the open world, entered before the bridge listened; the list said "none in this world".
+    [Fact]
+    public void The_list_asks_for_the_world_the_player_is_in_now()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul, Hideout], world: OtherWorld);
+
+        keys.Open();
+
+        Assert.StartsWith("Waypoints by distance: 1. MERC_Hideout", speech.Last);
+    }
+
     [Fact]
     public void An_unreadable_activated_list_offers_nothing()
     {
@@ -105,16 +116,15 @@ public class WaypointListBridgeTests
         Assert.False(keys.ListKeys);
     }
 
-    private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(int[]? activated, MapView? view = null)
+    private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(int[]? activated, MapView? view = null, int world = OpenWorld)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
         var mouse = new FakeMouse();
         var bridge = new WaypointListBridge(
-            Catalog, w => w.LevelAreaName, _ => activated, () => view ?? FarOut, speech, new LanguageSetting(SpeechLanguage.English),
+            Catalog, w => w.LevelAreaName, _ => activated, () => view ?? FarOut, () => world, speech, new LanguageSetting(SpeechLanguage.English),
             DirectionStyle.Screen, keys, mouse, () => true);
         bridge.Start();
-        bridge.OnWorldChanged(OpenWorld);
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
         return (bridge, keys, speech, mouse);

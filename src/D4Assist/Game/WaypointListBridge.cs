@@ -17,15 +17,16 @@ namespace D4Assist.Game;
 /// <param name="nameOf">A waypoint's name in the current language.</param>
 /// <param name="readActivated">The activated waypoints' LevelArea SNOs (the session's ReadActivatedWaypoints); null when unreadable.</param>
 /// <param name="readMapView">The map's center and zoom; null when unreadable.</param>
+/// <param name="currentWorld">The world the player is in (GameSession.CurrentWorldSno): asked on each Shift+F1, since the app can
+/// start in a world entered before this bridge listened (live 2026-10-18: "0 in world -1").</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
-    Func<MapView?> readMapView, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
+    Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
     IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
     private readonly IReadOnlySet<int> _levelAreas = waypoints.Select(w => w.LevelAreaSno).ToHashSet();
-    private int _worldSno = GameSession.NoWorldSno;
     private PlayerState? _player;
     private bool _mapOpen, _openKey;
 
@@ -39,11 +40,11 @@ public sealed class WaypointListBridge(
         keys.EscapePressed += () => Close(spoken: true);
     }
 
-    public void OnWorldChanged(int worldSno)
+    /// <summary>Closes the list and forgets the player's spot: both belong to the world left.</summary>
+    public void OnWorldChanged()
     {
         lock (_gate)
         {
-            _worldSno = worldSno;
             _player = null;
             CloseLocked(spoken: false);
         }
@@ -84,10 +85,11 @@ public sealed class WaypointListBridge(
                 speech.Speak(Text.Unreadable, interrupt: true);
                 return;
             }
-            var here = waypoints.Where(w => w.WorldSno == _worldSno && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
+            int world = currentWorld();
+            var here = waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
             var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
             _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
-            log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {_worldSno}");
+            log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
             keys.SetListKeys(_list.IsOpen);
             speech.Speak(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
         }

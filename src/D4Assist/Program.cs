@@ -349,9 +349,9 @@ internal static class Program
                 allWaypoints, w => { lock (cascGate) return catalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
                 levelAreas => { IReadOnlyList<int>? read = null; session.Query(r => read = r.ReadActivatedWaypoints(levelAreas)); return read; },
                 () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
-                speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
+                () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
                 GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null);
-            session.WorldChanged += (sno, _, _) => waypointList.OnWorldChanged(sno);
+            session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MenusRead += waypointList.OnMenus;
             waypointList.Start();

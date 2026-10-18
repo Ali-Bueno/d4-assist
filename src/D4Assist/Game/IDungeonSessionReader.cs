@@ -40,6 +40,13 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The actor SNOs the active quests' current phases name outright, as of the last actor read; null when unknown.</summary>
     IReadOnlySet<int>? ReadQuestActorSnos() => null;
+
+    /// <summary>The LevelArea SNOs of the local player's activated waypoints among <paramref name="waypointLevelAreas"/>, in
+    /// activation order; null when unreadable.</summary>
+    IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) => null;
+
+    /// <summary>The world map's center and zoom; null when unreadable. Meaningful while the map is open.</summary>
+    MapView? ReadMapView() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

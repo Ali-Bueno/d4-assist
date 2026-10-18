@@ -127,6 +127,12 @@ desert sandstorm quest it mutes and unmutes the ping that leads you from shelter
 D-pad does nothing, because there it belongs to the game. On the keyboard, Ctrl+Alt+Shift+G does the same as left on the
 D-pad, also in menus.
 
+**Waypoint list.** With the world map open, Shift+F1 lists the waypoints you have activated in this world, nearest first.
+Up and down read them (name, distance and direction), Enter puts the mouse cursor on the chosen waypoint and closes the
+list, and Escape closes it. Shift+F1 belongs to the program only while the map is open, and the arrows, Enter and Escape
+only while the list is. If the waypoint lies outside the map view, zoom out and choose it again. The program only moves
+the cursor; it never clicks.
+
 ## Known issues
 
 If you open the program in the middle of a dungeon, the first room it announces is called the entrance even if it isn't.

@@ -307,6 +307,17 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         _pendingOpenKind = null;
     }
 
+    /// <summary>Runs <paramref name="read"/> on the current session, on the caller's thread (a key press, not a poll); false
+    /// while no session is open.</summary>
+    public bool Query(Action<IDungeonSessionReader> read)
+    {
+        SessionLease? lease;
+        lock (_gate) lease = BorrowLocked();
+        if (lease is null) return false;
+        try { read(lease.Reader); return true; }
+        finally { GiveBack(lease); }
+    }
+
     /// <summary>Runs one player-position read. Public so tests can drive it deterministically instead of waiting on the timer.</summary>
     public void PollPlayerOnce() => Guarded("player", ref _playerBusy, ReadPlayerOnce);
 

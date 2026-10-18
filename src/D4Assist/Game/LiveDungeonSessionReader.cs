@@ -458,6 +458,11 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlySet<int>? ReadQuestActorSnos() => _activeQuests is null ? null : _questActorSnos;
 
+    public IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) =>
+        _offsets is { } offsets ? ActivatedWaypointsReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva, waypointLevelAreas) : null;
+
+    public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
     // The gizmos and triggers the current phases name that the map marks, wherever they are: the server places some (the
     // Labyrinth's lair door), and the game only streams actors in about 25 units around the player.
     private IEnumerable<(int Sno, Vector3 Position)> MarkedOnMap(IReadOnlySet<int> snos, GameBuildOffsets offsets) =>

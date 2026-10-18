@@ -91,6 +91,7 @@ public sealed partial record SettingsStrings
         InterruptOnContextChange = "Прерывать речь при входе в подземелье и выходе из него",
         RadarClosedDoors = "Закрытые двери на радаре",
         LiveBarriers = "Преграды подземелий на радаре и в проводнике",
+        WaypointList = "Список путевых точек на карте (Shift+F1)",
         ExplorationGuide = "Проводник по исследованию (крестовина влево включает и выключает)",
         ExplorationGuideInDungeons = "Включать проводник при входе в обычные подземелья (в Подгороде и Яме он всегда включён)",
         CompassDirections = "Называть направления сторонами света (север, восток…) вместо вверх, вправо…",

@@ -138,7 +138,7 @@ internal static class Program
 
         bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
         // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
-        bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
+        bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled || config.WaypointListEnabled;
         // Scan results always logged: a tester's "can't find the game menus" after a character switch came with no other clue.
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(Console.WriteLine) : null;
         // Where far quest objectives stand: the map's markers (research/dungeon-objectives.md §19); one line in every log.
@@ -334,6 +334,30 @@ internal static class Program
             cueGate.Example);
         hotkeys.DigitPressed += demo.Play;
         hotkeys.Start();
+
+        // Shift+F1 on the world map: the activated waypoints, nearest first; Enter puts the mouse cursor on one.
+        using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
+        if (mapKeys is not null)
+        {
+            var catalog = new WaypointCatalog(store, schema);
+            IReadOnlyList<Waypoint> allWaypoints;
+            lock (cascGate) allWaypoints = catalog.All;
+            // The game's text bundle (60,000 tables) loads on the first name; load it now, not on the first Shift+F1.
+            if (allWaypoints.Count > 0)
+                _ = Task.Run(() => { lock (cascGate) catalog.Name(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
+            var waypointList = new WaypointListBridge(
+                allWaypoints, w => { lock (cascGate) return catalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
+                levelAreas => { IReadOnlyList<int>? read = null; session.Query(r => read = r.ReadActivatedWaypoints(levelAreas)); return read; },
+                () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
+                speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
+                GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null);
+            session.WorldChanged += (sno, _, _) => waypointList.OnWorldChanged(sno);
+            session.PlayerMoved += waypointList.OnPlayerMoved;
+            session.MenusRead += waypointList.OnMenus;
+            waypointList.Start();
+            mapKeys.Start();
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map.");
+        }
 
         session.WorldChanged += (sno, name, isDungeon) =>
         {

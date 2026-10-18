@@ -425,6 +425,14 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
   at a time. `Input/GlobalHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
 - **Ctrl+Alt+Shift+G** (keyboard, anywhere) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
+- **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
+  the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
+  it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),
+  nearest first. Up/down speak `name, N meters, direction. i of n`; Enter moves the mouse to the waypoint's pixel
+  (`MapViewReader` center and zoom, `MapProjection`) with `SendInput` (`Input/GameMouse`, the app's only input to the
+  game, never a click) and closes the list; Escape closes it. `Input/MapListKeys` registers Shift+F1 only while
+  `screen_Map` is open and the game has the focus, the list keys only while the list is open. `--debug` logs
+  `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

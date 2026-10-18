@@ -31,6 +31,9 @@ public sealed class AppConfig
     /// <summary>Say directions as compass points on the screen map (north is up) instead of up, right...; only the wording changes.</summary>
     public bool CompassDirections { get; set; } = false;
 
+    /// <summary>Shift+F1 on the world map lists the activated waypoints; Enter puts the mouse cursor on the chosen one.</summary>
+    public bool WaypointListEnabled { get; set; } = true;
+
     /// <summary>Look for a newer version on GitHub at start and offer to update (the downloaded build only).</summary>
     public bool CheckForUpdates { get; set; } = true;
 

@@ -118,6 +118,28 @@ public class ActiveQuestsTests
         Assert.Equal([PetalSno], named.ActorSnos);
     }
 
+    // Live 2026-10-18: the Philios quest, found in the open world by its trigger sphere alone, dropped out each time it unloaded.
+    [Fact]
+    public void A_quest_found_in_progress_stays_followed_while_its_pair_holds_it_and_nothing_it_names_is_loaded()
+    {
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((FieldsOfRuin, PlacePhase));
+        var quests = Create(memory, () => now);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+
+        now += TimeSpan.FromSeconds(10);
+        var named = quests.Update(tracked: [], AreaWith(PetalSno));
+
+        Assert.Equal([FieldsOfRuin], quests.Followed);
+        Assert.Equal(Bases, named.Markers);
+
+        memory.Hold(CampaignQuest, CampaignPhase); // the quest ended
+        now += TimeSpan.FromSeconds(10);
+        quests.Update(tracked: [], AreaWith(PetalSno));
+
+        Assert.Empty(quests.Followed);
+    }
+
     // Live 2026-10-17, the Light's Watch: the side quest and the dungeon's own quest took turns at one address, and the side
     // quest's third lectern stayed silent while the dungeon's quest held it.
     [Fact]

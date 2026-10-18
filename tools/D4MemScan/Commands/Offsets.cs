@@ -15,12 +15,18 @@ internal static class Offsets
         return offsets;
     }
 
-    /// <summary>The first module view whose addresses are found (the game keeps more than one view of its image).</summary>
+    /// <summary>The first module view whose addresses are all found, else the first with any (the game keeps more than one
+    /// view of its image; live 2026-10-18 the first view held the game object but not the attribute names).</summary>
     public static (GameBuildOffsets? Offsets, MainModule Module) DiscoverAny(ProcessReader process, string exePath)
     {
         var modules = ModuleLocator.LocateAll(process.ImageRegions(), process, exePath);
+        (GameBuildOffsets?, MainModule)? partial = null;
         foreach (var module in modules)
-            if (Discover(process, module) is { } offsets) return (offsets, module);
-        return (null, modules.FirstOrDefault());
+            if (Discover(process, module) is { } offsets)
+            {
+                if (offsets.Acd is not null) return (offsets, module);
+                partial ??= (offsets, module);
+            }
+        return partial ?? (null, modules.FirstOrDefault());
     }
 }

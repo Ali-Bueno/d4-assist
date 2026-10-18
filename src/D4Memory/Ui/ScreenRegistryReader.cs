@@ -21,6 +21,9 @@ public static class MenuScreens
     /// <summary>Map and pause menu.</summary>
     public const string MainMenu = "screen_MainInGameMenu";
 
+    /// <summary>The world map alone, open together with <see cref="MainMenu"/> (live 2026-10-18).</summary>
+    public const string Map = "screen_Map";
+
     /// <summary>A readable sign's text (warning signs, notice boards; live 2026-09-30).</summary>
     public const string Sign = "screen_Signs";
 
@@ -81,7 +84,7 @@ public static class MenuScreens
     ];
 
     public static readonly IReadOnlyList<string> Watched =
-        [CharacterPanel, MainMenu, Sign, Mailbox, Vendor, Crafting, Stash, SkillAssignment, NpcInteraction, .. OtherPanels, .. OtherMenus];
+        [CharacterPanel, MainMenu, Map, Sign, Mailbox, Vendor, Crafting, Stash, SkillAssignment, NpcInteraction, .. OtherPanels, .. OtherMenus];
 }
 
 /// <summary>Finds the heap screen registry by scan and reads each screen's open flag (research/client-memory.md §5).</summary>

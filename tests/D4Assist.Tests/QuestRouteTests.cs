@@ -184,10 +184,10 @@ public class QuestRouteTests
         public GuidePingPlayer Ping;
         public double Now;
 
-        public Rig()
+        public Rig(LoadedQuestRoute? route = null)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
-            var route = new LoadedQuestRoute(QuestRouteCatalog.SandstormShelters, new HashSet<int> { GuideActor }, Start, [A, B, C], PalaceSteps);
+            route ??= new LoadedQuestRoute(QuestRouteCatalog.SandstormShelters, new HashSet<int> { GuideActor }, Start, [A, B, C], PalaceSteps);
             _ = new QuestRouteBridge(Feed, [route], Ping, Speech, pad: Pad);
             Feed.RaiseWorld(World);
         }
@@ -366,6 +366,75 @@ public class QuestRouteTests
 
         rig.Feed.RaiseActors(new ActorState(2, GuideActor, Start.X, Start.Y, 0));
         rig.Move(Start);
+
+        Assert.Empty(rig.Speech.Spoken);
+        Assert.False(rig.Pings());
+    }
+
+    // ---- trail (Lilith's blood petals, "Auf blutigem Pfad") ----
+
+    // The first petals of Skov_Philios_Campaign_Design as the game data places them, about 10 units apart, and the last.
+    private static readonly Vector2 P1 = new(2310.5f, -441.9f), P2 = new(2301.5f, -449.0f), P3 = new(2295.0f, -441.5f),
+        P4 = new(2295.9f, -430.4f), PLast = new(2382.7f, -320.0f);
+    private const int Petal = 2557169;
+
+    private static LoadedQuestRoute Trail() =>
+        new(QuestRouteCatalog.PhiliosBloodPetals, new HashSet<int> { Petal }, P1, [P1, P2, P3, P4, PLast]);
+
+    [Fact]
+    public void A_trail_starts_at_its_first_marker_and_keeps_the_marker_sets_order()
+    {
+        int? resolve(int group, string name) => (group, name) switch
+        {
+            (24, "Skov_Philios (Skov_Philios_Campaign_Design)") => 1943891,
+            (1, "QST_X2_Skov_Lilith_BloodPetal_Trigger_Sphere") => Petal,
+            _ => null,
+        };
+        IReadOnlyList<PlacedMarker> markers(int set) =>
+        [
+            new(1, Petal, new Vector3(P1, 17)), new(1, 41245, new Vector3(2300, -400, 10)), new(1, Petal, new Vector3(P2, 17)),
+            new(1, Petal, new Vector3(P3, 16)), new(1, Petal, new Vector3(P4, 14)), new(1, Petal, new Vector3(PLast, 4)),
+        ];
+
+        var route = QuestRouteLoader.Load(QuestRouteCatalog.PhiliosBloodPetals, Groups, resolve, markers, _ => [], _ => { });
+
+        Assert.NotNull(route);
+        Assert.Equal(P1, route.Start);
+        Assert.Equal([P1, P2, P3, P4, PLast], route.Points); // the set lists a trail in walking order
+        Assert.True(route.ActivationSnos.SetEquals([Petal]));
+    }
+
+    [Fact]
+    public void A_petal_in_view_starts_the_trail_which_leads_on_without_waiting_and_speaks_only_its_end()
+    {
+        var rig = new Rig(Trail());
+        rig.Move(P1 + new Vector2(5, 3));
+        Assert.Empty(rig.Speech.Spoken); // no quest marker to stand at: only a petal starts a trail
+
+        rig.Feed.RaiseActors(new ActorState(1, Petal, P1.X, P1.Y, 17));
+        rig.Move(P1 + new Vector2(4, 3));
+        Assert.Equal(["Guía del rastro de pétalos."], rig.Speech.Texts);
+        Assert.True(rig.Pings());
+
+        rig.Move(P2 + new Vector2(0, 5)); // 5 units beside the petal
+        Assert.True(rig.Pings()); // straight on to P3, no hold
+        rig.Move(P4);
+        Assert.True(rig.Pings());
+        Assert.Equal(["Guía del rastro de pétalos."], rig.Speech.Texts);
+
+        rig.Move(PLast);
+        Assert.Equal(["Guía del rastro de pétalos.", "Fin del rastro."], rig.Speech.Texts);
+        Assert.False(rig.Pings());
+    }
+
+    [Fact]
+    public void A_petal_of_another_quest_far_away_does_not_start_the_trail()
+    {
+        var rig = new Rig(Trail());
+        rig.Move(new Vector2(2752.9f, -44.8f)); // Lycander's petal trail
+
+        rig.Feed.RaiseActors(new ActorState(1, Petal, 2752.9f, -44.8f, 5));
+        rig.Move(new Vector2(2753, -45));
 
         Assert.Empty(rig.Speech.Spoken);
         Assert.False(rig.Pings());

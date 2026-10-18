@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。",
         ShelterRouteEnd: "避難所ガイド終了。",
         DebugMode: "デバッグモード有効。",
-        GuideToBossRoom: "すべて探索済み。ボス部屋へ案内します。");
+        GuideToBossRoom: "すべて探索済み。ボス部屋へ案内します。",
+        TrailGuide: "花びらの道ガイド。",
+        TrailEnd: "道の終わり。");
 }

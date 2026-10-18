@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "Przewodnik działa tylko w lochach.",
         ShelterRouteEnd: "Przewodnik po schronieniach zakończony.",
         DebugMode: "Tryb debugowania włączony.",
-        GuideToBossRoom: "Wszystko zbadane. Prowadzę do komnaty bossa.");
+        GuideToBossRoom: "Wszystko zbadane. Prowadzę do komnaty bossa.",
+        TrailGuide: "Przewodnik po śladzie płatków.",
+        TrailEnd: "Koniec śladu.");
 }

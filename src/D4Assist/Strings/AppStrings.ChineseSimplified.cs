@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "向导仅在地下城中有效。",
         ShelterRouteEnd: "避难所向导结束。",
         DebugMode: "调试模式已开启。",
-        GuideToBossRoom: "全部探索完毕。正在带你前往首领房间。");
+        GuideToBossRoom: "全部探索完毕。正在带你前往首领房间。",
+        TrailGuide: "花瓣路径向导。",
+        TrailEnd: "路径终点。");
 }

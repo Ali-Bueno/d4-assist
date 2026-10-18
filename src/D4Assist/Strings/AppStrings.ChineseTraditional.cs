@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "導引僅在地城中有效。",
         ShelterRouteEnd: "避難所導引結束。",
         DebugMode: "偵錯模式已開啟。",
-        GuideToBossRoom: "全部探索完畢。正在帶你前往首領房間。");
+        GuideToBossRoom: "全部探索完畢。正在帶你前往首領房間。",
+        TrailGuide: "花瓣路徑導引。",
+        TrailEnd: "路徑終點。");
 }

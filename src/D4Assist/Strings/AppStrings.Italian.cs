@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "La guida funziona solo nei dungeon.",
         ShelterRouteEnd: "Guida ai rifugi terminata.",
         DebugMode: "Modalità debug attiva.",
-        GuideToBossRoom: "Tutto esplorato. Ti porto alla stanza del boss.");
+        GuideToBossRoom: "Tutto esplorato. Ti porto alla stanza del boss.",
+        TrailGuide: "Guida alla scia di petali.",
+        TrailEnd: "Fine della scia.");
 }

@@ -412,11 +412,16 @@ reasoning: [campaign-routes](../../research/campaign-routes.md).
   point it leads on to the route's end, if it has one; there it chimes, speaks "Fin de la guía de refugios.", stops and
   doesn't restart until the world changes.
 - It stops when the player is more than 150 units from the start, every point and the end, and on any world change.
+- A trail (`RouteKind.Trail`, no quest marker) is a row of markers the set lists in walking order; it starts at the
+  first, and only a live quest actor starts it. It speaks "Guía del rastro de pétalos.", counts a point reached within
+  6 units, leads straight on without holding, and speaks only "Fin del rastro." at its last point.
 - `--debug` logs the loaded routes at startup and one `ROUTE` line per start, point, stop and mute.
 
-The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalace_SafeZone` safe zones of
-`VGN_Kehj_EliasPalace_Sandstorm`, ending where `QST_Kehj_EliasPalace_03` has Meshif on the palace steps. A player's log
-(2026-10-19, no `--debug`) confirms the order; the route itself is not live-tested with `--debug` yet.
+Routes so far: `sandstorm-shelters`, the three `BCD_Trigger_EliasPalace_SafeZone` safe zones of
+`VGN_Kehj_EliasPalace_Sandstorm`, ending where `QST_Kehj_EliasPalace_03` has Meshif on the palace steps (a player's log
+of 2026-10-19, no `--debug`, confirms the order; not live-tested with `--debug` yet), and `philios-blood-petals`, the
+trail of 21 `QST_X2_Skov_Lilith_BloodPetal_Trigger_Sphere` markers in `Skov_Philios (Skov_Philios_Campaign_Design)`
+from Lorath to the waterfall shrine in "Auf blutigem Pfad" (`QST_Skov_Philios_06`, 2440931), started by a live petal.
 
 ## Controls
 

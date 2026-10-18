@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "Проводник работает только в подземельях.",
         ShelterRouteEnd: "Проводник по укрытиям завершён.",
         DebugMode: "Режим отладки включён.",
-        GuideToBossRoom: "Всё исследовано. Веду в комнату босса.");
+        GuideToBossRoom: "Всё исследовано. Веду в комнату босса.",
+        TrailGuide: "Проводник по следу лепестков.",
+        TrailEnd: "Конец следа.");
 }

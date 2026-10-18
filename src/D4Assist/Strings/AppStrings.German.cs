@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "Die Führung funktioniert nur in Dungeons.",
         ShelterRouteEnd: "Unterschlupf-Führung beendet.",
         DebugMode: "Debug-Modus aktiv.",
-        GuideToBossRoom: "Alles erforscht. Ich führe dich zum Bossraum.");
+        GuideToBossRoom: "Alles erforscht. Ich führe dich zum Bossraum.",
+        TrailGuide: "Blütenspur-Führung.",
+        TrailEnd: "Ende der Spur.");
 }

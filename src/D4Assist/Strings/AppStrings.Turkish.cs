@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "Rehber yalnızca zindanlarda çalışır.",
         ShelterRouteEnd: "Sığınak rehberi tamamlandı.",
         DebugMode: "Hata ayıklama modu açık.",
-        GuideToBossRoom: "Her yer keşfedildi. Seni boss odasına götürüyorum.");
+        GuideToBossRoom: "Her yer keşfedildi. Seni boss odasına götürüyorum.",
+        TrailGuide: "Yaprak izi rehberi.",
+        TrailEnd: "İzin sonu.");
 }

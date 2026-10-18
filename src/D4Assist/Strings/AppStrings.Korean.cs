@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "안내는 던전에서만 작동합니다.",
         ShelterRouteEnd: "은신처 안내 종료.",
         DebugMode: "디버그 모드 켜짐.",
-        GuideToBossRoom: "모두 탐색했습니다. 보스 방으로 안내합니다.");
+        GuideToBossRoom: "모두 탐색했습니다. 보스 방으로 안내합니다.",
+        TrailGuide: "꽃잎 길 안내.",
+        TrailEnd: "길의 끝.");
 }

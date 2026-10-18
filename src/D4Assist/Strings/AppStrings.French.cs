@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "Le guide ne fonctionne que dans les donjons.",
         ShelterRouteEnd: "Guide des abris terminé.",
         DebugMode: "Mode débogage activé.",
-        GuideToBossRoom: "Tout est exploré. Je vous mène à la salle du boss.");
+        GuideToBossRoom: "Tout est exploré. Je vous mène à la salle du boss.",
+        TrailGuide: "Guide de la piste de pétales.",
+        TrailEnd: "Fin de la piste.");
 }

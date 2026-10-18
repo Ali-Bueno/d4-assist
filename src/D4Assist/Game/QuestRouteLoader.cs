@@ -17,8 +17,9 @@ public static class QuestRouteLoader
         QuestRoute route, QuestRouteGroups groups, Func<int, string, int?> resolve,
         Func<int, IReadOnlyList<PlacedMarker>> readMarkers, Func<int, IReadOnlyList<PlacedMarker>> questMarkers, Action<string> log)
     {
+        int? quest = route.Quest is null ? null : resolve(groups.Quest, route.Quest);
         if (resolve(groups.MarkerSet, route.MarkerSet) is not { } markerSet
-            || resolve(groups.Quest, route.Quest) is not { } quest
+            || (route.Quest is not null && quest is null)
             || resolve(groups.Actor, route.TargetActor) is not { } target)
         {
             log($"Quest route '{route.Name}': a name is not in CoreTOC; route off.");
@@ -26,15 +27,25 @@ public static class QuestRouteLoader
         }
 
         var markers = readMarkers(markerSet);
-        var start = markers.FirstOrDefault(m => m.Group == groups.Quest && m.Sno == quest);
         var points = markers.Where(m => m.Group == groups.Actor && m.Sno == target).Select(m => Flat(m.Position)).ToList();
+        var activation = route.ActivationActors.Select(name => resolve(groups.Actor, name)).OfType<int>().ToHashSet();
+        if (quest is null)
+        {
+            if (points.Count == 0)
+            {
+                log($"Quest route '{route.Name}': no target markers; route off.");
+                return null;
+            }
+            return new LoadedQuestRoute(route, activation, points[0], points); // a trail: the set lists it in walking order
+        }
+
+        var start = markers.FirstOrDefault(m => m.Group == groups.Quest && m.Sno == quest);
         if (start is null || points.Count == 0)
         {
             log($"Quest route '{route.Name}': {points.Count} target markers, quest marker {(start is null ? "missing" : "found")}; route off.");
             return null;
         }
 
-        var activation = route.ActivationActors.Select(name => resolve(groups.Actor, name)).OfType<int>().ToHashSet();
         var from = Flat(start.Position);
         var end = End(route, groups, resolve, questMarkers, log);
         return new LoadedQuestRoute(route, activation, from, RouteOrder.FromStart(from, points, end), end);

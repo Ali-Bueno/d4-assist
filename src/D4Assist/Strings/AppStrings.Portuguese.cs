@@ -46,5 +46,7 @@ public sealed partial record AppStrings
         GuideDungeonsOnly: "O guia só funciona em masmorras.",
         ShelterRouteEnd: "Guia de abrigos concluído.",
         DebugMode: "Modo de depuração ativo.",
-        GuideToBossRoom: "Tudo explorado. Levando você à sala do chefe.");
+        GuideToBossRoom: "Tudo explorado. Levando você à sala do chefe.",
+        TrailGuide: "Guia da trilha de pétalas.",
+        TrailEnd: "Fim da trilha.");
 }

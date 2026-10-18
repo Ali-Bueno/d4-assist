@@ -79,8 +79,10 @@ public static class OpeningFinder
         return (position.X + nx * (GridMath.CellSize / 2f), position.Y + ny * (GridMath.CellSize / 2f));
     }
 
-    /// <summary>Null when walkability is unavailable, the tile's yaw isn't axis-aligned, or the static map has no passage there (fall
-    /// back). Barriers narrow or close the passages found, never turning a closed one into that fallback.</summary>
+    /// <summary>Null when walkability is unavailable or the tile's yaw isn't axis-aligned (fall back to the edge midpoint). Empty
+    /// when the static map has no passage there: an exit bit on a side with no floor is no way to walk, and its midpoint guess
+    /// led the guide to a wall (live 2026-10-18, the Philios mindscape's boss room: exit East, no floor on that edge, the room's
+    /// middle never led to). Barriers narrow or close the passages found, never turning a closed one into that fallback.</summary>
     private static List<((float X, float Y) Position, float Width)>? TryFindRuns(
         MapTile tile, ExitSide worldSide, ITileWalkability? walkability, BlockedCells? blocked)
     {
@@ -90,7 +92,7 @@ public static class OpeningFinder
 
         var localSide = TileRotation.RotateSide(worldSide, (4 - turns) % 4);
         var runs = Runs(grid, tile, localSide, turns);
-        if (runs.Count == 0) return null;
+        if (runs.Count == 0) return runs;
         return blocked?.Mask(tile, grid, turns) is { } open ? Runs(open, tile, localSide, turns) : runs;
     }
 

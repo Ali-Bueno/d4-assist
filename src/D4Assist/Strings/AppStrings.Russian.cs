@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Режим отладки включён.",
         GuideToBossRoom: "Всё исследовано. Веду в комнату босса.",
         TrailGuide: "Проводник по следу лепестков.",
-        TrailEnd: "Конец следа.");
+        TrailEnd: "Конец следа.",
+        PathGuide: "Веду к цели задания.",
+        PathEnd: "Цель задания достигнута.",
+        PathNotFound: "Путь не найден; показываю направление.");
 }

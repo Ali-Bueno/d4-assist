@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Hata ayıklama modu açık.",
         GuideToBossRoom: "Her yer keşfedildi. Seni boss odasına götürüyorum.",
         TrailGuide: "Yaprak izi rehberi.",
-        TrailEnd: "İzin sonu.");
+        TrailEnd: "İzin sonu.",
+        PathGuide: "Görev hedefine rehberlik.",
+        PathEnd: "Görev hedefine ulaşıldı.",
+        PathNotFound: "Yol bulunamadı; yönü gösteriyorum.");
 }

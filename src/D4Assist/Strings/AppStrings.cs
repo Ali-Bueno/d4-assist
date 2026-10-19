@@ -11,8 +11,9 @@ public sealed partial record AppStrings(
     IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped,
     string UpdateAvailableFormat, string UpdateDownloading, string UpdateRestarting, string UpdateFailed,
     string UpdateFolderNotWritable, string UpToDate, string UpdateCheckFailed, string UpdateOnlyDownloaded,
-    string UpdateProgressFormat, string UpdatedToFormat, string GuideDungeonsOnly, string ShelterRouteEnd, string DebugMode,
-    string GuideToBossRoom, string TrailGuide, string TrailEnd)
+    string UpdateProgressFormat, string UpdatedToFormat, string GuideDungeonsOnly, string ShelterRouteEnd,
+    string DebugMode, string GuideToBossRoom, string TrailGuide, string TrailEnd, string PathGuide, string PathEnd,
+    string PathNotFound)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -47,7 +48,8 @@ public sealed partial record AppStrings(
         "Fin de la guía de refugios.",
         "Modo de depuración activo.",
         "Todo explorado. Te llevo a la sala del jefe.",
-        "Guía del rastro de pétalos.", "Fin del rastro.");
+        "Guía del rastro de pétalos.", "Fin del rastro.",
+        "Guía al objetivo de la misión.", "Objetivo de la misión alcanzado.", "No encuentro un camino; te indico la dirección.");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -82,7 +84,8 @@ public sealed partial record AppStrings(
         "Shelter guide finished.",
         "Debug mode on.",
         "All explored. Leading you to the boss room.",
-        "Petal trail guide.", "End of the trail.");
+        "Petal trail guide.", "End of the trail.",
+        "Guiding to the quest goal.", "Quest goal reached.", "No path found; pointing the way.");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {

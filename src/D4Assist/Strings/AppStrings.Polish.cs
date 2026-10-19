@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Tryb debugowania włączony.",
         GuideToBossRoom: "Wszystko zbadane. Prowadzę do komnaty bossa.",
         TrailGuide: "Przewodnik po śladzie płatków.",
-        TrailEnd: "Koniec śladu.");
+        TrailEnd: "Koniec śladu.",
+        PathGuide: "Prowadzę do celu zadania.",
+        PathEnd: "Cel zadania osiągnięty.",
+        PathNotFound: "Nie znaleziono drogi; wskazuję kierunek.");
 }

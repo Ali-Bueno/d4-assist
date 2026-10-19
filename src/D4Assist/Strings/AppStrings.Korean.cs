@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "디버그 모드 켜짐.",
         GuideToBossRoom: "모두 탐색했습니다. 보스 방으로 안내합니다.",
         TrailGuide: "꽃잎 길 안내.",
-        TrailEnd: "길의 끝.");
+        TrailEnd: "길의 끝.",
+        PathGuide: "퀘스트 목표로 안내합니다.",
+        PathEnd: "퀘스트 목표에 도착했습니다.",
+        PathNotFound: "길을 찾지 못했습니다. 방향을 알려 드립니다.");
 }

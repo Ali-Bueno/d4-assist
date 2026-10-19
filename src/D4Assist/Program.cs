@@ -317,6 +317,7 @@ internal static class Program
             : null;
         if (pad is not null) pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide
         QuestRouteBridge? routeBridge = null;
+        QuestPathBridge? pathBridge = null;
         var bossEntrances = new TileActorReader(markerScenes, sno => store.Name(sno) == BossRoomDestination.EntranceTriggerName);
         var bossRoom = new BossRoomDestination(session, scene => { lock (cascGate) return bossEntrances.In(scene); }, debug ? Console.WriteLine : null);
         if (guidePing is not null && config.ExplorationGuideEnabled)
@@ -326,10 +327,17 @@ internal static class Program
                 portals is null ? bossRoom.Destinations : () => [.. bossRoom.Destinations(), .. portals.Destinations()],
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
                 objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); },
-                () => routeBridge?.IsActive == true);
+                () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             routeBridge = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
+        var destinations = routesEnabled ? LoadQuestDestinations(store, schema, questScripts, cascGate, debug) : [];
+        if (guidePing is not null && destinations.Count > 0)
+        {
+            var paths = NewOverworldPaths(store, schema, cascGate);
+            pathBridge = new QuestPathBridge(session, destinations, paths.Find, guidePing, speech, language, pad, log: debug ? Console.WriteLine : null);
+            session.QuestPlacesRead += pathBridge.OnQuestPlaces;
+        }
         xboxPad?.Start();
         sonyPad?.Start();
 
@@ -576,6 +584,48 @@ internal static class Program
                     string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) +
                     (r.End is { } end ? $", end ({end.X:F1},{end.Y:F1})" : "") + $", {r.ActivationSnos.Count} activation actors.");
         return routes;
+    }
+
+    // The open-world quest places of QuestDestinationCatalog, each the marker its quest phase names.
+    private static IReadOnlyList<LoadedQuestDestination> LoadQuestDestinations(
+        SnoStore store, TypeSchema schema, QuestScriptMarkerReader questScripts, object cascGate, bool debug)
+    {
+        var loaded = new List<LoadedQuestDestination>();
+        lock (cascGate)
+            foreach (var destination in QuestDestinationCatalog.All)
+            {
+                var quest = SnoOrNull(store, schema.SnoGroup(QuestDefinitionType), destination.Quest);
+                var target = SnoOrNull(store, schema.SnoGroup(ActorDefinitionType), destination.TargetActor);
+                var marker = quest is null || target is null ? null : questScripts.PhaseObjects(quest.Value)
+                    .FirstOrDefault(p => p.PhaseUid == destination.PhaseUid)?.Markers.FirstOrDefault(m => m.Sno == target);
+                if (marker is null)
+                {
+                    Console.WriteLine($"Quest destination '{destination.Name}': quest, phase or target marker not found; off.");
+                    continue;
+                }
+                loaded.Add(new LoadedQuestDestination(destination, quest!.Value, target!.Value, new(marker.Position.X, marker.Position.Y)));
+                if (debug) Console.WriteLine($"Quest destination {destination.Name}: ({marker.Position.X:F1},{marker.Position.Y:F1}).");
+            }
+        return loaded;
+    }
+
+    // Paths over the open world's offline scene surfaces; every game-data read holds the CASC gate.
+    private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
+    {
+        var worlds = new WorldReader(store, schema);
+        var scenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false);
+        var chunks = new Dictionary<string, IReadOnlyList<SceneChunkInfo>>();
+        return new OverworldPaths(
+            worldName =>
+            {
+                lock (cascGate)
+                {
+                    if (chunks.TryGetValue(worldName, out var known)) return known;
+                    var world = SnoOrNull(store, worlds.Group, worldName);
+                    return chunks[worldName] = world is null ? [] : worlds.Read(world.Value).Chunks;
+                }
+            },
+            scene => { lock (cascGate) return scenes.SurfaceVoxels(scene); });
     }
 
     private static int? SnoOrNull(SnoStore store, int group, string name)

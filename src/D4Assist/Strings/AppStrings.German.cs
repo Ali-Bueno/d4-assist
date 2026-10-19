@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Debug-Modus aktiv.",
         GuideToBossRoom: "Alles erforscht. Ich führe dich zum Bossraum.",
         TrailGuide: "Blütenspur-Führung.",
-        TrailEnd: "Ende der Spur.");
+        TrailEnd: "Ende der Spur.",
+        PathGuide: "Führung zum Questziel.",
+        PathEnd: "Questziel erreicht.",
+        PathNotFound: "Kein Weg gefunden; ich zeige die Richtung.");
 }

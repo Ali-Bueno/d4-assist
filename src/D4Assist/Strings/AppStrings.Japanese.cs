@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "デバッグモード有効。",
         GuideToBossRoom: "すべて探索済み。ボス部屋へ案内します。",
         TrailGuide: "花びらの道ガイド。",
-        TrailEnd: "道の終わり。");
+        TrailEnd: "道の終わり。",
+        PathGuide: "クエスト目標へ案内します。",
+        PathEnd: "クエスト目標に到着しました。",
+        PathNotFound: "道が見つかりません。方向を示します。");
 }

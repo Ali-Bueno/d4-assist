@@ -97,3 +97,21 @@ the "Large Crow" that flies a route in Lycander and resets if you fall behind (c
   there as `WorldKind.Overworld`: beacons and routes, no radar (H).
 - Open: the order of the stops (phase links not read), and whether the flying crow is `OWCSMP_Fly` itself moving or
   another actor (needs a live `--debug` session in the step).
+
+## 5. Walking the open world over its scene surfaces (2026-10-19)
+
+The user asked to be led to the first step of the warlock class quest "Hexenmeister: Jünger des Verbotenen"
+(`QST_Warlock_ClassQ_01`, 2449612): the game's navigation assist doesn't lead there. Phase 0 names a `Trigger_Sphere_8m` at
+(−1134.4, −1095.3, 0.4) shown in `Sanctuary_Eastern_Continent`; phase 1 waits on the dungeon quest
+`DSQ_QST_Warlock_ClassQ_01` (2451392, world `QST_Class_Warlock_DGN_01`, Zakarum palace tiles); phase 2 is the rival
+`QST_Warlock_ClassQ_Rival` at (−962, −1028), 85 units from Ked Bardu (H, `D4MemScan quest`). Nearest waypoints to the
+sphere: Farobru 217, Ked Bardu 269, Túr Dúlra 278 units (straight line).
+
+- The open-world chunks carry walkable surfaces only as `m_cellBytes` (dungeon-data §4.1b). Decoded with their heights
+  (level → Z) they form a 2.5D map; joining neighbouring floors only within a 1-unit height change keeps cliffs apart (H on
+  synthetic tests; M live: unverified in game).
+- All chunks around the walk have identity rotations and decodable surfaces: Farobru → sphere reads 24 chunks, ~365,000
+  surface voxels in ~0.1 s; A* finds 274 units (straight 217) in ~0.5 s, descending steadily from Z 25 to 0 (H offline).
+  From Ked Bardu 291 units; from Túr Dúlra 669 units (a long detour off its terrace).
+- Not modelled: actors standing on the surfaces (rocks, fences, carts placed as actors), monsters, and doors or gates that
+  aren't part of the scene's nav data. A path that leads into one of those needs a live log (`PATH … off the path`).

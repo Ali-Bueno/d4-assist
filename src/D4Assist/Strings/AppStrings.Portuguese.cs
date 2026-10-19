@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Modo de depuração ativo.",
         GuideToBossRoom: "Tudo explorado. Levando você à sala do chefe.",
         TrailGuide: "Guia da trilha de pétalas.",
-        TrailEnd: "Fim da trilha.");
+        TrailEnd: "Fim da trilha.",
+        PathGuide: "Guia até o objetivo da missão.",
+        PathEnd: "Objetivo da missão alcançado.",
+        PathNotFound: "Nenhum caminho encontrado; indicando a direção.");
 }

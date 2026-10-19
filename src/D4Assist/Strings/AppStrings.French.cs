@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Mode débogage activé.",
         GuideToBossRoom: "Tout est exploré. Je vous mène à la salle du boss.",
         TrailGuide: "Guide de la piste de pétales.",
-        TrailEnd: "Fin de la piste.");
+        TrailEnd: "Fin de la piste.",
+        PathGuide: "Guidage vers l'objectif de quête.",
+        PathEnd: "Objectif de quête atteint.",
+        PathNotFound: "Aucun chemin trouvé ; j'indique la direction.");
 }

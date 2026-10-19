@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "Modalità debug attiva.",
         GuideToBossRoom: "Tutto esplorato. Ti porto alla stanza del boss.",
         TrailGuide: "Guida alla scia di petali.",
-        TrailEnd: "Fine della scia.");
+        TrailEnd: "Fine della scia.",
+        PathGuide: "Guida all'obiettivo della missione.",
+        PathEnd: "Obiettivo della missione raggiunto.",
+        PathNotFound: "Nessun percorso trovato; indico la direzione.");
 }

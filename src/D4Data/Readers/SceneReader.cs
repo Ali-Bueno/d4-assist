@@ -86,10 +86,34 @@ public sealed class SceneReader(SnoStore store, TypeSchema schema, MarkerReader 
     /// <summary>Walkable columns from the compressed m_cellBytes (the surfaces an agent stands on); null when the scene has none.</summary>
     private HashSet<(int X, int Y)>? SurfaceColumns(SnoBlob blob, int data, float width, float height)
     {
-        var blobs = blob.Array(data + schema.Offset(PathData, "m_cellBytes"), schema.Size(CellBytes)).ToList();
-        if (blobs.Count == 0) return null;
-        var surfaces = new Dictionary<int, ulong[]>(); // cells share blobs
         var columns = new HashSet<(int X, int Y)>();
+        return ForEachSurfaceCell(blob, data, (grid, ix, iy, _) => navGrid.AddWalkableColumns(w => grid[w], ix, iy, width, height, columns))
+            ? columns : null;
+    }
+
+    /// <summary>The surface voxels of a scene without detail grids (the open world's scenes), scene-local, with heights
+    /// (NavGridReader.AddSurfaceVoxels); null when the scene has no m_cellBytes.</summary>
+    public IReadOnlyList<Vector3>? SurfaceVoxels(int sceneSno)
+    {
+        if (store.Meta(Group, sceneSno) is not { } meta) return null;
+        var blob = schema.IsInPayload(Scene, "ptAIPathData") ? store.Payload(Group, sceneSno) : meta;
+        if (blob is null) return null;
+        var (data, size) = meta.ArrayDescriptor(schema.Offset(Scene, "ptAIPathData"));
+        if (data <= 0 || size < schema.Size(PathData)) return null;
+        float width = blob.F32(data + schema.Offset(PathData, "m_cellWidth"));
+        float height = blob.F32(data + schema.Offset(PathData, "m_cellHeight"));
+        if (width <= 0 || height <= 0) return null;
+        var voxels = new List<Vector3>();
+        return ForEachSurfaceCell(blob, data, (grid, ix, iy, iz) => navGrid.AddSurfaceVoxels(w => grid[w], ix, iy, iz, width, height, voxels))
+            ? voxels : null;
+    }
+
+    // Calls visit with each nav cell's decoded surface grid and its cell index; false when the scene has no m_cellBytes.
+    private bool ForEachSurfaceCell(SnoBlob blob, int data, Action<ulong[], int, int, int> visit)
+    {
+        var blobs = blob.Array(data + schema.Offset(PathData, "m_cellBytes"), schema.Size(CellBytes)).ToList();
+        if (blobs.Count == 0) return false;
+        var surfaces = new Dictionary<int, ulong[]>(); // cells share blobs
         foreach (var c in blob.Array(data + schema.Offset(PathData, "m_cellData"), schema.Size(Cell)))
         {
             int index = blob.I32(c + schema.Offset(Cell, CellBytesIndex));
@@ -101,10 +125,10 @@ public sealed class SceneReader(SnoStore store, TypeSchema schema, MarkerReader 
                 surfaces[index] = grid;
             }
             if (grid.Length == 0) continue;
-            var (ix, iy, _) = Conventions.DecodeCellId(blob.U64(c + schema.Offset(Cell, "m_cellId")));
-            navGrid.AddWalkableColumns(w => grid[w], ix, iy, width, height, columns);
+            var (ix, iy, iz) = Conventions.DecodeCellId(blob.U64(c + schema.Offset(Cell, "m_cellId")));
+            visit(grid, ix, iy, iz);
         }
-        return columns;
+        return true;
     }
 
     /// <summary>The tile footprint, grown to include walkable columns outside it.</summary>

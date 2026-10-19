@@ -48,5 +48,8 @@ public sealed partial record AppStrings
         DebugMode: "调试模式已开启。",
         GuideToBossRoom: "全部探索完毕。正在带你前往首领房间。",
         TrailGuide: "花瓣路径向导。",
-        TrailEnd: "路径终点。");
+        TrailEnd: "路径终点。",
+        PathGuide: "正在引导前往任务目标。",
+        PathEnd: "已到达任务目标。",
+        PathNotFound: "未找到路径，指示方向。");
 }

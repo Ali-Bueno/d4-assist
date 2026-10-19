@@ -115,3 +115,11 @@ sphere: Farobru 217, Ked Bardu 269, Túr Dúlra 278 units (straight line).
   From Ked Bardu 291 units; from Túr Dúlra 669 units (a long detour off its terrace).
 - Not modelled: actors standing on the surfaces (rocks, fences, carts placed as actors), monsters, and doors or gates that
   aren't part of the scene's nav data. A path that leads into one of those needs a live log (`PATH … off the path`).
+
+Live 2026-10-19: the path walked well (PathFollower aiming 8 units ahead) and reached the phase-0 sphere, but nothing was
+there: the quest was further on. The app read its phase pair as 0 while the game's map marked phase 3's
+`Trigger_Sphere_8m` at (−963.8, −1024.9) ("Reist zu den Verlorenen Ebenen", 85 units from Ked Bardu); its tracked flag read
+"none" although the user had it tracked, and the game's navigation assist came back only after untracking and tracking it
+again. So the guide now follows the map's quest markers (any marker whose actor a quest names at that spot), not a
+catalog step: offline, that sphere matches `QST_Warlock_ClassQ_01` and the corpse marker at (644.8, 669.7)
+`QST_Naha_SinProxy_04`, while a shrine and a waypoint match no quest (H).

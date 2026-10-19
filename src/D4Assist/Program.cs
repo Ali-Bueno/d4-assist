@@ -331,12 +331,13 @@ internal static class Program
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             routeBridge = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
-        var destinations = routesEnabled ? LoadQuestDestinations(store, schema, questScripts, cascGate, debug) : [];
-        if (guidePing is not null && destinations.Count > 0)
+        if (guidePing is not null && routesEnabled)
         {
             var paths = NewOverworldPaths(store, schema, cascGate);
-            pathBridge = new QuestPathBridge(session, destinations, paths.Find, guidePing, speech, language, pad, log: debug ? Console.WriteLine : null);
-            session.QuestPlacesRead += pathBridge.OnQuestPlaces;
+            pathBridge = new QuestPathBridge(
+                session, WorldClassifier.OpenWorldName, markers => QuestMapPlaces(markers, store, questScripts, language, cascGate), paths.Find,
+                guidePing, speech, language, pad, log: debug ? Console.WriteLine : null);
+            session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
         sonyPad?.Start();
@@ -586,27 +587,20 @@ internal static class Program
         return routes;
     }
 
-    // The open-world quest places of QuestDestinationCatalog, each the marker its quest phase names.
-    private static IReadOnlyList<LoadedQuestDestination> LoadQuestDestinations(
-        SnoStore store, TypeSchema schema, QuestScriptMarkerReader questScripts, object cascGate, bool debug)
+    // The map's markers that a quest's scripts name at their spot (ActiveQuests.MarkerReach), with the quest's name.
+    private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
+        IReadOnlyList<MarkedActor> markers, SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language, object cascGate)
     {
-        var loaded = new List<LoadedQuestDestination>();
+        var places = new List<QuestMapPlace>();
+        string locale = SpeechLanguages.GameLocale(language.Current);
         lock (cascGate)
-            foreach (var destination in QuestDestinationCatalog.All)
-            {
-                var quest = SnoOrNull(store, schema.SnoGroup(QuestDefinitionType), destination.Quest);
-                var target = SnoOrNull(store, schema.SnoGroup(ActorDefinitionType), destination.TargetActor);
-                var marker = quest is null || target is null ? null : questScripts.PhaseObjects(quest.Value)
-                    .FirstOrDefault(p => p.PhaseUid == destination.PhaseUid)?.Markers.FirstOrDefault(m => m.Sno == target);
-                if (marker is null)
+            foreach (var marker in markers)
+                foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
                 {
-                    Console.WriteLine($"Quest destination '{destination.Name}': quest, phase or target marker not found; off.");
-                    continue;
+                    string name = store.Name(quest) is { } coreName ? store.Text(locale, "Quest_" + coreName, "Name") ?? coreName : quest.ToString();
+                    places.Add(new QuestMapPlace(quest, name, marker.ActorSno, new System.Numerics.Vector2(marker.X, marker.Y)));
                 }
-                loaded.Add(new LoadedQuestDestination(destination, quest!.Value, target!.Value, new(marker.Position.X, marker.Position.Y)));
-                if (debug) Console.WriteLine($"Quest destination {destination.Name}: ({marker.Position.X:F1},{marker.Position.Y:F1}).");
-            }
-        return loaded;
+        return places;
     }
 
     // Paths over the open world's offline scene surfaces; every game-data read holds the CASC gate.

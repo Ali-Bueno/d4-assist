@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Всё исследовано. Веду в комнату босса.",
         TrailGuide: "Проводник по следу лепестков.",
         TrailEnd: "Конец следа.",
-        PathGuide: "Веду к цели задания.",
+        PathGuideFormat: "Цель задания: {0}, {1} метров.",
         PathEnd: "Цель задания достигнута.",
-        PathNotFound: "Путь не найден; показываю направление.");
+        PathNotFound: "Путь не найден; показываю направление.",
+        NoQuestPlace: "На карте нет целей заданий.");
 }

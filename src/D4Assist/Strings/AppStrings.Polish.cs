@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Wszystko zbadane. Prowadzę do komnaty bossa.",
         TrailGuide: "Przewodnik po śladzie płatków.",
         TrailEnd: "Koniec śladu.",
-        PathGuide: "Prowadzę do celu zadania.",
+        PathGuideFormat: "Cel zadania: {0}, {1} metrów.",
         PathEnd: "Cel zadania osiągnięty.",
-        PathNotFound: "Nie znaleziono drogi; wskazuję kierunek.");
+        PathNotFound: "Nie znaleziono drogi; wskazuję kierunek.",
+        NoQuestPlace: "Brak celu zadania na mapie.");
 }

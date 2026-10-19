@@ -425,33 +425,31 @@ from Lorath to the waterfall shrine in "Auf blutigem Pfad" (`QST_Skov_Philios_06
 
 ### Quest places over a found path
 
-`Game/QuestPathBridge` leads to an open-world quest place the game's own navigation doesn't, listed in
-`Game/QuestDestination.cs` (`QuestDestinationCatalog`): the marker of a target actor that one phase of a quest names
-(`QuestScriptMarkerReader.PhaseObjects`), resolved at startup. Unlike the routes it follows a real path: `Game/OverworldPaths`
-reads the surfaces of the open-world chunks around the walk (`SceneReader.SurfaceVoxels`, the scenes' compressed
-`m_cellBytes` with their heights) and `D4Assist.Navigation/SurfacePathfinder` searches them as a 2.5D map: a step joins two
-floors only when their heights differ by at most 1 unit, so a cliff's top and foot stay apart; a step near an edge costs
-more. The path is a point every 5 units.
+`Game/QuestPathBridge` leads, in the open world, to a quest place the game's map marks, for when the game's own
+navigation assist doesn't lead there (live 2026-10-19: "Jünger des Verbotenen" until the quest was untracked and tracked
+again). A quest place is a map marker (`GameSession.MapMarkersRead`) whose actor a quest's scripts name at that spot
+(`QuestScriptMarkerReader.QuestsNaming`, 2 units), named by the quest's title in the game's language. It follows a real
+path: `Game/OverworldPaths` reads the surfaces of the open-world chunks around the walk (`SceneReader.SurfaceVoxels`, the
+scenes' compressed `m_cellBytes` with their heights) and `D4Assist.Navigation/SurfacePathfinder` searches them as a 2.5D
+map: a step joins two floors only when their heights differ by at most 1 unit, so a cliff's top and foot stay apart; a step
+near an edge costs more.
 
-- It starts when the quest's current step names the place and the player is within 600 units, or on **D-pad left** within
-  600 units (quests are found by the scenes and actors around the player, so the step may not be read from afar). It
-  speaks "Guía al objetivo de la misión.".
-- The ping aims at the next path point (reached within 4 units). More than 12 units off the leg being walked, a new path is
-  searched from where the player stands, at most every 3 s. With no path it says "No encuentro un camino; te indico la
-  dirección." and points straight at the place.
-- Within 4 units of the place it chimes, speaks "Objetivo de la misión alcanzado." and doesn't restart on its own in that
-  world visit. It stops beyond 900 units (a teleport) and on any world change; D-pad left mutes it while it leads.
-- `--debug` logs the destinations at startup and one `PATH` line per start, path (points, length, search time), stray, mute and stop.
-
-Places so far: `warlock-disciples-start`, the first step of "Hexenmeister: Jünger des Verbotenen" (`QST_Warlock_ClassQ_01`,
-2449612, phase 0, a `Trigger_Sphere_8m` at (−1134, −1095) in the Dry Steppes, ~220 units south of the Farobru waypoint;
-offline path from Farobru 274 units, **not live-tested yet**).
+- **D-pad left** in the open world leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
+  misión: <quest>, N metros."; each further press moves on to the next nearest; a press after the last says "Guía
+  desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
+- The ping aims 8 units ahead of the player's spot on the path (`PathFollower`), so a path point passed aside never
+  pulls back. More than 12 units off the path, a new path is searched from where the player stands, at most every 3 s.
+  With no path it says "No encuentro un camino; te indico la dirección." and points straight at the place.
+- Within 4 units of the place it chimes and speaks "Objetivo de la misión alcanzado.". It stops beyond 1800 units (a
+  teleport) and on any world change; torn player reads (far beyond any world) are ignored.
+- `--debug` logs one `PATH` line per start (quest, spot, distance), path (points, length, search time), stray and stop,
+  and where the ping aims every 5 s.
 
 ## Controls
 
 - **D-pad left** (any XInput controller, or a DualSense / DualShock 4 over USB or Bluetooth) — toggles the exploration guide for the current kind of world (Undercity and
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
-  it mutes and unmutes a leading quest route the same way, starts the guide to a quest place within 600 units of it
+  it mutes and unmutes a leading quest route the same way, leads in the open world to the quest places the map marks
   (see Quest places over a found path), and otherwise says "La guía solo funciona en mazmorras." (a
   silent press read as a pad the app can't hear, tester 2026-10-16). Ignored while a game menu is open
   (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`);

@@ -11,13 +11,25 @@ namespace D4Assist.Tests;
 public class QuestPathTests
 {
     private const string World = "Sanctuary_Eastern_Continent";
-    private const int Quest = 2449612, Sphere = 9001, OtherActor = 9002;
-    private static readonly Vector2 Target = new(-1134f, -1095f);
-    private static readonly Vector2 Farobru = new(-1185f, -884f);
+    private const int Warlock = 2449612, Fruits = 2399999, Sphere = 42298, Corpse = 1870562, Shrine = 1093480;
+    private static readonly Vector2 KedBardu = new(-886f, -990f);
+    private static readonly Vector2 LostPlains = new(-963.8f, -1024.9f); // the warlock quest's marked step, 85 units off
+    private static readonly Vector2 FarCorpse = new(-700f, -900f);       // another quest's marked object, 207 units off
     private static readonly AppStrings English = AppStrings.English;
 
-    private static readonly LoadedQuestDestination Destination =
-        new(QuestDestinationCatalog.WarlockDisciplesStart, Quest, Sphere, Target);
+    private static readonly MarkedActor[] Markers =
+    [
+        new(Shrine, -1007.3f, -1077.4f, 9.8f, 0, 11),
+        new(Corpse, FarCorpse.X, FarCorpse.Y, 0, 0, 11),
+        new(Sphere, LostPlains.X, LostPlains.Y, 11, 0, 11),
+    ];
+
+    // The quest scripts name the sphere and the corpse at their spots; the shrine is nobody's.
+    private static IReadOnlyList<QuestMapPlace> QuestPlaces(IReadOnlyList<MarkedActor> markers) =>
+    [
+        .. markers.Where(m => m.ActorSno == Sphere).Select(m => new QuestMapPlace(Warlock, "Disciples of the Forbidden", m.ActorSno, new(m.X, m.Y))),
+        .. markers.Where(m => m.ActorSno == Corpse).Select(m => new QuestMapPlace(Fruits, "By Their Fruits", m.ActorSno, new(m.X, m.Y))),
+    ];
 
     private sealed class Rig
     {
@@ -30,22 +42,21 @@ public class QuestPathTests
         public double Now;
         public TimeSpan Clock;
         public List<(string World, Vector3 From, Vector2 To)> Searches = [];
-        // The path the search returns: straight south from the player to the target in 5-unit steps, unless set.
+        // The path the search returns: straight from the player to the place in 5-unit steps, unless set.
         public Func<Vector3, Vector2, IReadOnlyList<Vector2>?> Path = (from, to) => Straight(new(from.X, from.Y), to);
 
-        public Rig()
+        public Rig(string world = World)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
-            Bridge = new QuestPathBridge(Feed, [Destination], (world, from, to) => { Searches.Add((world, from, to)); return Path(from, to); },
-                Ping, Speech, language: new LanguageSetting(SpeechLanguage.English), pad: Pad, runInBackground: work => work(), clock: () => Clock);
-            Feed.RaiseWorld(World);
+            Bridge = new QuestPathBridge(Feed, World, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
+                Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock);
+            Feed.RaiseWorld(world);
+            Bridge.OnMapMarkers(Markers);
         }
 
         private Vector2 _last;
 
         public void Move(Vector2 p) { Now += 0.1; Clock += TimeSpan.FromSeconds(0.1); _last = p; Feed.RaisePlayer(p); }
-
-        public void StepNamesTarget() => Bridge.OnQuestPlaces([new QuestPlace(Sphere, Target.X + 1, Target.Y, 0)]);
 
         // Moves past any pending ping or chime, re-reports the last position and says whether the guide ping plays.
         public bool Pings()
@@ -70,73 +81,81 @@ public class QuestPathTests
     }
 
     [Fact]
-    public void The_quest_step_naming_the_place_starts_the_guide_along_a_found_path()
+    public void D_pad_left_leads_to_the_nearest_quest_place_the_map_marks()
     {
         var rig = new Rig();
-        rig.Move(Farobru);
+        rig.Move(KedBardu);
+        Assert.True(rig.Bridge.TakesPad);
         Assert.False(rig.Pings());
 
-        rig.StepNamesTarget();
+        rig.Pad.Press();
 
-        Assert.Contains(English.PathGuide, rig.Speech.Texts);
-        var search = Assert.Single(rig.Searches);
-        Assert.Equal((World, new Vector3(Farobru, 0), Target), search);
+        Assert.Equal("Quest goal: Disciples of the Forbidden, 85 meters.", rig.Speech.Texts.Last());
+        Assert.Equal((World, new Vector3(KedBardu, 0), LostPlains), Assert.Single(rig.Searches));
         Assert.True(rig.Pings());
     }
 
     [Fact]
-    public void Another_place_or_a_far_player_does_not_start_it()
+    public void Further_presses_move_on_to_the_next_place_and_then_switch_it_off()
     {
         var rig = new Rig();
-        rig.Move(Farobru);
-        rig.Bridge.OnQuestPlaces([new QuestPlace(OtherActor, Target.X, Target.Y, 0), new QuestPlace(Sphere, Target.X + 50, Target.Y, 0)]);
-        rig.Move(Target + new Vector2(0, 700));
-        rig.StepNamesTarget();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
 
-        Assert.Empty(rig.Searches);
-        Assert.Empty(rig.Speech.Texts);
+        rig.Pad.Press();
+        Assert.Equal("Quest goal: By Their Fruits, 207 meters.", rig.Speech.Texts.Last());
+        Assert.Equal(FarCorpse, rig.Searches[^1].To);
+        Assert.True(rig.Pings());
+
+        rig.Pad.Press();
+        Assert.Equal(English.GuideOff, rig.Speech.Texts.Last());
         Assert.False(rig.Pings());
     }
 
     [Fact]
-    public void D_pad_left_starts_it_near_the_place_and_nowhere_else()
+    public void With_no_quest_place_marked_it_says_so()
     {
         var rig = new Rig();
-        rig.Move(Target + new Vector2(0, 700));
+        rig.Bridge.OnMapMarkers([Markers[0]]);
+        rig.Move(KedBardu);
+
+        rig.Pad.Press();
+
+        Assert.Equal(English.NoQuestPlace, rig.Speech.Texts.Last());
+        Assert.Empty(rig.Searches);
+        Assert.False(rig.Pings());
+    }
+
+    [Fact]
+    public void Outside_the_open_world_it_leaves_the_pad_alone()
+    {
+        var rig = new Rig("DGN_Step_Something");
+        rig.Move(KedBardu);
+
         Assert.False(rig.Bridge.TakesPad);
         rig.Pad.Press();
-        Assert.Empty(rig.Searches);
-
-        rig.Move(Farobru);
-        Assert.True(rig.Bridge.TakesPad);
-        rig.Pad.Press();
-
-        Assert.Single(rig.Searches);
-        Assert.Contains(English.PathGuide, rig.Speech.Texts);
-        Assert.True(rig.Pings());
+        Assert.Empty(rig.Speech.Texts);
     }
 
     [Fact]
-    public void Arriving_ends_it_with_the_chime_and_the_step_does_not_restart_it_in_this_visit()
+    public void Arriving_ends_it_with_the_chime()
     {
         var rig = new Rig();
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
-        foreach (var p in Straight(Farobru, Target)) rig.Move(p);
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        foreach (var p in Straight(KedBardu, LostPlains)) rig.Move(p);
 
-        Assert.Contains(English.PathEnd, rig.Speech.Texts);
+        Assert.Equal(English.PathEnd, rig.Speech.Texts.Last());
         Assert.False(rig.Pings());
-        rig.StepNamesTarget();
-        Assert.Single(rig.Searches);
     }
 
     [Fact]
     public void Straying_from_the_path_finds_a_new_one_at_most_every_few_seconds()
     {
         var rig = new Rig();
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
-        var astray = Farobru + new Vector2(40, -20);
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        var astray = KedBardu + new Vector2(20, 30);
         rig.Move(astray);
         Assert.Single(rig.Searches); // the last search was a moment ago
 
@@ -146,78 +165,64 @@ public class QuestPathTests
         Assert.Equal(2, rig.Searches.Count);
         Assert.Equal(new Vector3(astray, 0), rig.Searches[1].From);
         rig.Move(astray);
-        Assert.Equal(2, rig.Searches.Count); // back on the new path
-    }
-
-    [Fact]
-    public void With_no_path_it_says_so_and_points_straight_at_the_place()
-    {
-        var rig = new Rig { Path = (_, _) => null };
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
-
-        Assert.Contains(English.PathNotFound, rig.Speech.Texts);
-        Assert.True(rig.Pings());
-    }
-
-    [Fact]
-    public void A_teleport_away_or_a_world_change_ends_it()
-    {
-        var rig = new Rig();
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
-        rig.Move(Target + new Vector2(0, 1000));
-        Assert.False(rig.Pings());
-
-        rig.Move(Farobru);
-        rig.Pad.Press();
-        rig.Feed.RaiseWorld("QST_Class_Warlock_DGN_01");
-        Assert.False(rig.Pings());
-        Assert.False(rig.Bridge.TakesPad);
-    }
-
-    [Fact]
-    public void A_torn_position_read_does_not_end_it()
-    {
-        var rig = new Rig();
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
-
-        rig.Move(new Vector2(-431602080f, -431602080f));
-        rig.Move(Farobru + new Vector2(0, -1));
-
-        Assert.True(rig.Pings()); // still leading: a stopped guide stays silent until started again
+        Assert.Equal(2, rig.Searches.Count); // on the new path
     }
 
     [Fact]
     public void Walking_beside_the_path_keeps_it_and_does_not_search_again()
     {
         var rig = new Rig();
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
         rig.Clock += QuestPathBridge.RepathInterval;
 
         // Five units beside the path the whole way: no point is ever within 4, yet the walk goes on to the end.
-        var side = Vector2.Normalize(new Vector2(Target.Y - Farobru.Y, Farobru.X - Target.X)) * 5;
-        foreach (var p in Straight(Farobru, Target)) rig.Move(p + side);
-        rig.Move(Target);
+        var side = Vector2.Normalize(new Vector2(LostPlains.Y - KedBardu.Y, KedBardu.X - LostPlains.X)) * 5;
+        foreach (var p in Straight(KedBardu, LostPlains)) rig.Move(p + side);
+        rig.Move(LostPlains);
 
         Assert.Single(rig.Searches);
-        Assert.Contains(English.PathEnd, rig.Speech.Texts);
+        Assert.Equal(English.PathEnd, rig.Speech.Texts.Last());
     }
 
     [Fact]
-    public void D_pad_left_mutes_and_unmutes_it_while_it_leads()
+    public void With_no_path_it_says_so_and_points_straight_at_the_place()
+    {
+        var rig = new Rig { Path = (_, _) => null };
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+
+        Assert.Contains(English.PathNotFound, rig.Speech.Texts);
+        Assert.True(rig.Pings());
+    }
+
+    [Fact]
+    public void A_torn_position_read_does_not_end_it()
     {
         var rig = new Rig();
-        rig.Move(Farobru);
-        rig.StepNamesTarget();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
 
+        rig.Move(new Vector2(-431602080f, -431602080f));
+        rig.Move(KedBardu + new Vector2(0, -1));
+
+        Assert.True(rig.Pings()); // still leading: a stopped guide stays silent until started again
+    }
+
+    [Fact]
+    public void A_teleport_away_or_a_world_change_ends_it()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
         rig.Pad.Press();
+        rig.Move(LostPlains + new Vector2(0, 2000));
         Assert.False(rig.Pings());
-        Assert.Contains(English.GuideOff, rig.Speech.Texts);
+
+        rig.Move(KedBardu);
         rig.Pad.Press();
-        Assert.True(rig.Pings());
+        rig.Feed.RaiseWorld("QST_Class_Warlock_DGN_01");
+        Assert.False(rig.Pings());
+        Assert.False(rig.Bridge.TakesPad);
     }
 
     // ---- fakes ----

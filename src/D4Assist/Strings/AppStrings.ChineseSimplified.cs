@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "全部探索完毕。正在带你前往首领房间。",
         TrailGuide: "花瓣路径向导。",
         TrailEnd: "路径终点。",
-        PathGuide: "正在引导前往任务目标。",
+        PathGuideFormat: "任务目标：{0}，{1}米。",
         PathEnd: "已到达任务目标。",
-        PathNotFound: "未找到路径，指示方向。");
+        PathNotFound: "未找到路径，指示方向。",
+        NoQuestPlace: "地图上没有任务目标。");
 }

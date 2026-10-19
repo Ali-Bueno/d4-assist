@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Tutto esplorato. Ti porto alla stanza del boss.",
         TrailGuide: "Guida alla scia di petali.",
         TrailEnd: "Fine della scia.",
-        PathGuide: "Guida all'obiettivo della missione.",
+        PathGuideFormat: "Obiettivo della missione: {0}, {1} metri.",
         PathEnd: "Obiettivo della missione raggiunto.",
-        PathNotFound: "Nessun percorso trovato; indico la direzione.");
+        PathNotFound: "Nessun percorso trovato; indico la direzione.",
+        NoQuestPlace: "Nessun obiettivo della missione sulla mappa.");
 }

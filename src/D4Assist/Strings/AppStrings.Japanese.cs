@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "すべて探索済み。ボス部屋へ案内します。",
         TrailGuide: "花びらの道ガイド。",
         TrailEnd: "道の終わり。",
-        PathGuide: "クエスト目標へ案内します。",
+        PathGuideFormat: "クエスト目標：{0}、{1}メートル。",
         PathEnd: "クエスト目標に到着しました。",
-        PathNotFound: "道が見つかりません。方向を示します。");
+        PathNotFound: "道が見つかりません。方向を示します。",
+        NoQuestPlace: "マップにクエスト目標がありません。");
 }

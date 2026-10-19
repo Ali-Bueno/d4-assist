@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Tout est exploré. Je vous mène à la salle du boss.",
         TrailGuide: "Guide de la piste de pétales.",
         TrailEnd: "Fin de la piste.",
-        PathGuide: "Guidage vers l'objectif de quête.",
+        PathGuideFormat: "Objectif de quête : {0}, {1} mètres.",
         PathEnd: "Objectif de quête atteint.",
-        PathNotFound: "Aucun chemin trouvé ; j'indique la direction.");
+        PathNotFound: "Aucun chemin trouvé ; j'indique la direction.",
+        NoQuestPlace: "Aucun objectif de quête sur la carte.");
 }

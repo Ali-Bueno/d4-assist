@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Tudo explorado. Levando você à sala do chefe.",
         TrailGuide: "Guia da trilha de pétalas.",
         TrailEnd: "Fim da trilha.",
-        PathGuide: "Guia até o objetivo da missão.",
+        PathGuideFormat: "Objetivo da missão: {0}, {1} metros.",
         PathEnd: "Objetivo da missão alcançado.",
-        PathNotFound: "Nenhum caminho encontrado; indicando a direção.");
+        PathNotFound: "Nenhum caminho encontrado; indicando a direção.",
+        NoQuestPlace: "Nenhum objetivo de missão no mapa.");
 }

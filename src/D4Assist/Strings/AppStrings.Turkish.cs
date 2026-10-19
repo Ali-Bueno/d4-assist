@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Her yer keşfedildi. Seni boss odasına götürüyorum.",
         TrailGuide: "Yaprak izi rehberi.",
         TrailEnd: "İzin sonu.",
-        PathGuide: "Görev hedefine rehberlik.",
+        PathGuideFormat: "Görev hedefi: {0}, {1} metre.",
         PathEnd: "Görev hedefine ulaşıldı.",
-        PathNotFound: "Yol bulunamadı; yönü gösteriyorum.");
+        PathNotFound: "Yol bulunamadı; yönü gösteriyorum.",
+        NoQuestPlace: "Haritada görev hedefi yok.");
 }

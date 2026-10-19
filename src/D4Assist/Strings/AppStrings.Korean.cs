@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "모두 탐색했습니다. 보스 방으로 안내합니다.",
         TrailGuide: "꽃잎 길 안내.",
         TrailEnd: "길의 끝.",
-        PathGuide: "퀘스트 목표로 안내합니다.",
+        PathGuideFormat: "퀘스트 목표: {0}, {1}미터.",
         PathEnd: "퀘스트 목표에 도착했습니다.",
-        PathNotFound: "길을 찾지 못했습니다. 방향을 알려 드립니다.");
+        PathNotFound: "길을 찾지 못했습니다. 방향을 알려 드립니다.",
+        NoQuestPlace: "지도에 퀘스트 목표가 없습니다.");
 }

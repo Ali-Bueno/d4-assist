@@ -49,7 +49,8 @@ public sealed partial record AppStrings
         GuideToBossRoom: "Alles erforscht. Ich führe dich zum Bossraum.",
         TrailGuide: "Blütenspur-Führung.",
         TrailEnd: "Ende der Spur.",
-        PathGuide: "Führung zum Questziel.",
+        PathGuideFormat: "Questziel: {0}, {1} Meter.",
         PathEnd: "Questziel erreicht.",
-        PathNotFound: "Kein Weg gefunden; ich zeige die Richtung.");
+        PathNotFound: "Kein Weg gefunden; ich zeige die Richtung.",
+        NoQuestPlace: "Kein Questziel auf der Karte.");
 }

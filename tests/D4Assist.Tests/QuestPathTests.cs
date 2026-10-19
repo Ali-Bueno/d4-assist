@@ -177,6 +177,36 @@ public class QuestPathTests
     }
 
     [Fact]
+    public void A_torn_position_read_does_not_end_it()
+    {
+        var rig = new Rig();
+        rig.Move(Farobru);
+        rig.StepNamesTarget();
+
+        rig.Move(new Vector2(-431602080f, -431602080f));
+        rig.Move(Farobru + new Vector2(0, -1));
+
+        Assert.True(rig.Pings()); // still leading: a stopped guide stays silent until started again
+    }
+
+    [Fact]
+    public void Walking_beside_the_path_keeps_it_and_does_not_search_again()
+    {
+        var rig = new Rig();
+        rig.Move(Farobru);
+        rig.StepNamesTarget();
+        rig.Clock += QuestPathBridge.RepathInterval;
+
+        // Five units beside the path the whole way: no point is ever within 4, yet the walk goes on to the end.
+        var side = Vector2.Normalize(new Vector2(Target.Y - Farobru.Y, Farobru.X - Target.X)) * 5;
+        foreach (var p in Straight(Farobru, Target)) rig.Move(p + side);
+        rig.Move(Target);
+
+        Assert.Single(rig.Searches);
+        Assert.Contains(English.PathEnd, rig.Speech.Texts);
+    }
+
+    [Fact]
     public void D_pad_left_mutes_and_unmutes_it_while_it_leads()
     {
         var rig = new Rig();

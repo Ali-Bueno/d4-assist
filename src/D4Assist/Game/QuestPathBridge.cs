@@ -24,8 +24,8 @@ public sealed class QuestPathBridge
     /// <summary>Farther than this from the destination the player has left (a teleport, a waypoint).</summary>
     public const float LeaveRangeUnits = 900f;
 
-    /// <summary>A path point counts as reached this close.</summary>
-    public const float PointReachUnits = 4f;
+    /// <summary>The ping aims this far along the path ahead of the player's spot on it (PathFollower).</summary>
+    public const float LookaheadUnits = 8f;
 
     /// <summary>The destination counts as reached this close (an 8 m trigger sphere: its radius).</summary>
     public const float ArriveUnits = 4f;
@@ -35,6 +35,9 @@ public sealed class QuestPathBridge
 
     /// <summary>A new path is found at most this often while the player strays (a fight drags them around).</summary>
     public static readonly TimeSpan RepathInterval = TimeSpan.FromSeconds(3);
+
+    // How often --debug logs where the ping aims.
+    private static readonly TimeSpan AimLogInterval = TimeSpan.FromSeconds(5);
 
     /// <summary>A quest place within this of the destination's marker is it.</summary>
     private const float SamePlaceUnits = 3f;
@@ -54,9 +57,9 @@ public sealed class QuestPathBridge
     private IReadOnlyList<LoadedQuestDestination> _worldDestinations = [];
     private LoadedQuestDestination? _active;
     private Vector3? _player;
-    private Vector2 _pathStart;
     private IReadOnlyList<Vector2>? _points;
-    private RouteGuide? _guide;
+    private PathFollower? _follower;
+    private TimeSpan _lastAimLog;
     private int _request;
     private TimeSpan _lastPath;
     private bool _muted;
@@ -86,7 +89,8 @@ public sealed class QuestPathBridge
 
         if (feed.CurrentWorld is { } startWorld) EnterWorld(startWorld.Name); // app started mid-world
         feed.WorldChanged += (_, name, _) => { lock (_gate) EnterWorld(name); };
-        feed.PlayerMoved += p => { lock (_gate) OnPlayer(new Vector3(p.X, p.Y, p.Z)); };
+        // A torn read gives positions like (-431602080, -431602080) (live 2026-10-19): it ended the guide as "left".
+        feed.PlayerMoved += p => { if (ActorFilter.InWorld(new Vector3(p.X, p.Y, p.Z))) lock (_gate) OnPlayer(new Vector3(p.X, p.Y, p.Z)); };
         if (pad is not null) pad.DpadLeftPressed += OnTogglePressed;
     }
 
@@ -161,14 +165,9 @@ public sealed class QuestPathBridge
                     points = [destination.Target];
                 }
                 else Log($"PATH {destination.Destination.Name}: {points.Count} points from ({from.X:F1},{from.Y:F1}), {Length(from, points):F0} units ({took:F0} ms)");
-                _pathStart = from;
                 _points = points;
-                _guide = new RouteGuide(from, points, PointReachUnits);
-                if (_player is { } now)
-                {
-                    _guide.JoinAt(new(now.X, now.Y));
-                    Lead(now);
-                }
+                _follower = new PathFollower([from, .. points]);
+                if (_player is { } now) Lead(now);
             }
         });
     }
@@ -192,28 +191,22 @@ public sealed class QuestPathBridge
             Stop();
             return;
         }
-        if (_guide is not { } guide || _points is not { } points) { _ping.Silence(); return; } // the path is being found
+        if (_follower is not { } follower) { _ping.Silence(); return; } // the path is being found
 
-        guide.Update(here);
-        var target = guide.Target ?? destination.Target;
-        var legStart = guide.Reached == 0 ? _pathStart : points[guide.Reached - 1];
-        if (DistanceToSegment(here, legStart, target) > OffPathUnits && _clock() - _lastPath >= RepathInterval)
+        var (aim, off, remaining) = follower.Follow(here, LookaheadUnits);
+        if (off > OffPathUnits && _clock() - _lastPath >= RepathInterval)
         {
-            Log($"PATH {destination.Destination.Name}: off the path at ({here.X:F1},{here.Y:F1}), finding a new one");
-            FindPath(player); // the ping keeps aiming at the old point meanwhile
+            Log($"PATH {destination.Destination.Name}: off the path at ({here.X:F1},{here.Y:F1}), {off:F0} units, finding a new one");
+            FindPath(player); // the ping keeps following the old path meanwhile
+        }
+        if (_clock() - _lastAimLog >= AimLogInterval)
+        {
+            _lastAimLog = _clock();
+            Log($"PATH {destination.Destination.Name}: at ({here.X:F1},{here.Y:F1}) aiming ({aim.X:F1},{aim.Y:F1}), {off:F1} off the path, {remaining:F0} to go");
         }
         if (_muted) { _ping.Silence(); return; }
-        var (right, up) = ScreenDirections.ToScreen(target.X - here.X, target.Y - here.Y);
-        _ping.Aim(right, up, RemainingUnits(here, guide, points));
-    }
-
-    // The walk left along the path: to the next point, then point to point.
-    private static float RemainingUnits(Vector2 here, RouteGuide guide, IReadOnlyList<Vector2> points)
-    {
-        if (guide.Target is not { } next) return 0;
-        float remaining = Vector2.Distance(here, next);
-        for (int i = guide.Reached + 1; i < points.Count; i++) remaining += Vector2.Distance(points[i - 1], points[i]);
-        return remaining;
+        var (right, up) = ScreenDirections.ToScreen(aim.X - here.X, aim.Y - here.Y);
+        _ping.Aim(right, up, remaining + off);
     }
 
     private void Stop()
@@ -221,7 +214,7 @@ public sealed class QuestPathBridge
         if (_active is not null) _ping.Silence();
         _active = null;
         _points = null;
-        _guide = null;
+        _follower = null;
         _request++;
         _muted = false; // the mute is for this walk: the next one starts audible, as its announcement says
     }
@@ -249,14 +242,6 @@ public sealed class QuestPathBridge
         float length = 0;
         foreach (var p in points) (length, from) = (length + Vector2.Distance(from, p), p);
         return length;
-    }
-
-    private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var ab = b - a;
-        float lengthSquared = ab.LengthSquared();
-        float t = lengthSquared > 0 ? Math.Clamp(Vector2.Dot(p - a, ab) / lengthSquared, 0f, 1f) : 0f;
-        return Vector2.Distance(p, a + t * ab);
     }
 
     private void Log(string message) => _log?.Invoke($"[{_clock().TotalSeconds,7:F1}s] {message}");

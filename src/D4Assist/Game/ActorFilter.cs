@@ -35,7 +35,8 @@ public static class ActorFilter
     // Closer to the origin than this on every axis is the junk's (0,0,0) up to stray low bits.
     private const float OriginUnits = 0.01f;
 
-    private static bool InWorld(Vector3 p)
+    /// <summary>A finite position off the origin and inside any world's edge: not junk or a torn read.</summary>
+    public static bool InWorld(Vector3 p)
     {
         if (!float.IsFinite(p.X) || !float.IsFinite(p.Y) || !float.IsFinite(p.Z)) return false;
         float farthest = MathF.Max(MathF.Abs(p.X), MathF.Max(MathF.Abs(p.Y), MathF.Abs(p.Z)));

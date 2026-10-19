@@ -54,5 +54,6 @@ public sealed partial record AppStrings
         PathNotFound: "Nessun percorso trovato; indico la direzione.",
         NoQuestPlace: "Nessun obiettivo della missione sulla mappa.",
         PentagramGuide: "Guida del pentagramma.",
-        PentagramEnd: "Fine del pentagramma.");
+        PentagramEnd: "Fine del pentagramma.",
+        QuestMarker: "Indicatore di missione");
 }

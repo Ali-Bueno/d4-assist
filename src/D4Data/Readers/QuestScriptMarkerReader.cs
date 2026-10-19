@@ -111,6 +111,25 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             .Select(n => n.Quest).Distinct()];
     }
 
+    /// <summary>The quest whose scripts name a world-space marker nearest to <paramref name="at"/>, within <paramref name="reach"/>,
+    /// one of <paramref name="preferred"/> when any is that near; null for none. Names the game's generic quest map marker
+    /// (Symbol_Quest_Proxy), which no quest names itself: its fiend's spot lies nearer another quest's object than its own
+    /// quest's (live 2026-10-19, "Fangzahn und Flamme" beside "Durch dunkles Glas").</summary>
+    public int? QuestNearest(Vector2 at, float reach, IReadOnlyCollection<int>? preferred = null)
+    {
+        BuildIndexes();
+        int? best = null, bestPreferred = null;
+        float bestDistance = reach, bestPreferredDistance = reach;
+        foreach (var named in _questsByActor!.Values)
+            foreach (var (quest, position) in named)
+            {
+                float distance = Vector2.Distance(at, new(position.X, position.Y));
+                if (distance <= bestDistance) (best, bestDistance) = (quest, distance);
+                if (preferred?.Contains(quest) == true && distance <= bestPreferredDistance) (bestPreferred, bestPreferredDistance) = (quest, distance);
+            }
+        return bestPreferred ?? best;
+    }
+
     /// <summary>The quests some phase of which shows its step in <paramref name="worldSno"/> (QuestCallback.snoWorld). A world's
     /// own marker set can be named neither after a layer nor after the world (live 2026-10-17: QST_Skov_Prologue_04 marks the
     /// Skovos docks in CSD_Hawe_SailtoSkovos_Docks_BPMS, and its spots move with the generated layout), so no marker finds it.</summary>

@@ -41,6 +41,10 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The actor SNOs the active quests' current phases name outright, as of the last actor read; null when unknown.</summary>
     IReadOnlySet<int>? ReadQuestActorSnos() => null;
 
+    /// <summary>The quests whose objects are the player's (ActiveQuests.Owned: followed now or found in progress here); null when
+    /// quests aren't read.</summary>
+    IReadOnlyList<int>? ReadOwnedQuests() => null;
+
     /// <summary>The LevelArea SNOs of the local player's activated waypoints among <paramref name="waypointLevelAreas"/>, in
     /// activation order; null when unreadable.</summary>
     IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) => null;

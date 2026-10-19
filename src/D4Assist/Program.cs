@@ -336,7 +336,7 @@ internal static class Program
         {
             var paths = NewOverworldPaths(store, schema, cascGate);
             pathBridge = new QuestPathBridge(
-                session, WorldClassifier.OpenWorldName, markers => QuestMapPlaces(markers, store, questScripts, language, cascGate), paths.Find,
+                session, WorldClassifier.OpenWorldName, markers => { IReadOnlyList<int>? owned = null; session.Query(r => owned = r.ReadOwnedQuests()); return QuestMapPlaces(markers, owned, store, questScripts, language, cascGate); }, paths.Find,
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
@@ -588,21 +588,36 @@ internal static class Program
         return routes;
     }
 
-    // The map's markers that a quest's scripts name at their spot (ActiveQuests.MarkerReach), with the quest's name.
+    // The map's markers that a quest's scripts name at their spot (ActiveQuests.MarkerReach), with the quest's name, and the game's
+    // own quest markers (Symbol_Quest_Proxy, map kind 12: an area step such as "kill the fiend roaming here", live 2026-10-19),
+    // named after the quest with the nearest object.
     private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
-        IReadOnlyList<MarkedActor> markers, SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language, object cascGate)
+        IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned, SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language,
+        object cascGate)
     {
         var places = new List<QuestMapPlace>();
         string locale = SpeechLanguages.GameLocale(language.Current);
+        string NameOf(int quest) => store.Name(quest) is { } coreName ? store.Text(locale, "Quest_" + coreName, "Name") ?? coreName : quest.ToString();
         lock (cascGate)
             foreach (var marker in markers)
-                foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
+            {
+                var at = new System.Numerics.Vector2(marker.X, marker.Y);
+                if (marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) == QuestSymbolActor)
                 {
-                    string name = store.Name(quest) is { } coreName ? store.Text(locale, "Quest_" + coreName, "Name") ?? coreName : quest.ToString();
-                    places.Add(new QuestMapPlace(quest, name, marker.ActorSno, new System.Numerics.Vector2(marker.X, marker.Y)));
+                    int? quest = questScripts.QuestNearest(at, QuestSymbolNamingUnits, owned);
+                    places.Add(new QuestMapPlace(quest ?? 0, quest is { } q ? NameOf(q) : AppStrings.For(language.Current).QuestMarker, marker.ActorSno, at));
+                    continue;
                 }
+                foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
+                    places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at));
+            }
         return places;
     }
+
+    // The game's generic quest map marker and its marker kind; quest objects this near name its quest.
+    private const string QuestSymbolActor = "Symbol_Quest_Proxy";
+    private const int QuestSymbolMarkerKind = 12;
+    private const float QuestSymbolNamingUnits = 60f;
 
     // Paths over the open world's offline scene surfaces; every game-data read holds the CASC gate.
     private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)

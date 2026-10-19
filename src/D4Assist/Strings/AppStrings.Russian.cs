@@ -54,5 +54,6 @@ public sealed partial record AppStrings
         PathNotFound: "Путь не найден; показываю направление.",
         NoQuestPlace: "На карте нет целей заданий.",
         PentagramGuide: "Проводник по пентаграмме.",
-        PentagramEnd: "Конец пентаграммы.");
+        PentagramEnd: "Конец пентаграммы.",
+        QuestMarker: "Отметка задания");
 }

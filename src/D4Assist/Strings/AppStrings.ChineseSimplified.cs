@@ -54,5 +54,6 @@ public sealed partial record AppStrings
         PathNotFound: "未找到路径，指示方向。",
         NoQuestPlace: "地图上没有任务目标。",
         PentagramGuide: "五芒星引导。",
-        PentagramEnd: "五芒星结束。");
+        PentagramEnd: "五芒星结束。",
+        QuestMarker: "任务标记");
 }

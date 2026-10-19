@@ -54,5 +54,6 @@ public sealed partial record AppStrings
         PathNotFound: "Nie znaleziono drogi; wskazuję kierunek.",
         NoQuestPlace: "Brak celu zadania na mapie.",
         PentagramGuide: "Przewodnik po pentagramie.",
-        PentagramEnd: "Koniec pentagramu.");
+        PentagramEnd: "Koniec pentagramu.",
+        QuestMarker: "Znacznik zadania");
 }

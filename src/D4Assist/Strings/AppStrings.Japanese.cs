@@ -54,5 +54,6 @@ public sealed partial record AppStrings
         PathNotFound: "道が見つかりません。方向を示します。",
         NoQuestPlace: "マップにクエスト目標がありません。",
         PentagramGuide: "五芒星ガイド。",
-        PentagramEnd: "五芒星の終わり。");
+        PentagramEnd: "五芒星の終わり。",
+        QuestMarker: "クエストマーカー");
 }

@@ -458,6 +458,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlySet<int>? ReadQuestActorSnos() => _activeQuests is null ? null : _questActorSnos;
 
+    public IReadOnlyList<int>? ReadOwnedQuests() => _activeQuests?.Owned;
+
     public IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) =>
         _offsets is { } offsets ? ActivatedWaypointsReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva, waypointLevelAreas) : null;
 

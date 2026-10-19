@@ -54,5 +54,6 @@ public sealed partial record AppStrings
         PathNotFound: "Yol bulunamadı; yönü gösteriyorum.",
         NoQuestPlace: "Haritada görev hedefi yok.",
         PentagramGuide: "Pentagram rehberi.",
-        PentagramEnd: "Pentagramın sonu.");
+        PentagramEnd: "Pentagramın sonu.",
+        QuestMarker: "Görev işareti");
 }

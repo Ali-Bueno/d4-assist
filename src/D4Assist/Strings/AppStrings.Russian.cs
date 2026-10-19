@@ -52,5 +52,7 @@ public sealed partial record AppStrings
         PathGuideFormat: "Цель задания: {0}, {1} метров.",
         PathEnd: "Цель задания достигнута.",
         PathNotFound: "Путь не найден; показываю направление.",
-        NoQuestPlace: "На карте нет целей заданий.");
+        NoQuestPlace: "На карте нет целей заданий.",
+        PentagramGuide: "Проводник по пентаграмме.",
+        PentagramEnd: "Конец пентаграммы.");
 }

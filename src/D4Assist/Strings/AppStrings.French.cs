@@ -52,5 +52,7 @@ public sealed partial record AppStrings
         PathGuideFormat: "Objectif de quête : {0}, {1} mètres.",
         PathEnd: "Objectif de quête atteint.",
         PathNotFound: "Aucun chemin trouvé ; j'indique la direction.",
-        NoQuestPlace: "Aucun objectif de quête sur la carte.");
+        NoQuestPlace: "Aucun objectif de quête sur la carte.",
+        PentagramGuide: "Guide du pentagramme.",
+        PentagramEnd: "Fin du pentagramme.");
 }

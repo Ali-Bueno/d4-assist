@@ -2,8 +2,9 @@ using System.Numerics;
 
 namespace D4Assist.Game;
 
-/// <summary>What a route's points are: shelters to wait in, or a trail of markers to walk along.</summary>
-public enum RouteKind { Shelters, Trail }
+/// <summary>What a route's points are: shelters to wait in, a trail of markers to walk along, or the strokes of a pentagram
+/// to trace (a trail spoken as one).</summary>
+public enum RouteKind { Shelters, Trail, Pentagram }
 
 /// <summary>A campaign stretch the assistant leads point by point (QuestRouteBridge). The points are the
 /// <paramref name="TargetActor"/> markers of <paramref name="MarkerSet"/>, in world space; the marker the set holds for
@@ -12,9 +13,12 @@ public enum RouteKind { Shelters, Trail }
 /// <param name="ActivationActors">Quest actors whose live sighting at the start or at a point starts the route.</param>
 /// <param name="EndQuest">The quest that waits past the last point: the one <paramref name="EndActor"/> marker its scripts name is
 /// where the route ends. Null for a route that ends at its last point.</param>
+/// <param name="StartWhenUsed">Only an activation actor the player has used starts it (the ritual begins when it is used).</param>
+/// <param name="ReachUnits">How close counts as reaching a point; null for the kind's default.</param>
 public sealed record QuestRoute(
     string Name, RouteKind Kind, string WorldName, string MarkerSet, string? Quest, string TargetActor,
-    IReadOnlyList<string> ActivationActors, string? EndQuest = null, string? EndActor = null);
+    IReadOnlyList<string> ActivationActors, string? EndQuest = null, string? EndActor = null, bool StartWhenUsed = false,
+    float? ReachUnits = null);
 
 /// <summary>A route resolved offline: its activation actor SNOs, its start, its points in visiting order and where it ends
 /// past them, if anywhere (world X/Y).</summary>
@@ -48,5 +52,14 @@ public static class QuestRouteCatalog
         "Skov_Philios (Skov_Philios_Campaign_Design)", null, "QST_X2_Skov_Lilith_BloodPetal_Trigger_Sphere",
         ["QST_X2_Skov_Lilith_BloodPetal_Trigger_Sphere"]);
 
-    public static readonly IReadOnlyList<QuestRoute> All = [SandstormShelters, PhiliosBloodPetals];
+    /// <summary>"Hexenmeister: Bauch der Bestie" (QST_Warlock_ClassQ_02 2449617, phase 5 waits on QST_Warlock_ClassQ_Trace_Ritual
+    /// 2538551, "Folgt dem Pentagramm."): after the sacrifice is used, trace a pentagram ~10 units across in the Western Flats by
+    /// walking its strokes, 20 Trigger_Sphere_8m markers ~2.5 units apart that the set lists in walking order (start, then
+    /// strokes of 4, 7 and 8). The game marks none of them on its map, so its navigation stays silent (user, 2026-10-19).</summary>
+    public static readonly QuestRoute WarlockPentagram = new(
+        "warlock-pentagram", RouteKind.Pentagram, "Sanctuary_Eastern_Continent",
+        "Step_WesternFlats (QST_Warlock_ClassQ_2a)", null, "Trigger_Sphere_8m",
+        ["QST_Warlock_ClassQ_Trace_Sacrifice"], StartWhenUsed: true, ReachUnits: 1.5f);
+
+    public static readonly IReadOnlyList<QuestRoute> All = [SandstormShelters, PhiliosBloodPetals, WarlockPentagram];
 }

@@ -54,6 +54,7 @@ public sealed class QuestPathBridge
     private readonly Action<Action> _runInBackground;
     private readonly Action<string>? _log;
     private readonly Func<TimeSpan> _clock;
+    private readonly Func<bool> _routeActive;
     // Feed events arrive on different poll threads, the path on a worker.
     private readonly object _gate = new();
     private string? _world;
@@ -76,12 +77,14 @@ public sealed class QuestPathBridge
     /// <param name="runInBackground">Runs the path search off the poll thread; tests run it inline.</param>
     /// <param name="log">Debug sink for start, path and stop lines; null when not debugging.</param>
     /// <param name="clock">Time since start; null for a stopwatch.</param>
+    /// <param name="routeActive">True while a quest route leads (QuestRouteBridge.IsActive): D-pad left then mutes that route only.</param>
     public QuestPathBridge(
         IDungeonFeed feed, string worldName, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
         LanguageSetting? language = null, IGuideTogglePad? pad = null, Action<Action>? runInBackground = null,
-        Action<string>? log = null, Func<TimeSpan>? clock = null)
+        Action<string>? log = null, Func<TimeSpan>? clock = null, Func<bool>? routeActive = null)
     {
+        _routeActive = routeActive ?? (() => false);
         _worldName = worldName;
         _questPlaces = questPlaces;
         _findPath = findPath;
@@ -124,7 +127,7 @@ public sealed class QuestPathBridge
     {
         lock (_gate)
         {
-            if (_world != _worldName) return;
+            if (_world != _worldName || (_active is null && _routeActive())) return;
             var strings = AppStrings.For(_language.Current);
             if (_player is not { } player) { _speech.Speak(strings.NoQuestPlace, interrupt: true); return; }
             var here = new Vector2(player.X, player.Y);

@@ -52,5 +52,7 @@ public sealed partial record AppStrings
         PathGuideFormat: "Questziel: {0}, {1} Meter.",
         PathEnd: "Questziel erreicht.",
         PathNotFound: "Kein Weg gefunden; ich zeige die Richtung.",
-        NoQuestPlace: "Kein Questziel auf der Karte.");
+        NoQuestPlace: "Kein Questziel auf der Karte.",
+        PentagramGuide: "Pentagramm-Führung.",
+        PentagramEnd: "Ende des Pentagramms.");
 }

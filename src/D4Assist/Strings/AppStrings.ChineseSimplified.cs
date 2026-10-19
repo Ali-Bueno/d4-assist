@@ -52,5 +52,7 @@ public sealed partial record AppStrings
         PathGuideFormat: "任务目标：{0}，{1}米。",
         PathEnd: "已到达任务目标。",
         PathNotFound: "未找到路径，指示方向。",
-        NoQuestPlace: "地图上没有任务目标。");
+        NoQuestPlace: "地图上没有任务目标。",
+        PentagramGuide: "五芒星引导。",
+        PentagramEnd: "五芒星结束。");
 }

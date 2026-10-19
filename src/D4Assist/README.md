@@ -421,7 +421,14 @@ Routes so far: `sandstorm-shelters`, the three `BCD_Trigger_EliasPalace_SafeZone
 `VGN_Kehj_EliasPalace_Sandstorm`, ending where `QST_Kehj_EliasPalace_03` has Meshif on the palace steps (a player's log
 of 2026-10-19, no `--debug`, confirms the order; not live-tested with `--debug` yet), and `philios-blood-petals`, the
 trail of 21 `QST_X2_Skov_Lilith_BloodPetal_Trigger_Sphere` markers in `Skov_Philios (Skov_Philios_Campaign_Design)`
-from Lorath to the waterfall shrine in "Auf blutigem Pfad" (`QST_Skov_Philios_06`, 2440931), started by a live petal.
+from Lorath to the waterfall shrine in "Auf blutigem Pfad" (`QST_Skov_Philios_06`, 2440931), started by a live petal; and
+`warlock-pentagram` (`RouteKind.Pentagram`), "Folgt dem Pentagramm." in "Hexenmeister: Bauch der Bestie"
+(`QST_Warlock_ClassQ_02` phase 5, sub-quest `QST_Warlock_ClassQ_Trace_Ritual`): the 20 `Trigger_Sphere_8m` markers of
+`Step_WesternFlats (QST_Warlock_ClassQ_2a)`, ~2.5 units apart in strokes ~10 units long, which the game's map doesn't mark.
+It starts only once `QST_Warlock_ClassQ_Trace_Sacrifice` is used (`StartWhenUsed`), counts a point within 1.5 units
+(`ReachUnits`), and is traced strictly in order from its first point (`RouteGuide` `inOrder`: its strokes cross, and a
+later point 0.4 units from an earlier one must not skip a stroke). It speaks "Guía del pentagrama." and "Fin del
+pentagrama." (**not live-tested yet**). While a route leads, D-pad left mutes it and starts no quest-place guide.
 
 ### Quest places over a found path
 

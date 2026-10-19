@@ -52,5 +52,7 @@ public sealed partial record AppStrings
         PathGuideFormat: "クエスト目標：{0}、{1}メートル。",
         PathEnd: "クエスト目標に到着しました。",
         PathNotFound: "道が見つかりません。方向を示します。",
-        NoQuestPlace: "マップにクエスト目標がありません。");
+        NoQuestPlace: "マップにクエスト目標がありません。",
+        PentagramGuide: "五芒星ガイド。",
+        PentagramEnd: "五芒星の終わり。");
 }

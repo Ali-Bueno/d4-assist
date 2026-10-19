@@ -440,6 +440,53 @@ public class QuestRouteTests
         Assert.False(rig.Pings());
     }
 
+    // ---- pentagram ("Hexenmeister: Bauch der Bestie", "Folgt dem Pentagramm.") ----
+
+    // The start and the first stroke as Step_WesternFlats (QST_Warlock_ClassQ_2a) places them, then a stroke crossing the
+    // first one 0.4 units from its second point.
+    private static readonly Vector2 S0 = new(-699.6f, -938.2f), S1 = new(-699.5f, -935.3f), S2 = new(-699.4f, -937.8f),
+        S3 = new(-699.3f, -940.3f), S4 = new(-699.2f, -942.5f), S5 = new(-701.9f, -937.2f), S6 = new(-699.4f, -937.4f),
+        S7 = new(-696.9f, -937.6f);
+    private const int Sacrifice = 2538891;
+
+    private static LoadedQuestRoute Pentagram() =>
+        new(QuestRouteCatalog.WarlockPentagram, new HashSet<int> { Sacrifice }, S0, [S0, S1, S2, S3, S4, S5, S6, S7]);
+
+    [Fact]
+    public void The_pentagram_starts_only_once_the_sacrifice_is_used()
+    {
+        var rig = new Rig(Pentagram());
+        rig.Move(S0 + new Vector2(10, 0));
+
+        rig.Feed.RaiseActors(new ActorState(1, Sacrifice, -698.5f, -936.4f, 9));
+        rig.Move(S0 + new Vector2(9, 0));
+        Assert.Empty(rig.Speech.Spoken);
+
+        rig.Feed.RaiseActors(new ActorState(1, Sacrifice, -698.5f, -936.4f, 9, Operated: true));
+        rig.Move(S0 + new Vector2(8, 0));
+        Assert.Equal(["Guía del pentagrama."], rig.Speech.Texts);
+        Assert.True(rig.Pings());
+    }
+
+    [Fact]
+    public void The_pentagram_is_traced_point_by_point_where_its_strokes_cross()
+    {
+        var rig = new Rig(Pentagram());
+        rig.Move(S2); // standing where two strokes cross: the trace still starts at its first point
+        rig.Feed.RaiseActors(new ActorState(1, Sacrifice, -698.5f, -936.4f, 9, Operated: true));
+        foreach (var p in new[] { S0, S1, S2 }) rig.Move(p);
+
+        rig.Move(S6); // 0.4 units from S2: the crossing stroke's point isn't taken before S3..S5
+        rig.Move(S3);
+        rig.Move(S4);
+        rig.Move(S5);
+        Assert.Equal(["Guía del pentagrama."], rig.Speech.Texts);
+        rig.Move(S6);
+        rig.Move(S7);
+
+        Assert.Equal(["Guía del pentagrama.", "Fin del pentagrama."], rig.Speech.Texts);
+    }
+
     // ---- fakes ----
 
     private sealed class FakeFeed : IDungeonFeed

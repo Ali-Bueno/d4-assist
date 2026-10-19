@@ -52,5 +52,7 @@ public sealed partial record AppStrings
         PathGuideFormat: "퀘스트 목표: {0}, {1}미터.",
         PathEnd: "퀘스트 목표에 도착했습니다.",
         PathNotFound: "길을 찾지 못했습니다. 방향을 알려 드립니다.",
-        NoQuestPlace: "지도에 퀘스트 목표가 없습니다.");
+        NoQuestPlace: "지도에 퀘스트 목표가 없습니다.",
+        PentagramGuide: "오각별 안내.",
+        PentagramEnd: "오각별 끝.");
 }

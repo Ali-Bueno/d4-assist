@@ -91,8 +91,8 @@ public sealed class QuestRouteBridge
         if (_active is not null || _player is not { } player) return;
         foreach (var route in _worldRoutes.Where(r => !_finished.Contains(r.Route.Name) && InArea(r, player)))
         {
-            if (actors.FirstOrDefault(a => route.ActivationSnos.Contains(a.ActorSno) && AtStartOrPoint(route, new Vector2(a.X, a.Y)))
-                is not { } seen) continue;
+            if (actors.FirstOrDefault(a => route.ActivationSnos.Contains(a.ActorSno) && (!route.Route.StartWhenUsed || a.Operated)
+                && AtStartOrPoint(route, new Vector2(a.X, a.Y))) is not { } seen) continue;
             Start(route, $"actor {_nameOf(seen.ActorSno) ?? seen.ActorSno.ToString()} at ({seen.X:F1},{seen.Y:F1})");
             return;
         }
@@ -114,8 +114,9 @@ public sealed class QuestRouteBridge
     private void Start(LoadedQuestRoute route, string reason)
     {
         _active = route;
-        _guide = new RouteGuide(route.Start, route.Path, route.Route.Kind == RouteKind.Trail ? TrailReachRadius : ReachRadius);
-        if (_player is { } player)
+        bool inOrder = route.Route.Kind == RouteKind.Pentagram;
+        _guide = new RouteGuide(route.Start, route.Path, route.Route.ReachUnits ?? (route.Route.Kind == RouteKind.Shelters ? ReachRadius : TrailReachRadius), inOrder);
+        if (_player is { } player && !inOrder) // a pentagram is traced from its first point
         {
             _guide.JoinAt(player);
             if (Holds(route) && _guide.Reached > 0 && Vector2.Distance(player, route.Path[_guide.Reached - 1]) <= HoldRadius)

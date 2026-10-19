@@ -336,7 +336,7 @@ internal static class Program
             var paths = NewOverworldPaths(store, schema, cascGate);
             pathBridge = new QuestPathBridge(
                 session, WorldClassifier.OpenWorldName, markers => QuestMapPlaces(markers, store, questScripts, language, cascGate), paths.Find,
-                guidePing, speech, language, pad, log: debug ? Console.WriteLine : null);
+                guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();

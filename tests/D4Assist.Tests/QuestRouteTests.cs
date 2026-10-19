@@ -183,18 +183,20 @@ public class QuestRouteTests
         public AudioMixer Mixer = new();
         public GuidePingPlayer Ping;
         public double Now;
+        public TimeSpan Clock;
+        public QuestRouteBridge Bridge;
 
         public Rig(LoadedQuestRoute? route = null)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             route ??= new LoadedQuestRoute(QuestRouteCatalog.SandstormShelters, new HashSet<int> { GuideActor }, Start, [A, B, C], PalaceSteps);
-            _ = new QuestRouteBridge(Feed, [route], Ping, Speech, pad: Pad);
+            Bridge = new QuestRouteBridge(Feed, [route], Ping, Speech, pad: Pad, clock: () => Clock);
             Feed.RaiseWorld(World);
         }
 
         private Vector2 _last;
 
-        public void Move(Vector2 p) { Now += 0.1; _last = p; Feed.RaisePlayer(p); }
+        public void Move(Vector2 p) { Now += 0.1; Clock += TimeSpan.FromSeconds(0.1); _last = p; Feed.RaisePlayer(p); }
 
         // Moves past any pending ping or chime, re-reports the last position (a live poll) and says whether the guide ping plays.
         public bool Pings()
@@ -448,6 +450,7 @@ public class QuestRouteTests
         S3 = new(-699.3f, -940.3f), S4 = new(-699.2f, -942.5f), S5 = new(-701.9f, -937.2f), S6 = new(-699.4f, -937.4f),
         S7 = new(-696.9f, -937.6f);
     private const int Sacrifice = 2538891;
+    private static readonly TimeSpan RouteSectionWait = QuestRouteBridge.SectionWait;
 
     private static LoadedQuestRoute Pentagram() =>
         new(QuestRouteCatalog.WarlockPentagram, new HashSet<int> { Sacrifice }, S0, [S0, S1, S2, S3, S4, S5, S6, S7]);
@@ -485,6 +488,73 @@ public class QuestRouteTests
         rig.Move(S7);
 
         Assert.Equal(["Guía del pentagrama.", "Fin del pentagrama."], rig.Speech.Texts);
+    }
+
+    // The whole pentagram in its three parts (5, 7 and 8 points), laid out 3 units apart along a line for the test.
+    private static readonly Vector2[] Traced = [.. Enumerable.Range(0, 20).Select(i => new Vector2(-720f + i * 3, -937f))];
+
+    private static LoadedQuestRoute WholePentagram() =>
+        new(QuestRouteCatalog.WarlockPentagram, new HashSet<int> { Sacrifice }, Traced[0], Traced);
+
+    private static Rig Tracing()
+    {
+        var rig = new Rig(WholePentagram());
+        rig.Move(Traced[0] + new Vector2(0, 3));
+        rig.Feed.RaiseActors(new ActorState(1, Sacrifice, Traced[2].X, Traced[2].Y + 2, 9, Operated: true));
+        return rig;
+    }
+
+    [Fact]
+    public void The_quest_moving_on_after_a_part_stops_the_trace_until_the_player_has_been_away()
+    {
+        var rig = Tracing();
+        foreach (var p in Traced[..5]) rig.Move(p);
+
+        rig.Bridge.OnQuestMovedOn();
+        Assert.False(rig.Pings());
+        rig.Feed.RaiseActors(new ActorState(1, Sacrifice, Traced[2].X, Traced[2].Y + 2, 9, Operated: true));
+        rig.Move(Traced[5]);
+        Assert.False(rig.Pings()); // the sacrifice stays used: no restart while the player is still there
+        Assert.Single(rig.Speech.Texts);
+    }
+
+    [Fact]
+    public void Back_after_being_away_the_trace_goes_on_with_its_next_part()
+    {
+        var rig = Tracing();
+        foreach (var p in Traced[..5]) rig.Move(p);
+        rig.Bridge.OnQuestMovedOn();
+
+        rig.Move(Traced[0] + new Vector2(0, 400)); // off to the quest's dungeon area and back
+        rig.Move(Traced[0] + new Vector2(0, 3));
+        rig.Feed.RaiseActors(new ActorState(1, Sacrifice, Traced[2].X, Traced[2].Y + 2, 9, Operated: true));
+        Assert.Equal(["Guía del pentagrama.", "Guía del pentagrama."], rig.Speech.Texts);
+
+        foreach (var p in Traced[5..12]) rig.Move(p); // the second part only: the first isn't walked again
+        rig.Clock += RouteSectionWait;
+        foreach (var p in Traced[12..]) rig.Move(p);
+        Assert.Equal("Fin del pentagrama.", rig.Speech.Texts.Last());
+    }
+
+    [Fact]
+    public void A_part_whose_quest_does_not_move_on_holds_then_leads_on()
+    {
+        var rig = Tracing();
+        foreach (var p in Traced[..5]) rig.Move(p);
+        Assert.False(rig.Pings()); // waiting at the part's end
+
+        rig.Clock += RouteSectionWait;
+        Assert.True(rig.Pings()); // on to the next part
+    }
+
+    [Fact]
+    public void The_quest_moving_on_as_the_trace_starts_leaves_it_leading()
+    {
+        var rig = Tracing();
+
+        rig.Bridge.OnQuestMovedOn(); // the sacrifice used moves the quest on
+
+        Assert.True(rig.Pings());
     }
 
     // ---- fakes ----

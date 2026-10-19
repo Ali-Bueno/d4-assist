@@ -331,6 +331,7 @@ internal static class Program
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             routeBridge = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
+        if (routeBridge is not null) session.QuestMovedOn += routeBridge.OnQuestMovedOn;
         if (guidePing is not null && routesEnabled)
         {
             var paths = NewOverworldPaths(store, schema, cascGate);

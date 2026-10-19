@@ -15,10 +15,12 @@ public enum RouteKind { Shelters, Trail, Pentagram }
 /// where the route ends. Null for a route that ends at its last point.</param>
 /// <param name="StartWhenUsed">Only an activation actor the player has used starts it (the ritual begins when it is used).</param>
 /// <param name="ReachUnits">How close counts as reaching a point; null for the kind's default.</param>
+/// <param name="Sections">How many points each part of the route has, in order, when the quest asks for one part at a time:
+/// the guide holds at a part's end, stops when the quest moves on there, and later goes on with the next part. Null for one.</param>
 public sealed record QuestRoute(
     string Name, RouteKind Kind, string WorldName, string MarkerSet, string? Quest, string TargetActor,
     IReadOnlyList<string> ActivationActors, string? EndQuest = null, string? EndActor = null, bool StartWhenUsed = false,
-    float? ReachUnits = null);
+    float? ReachUnits = null, IReadOnlyList<int>? Sections = null);
 
 /// <summary>A route resolved offline: its activation actor SNOs, its start, its points in visiting order and where it ends
 /// past them, if anywhere (world X/Y).</summary>
@@ -55,11 +57,12 @@ public static class QuestRouteCatalog
     /// <summary>"Hexenmeister: Bauch der Bestie" (QST_Warlock_ClassQ_02 2449617, phase 5 waits on QST_Warlock_ClassQ_Trace_Ritual
     /// 2538551, "Folgt dem Pentagramm."): after the sacrifice is used, trace a pentagram ~10 units across in the Western Flats by
     /// walking its strokes, 20 Trigger_Sphere_8m markers ~2.5 units apart that the set lists in walking order (start, then
-    /// strokes of 4, 7 and 8). The game marks none of them on its map, so its navigation stays silent (user, 2026-10-19).</summary>
+    /// strokes of 4, 7 and 8). The game marks none of them on its map, so its navigation stays silent (user, 2026-10-19). Live the
+    /// quest moved on to its dungeon after the start and the first stroke: the rest are later parts.</summary>
     public static readonly QuestRoute WarlockPentagram = new(
         "warlock-pentagram", RouteKind.Pentagram, "Sanctuary_Eastern_Continent",
         "Step_WesternFlats (QST_Warlock_ClassQ_2a)", null, "Trigger_Sphere_8m",
-        ["QST_Warlock_ClassQ_Trace_Sacrifice"], StartWhenUsed: true, ReachUnits: 1.5f);
+        ["QST_Warlock_ClassQ_Trace_Sacrifice"], StartWhenUsed: true, ReachUnits: 1.5f, Sections: [5, 7, 8]);
 
     public static readonly IReadOnlyList<QuestRoute> All = [SandstormShelters, PhiliosBloodPetals, WarlockPentagram];
 }

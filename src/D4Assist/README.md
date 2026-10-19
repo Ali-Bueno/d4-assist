@@ -428,7 +428,7 @@ from Lorath to the waterfall shrine in "Auf blutigem Pfad" (`QST_Skov_Philios_06
 It starts only once `QST_Warlock_ClassQ_Trace_Sacrifice` is used (`StartWhenUsed`), counts a point within 1.5 units
 (`ReachUnits`), and is traced strictly in order from its first point (`RouteGuide` `inOrder`: its strokes cross, and a
 later point 0.4 units from an earlier one must not skip a stroke). It speaks "Guía del pentagrama." and "Fin del
-pentagrama." (**not live-tested yet**). While a route leads, D-pad left mutes it and starts no quest-place guide.
+pentagrama." (live 2026-10-19: worked). It is walked in parts (`Sections` 5, 7, 8): live the quest moved on to its dungeon after the start and the first stroke. At a part's end the ping waits up to 6 s; if a followed quest moves on then (`GameSession.QuestMovedOn`), the route stops and goes on with the next part once the player has been 150 units away and comes back (the sacrifice stays used); otherwise it leads on. While a route leads, D-pad left mutes it and starts no quest-place guide.
 
 ### Quest places over a found path
 

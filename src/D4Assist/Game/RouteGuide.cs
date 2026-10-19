@@ -22,6 +22,9 @@ public sealed class RouteGuide(Vector2 start, IReadOnlyList<Vector2> points, flo
 
     public Vector2? Target => Finished ? null : points[Reached];
 
+    /// <summary>Starts the walk at point <paramref name="index"/> (0-based): the earlier ones count as reached.</summary>
+    public void StartAt(int index) => Reached = Math.Clamp(index, 0, points.Count);
+
     /// <summary>Joins the route where the player stands: the target becomes the end of the nearest leg of
     /// start, point 1, point 2 and so on; on a tie (standing on a point) the later leg wins.</summary>
     public void JoinAt(Vector2 player)

@@ -37,16 +37,26 @@ public sealed class QuestRouteBridge
     /// <summary>The ping holds while the player stays this close to the point just reached.</summary>
     public const float HoldRadius = 10f;
 
+    /// <summary>At the end of a route's part (QuestRoute.Sections) the ping waits this long for the quest to move on, then leads
+    /// on to the next part.</summary>
+    public static readonly TimeSpan SectionWait = TimeSpan.FromSeconds(6);
+
     private readonly IReadOnlyList<LoadedQuestRoute> _routes;
     private readonly GuidePingPlayer _ping;
     private readonly ISpeechSink _speech;
     private readonly LanguageSetting _language;
     private readonly Func<int, string?> _nameOf;
     private readonly Action<string>? _log;
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly Func<TimeSpan> _clock;
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
     private readonly HashSet<string> _finished = [];
+    // A part-wise route the quest moved on from: where it goes on, kept across worlds (the quest's dungeon lies between the parts).
+    private readonly Dictionary<string, int> _resumeAt = [];
+    // Routes stopped there that wait until the player has been away before they start again: their start actor stays used.
+    private readonly HashSet<string> _awaitingReturn = [];
+    private int _startedAt;
+    private TimeSpan? _sectionEndAt;
     private IReadOnlyList<LoadedQuestRoute> _worldRoutes = [];
     private LoadedQuestRoute? _active;
     private RouteGuide? _guide;
@@ -60,10 +70,14 @@ public sealed class QuestRouteBridge
     /// <param name="pad">D-pad left mutes the route's ping; null for no toggle.</param>
     /// <param name="nameOf">CoreTOC name of an actor SNO, for the log.</param>
     /// <param name="log">Debug sink for start, point and stop lines; null when not debugging.</param>
+    /// <param name="clock">Time since start; null for a stopwatch.</param>
     public QuestRouteBridge(
         IDungeonFeed feed, IReadOnlyList<LoadedQuestRoute> routes, GuidePingPlayer ping, ISpeechSink speech,
-        LanguageSetting? language = null, IGuideTogglePad? pad = null, Func<int, string?>? nameOf = null, Action<string>? log = null)
+        LanguageSetting? language = null, IGuideTogglePad? pad = null, Func<int, string?>? nameOf = null, Action<string>? log = null,
+        Func<TimeSpan>? clock = null)
     {
+        var stopwatch = Stopwatch.StartNew();
+        _clock = clock ?? (() => stopwatch.Elapsed);
         _routes = routes;
         _ping = ping;
         _speech = speech;
@@ -82,6 +96,7 @@ public sealed class QuestRouteBridge
     {
         Stop();
         _finished.Clear();
+        _awaitingReturn.Clear();
         _player = null;
         _worldRoutes = [.. _routes.Where(r => r.Route.WorldName == worldName)];
     }
@@ -89,7 +104,8 @@ public sealed class QuestRouteBridge
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
         if (_active is not null || _player is not { } player) return;
-        foreach (var route in _worldRoutes.Where(r => !_finished.Contains(r.Route.Name) && InArea(r, player)))
+        foreach (var route in _worldRoutes.Where(r => !_finished.Contains(r.Route.Name) && !_awaitingReturn.Contains(r.Route.Name)
+            && InArea(r, player)))
         {
             if (actors.FirstOrDefault(a => route.ActivationSnos.Contains(a.ActorSno) && (!route.Route.StartWhenUsed || a.Operated)
                 && AtStartOrPoint(route, new Vector2(a.X, a.Y))) is not { } seen) continue;
@@ -101,6 +117,7 @@ public sealed class QuestRouteBridge
     private void OnPlayer(Vector2 player)
     {
         _player = player;
+        _awaitingReturn.RemoveWhere(name => _worldRoutes.FirstOrDefault(r => r.Route.Name == name) is not { } r || !InArea(r, player));
         if (_active is null)
         {
             var atStart = _worldRoutes.FirstOrDefault(r =>
@@ -116,6 +133,9 @@ public sealed class QuestRouteBridge
         _active = route;
         bool inOrder = route.Route.Kind == RouteKind.Pentagram;
         _guide = new RouteGuide(route.Start, route.Path, route.Route.ReachUnits ?? (route.Route.Kind == RouteKind.Shelters ? ReachRadius : TrailReachRadius), inOrder);
+        if (_resumeAt.TryGetValue(route.Route.Name, out int resume)) _guide.StartAt(resume);
+        _startedAt = _guide.Reached;
+        _sectionEndAt = null;
         if (_player is { } player && !inOrder) // a pentagram is traced from its first point
         {
             _guide.JoinAt(player);
@@ -151,15 +171,28 @@ public sealed class QuestRouteBridge
             if (guide.Finished)
             {
                 _finished.Add(route.Route.Name);
+                _resumeAt.Remove(route.Route.Name);
                 Stop();
                 return;
             }
             if (Holds(route)) _holdAt = route.Path[guide.Reached - 1];
+            if (SectionEnds(route).Contains(guide.Reached))
+            {
+                _sectionEndAt = _clock();
+                Log($"ROUTE {route.Route.Name} end of a part at point {guide.Reached}: waiting for the quest");
+            }
+        }
+        if (_sectionEndAt is { } partEnd)
+        {
+            if (_clock() - partEnd < SectionWait) { _ping.Silence(); return; }
+            _sectionEndAt = null;
+            Log($"ROUTE {route.Route.Name} the quest did not move on: leading on to point {guide.Reached + 1} of {guide.Count}");
         }
 
         if (_holdAt is { } hold && Vector2.Distance(player, hold) > HoldRadius)
         {
             _holdAt = null;
+        _sectionEndAt = null;
             Log($"ROUTE {route.Route.Name} leading on to point {guide.Reached + 1} of {guide.Count}");
         }
         if (_muted || _holdAt is not null || guide.Target is not { } target) { _ping.Silence(); return; }
@@ -168,6 +201,39 @@ public sealed class QuestRouteBridge
     }
 
     private static bool Holds(LoadedQuestRoute route) => route.Route.Kind == RouteKind.Shelters;
+
+    // The point counts at which a part of the route ends (the last point's excluded: the route ends there); empty for one part.
+    private static IReadOnlyList<int> SectionEnds(LoadedQuestRoute route)
+    {
+        if (route.Route.Sections is not { } sections || sections.Sum() != route.Points.Count) return [];
+        var ends = new List<int>();
+        int end = 0;
+        foreach (int count in sections.SkipLast(1)) ends.Add(end += count);
+        return ends;
+    }
+
+    /// <summary>A followed quest moved on (GameSession.QuestMovedOn): a part-wise route walked into stops, to go on with its next part
+    /// once the player has been away and comes back. The quest moving on as the route starts (the sacrifice used) leaves it be.</summary>
+    public void OnQuestMovedOn()
+    {
+        lock (_gate)
+        {
+            if (_active is not { } route || _guide is not { } guide || route.Route.Sections is null || guide.Reached <= _startedAt) return;
+            int resume = SectionEnds(route).FirstOrDefault(end => end >= guide.Reached, route.Points.Count);
+            Log($"ROUTE {route.Route.Name} stopped: the quest moved on at point {guide.Reached}; next time from point {resume + 1}");
+            if (resume >= route.Points.Count)
+            {
+                _finished.Add(route.Route.Name);
+                _resumeAt.Remove(route.Route.Name);
+            }
+            else
+            {
+                _resumeAt[route.Route.Name] = resume;
+                _awaitingReturn.Add(route.Route.Name);
+            }
+            Stop();
+        }
+    }
 
     private static bool InArea(LoadedQuestRoute route, Vector2 player) =>
         Vector2.Distance(player, route.Start) <= AreaRadius || route.Path.Any(p => Vector2.Distance(player, p) <= AreaRadius);
@@ -198,5 +264,5 @@ public sealed class QuestRouteBridge
         }
     }
 
-    private void Log(string message) => _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] {message}");
+    private void Log(string message) => _log?.Invoke($"[{_clock().TotalSeconds,7:F1}s] {message}");
 }

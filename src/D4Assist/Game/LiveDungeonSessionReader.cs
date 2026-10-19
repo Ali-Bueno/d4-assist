@@ -383,10 +383,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
                 .Concat(_blueprints.Place(named.KindMarkers, [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position))])).ToList();
             _questPlaces = places;
             _questActorSnos = named.ActorSnos;
+            var mapped = MarkedGizmos(offsets);
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
-                .. MarkedOnMap(named.ActorSnos, offsets).Select(g => (g.Sno, g.Position, true))];
+                .. mapped.Where(g => named.ActorSnos.Contains(g.Sno)).Select(g => (g.Sno, g.Position, true))];
             var actors = ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
-                r => Naming(r, named, places));
+                r => Naming(r, named, places), r => mapped.Any(g => g.Sno == r.ActorSno &&
+                    Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach));
             return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Owned);
         }
 
@@ -465,11 +467,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
-    // The gizmos and triggers the current phases name that the map marks, wherever they are: the server places some (the
-    // Labyrinth's lair door), and the game only streams actors in about 25 units around the player.
-    private IEnumerable<(int Sno, Vector3 Position)> MarkedOnMap(IReadOnlySet<int> snos, GameBuildOffsets offsets) =>
-        snos.Count == 0 || _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is not { } markers ? []
-        : markers.Where(m => m.Kind == MapMarkerReader.KindGizmo && snos.Contains(m.ActorSno)).Select(m => (m.ActorSno, m.Position));
+    // The gizmos and triggers the map marks, wherever they are: those the current phases name are quest places even out of reach
+    // (the server places some, the Labyrinth's lair door, and the game only streams actors in about 25 units around the player);
+    // a quest gizmo marked is open to the player (ActorFilter).
+    private List<(int Sno, Vector3 Position)> MarkedGizmos(GameBuildOffsets offsets) =>
+        _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is not { } markers ? []
+        : [.. markers.Where(m => m.Kind == MapMarkerReader.KindGizmo).Select(m => (m.ActorSno, m.Position))];
 
     // The gizmos the current phases name by SNO alone, wherever the loaded tiles place them.
     private List<(int Sno, Vector3 Position)> PlacedByTiles(IReadOnlySet<int> snos)

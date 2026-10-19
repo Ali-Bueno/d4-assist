@@ -98,6 +98,20 @@ public class BeaconTests
     }
 
     [Fact]
+    public void ActorFilter_AQuestGizmoTheMapMarksIsTheQuestStep()
+    {
+        // The warlock lair's binding altar keeps its lock flag as it opens; only the map marking it shows it (live 2026-10-19).
+        var records = Enumerable.Range(1, 3).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        IReadOnlySet<string> quest = new HashSet<string> { AcdFlagReader.GizmoQuestRestricted };
+        IReadOnlySet<string> none = new HashSet<string>();
+
+        var actors = ActorFilter.Placed(records, r => r.Id == 3 ? none : quest, markedOnMap: r => r.Id != 1);
+
+        Assert.Equal([true, false, false], actors.Select(a => a.Unusable));
+        Assert.Equal([false, true, false], actors.Select(a => a.QuestStep)); // a marked gizmo without the lock is no quest step
+    }
+
+    [Fact]
     public void ActorFilter_AnNpcAQuestNamesIsTheQuestStepWhileItShowsAConversationIcon()
     {
         var records = Enumerable.Range(1, 6).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();

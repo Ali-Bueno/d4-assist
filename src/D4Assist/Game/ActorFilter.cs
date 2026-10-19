@@ -19,15 +19,16 @@ public static class ActorFilter
 
     /// <param name="flags">The actor's set ACD flags (AcdFlagReader.Read); null when unavailable or not read for it.</param>
     /// <param name="namedByQuest">How the active quests' scripts name an actor (QuestScriptMarkerReader); null for none.</param>
+    /// <param name="markedOnMap">Whether the game's map marks the actor at its spot (MapMarkerReader); null for never.</param>
     /// <remarks>An actor at the origin, or beyond any world's edge, is junk the pool holds while a world unloads or the game
     /// closes (`gbuffer_*`, `PostFX *`, a `Journey_…_Tracker`, `Duriel_boss`): read as doors and chests, it started loops (live
     /// 2026-09-30, 2026-10-16; 2026-10-17 at the game's close, ~70 actors at a hair off (0,0,0) and a few at ~1e30).</remarks>
     public static IReadOnlyList<ActorState> Placed(
         IEnumerable<RActorRecord> records, Func<RActorRecord, IReadOnlySet<string>?>? flags = null,
-        Func<RActorRecord, QuestNaming>? namedByQuest = null) =>
+        Func<RActorRecord, QuestNaming>? namedByQuest = null, Func<RActorRecord, bool>? markedOnMap = null) =>
         [.. records
             .Where(r => r.IsPlaced && InWorld(r.Position))
-            .Select(r => ToState(r, flags?.Invoke(r), namedByQuest?.Invoke(r) ?? QuestNaming.None))];
+            .Select(r => ToState(r, flags?.Invoke(r), namedByQuest?.Invoke(r) ?? QuestNaming.None, markedOnMap))];
 
     /// <summary>Farther from the origin than any world reaches: Sanctuary spans a few thousand units.</summary>
     public const float WorldEdgeUnits = 100_000f;
@@ -43,17 +44,18 @@ public static class ActorFilter
         return farthest >= OriginUnits && farthest <= WorldEdgeUnits;
     }
 
-    private static ActorState ToState(RActorRecord r, IReadOnlySet<string>? flags, QuestNaming naming)
+    private static ActorState ToState(RActorRecord r, IReadOnlySet<string>? flags, QuestNaming naming, Func<RActorRecord, bool>? markedOnMap)
     {
         bool Has(string flag) => flags?.Contains(flag) == true;
-        // A quest gizmo is the player's to use when the game shows it on the minimap or an active quest names it; otherwise
-        // the quest doesn't let the player use it yet (research/client-memory.md §4). An NPC is the one to talk to when a quest
+        // A quest gizmo is the player's to use when the game shows it on the minimap or map, or an active quest names it;
+        // otherwise the quest doesn't let the player use it yet (research/client-memory.md §4). The warlock lairs' binding altar
+        // keeps its flags while it opens: the map marking it, as the fiend kneels, is the only sign (live 2026-10-19). An NPC is the one to talk to when a quest
         // names its kind (it may stand off its marker) and it shows a conversation icon.
         bool questGizmo = Has(AcdFlagReader.GizmoQuestRestricted);
         bool follower = Has(AcdFlagReader.FollowerQuest);
         bool conversation = Has(AcdFlagReader.ConversationIcon) || Has(AcdFlagReader.ConversationIconQuest);
         bool current = questGizmo
-            ? Has(AcdFlagReader.MinimapActive) || naming == QuestNaming.It
+            ? Has(AcdFlagReader.MinimapActive) || naming == QuestNaming.It || markedOnMap?.Invoke(r) == true
             : conversation && !follower && naming != QuestNaming.None;
         return new(r.Id, r.ActorSno, r.Position.X, r.Position.Y, r.Position.Z, r.PreviousState != 0, Yaw(r.Rotation),
             Operated: Has(AcdFlagReader.GizmoOperated),

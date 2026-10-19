@@ -20,6 +20,9 @@ public sealed class WaypointList
 
     public int Count => _entries.Count;
 
+    /// <summary>Every entry, nearest to the player first; empty while closed.</summary>
+    public IReadOnlyList<WaypointEntry> Entries => _entries;
+
     /// <summary>The entry the list stands on; null while closed.</summary>
     public WaypointEntry? Current => IsOpen ? _entries[Index] : null;
 

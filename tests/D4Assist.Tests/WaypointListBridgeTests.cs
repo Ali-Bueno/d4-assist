@@ -11,7 +11,7 @@ namespace D4Assist.Tests;
 public class WaypointListBridgeTests
 {
     private const int OpenWorld = 69068, OtherWorld = 1402640;
-    private const int GeaKul = 747179, Zarbinzet = 673509, Bazaar = 2009804, Temis = 1893662, Hideout = 1402640;
+    private const int GeaKul = 747179, Zarbinzet = 673509, Bazaar = 2009804, Temis = 1893662, Hideout = 1402640, Farobru = 185234;
 
     private static readonly IReadOnlyList<Waypoint> Catalog =
     [
@@ -20,7 +20,11 @@ public class WaypointListBridgeTests
         new(Bazaar, "Naha_Kurast_Bazaar", OpenWorld, new Vector3(1038, 152, 0)),
         new(Temis, "Skov_Temis", OpenWorld, new Vector3(2581, -482, 0)),
         new(Hideout, "MERC_Hideout", OtherWorld, new Vector3(-36, -41, 0)),
+        new(Farobru, "Step_Farobru", OpenWorld, new Vector3(-1185, -884, 0)),
     ];
+
+    // All the way out over Temis (live 2026-10-19): Farobru, ~3800 units off, is beyond the map's view.
+    private static readonly MapView OutAtTemis = new(2575f, -478f, MapProjection.MaxZoom);
 
     private static readonly MapView FarOut = new(681.64f, -410.26f, 1877.56f);
 
@@ -103,6 +107,37 @@ public class WaypointListBridgeTests
         Assert.Null(mouse.Moved);
         Assert.True(keys.ListKeys);
         Assert.StartsWith("Skov_Temis is outside the map view", speech.Last);
+    }
+
+    [Fact]
+    public void A_waypoint_too_far_for_the_map_puts_the_cursor_on_a_stopover_in_view_on_the_way()
+    {
+        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Farobru], view: OutAtTemis);
+        keys.Open();
+        keys.Down();
+        keys.Down(); // Farobru, the farthest from the player
+
+        keys.Enter();
+
+        Assert.NotNull(mouse.Moved);
+        Assert.Equal(MapProjection.ToClient(OutAtTemis, 680, -418, 1920, 1080), mouse.Moved);
+        Assert.False(keys.ListKeys);
+        Assert.Equal("Step_Farobru is too far for the map. Stopover: cursor on Kehj_Gea_Kul. After the trip, choose Step_Farobru again.", speech.Last);
+    }
+
+    [Fact]
+    public void With_no_stopover_it_says_which_way_to_move_the_map()
+    {
+        var (_, keys, speech, mouse) = Create([Temis, Farobru], view: OutAtTemis);
+        keys.Open();
+        keys.Down(); // Farobru
+
+        keys.Enter();
+
+        Assert.Null(mouse.Moved);
+        Assert.True(keys.ListKeys);
+        string direction = NavigationPhrases.For(SpeechLanguage.English).Direction(ScreenDirections.Bin(-1185 - 2575f, -884 + 478f), DirectionStyle.Screen);
+        Assert.Equal($"Step_Farobru is outside the map view, {direction}. Move the map that way and choose it again.", speech.Last);
     }
 
     [Fact]

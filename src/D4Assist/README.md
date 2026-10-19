@@ -471,7 +471,11 @@ offline path from Farobru 274 units, **not live-tested yet**).
   it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),
   nearest first. Up/down speak `name, N meters, direction. i of n`; Enter moves the mouse to the waypoint's pixel
   (`MapViewReader` center and zoom, `MapProjection`) with `SendInput` (`Input/GameMouse`, the app's only input to the
-  game, never a click) and closes the list; Escape closes it. `Input/MapListKeys` registers Shift+F1 only while
+  game, never a click) and closes the list; Escape closes it. A waypoint off the view that zooming out would show says
+  "zoom out"; one farther than the map shows even all the way out (zoom 3046: ~1400 units above and below the center,
+  live 2026-10-19, Farobru from Temis and Ichorfall) puts the cursor on a stopover instead: the activated waypoint in
+  view nearest to it, preferring one from which it is in view (`WAYPOINT hop …`), and says to choose it again after the
+  trip; with no stopover it says which way to move the map. `Input/MapListKeys` registers Shift+F1 only while
   `screen_Map` is open and the game has the focus, the list keys only while the list is open. `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).

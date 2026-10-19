@@ -15,6 +15,9 @@ public static class MapProjection
     /// <summary>Pixels per world unit along a screen axis, times the zoom, at a 1080-px-high client (≈ ⅔ of the height).</summary>
     public const double ScaleAtReference = 732;
 
+    /// <summary>The map's zoom all the way out (live 2026-10-18/19, 1920x1080): it then shows ~1400 units above and below its center.</summary>
+    public const float MaxZoom = 3046f;
+
     // The map area at 1080 px: the whole width but the side bar on the right, below the tab bar, above the button hints.
     private const double SideBarWidth = 80, AreaTop = 70, AreaBottom = 1015;
 

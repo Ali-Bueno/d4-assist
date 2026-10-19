@@ -119,7 +119,21 @@ public sealed class WaypointListBridge(
             if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height) is not { } pixel)
             {
                 log?.Invoke($"WAYPOINT {entry.Name} off the map view (center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0})");
-                speech.Speak(string.Format(Text.OffMapFormat, entry.Name), interrupt: true);
+                if (MapProjection.ToClient(view with { Zoom = Math.Max(view.Zoom, MapProjection.MaxZoom) }, entry.X, entry.Y, size.Width, size.Height) is not null)
+                {
+                    speech.Speak(string.Format(Text.ZoomOutFormat, entry.Name), interrupt: true);
+                    return;
+                }
+                if (Hop(entry, view, size) is { } hop && mouse.MoveTo(hop.Pixel.X, hop.Pixel.Y))
+                {
+                    log?.Invoke($"WAYPOINT hop {hop.Entry.Name} -> ({hop.Pixel.X},{hop.Pixel.Y}) on the way to {entry.Name}");
+                    CloseLocked(spoken: false);
+                    speech.Speak(string.Format(Text.HopFormat, entry.Name, hop.Entry.Name), interrupt: true);
+                    return;
+                }
+                var direction = ScreenDirections.Bin(entry.X - view.CenterX, entry.Y - view.CenterY);
+                speech.Speak(string.Format(Text.OffMapFormat, entry.Name, NavigationPhrases.For(language.Current).Direction(direction, directionStyle)),
+                    interrupt: true);
                 return;
             }
             bool moved = mouse.MoveTo(pixel.X, pixel.Y);
@@ -132,6 +146,24 @@ public sealed class WaypointListBridge(
             CloseLocked(spoken: false);
             speech.Speak(string.Format(Text.CursorFormat, entry.Name), interrupt: true);
         }
+    }
+
+    // Even zoomed out all the way the map shows only ~1400 units above and below its center (live 2026-10-19: Farobru from
+    // Temis and from Ichorfall). A waypoint farther off is reached in two jumps: to the activated waypoint in view nearest to
+    // it, preferring one from which it is in view, and on from there.
+    private (WaypointEntry Entry, (int X, int Y) Pixel)? Hop(WaypointEntry target, MapView view, (int Width, int Height) size)
+    {
+        double Remaining(double x, double y) => Math.Sqrt(Math.Pow(target.X - x, 2) + Math.Pow(target.Y - y, 2));
+        double fromHere = Remaining(view.CenterX, view.CenterY);
+        return _list.Entries
+            .Where(e => e != target && Remaining(e.X, e.Y) < fromHere)
+            .Select(e => (Entry: e, Pixel: MapProjection.ToClient(view, e.X, e.Y, size.Width, size.Height)))
+            .Where(c => c.Pixel is not null)
+            .OrderBy(c => MapProjection.ToClient(view with { CenterX = (float)c.Entry.X, CenterY = (float)c.Entry.Y }, target.X, target.Y,
+                size.Width, size.Height) is null ? 1 : 0)
+            .ThenBy(c => Remaining(c.Entry.X, c.Entry.Y))
+            .Select(c => ((WaypointEntry, (int, int))?)(c.Entry, c.Pixel!.Value))
+            .FirstOrDefault();
     }
 
     private void Close(bool spoken)

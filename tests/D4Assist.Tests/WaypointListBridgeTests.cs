@@ -112,17 +112,19 @@ public class WaypointListBridgeTests
     [Fact]
     public void A_waypoint_too_far_for_the_map_puts_the_cursor_on_a_stopover_in_view_on_the_way()
     {
-        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Farobru], view: OutAtTemis);
+        // Gea Kul is nearer Farobru but at the map's top edge (y 99): the stopover is the Bazaar, well inside.
+        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar, Farobru], view: OutAtTemis);
         keys.Open();
+        keys.Down();
         keys.Down();
         keys.Down(); // Farobru, the farthest from the player
 
         keys.Enter();
 
         Assert.NotNull(mouse.Moved);
-        Assert.Equal(MapProjection.ToClient(OutAtTemis, 680, -418, 1920, 1080), mouse.Moved);
+        Assert.Equal(MapProjection.ToClient(OutAtTemis, 1038, 152, 1920, 1080), mouse.Moved);
         Assert.False(keys.ListKeys);
-        Assert.Equal("Step_Farobru is too far for the map. Stopover: cursor on Kehj_Gea_Kul. After the trip, choose Step_Farobru again.", speech.Last);
+        Assert.Equal("Step_Farobru is too far for the map. Stopover: cursor on Naha_Kurast_Bazaar. After the trip, choose Step_Farobru again.", speech.Last);
     }
 
     [Fact]

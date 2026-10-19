@@ -151,13 +151,17 @@ public sealed class WaypointListBridge(
     // Even zoomed out all the way the map shows only ~1400 units above and below its center (live 2026-10-19: Farobru from
     // Temis and from Ichorfall). A waypoint farther off is reached in two jumps: to the activated waypoint in view nearest to
     // it, preferring one from which it is in view, and on from there.
+    // A stopover stays this far (pixels at 1080 px) inside the map's edges: at its very top the cursor sat on Wejinhani at
+    // y 104 and the trip didn't happen (live 2026-10-19), likely under the tab bar.
+    private const double StopoverInset = 120;
+
     private (WaypointEntry Entry, (int X, int Y) Pixel)? Hop(WaypointEntry target, MapView view, (int Width, int Height) size)
     {
         double Remaining(double x, double y) => Math.Sqrt(Math.Pow(target.X - x, 2) + Math.Pow(target.Y - y, 2));
         double fromHere = Remaining(view.CenterX, view.CenterY);
         return _list.Entries
             .Where(e => e != target && Remaining(e.X, e.Y) < fromHere)
-            .Select(e => (Entry: e, Pixel: MapProjection.ToClient(view, e.X, e.Y, size.Width, size.Height)))
+            .Select(e => (Entry: e, Pixel: MapProjection.ToClient(view, e.X, e.Y, size.Width, size.Height, StopoverInset)))
             .Where(c => c.Pixel is not null)
             .OrderBy(c => MapProjection.ToClient(view with { CenterX = (float)c.Entry.X, CenterY = (float)c.Entry.Y }, target.X, target.Y,
                 size.Width, size.Height) is null ? 1 : 0)

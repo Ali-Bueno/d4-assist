@@ -22,8 +22,8 @@ public static class MapProjection
     private const double SideBarWidth = 80, AreaTop = 70, AreaBottom = 1015;
 
     /// <summary>The client pixel of world point (<paramref name="worldX"/>, <paramref name="worldY"/>); null when it falls outside
-    /// the map area (zoom out or pan to bring it in).</summary>
-    public static (int X, int Y)? ToClient(MapView view, double worldX, double worldY, int clientWidth, int clientHeight)
+    /// the map area (zoom out or pan to bring it in), or within <paramref name="inset"/> pixels (at 1080 px) of its edge.</summary>
+    public static (int X, int Y)? ToClient(MapView view, double worldX, double worldY, int clientWidth, int clientHeight, double inset = 0)
     {
         if (clientWidth <= 0 || clientHeight <= 0) return null;
         double unit = clientHeight / ReferenceHeight;
@@ -31,7 +31,8 @@ public static class MapProjection
         var (right, up) = ScreenDirections.ToScreen(worldX - view.CenterX, worldY - view.CenterY);
         double areaRight = clientWidth - SideBarWidth * unit;
         double x = areaRight / 2 + right * pixelsPerAxisUnit, y = clientHeight / 2.0 - up * pixelsPerAxisUnit;
-        if (x < 0 || x >= areaRight || y < AreaTop * unit || y >= AreaBottom * unit) return null;
+        double edge = inset * unit;
+        if (x < edge || x >= areaRight - edge || y < (AreaTop + inset) * unit || y >= (AreaBottom - inset) * unit) return null;
         return ((int)Math.Round(x), (int)Math.Round(y));
     }
 }

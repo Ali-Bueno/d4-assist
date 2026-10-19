@@ -45,6 +45,10 @@ public sealed class QuestPathBridge
     // Marked places closer than this are one place (a quest marks a spot with several markers).
     private const float SamePlaceUnits = 3f;
 
+    /// <summary>Places this close to the player aren't offered: they're here already. Standing at Hattar, his marker was always the
+    /// nearest, reached at once, and the next press started over with it (live 2026-10-19).</summary>
+    public const float HereUnits = 8f;
+
     private readonly string _worldName;
     private readonly Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> _questPlaces;
     private readonly Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> _findPath;
@@ -132,6 +136,7 @@ public sealed class QuestPathBridge
             if (_player is not { } player) { _speech.Speak(strings.NoQuestPlace, interrupt: true); return; }
             var here = new Vector2(player.X, player.Y);
             var places = Places(here);
+            Log($"PATH places: {string.Join("; ", places.Select(p => $"{p.QuestName} ({p.Position.X:F0},{p.Position.Y:F0}) {Vector2.Distance(here, p.Position):F0}"))}");
             int next = _active is { } current ? places.FindIndex(p => Vector2.Distance(p.Position, current.Position) <= SamePlaceUnits) + 1 : 0;
             if (_active is not null && (next == 0 || next >= places.Count))
             {
@@ -155,7 +160,8 @@ public sealed class QuestPathBridge
     {
         var places = new List<QuestMapPlace>();
         foreach (var place in _questPlaces(_markers).OrderBy(p => Vector2.Distance(here, p.Position)))
-            if (Vector2.Distance(here, place.Position) <= MaxDistanceUnits && !places.Any(p => Vector2.Distance(p.Position, place.Position) <= SamePlaceUnits))
+            if (Vector2.Distance(here, place.Position) is > HereUnits and <= MaxDistanceUnits
+                && !places.Any(p => Vector2.Distance(p.Position, place.Position) <= SamePlaceUnits))
                 places.Add(place);
         return places;
     }

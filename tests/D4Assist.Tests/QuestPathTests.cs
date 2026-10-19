@@ -113,6 +113,18 @@ public class QuestPathTests
     }
 
     [Fact]
+    public void A_place_the_player_stands_at_is_skipped_for_the_next()
+    {
+        var rig = new Rig();
+        rig.Move(LostPlains + new Vector2(2, 2)); // at the warlock's spot
+
+        rig.Pad.Press();
+
+        Assert.StartsWith("Quest goal: By Their Fruits,", rig.Speech.Texts.Last());
+        Assert.Equal(FarCorpse, Assert.Single(rig.Searches).To);
+    }
+
+    [Fact]
     public void With_no_quest_place_marked_it_says_so()
     {
         var rig = new Rig();

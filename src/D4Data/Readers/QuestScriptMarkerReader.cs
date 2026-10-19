@@ -111,23 +111,22 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             .Select(n => n.Quest).Distinct()];
     }
 
-    /// <summary>The quest whose scripts name a world-space marker nearest to <paramref name="at"/>, within <paramref name="reach"/>,
-    /// one of <paramref name="preferred"/> when any is that near; null for none. Names the game's generic quest map marker
-    /// (Symbol_Quest_Proxy), which no quest names itself: its fiend's spot lies nearer another quest's object than its own
-    /// quest's (live 2026-10-19, "Fangzahn und Flamme" beside "Durch dunkles Glas").</summary>
-    public int? QuestNearest(Vector2 at, float reach, IReadOnlyCollection<int>? preferred = null)
+    /// <summary>The one of <paramref name="quests"/> whose scripts name a world-space marker nearest to <paramref name="at"/>, within
+    /// <paramref name="reach"/>; null for none. Names the game's generic quest map marker (Symbol_Quest_Proxy), which no quest names
+    /// itself, after a quest read as in progress: the nearest quest of all named the fiend's spot after another quest
+    /// (live 2026-10-19, "Durch dunkles Glas" instead of "Fangzahn und Flamme").</summary>
+    public int? QuestNearest(Vector2 at, float reach, IReadOnlyCollection<int> quests)
     {
         BuildIndexes();
-        int? best = null, bestPreferred = null;
-        float bestDistance = reach, bestPreferredDistance = reach;
+        int? best = null;
+        float bestDistance = reach;
         foreach (var named in _questsByActor!.Values)
             foreach (var (quest, position) in named)
             {
                 float distance = Vector2.Distance(at, new(position.X, position.Y));
-                if (distance <= bestDistance) (best, bestDistance) = (quest, distance);
-                if (preferred?.Contains(quest) == true && distance <= bestPreferredDistance) (bestPreferred, bestPreferredDistance) = (quest, distance);
+                if (quests.Contains(quest) && distance <= bestDistance) (best, bestDistance) = (quest, distance);
             }
-        return bestPreferred ?? best;
+        return best;
     }
 
     /// <summary>The quests some phase of which shows its step in <paramref name="worldSno"/> (QuestCallback.snoWorld). A world's

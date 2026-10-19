@@ -588,9 +588,10 @@ internal static class Program
         return routes;
     }
 
-    // The map's markers that a quest's scripts name at their spot (ActiveQuests.MarkerReach), with the quest's name, and the game's
-    // own quest markers (Symbol_Quest_Proxy, map kind 12: an area step such as "kill the fiend roaming here", live 2026-10-19),
-    // named after the quest with the nearest object.
+    // The game's own quest markers (Symbol_Quest_Proxy, map kind 12: an area step such as "kill the fiend roaming here", live
+    // 2026-10-19), named after a quest read as in progress with an object near, else "quest marker"; and the map's markers that a
+    // quest read as in progress names at their spot (ActiveQuests.MarkerReach). The map also shows objects of quests the player
+    // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out.
     private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
         IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned, SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language,
         object cascGate)
@@ -604,12 +605,13 @@ internal static class Program
                 var at = new System.Numerics.Vector2(marker.X, marker.Y);
                 if (marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) == QuestSymbolActor)
                 {
-                    int? quest = questScripts.QuestNearest(at, QuestSymbolNamingUnits, owned);
-                    places.Add(new QuestMapPlace(quest ?? 0, quest is { } q ? NameOf(q) : AppStrings.For(language.Current).QuestMarker, marker.ActorSno, at));
+                    int? quest = owned is null ? null : questScripts.QuestNearest(at, QuestSymbolNamingUnits, owned);
+                    places.Add(new QuestMapPlace(quest ?? 0, quest is { } q ? NameOf(q) : AppStrings.For(language.Current).QuestMarker, marker.ActorSno, at,
+                        GameMarker: true));
                     continue;
                 }
                 foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
-                    places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at));
+                    if (owned?.Contains(quest) == true) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at));
             }
         return places;
     }

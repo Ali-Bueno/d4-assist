@@ -8,8 +8,10 @@ using D4Assist.Strings;
 
 namespace D4Assist.Game;
 
-/// <summary>A place the game's map marks for a quest: a map marker whose actor and spot a quest's scripts name.</summary>
-public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position);
+/// <summary>A place the game's map marks for a quest: a map marker whose actor and spot a quest's scripts name, or the game's own
+/// quest marker.</summary>
+/// <param name="GameMarker">The game's own quest marker (Symbol_Quest_Proxy): offered before quest objects.</param>
+public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false);
 
 /// <summary>
 /// Leads with the guide ping along a computed path (OverworldPaths) to a quest place the game's map marks, in the open
@@ -155,11 +157,11 @@ public sealed class QuestPathBridge
         }
     }
 
-    // The marked quest places in reach, nearest first, one per spot.
+    // The marked quest places in reach, the game's own quest markers first, then nearest first, one per spot.
     private List<QuestMapPlace> Places(Vector2 here)
     {
         var places = new List<QuestMapPlace>();
-        foreach (var place in _questPlaces(_markers).OrderBy(p => Vector2.Distance(here, p.Position)))
+        foreach (var place in _questPlaces(_markers).OrderBy(p => !p.GameMarker).ThenBy(p => Vector2.Distance(here, p.Position)))
             if (Vector2.Distance(here, place.Position) is > HereUnits and <= MaxDistanceUnits
                 && !places.Any(p => Vector2.Distance(p.Position, place.Position) <= SamePlaceUnits))
                 places.Add(place);

@@ -29,6 +29,7 @@ public class QuestPathTests
     [
         .. markers.Where(m => m.ActorSno == Sphere).Select(m => new QuestMapPlace(Warlock, "Disciples of the Forbidden", m.ActorSno, new(m.X, m.Y))),
         .. markers.Where(m => m.ActorSno == Corpse).Select(m => new QuestMapPlace(Fruits, "By Their Fruits", m.ActorSno, new(m.X, m.Y))),
+        .. markers.Where(m => m.Kind == 12).Select(m => new QuestMapPlace(0, "Quest marker", m.ActorSno, new(m.X, m.Y), GameMarker: true)),
     ];
 
     private sealed class Rig
@@ -122,6 +123,20 @@ public class QuestPathTests
 
         Assert.StartsWith("Quest goal: By Their Fruits,", rig.Speech.Texts.Last());
         Assert.Equal(FarCorpse, Assert.Single(rig.Searches).To);
+    }
+
+    [Fact]
+    public void The_games_own_quest_marker_comes_before_nearer_quest_objects()
+    {
+        var rig = new Rig();
+        var proxy = new Vector2(-1203.8f, -594.3f);
+        rig.Move(KedBardu);
+        rig.Bridge.OnMapMarkers([.. Markers, new(56602, proxy.X, proxy.Y, 47, 0, 12)]);
+
+        rig.Pad.Press();
+
+        Assert.Equal(proxy, rig.Searches[^1].To);
+        Assert.StartsWith("Quest goal: Quest marker,", rig.Speech.Texts.Last());
     }
 
     [Fact]

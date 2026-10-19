@@ -11,7 +11,8 @@ public class InteractableTests
     private const int Gizmo = 2, NotGizmo = -1, Monster = Conventions.ActorTypeMonster;
     private const int DoorSno = 1, PortcullisSno = 2, BlockerSno = 3, StartOpenSno = 4, ChestSno = 5, RewardChestSno = 6, LockedChestSno = 7,
         SignSno = 8, LorebookChestSno = 9, BreakableSno = 10, PrisonerSno = 11, DpoDoorSno = 12, NpcSno = 13,
-        CorpseChestSno = 14, CorpseSignSno = 15, RemainsSignSno = 16, HangedSignSno = 17, LookAtSno = 18;
+        CorpseChestSno = 14, CorpseSignSno = 15, RemainsSignSno = 16, HangedSignSno = 17, LookAtSno = 18,
+        HealingWellSno = 19, MilkWellSno = 20, EmptyWellSno = 21, ShrineSno = 22;
     private const int World = 100;
     private const int BreakableContainerGizmo = 23;
 
@@ -35,6 +36,10 @@ public class InteractableTests
         [HangedSignSno] = ("TWN_Frac_Yelesna_Sign_VampireHanged", new(Gizmo, Conventions.GizmoSign)),
         [RemainsSignSno] = ("QST_Class_Spiritborn_Skeletal_Remains_Sign", new(Gizmo, Conventions.GizmoSign)),
         [LookAtSno] = ("POI_Look_At", new(Gizmo, Conventions.GizmoLookAt)),
+        [HealingWellSno] = ("Healing_Well_Basic", new(Gizmo, Conventions.GizmoShrine)),
+        [MilkWellSno] = ("Healing_Well_Milk", new(Gizmo, Conventions.GizmoShrine)),
+        [EmptyWellSno] = ("Healing_Well_Empty", new(4, NotGizmo)),
+        [ShrineSno] = ("Shrine_DRLG_Artillery", new(Gizmo, Conventions.GizmoShrine)),
     };
 
     private static ActorDefinitionInfo? Info(int sno) => Actors.TryGetValue(sno, out var a) ? a.Info : null;
@@ -55,6 +60,8 @@ public class InteractableTests
     [InlineData(RemainsSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
     [InlineData(HangedSignSno, InteractableKind.Readable, InteractableClassifier.CorpseSound)]
     [InlineData(LookAtSno, InteractableKind.PointOfInterest, InteractableClassifier.ScrollSound)]
+    [InlineData(HealingWellSno, InteractableKind.HealingWell, InteractableClassifier.HealingWellSound)]
+    [InlineData(MilkWellSno, InteractableKind.HealingWell, InteractableClassifier.HealingWellSound)]
     public void Classify_NamesTheKindAndSound(int sno, InteractableKind kind, string sound) =>
         Assert.Equal(new Interactable(kind, sound), Classifier().Classify(sno));
 
@@ -62,6 +69,8 @@ public class InteractableTests
     [InlineData(StartOpenSno)]  // opens by itself; D2R loops closed doors only
     [InlineData(BreakableSno)]  // breakables are not containers you open
     [InlineData(NpcSno)]
+    [InlineData(EmptyWellSno)]  // a used well: no gizmo
+    [InlineData(ShrineSno)]     // shares the wells' gizmo type
     [InlineData(999)]           // no ActorDefinition record
     public void Classify_IgnoresEverythingElse(int sno) => Assert.Null(Classifier().Classify(sno));
 

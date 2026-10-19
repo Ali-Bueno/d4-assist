@@ -31,6 +31,12 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The places the active quests' current phases name, as of the last actor read; null when unknown.</summary>
     IReadOnlyList<QuestPlace>? ReadQuestPlaces() => null;
+
+    /// <summary>How often a followed quest moved on from a known phase in this session (ActiveQuests.PhaseChanges).</summary>
+    int QuestPhaseChanges => 0;
+
+    /// <summary>Every actor the game's map marks; null while the marker list isn't found.</summary>
+    IReadOnlyList<MarkedActor>? ReadMapMarkers() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

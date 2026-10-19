@@ -135,6 +135,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Corpse] = "Cadáveres",
             [SoundCue.Readable] = "Escritos y libros",
             [SoundCue.PointOfInterest] = "Puntos para mirar",
+            [SoundCue.HealingWell] = "Pozos de curación",
             [SoundCue.Portal] = "Portales",
             [SoundCue.QuestObjective] = "Objetivos de misión",
             [SoundCue.Prisoner] = "Prisioneros",
@@ -146,6 +147,8 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "Pitido de la guía",
             [SoundCue.GuideArrival] = "Llegada",
             [SoundCue.Npc] = "Personajes con los que hablar",
+            [SoundCue.Boss] = "Jefes",
+            [SoundCue.Elite] = "Élites y únicos",
         },
 
         GeneralTab = "General",
@@ -236,6 +239,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Corpse] = "Corpses",
             [SoundCue.Readable] = "Notes and books",
             [SoundCue.PointOfInterest] = "Spots to look at",
+            [SoundCue.HealingWell] = "Healing wells",
             [SoundCue.Portal] = "Portals",
             [SoundCue.QuestObjective] = "Quest objectives",
             [SoundCue.Prisoner] = "Prisoners",
@@ -247,6 +251,8 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "Guide ping",
             [SoundCue.GuideArrival] = "Arrival",
             [SoundCue.Npc] = "Characters to talk to",
+            [SoundCue.Boss] = "Bosses",
+            [SoundCue.Elite] = "Elites and uniques",
         },
 
         GeneralTab = "General",

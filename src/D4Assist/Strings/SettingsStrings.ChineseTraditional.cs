@@ -63,6 +63,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Corpse] = "屍體",
             [SoundCue.Readable] = "文字和書籍",
             [SoundCue.PointOfInterest] = "可查看的地點",
+            [SoundCue.HealingWell] = "治療之井",
             [SoundCue.Portal] = "傳送門",
             [SoundCue.QuestObjective] = "任務目標",
             [SoundCue.Prisoner] = "囚犯",
@@ -74,6 +75,8 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "導引提示音",
             [SoundCue.GuideArrival] = "抵達",
             [SoundCue.Npc] = "可對話的角色",
+            [SoundCue.Boss] = "首領",
+            [SoundCue.Elite] = "精英與獨特怪物",
         },
 
         GeneralTab = "一般",

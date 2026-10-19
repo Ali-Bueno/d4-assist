@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "Não foi possível verificar se há atualizações.",
         UpdateOnlyDownloaded: "As atualizações só funcionam na versão baixada.",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "Atualizado para a versão {0}.");
+        UpdatedToFormat: "Atualizado para a versão {0}.",
+        GuideDungeonsOnly: "O guia só funciona em masmorras.");
 }

@@ -418,6 +418,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             .. _questGizmosAhead.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, Ahead: true, g.Marked)),
         ];
 
+    public int QuestPhaseChanges => _activeQuests?.PhaseChanges ?? 0;
+
+    public IReadOnlyList<MarkedActor>? ReadMapMarkers() =>
+        _offsets is { } offsets && _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is { } markers
+            ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind))]
+            : null;
+
     // The gizmos and triggers the current phases name that the map marks, wherever they are: the server places some (the
     // Labyrinth's lair door), and the game only streams actors in about 25 units around the player.
     private IEnumerable<(int Sno, Vector3 Position)> MarkedOnMap(IReadOnlySet<int> snos, GameBuildOffsets offsets) =>

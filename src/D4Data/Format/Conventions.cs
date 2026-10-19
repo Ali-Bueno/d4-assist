@@ -47,6 +47,7 @@ public static class Conventions
     public const int GizmoTrigger = 44;             // TriggerGizmoData: invisible zones that act when entered (safe zones, story triggers)
     public const int GizmoLookAt = 29;              // only POI_Look_At: a spot the player can "look" at again and again (live 2026-09-30)
     public const int GizmoLockedChest = 106;        // data class unread; mostly *_Chest_Rare_Locked_* key chests
+    public const int GizmoShrine = 11;              // healing wells (Healing_Well_*), shrines and pylons share it (census 2026-10-19)
     public const int GizmoSwitch = 57;              // SwitchGizmoData
     public const int GizmoCarryable = 94;           // CarryableGizmoData
     public const int GizmoCarryableReceptacle = 95; // CarryableReceptacleGizmoData

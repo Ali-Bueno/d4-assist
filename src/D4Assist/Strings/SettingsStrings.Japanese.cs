@@ -63,6 +63,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Corpse] = "死体",
             [SoundCue.Readable] = "メモと本",
             [SoundCue.PointOfInterest] = "見る場所",
+            [SoundCue.HealingWell] = "癒しの井戸",
             [SoundCue.Portal] = "ポータル",
             [SoundCue.QuestObjective] = "クエストの目的",
             [SoundCue.Prisoner] = "囚人",
@@ -74,6 +75,8 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "ガイドの合図音",
             [SoundCue.GuideArrival] = "到着",
             [SoundCue.Npc] = "話しかけるキャラクター",
+            [SoundCue.Boss] = "ボス",
+            [SoundCue.Elite] = "エリートとユニーク",
         },
 
         GeneralTab = "全般",

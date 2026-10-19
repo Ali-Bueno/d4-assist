@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "Nie udało się sprawdzić aktualizacji.",
         UpdateOnlyDownloaded: "Aktualizacje działają tylko w pobranej wersji.",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "Zaktualizowano do wersji {0}.");
+        UpdatedToFormat: "Zaktualizowano do wersji {0}.",
+        GuideDungeonsOnly: "Przewodnik działa tylko w lochach.");
 }

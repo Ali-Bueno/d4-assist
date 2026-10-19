@@ -462,6 +462,11 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   `QST_Frac_Prologue_Taiga_01` 449539: phase uid 0 opens `Frac_Prologue_Tower_Gate`, uid 8 kills `Frac_Prologue_demon_mega_miniboss`
   1227632 (shown, level area `CSD_Frac_Prologue_AbandonedTower_03`), uid 34 a corpse in `ProtoDun_Keep_FLEX_POI_BossRoom`. The boss
   comes from `Prologue_ManualBossFight` 652902, which no set nests: no offline position.
+- **Elites and champions (open, 2026-10-19):** rolled at spawn, so no offline field tells them from ordinary monsters. The
+  client binary (build of 2026-10-14) holds names to check live (`D4MemScan acd --names`, an elite next to an ordinary
+  monster of the same SNO): attributes `Monster_Affixes`, `Elite_Engaged`, `Unique_Invulnerable`; nameplate templates
+  `NameplateTemplate_Champion|SuperElite|Unique`, `Nameplate_Boss`; map markers `Marker_Hostile_SuperElite`, `Marker_Boss`
+  (the marker list's kind 10 is a boss, §19). The app's enemy cue covers rarity 4 and 2 only until one is confirmed.
 - **DPO phases:** the statue and monolith DPOs name actors by SNO only (no markers). Since 2026-10-04 the world's objective quests
   are `ActiveQuests` candidates (§18), followed whenever the module data holds their phase pair; otherwise DPO kill targets stay
   phase-blind (§13).
@@ -615,3 +620,23 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   routes; an objective at such a door never leads; when any barrier falls the guide explores what it held back first. Not
   live-tested: whether the blocker reads quest-locked during phase #4 is unknown (if it reads usable and loops as the quest step,
   the "tried" rule covers it after one visit). `DOOR …` lines in the log tell which.
+
+## 22. Healing wells and the boss room (offline, build of 2026-10-14, 2026-10-19)
+
+- **Report (tester, 2026-10-16, no guide log):** the guide still never leads into a dungeon's boss room; missing the healing
+  well, the player is led back to the dungeon portal. Asked for a healing-well sound.
+- **Wells (H):** `Healing_Well_Basic` 141546 (the dungeon well), `_Outdoor` 227733, `_Reusable` 2097390, `_Milk` 2549074 (seasonal):
+  eType 2, gizmo type 11, which shrines and pylons share, so the name tells a well. `Healing_Well_Empty` 520224 and
+  `Healing_Well_Cursed_MapIcon` 1438267 are eType 4 markers, no gizmo; Empty may be the used look (unconfirmed).
+  `Experience_Well_Basic` 2025174 is an XP well. Not wells: `SMP_WishingWell`, `*Inkwell*`, `S02_Bloodwell*`, `S06_Undercity_Prop_Well_*`.
+- **Where (H):** only 6 of 4,042 scenes place a well, none in the Game/Shared layers the app reads: `ProtoDun_Keep_FLEX_POI_BossRoom`,
+  `Hell_Fort_S_Arena_01`, `ProtoDun_Root_W_Arena_01` (boss rooms or arenas), `Mage_Halls_NE_01`,
+  `TT_Hell_Fort_to_Cave_Lava_NS_02`, `Cellar_Skov_W_Entrance_01`. ~70 other boss and arena tiles place none: the server spawns
+  most wells, so only the live actor list (or the map marker list, unchecked) finds them.
+- **Boss tiles (H):** every `*POI_BossRoom*` tile checked places `Trigger_BossRoom_Entrance` and two `TrackedCheckpoint_8m`; no
+  boss spawner is in the marker sets.
+- **Likely cause in the app (M, from code):** `LockedDoors` and `BarrierObstacles` learn that a door or barrier is gone only
+  within 15-20 units of it. A boss room's door that opens by script when the objective is done, while the player is elsewhere,
+  stayed a wall, so the guide ran out of ground and led to the portal. **Since 2026-10-19:** a followed quest moving on from a
+  known phase re-arms every locked or tried door and drops every barrier not listed now. Switching the guide off and on already
+  re-armed tried doors. Not live-tested; `DOOR re-armed (quest moved on)` and `MAP marker kind 10` lines tell.

@@ -14,9 +14,10 @@ public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
 /// <param name="SilentWhileInvulnerable">A monster to kill falls silent while nothing hurts it (a boss behind its clone gates).</param>
 /// <param name="UsedWhenOpened">A door-type objective (a monolith, a blocker) is used once the game marks it operated or open; the
 /// state word that marks a used chest or clickable is not validated on these.</param>
+/// <param name="EnemyCue">A boss or unique to kill: the enemy cue (EnemyCueBridge) sounds it, so its loop stays silent and only tracks it.</param>
 public sealed record LoopTarget(
     LoopKind Kind, string Sound, LoopProfile Profile, string Reason, SoundCue Cue, bool StopsWhenUsed = false, float QuietWithin = 0,
-    bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false)
+    bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false, bool EnemyCue = false)
 {
     /// <summary>A gizmo the game can lock (quest-restricted, script-disabled): silent until it is allowed.</summary>
     public bool SilentWhileUnusable => StopsWhenUsed || Reusable;
@@ -55,6 +56,8 @@ public sealed class LoopTargetSelector
     private readonly Func<int, IReadOnlySet<int>> _dpoActors;
     private readonly Dictionary<ObjectiveReason, LoopTarget> _objectiveTargets;
     private readonly Dictionary<ObjectiveReason, LoopTarget> _npcObjectiveTargets;
+    // A boss or unique to kill: tracked for the guide, sounded by the enemy cue.
+    private readonly LoopTarget _enemyKillTarget;
     private readonly CarryGoals? _carry;
     private readonly InteractableClassifier? _interactables;
     private readonly Func<int, bool>? _isPortal;
@@ -82,6 +85,7 @@ public sealed class LoopTargetSelector
         _safeZone = new LoopTarget(LoopKind.SafeZone, SafeZoneSound, LoopProfiles.Beacon, "safe-zone", SoundCue.SafeZone);
         _objectiveTargets = Enum.GetValues<ObjectiveReason>().ToDictionary(reason => reason, reason => ObjectiveTarget(reason, gizmo: true));
         _npcObjectiveTargets = Enum.GetValues<ObjectiveReason>().ToDictionary(reason => reason, reason => ObjectiveTarget(reason, gizmo: false));
+        _enemyKillTarget = _npcObjectiveTargets[ObjectiveReason.KillTarget] with { EnemyCue = true };
     }
 
     /// <summary>The actors the current world's objective names (its DPO, or the quest named after the world).</summary>
@@ -102,11 +106,12 @@ public sealed class LoopTargetSelector
         if (actor.QuestFollower) return null; // walks beside the player: a loop would only blur the quest sounds (user, 2026-10-04)
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
         if (_objectives is not null && actor.QuestStep)
-            return _objectives.IsBossOrUnique(actor.ActorSno) ? _npcObjectiveTargets[ObjectiveReason.KillTarget]
+            return _objectives.IsBossOrUnique(actor.ActorSno) ? _enemyKillTarget
                 : ObjectiveFor(actor, ObjectiveReason.Quest, gizmo: !actor.Talkable);
         if (_carry?.IsHeld(actor) == true) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)
             return reason is ObjectiveReason.Destructible or ObjectiveReason.KillTarget or ObjectiveReason.CloneGate && actor.ClientOnly ? null // remains: no game record
+                : reason == ObjectiveReason.KillTarget && _objectives.IsBossOrUnique(actor.ActorSno) ? _enemyKillTarget
                 : ObjectiveFor(actor, reason, _objectives.IsGizmo(actor.ActorSno));
         if (_interactables?.Classify(actor.ActorSno) is not { } thing) return null;
         if (thing.Kind == InteractableKind.Door && actor.GizmoStateSet) return null; // already open: nothing to do
@@ -152,6 +157,7 @@ public sealed class LoopTargetSelector
             InteractableKind.Door => SoundCue.Door,
             InteractableKind.Chest => SoundCue.Chest,
             InteractableKind.Readable => SoundCue.Readable,
+            InteractableKind.HealingWell => SoundCue.HealingWell,
             _ => SoundCue.PointOfInterest,
         };
 

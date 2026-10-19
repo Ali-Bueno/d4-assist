@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "업데이트를 확인하지 못했습니다.",
         UpdateOnlyDownloaded: "업데이트는 내려받은 버전에서만 작동합니다.",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "버전 {0}(으)로 업데이트했습니다.");
+        UpdatedToFormat: "버전 {0}(으)로 업데이트했습니다.",
+        GuideDungeonsOnly: "안내는 던전에서만 작동합니다.");
 }

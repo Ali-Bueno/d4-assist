@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "无法检查更新。",
         UpdateOnlyDownloaded: "更新仅适用于下载的版本。",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "已更新到版本 {0}。");
+        UpdatedToFormat: "已更新到版本 {0}。",
+        GuideDungeonsOnly: "向导仅在地下城中有效。");
 }

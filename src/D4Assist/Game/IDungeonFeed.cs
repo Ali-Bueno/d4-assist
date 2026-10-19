@@ -36,6 +36,10 @@ public sealed record ActorState(
 /// <param name="Marked">The game's map marks it (an Ahead gizmo): the server has it there, even before it streams in (§19).</param>
 public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false, bool Marked = false);
 
+/// <summary>An actor the game's map marks, streamed in or not (research/dungeon-objectives.md §19).</summary>
+/// <param name="Kind">The marker kind (D4Memory MapMarkerReader: 10 a boss, 11 a gizmo or trigger).</param>
+public sealed record MarkedActor(int ActorSno, float X, float Y, float Z, int LevelAreaSno, int Kind);
+
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)
 {

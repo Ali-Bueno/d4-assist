@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "更新を確認できませんでした。",
         UpdateOnlyDownloaded: "更新はダウンロードしたバージョンでのみ使えます。",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "バージョン {0} に更新しました。");
+        UpdatedToFormat: "バージョン {0} に更新しました。",
+        GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。");
 }

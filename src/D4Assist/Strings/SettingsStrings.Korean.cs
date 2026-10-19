@@ -63,6 +63,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Corpse] = "시체",
             [SoundCue.Readable] = "글과 책",
             [SoundCue.PointOfInterest] = "살펴볼 곳",
+            [SoundCue.HealingWell] = "치유의 샘",
             [SoundCue.Portal] = "포털",
             [SoundCue.QuestObjective] = "퀘스트 목표",
             [SoundCue.Prisoner] = "포로",
@@ -74,6 +75,8 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "안내 신호음",
             [SoundCue.GuideArrival] = "도착",
             [SoundCue.Npc] = "대화할 캐릭터",
+            [SoundCue.Boss] = "보스",
+            [SoundCue.Elite] = "정예 및 고유 몬스터",
         },
 
         GeneralTab = "일반",

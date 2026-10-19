@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "Не удалось проверить обновления.",
         UpdateOnlyDownloaded: "Обновления работают только в скачанной версии.",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "Обновлено до версии {0}.");
+        UpdatedToFormat: "Обновлено до версии {0}.",
+        GuideDungeonsOnly: "Проводник работает только в подземельях.");
 }

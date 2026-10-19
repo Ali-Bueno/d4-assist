@@ -76,10 +76,12 @@ even before you've seen them.
   have to carry and where they go, quest chests, stuff your quest asks you to use or break, the person your quest asks you
   to talk to, and the monsters the dungeon asks you to kill.
 - Portals, including the Undercity's warp pads, have their own sound so you can find the way out.
-- Doors, chests, bodies you can search, books and notes, and spots to look at have their own sounds too. Prisoners play
+- Doors, chests, bodies you can search, books and notes, spots to look at and healing wells have their own sounds too. Prisoners play
   the corpse sound.
 - Characters you can talk to get a little wooden tap, the two nearest at once (the settings let you pick 1 to 4).
   Companions who follow you in a quest stay quiet.
+- Bosses growl with a metallic ring, and unique monsters growl with chattering teeth, everywhere, quest or not: the
+  nearest of each. A boss nothing can hurt for now goes quiet, so what you must kill meanwhile stands out.
 
 Everything goes quiet once you've used it, except the spots to look at. In the settings each of these sounds has its own
 switch and volume.
@@ -115,7 +117,8 @@ General tab has the Diablo IV folder and a Browse button to choose another one.
 Ctrl+Alt+Shift plus a number from 1 to 8 plays each sound with its name, so you can learn them: exit, open floor, wall,
 door, unexplored exit, quest sound, guide ping and arrival.
 
-Left on the D-pad turns the guide on and off (Xbox controllers, and PlayStation's DualSense or DualShock 4). In the
+Left on the D-pad turns the guide on and off in dungeons (Xbox controllers, and PlayStation's DualSense or DualShock 4);
+elsewhere it tells you the guide only works in dungeons. In the
 desert sandstorm quest it mutes and unmutes the ping that leads you between shelters. While a game menu is open the
 D-pad does nothing, because there it belongs to the game. On the keyboard, Ctrl+Alt+Shift+G does the same as left on the
 D-pad, also in menus.

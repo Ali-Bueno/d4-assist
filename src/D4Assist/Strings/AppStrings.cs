@@ -11,7 +11,7 @@ public sealed partial record AppStrings(
     IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped,
     string UpdateAvailableFormat, string UpdateDownloading, string UpdateRestarting, string UpdateFailed,
     string UpdateFolderNotWritable, string UpToDate, string UpdateCheckFailed, string UpdateOnlyDownloaded,
-    string UpdateProgressFormat, string UpdatedToFormat)
+    string UpdateProgressFormat, string UpdatedToFormat, string GuideDungeonsOnly)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -41,7 +41,8 @@ public sealed partial record AppStrings(
         "No se pudo comprobar si hay actualizaciones.",
         "Las actualizaciones solo funcionan en la versión descargada.",
         "{0} %",
-        "Actualizado a la versión {0}.");
+        "Actualizado a la versión {0}.",
+        "La guía solo funciona en mazmorras.");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -71,7 +72,8 @@ public sealed partial record AppStrings(
         "Couldn't check for updates.",
         "Updates only work in the downloaded build.",
         "{0}%",
-        "Updated to version {0}.");
+        "Updated to version {0}.",
+        "The guide only works in dungeons.");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {

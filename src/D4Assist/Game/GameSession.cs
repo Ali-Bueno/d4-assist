@@ -45,6 +45,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private WorldKind? _pendingOpenKind;
     private string? _lastOpenFailure;
     private IDungeonSessionReader? _session;
+    // The session and its quest phase count at the last actor read: a new session starts its own count.
+    private (IDungeonSessionReader? Session, int Count) _questPhases;
     private int _currentWorldSno = -1;
     private string? _currentInstance;
     private bool _inTransit;
@@ -69,6 +71,12 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     /// <summary>The places the active quests' current phases name, after every actor read (IDungeonSessionReader.ReadQuestPlaces).</summary>
     public event Action<IReadOnlyList<QuestPlace>>? QuestPlacesRead;
+
+    /// <summary>A followed quest moved on from a known phase, after an actor read (IDungeonSessionReader.QuestPhaseChanges).</summary>
+    public event Action? QuestMovedOn;
+
+    /// <summary>Every actor the game's map marks, after every actor read (IDungeonSessionReader.ReadMapMarkers).</summary>
+    public event Action<IReadOnlyList<MarkedActor>>? MapMarkersRead;
 
     /// <summary>True while loading through <see cref="TransitWorldName"/> out of a read world; the bridges keep their
     /// state (no WorldChanged) until the next world shows whether it is the same instance.</summary>
@@ -268,8 +276,21 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         IDungeonSessionReader? session;
         lock (_gate) session = _session;
         if (session?.ReadActors() is { } actors) Raise("actors", ActorsUpdated, h => h(actors));
+        if (session is not null && QuestMoved(session)) Raise("quest moved on", QuestMovedOn, h => h());
         if (session?.ReadQuestPlaces() is { } places) Raise("quest places", QuestPlacesRead, h => h(places));
+        if (session?.ReadMapMarkers() is { } marks) Raise("map markers", MapMarkersRead, h => h(marks));
         if (session?.ReadCinematic() is { } cinematic) Raise("cinematic", CinematicRead, h => h(cinematic));
+    }
+
+    private bool QuestMoved(IDungeonSessionReader session)
+    {
+        int count = session.QuestPhaseChanges;
+        lock (_gate)
+        {
+            bool moved = _questPhases.Session == session && count > _questPhases.Count;
+            _questPhases = (session, count);
+            return moved;
+        }
     }
 
     // A failing listener must never kill the app from a timer thread, nor starve the other listeners

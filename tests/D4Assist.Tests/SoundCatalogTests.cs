@@ -17,12 +17,13 @@ public class SoundCatalogTests
     }
 
     [Fact]
-    public void Repeats_only_for_objects_quest_guide_ping_and_npc()
+    public void Repeats_only_for_objects_quest_guide_ping_and_characters()
     {
         SoundCue[] expected =
         [
-            SoundCue.Door, SoundCue.Chest, SoundCue.Corpse, SoundCue.Readable, SoundCue.PointOfInterest,
+            SoundCue.Door, SoundCue.Chest, SoundCue.Corpse, SoundCue.Readable, SoundCue.PointOfInterest, SoundCue.HealingWell,
             SoundCue.Portal, SoundCue.QuestObjective, SoundCue.Prisoner, SoundCue.Enticement, SoundCue.SafeZone, SoundCue.StolenSkill, SoundCue.AkaratLight, SoundCue.WardBreaker, SoundCue.GuidePing, SoundCue.Npc,
+            SoundCue.Boss, SoundCue.Elite,
         ];
 
         Assert.Equal(expected.Order(), Enum.GetValues<SoundCue>().Where(SoundCatalog.Repeats).Order());

@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "Impossible de rechercher les mises à jour.",
         UpdateOnlyDownloaded: "Les mises à jour ne fonctionnent que dans la version téléchargée.",
         UpdateProgressFormat: "{0} %",
-        UpdatedToFormat: "Mis à jour vers la version {0}.");
+        UpdatedToFormat: "Mis à jour vers la version {0}.",
+        GuideDungeonsOnly: "Le guide ne fonctionne que dans les donjons.");
 }

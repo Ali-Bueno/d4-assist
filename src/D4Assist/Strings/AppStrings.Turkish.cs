@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "Güncellemeler denetlenemedi.",
         UpdateOnlyDownloaded: "Güncellemeler yalnızca indirilen sürümde çalışır.",
         UpdateProgressFormat: "%{0}",
-        UpdatedToFormat: "{0} sürümüne güncellendi.");
+        UpdatedToFormat: "{0} sürümüne güncellendi.",
+        GuideDungeonsOnly: "Rehber yalnızca zindanlarda çalışır.");
 }

@@ -78,4 +78,25 @@ public class BarrierObstacleTests
 
         Assert.Empty(barriers.Update([], At(48, -40)));
     }
+
+    [Fact]
+    public void AQuestMovingOn_DropsAWallOutOfRange_UntilListedAgain()
+    {
+        var barriers = Barriers();
+        barriers.Update([Wall], At(48, -95));
+        barriers.QuestMovedOn([]);
+        Assert.Empty(barriers.Update([], At(48, -40)));
+
+        Assert.Contains((48, -101), barriers.Update([Wall], At(48, -40)));
+    }
+
+    [Fact]
+    public void AQuestMovingOn_KeepsAWallStillListed()
+    {
+        var barriers = Barriers();
+        barriers.Update([Wall], At(48, -95));
+        barriers.QuestMovedOn([Wall]);
+
+        Assert.Contains((48, -101), barriers.Update([], At(48, -40)));
+    }
 }

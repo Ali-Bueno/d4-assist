@@ -29,12 +29,7 @@ public sealed class NpcCuePlayer : IDisposable
     private readonly Func<double> _nowSeconds;
     private readonly Timer? _timer;
     private readonly object _gate = new();
-    private readonly Dictionary<uint, Tap> _taps = [];
-
-    private sealed class Tap
-    {
-        public double Right, Up, Distance, NextDue, LastAim;
-    }
+    private readonly TapSchedule<NpcAim> _schedule = new(StaleAimSeconds);
 
     // Floor for Rate so a zero or negative setting can't stall the schedule.
     private const double MinRate = 0.05;
@@ -70,51 +65,34 @@ public sealed class NpcCuePlayer : IDisposable
     /// <summary>Points one tap at each NPC; an NPC left out, or beyond <see cref="RangeUnits"/>, goes silent. Each keeps its own rhythm.</summary>
     public void Aim(IReadOnlyList<NpcAim> npcs)
     {
-        lock (_gate)
-        {
-            double now = _nowSeconds();
-            var inRange = npcs.Where(n => n.DistanceUnits <= RangeUnits).ToList();
-            foreach (uint gone in _taps.Keys.Except(inRange.Select(n => n.Key)).ToList()) _taps.Remove(gone);
-            foreach (var npc in inRange)
-            {
-                var tap = _taps.TryGetValue(npc.Key, out var known) ? known : _taps[npc.Key] = new Tap();
-                (tap.Right, tap.Up, tap.Distance, tap.LastAim) = (npc.Right, npc.Up, npc.DistanceUnits, now);
-            }
-        }
+        lock (_gate) _schedule.Aim(npcs.Where(n => n.DistanceUnits <= RangeUnits).Select(n => (n.Key, n)), _nowSeconds());
     }
 
     /// <summary>Stops tapping until the next <see cref="Aim"/>.</summary>
     public void Silence()
     {
-        lock (_gate) _taps.Clear();
+        lock (_gate) _schedule.Clear();
     }
 
     /// <summary>Plays the taps that are due; the timer calls this, tests call it directly.</summary>
     public void Tick()
     {
-        var due = new List<(double Right, double Up)>();
-        lock (_gate)
-        {
-            double now = _nowSeconds();
-            foreach (var (key, tap) in _taps.ToList())
-            {
-                if (now - tap.LastAim > StaleAimSeconds) { _taps.Remove(key); continue; }
-                if (now < tap.NextDue) continue;
-                due.Add((tap.Right, tap.Up));
-                tap.NextDue = now + IntervalSeconds(tap.Distance, RangeUnits) / Math.Max(Rate, MinRate);
-            }
-        }
+        List<NpcAim> due;
+        lock (_gate) due = _schedule.TakeDue(_nowSeconds(), n => IntervalSeconds(n.DistanceUnits, RangeUnits) / Math.Max(Rate, MinRate));
 
         if (Volume <= 0) return; // keeps its schedule, plays nothing
-        foreach (var (right, up) in due) Play(right, up);
+        foreach (var npc in due)
+        {
+            var (right, up) = UnitDirection(npc.Right, npc.Up);
+            _mixer.PlayEntity(NpcCueSynth.Synthesize(NpcCueSynth.Pitch(up)), Volume * RadarCuePlayer.LoudnessBoost, right);
+        }
     }
 
-    private void Play(double right, double up)
+    /// <summary>A screen direction scaled to unit length (0,0 stays centred), the pan and pitch input of the entity taps.</summary>
+    public static (double Right, double Up) UnitDirection(double right, double up)
     {
         double length = Math.Sqrt(right * right + up * up);
-        double unitRight = length > 0 ? right / length : 0, unitUp = length > 0 ? up / length : 0;
-        _mixer.PlayEntity(NpcCueSynth.Synthesize(NpcCueSynth.Pitch(unitUp)),
-            Volume * RadarCuePlayer.LoudnessBoost, Math.Clamp(unitRight, -1.0, 1.0));
+        return length > 0 ? (Math.Clamp(right / length, -1.0, 1.0), up / length) : (0, 0);
     }
 
     public void Dispose() => _timer?.Dispose();

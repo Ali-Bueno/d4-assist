@@ -42,5 +42,6 @@ public sealed partial record AppStrings
         UpdateCheckFailed: "Impossibile cercare gli aggiornamenti.",
         UpdateOnlyDownloaded: "Gli aggiornamenti funzionano solo nella versione scaricata.",
         UpdateProgressFormat: "{0}%",
-        UpdatedToFormat: "Aggiornato alla versione {0}.");
+        UpdatedToFormat: "Aggiornato alla versione {0}.",
+        GuideDungeonsOnly: "La guida funziona solo nei dungeon.");
 }

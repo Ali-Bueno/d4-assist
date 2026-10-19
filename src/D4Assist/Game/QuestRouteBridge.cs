@@ -47,6 +47,9 @@ public sealed class QuestRouteBridge
     private Vector2? _holdAt;
     private bool _muted;
 
+    /// <summary>True while a route leads, when D-pad left mutes and unmutes it.</summary>
+    public bool IsActive { get { lock (_gate) return _active is not null; } }
+
     /// <param name="pad">D-pad left mutes the route's ping; null for no toggle.</param>
     /// <param name="nameOf">CoreTOC name of an actor SNO, for the log.</param>
     /// <param name="log">Debug sink for start, point and stop lines; null when not debugging.</param>

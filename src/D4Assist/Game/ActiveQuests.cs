@@ -40,6 +40,9 @@ public sealed class ActiveQuests(
 
     private int[] _followed = [];
     private List<FollowedQuest> _quests = [];
+
+    /// <summary>How often a followed quest has moved on from a known phase; read from other threads.</summary>
+    public int PhaseChanges { get; private set; }
     private QuestNames _names = QuestNames.None;
     private IReadOnlyDictionary<int, long> _inProgressHere = new Dictionary<int, long>();
     private DateTime _nextSearch = DateTime.MinValue;
@@ -129,6 +132,7 @@ public sealed class ActiveQuests(
                 phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
             }
             if (phase == quest.Phase) continue;
+            if (quest.Phase is not null) PhaseChanges++; // moved on from a known phase, not just found
             quest.Phase = phase;
             quest.PhaseSeen |= phase is not null;
             changed = true;

@@ -4,8 +4,8 @@ using D4Data.Readers;
 
 namespace D4Assist.Game;
 
-/// <summary>What a non-objective gizmo is to the player: something to open, loot, read, or look at (again and again).</summary>
-public enum InteractableKind { Door, Chest, Readable, PointOfInterest }
+/// <summary>What a non-objective gizmo is to the player: something to open, loot, read, look at (again and again) or drink from.</summary>
+public enum InteractableKind { Door, Chest, Readable, PointOfInterest, HealingWell }
 
 /// <summary>A classified interactable and the D2R loop it gets (a WAV under Sounds/).</summary>
 public readonly record struct Interactable(InteractableKind Kind, string Sound);
@@ -18,6 +18,12 @@ public sealed class InteractableClassifier(Func<int, ActorDefinitionInfo?> defin
     /// <summary>Sound ids: D2R's exploration door loops and its chest, scroll and corpse loot loops.</summary>
     public const string WoodenDoorSound = "wooden-door", MetalDoorSound = "metal-door", StoneDoorSound = "stone-door",
         ChestSound = "chest", ScrollSound = "scroll", CorpseSound = "corpse";
+
+    /// <summary>Sound id of the healing wells: D2R's well loop, Diablo IV's own drink sound (d2r-access docs/decisions.md).</summary>
+    public const string HealingWellSound = "healing-well";
+
+    // Healing_Well_Basic, _Outdoor, _Reusable, _Milk; Healing_Well_Empty is no gizmo (research/dungeon-objectives.md §22).
+    private const string HealingWellPrefix = "Healing_Well_";
 
     // No material field in DoorGizmoData, so the door sound comes from its name; anything else sounds wooden.
     private static readonly string[] MetalTokens = ["Gate", "Portcullis", "Cage", "Bars", "Grate", "Iron"];
@@ -46,6 +52,8 @@ public sealed class InteractableClassifier(Func<int, ActorDefinitionInfo?> defin
     {
         // A point of interest reads like a sign (user request 2026-09-30: "mirar"); it stays usable after a look.
         if (gizmoType == Conventions.GizmoLookAt) return new Interactable(InteractableKind.PointOfInterest, ScrollSound);
+        if (gizmoType == Conventions.GizmoShrine)
+            return name.StartsWith(HealingWellPrefix, StringComparison.OrdinalIgnoreCase) ? new Interactable(InteractableKind.HealingWell, HealingWellSound) : null;
         if (gizmoType == Conventions.GizmoDoor)
             return Has(name, StartsOpenToken) ? null : new Interactable(InteractableKind.Door, DoorSound(name));
         bool body = BodyTokens.Any(t => Has(name, t));

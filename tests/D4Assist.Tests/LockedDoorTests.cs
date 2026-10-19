@@ -102,4 +102,30 @@ public class LockedDoorTests
 
         Assert.Empty(doors.Update([], Away));
     }
+
+    [Fact]
+    public void A_quest_moving_on_lets_a_door_out_of_range_lead_again()
+    {
+        // A boss room's door opens by script once the objective is done, often while the player is too far for the client to list it.
+        var tried = Doors();
+        tried.Update([Door], AtTheDoor);
+        tried.Update([], Away);
+        tried.QuestMovedOn();
+        Assert.Empty(tried.Update([], Away));
+
+        var locked = Doors();
+        locked.Update([KeyLocked], At(20, 20.5f));
+        locked.QuestMovedOn();
+        Assert.Empty(locked.Update([], At(80, 20.5f)));
+    }
+
+    [Fact]
+    public void A_door_still_locked_after_the_quest_moved_on_locks_again_once_listed()
+    {
+        var doors = Doors();
+        doors.Update([KeyLocked], At(20, 20.5f));
+        doors.QuestMovedOn();
+
+        Assert.Equal(Footprint(), doors.Update([KeyLocked], At(20, 20.5f)));
+    }
 }

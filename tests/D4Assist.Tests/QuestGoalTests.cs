@@ -157,25 +157,22 @@ public class QuestGoalTests
     }
 
     [Fact]
-    public void A_boss_to_kill_falls_silent_while_invulnerable()
+    public void A_boss_to_kill_is_tracked_without_a_loop_and_drops_while_invulnerable()
     {
-        // Live 2026-10-04: the Echo of Diablo is invulnerable while its clone gates stand; its loop would drown theirs.
+        // Live 2026-10-04: the Echo of Diablo is invulnerable while its clone gates stand. The enemy cue sounds it (EnemyCueBridge);
+        // the loop only tracks it, so the guide still leads to it.
         var log = new List<string>();
         var (feed, player) = Bridge(log);
         var boss = new ActorState(1, BossSno, 5, 0, 0, QuestStep: true);
 
         feed.RaiseActors(boss);
         feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
-        Assert.Equal(1, player.ActiveCount);
+        Assert.Equal(0, player.ActiveCount);
+        Assert.Contains(log, l => l.Contains("started") && l.Contains("reason=killtarget"));
 
         feed.RaiseActors(boss with { Invulnerable = true });
         feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
-        Assert.Equal(0, player.ActiveCount);
         Assert.Contains(log, l => l.Contains("stopped") && l.Contains("cause=invulnerable"));
-
-        feed.RaiseActors(boss);
-        feed.RaisePlayer(new PlayerState(0, 0, 0, 0));
-        Assert.Equal(1, player.ActiveCount);
     }
 
     [Fact]

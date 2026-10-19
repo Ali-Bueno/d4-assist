@@ -19,6 +19,9 @@ public static class MapMarkerReader
     /// <summary>Gizmos and triggers: they never move, so a marker's spot is the actor's.</summary>
     public const int KindGizmo = 11;
 
+    /// <summary>A boss, listed while it is far and not streamed in (research/dungeon-objectives.md §19).</summary>
+    public const int KindBoss = 10;
+
     /// <summary>More nodes than this is no marker list (21 in a seasonal dungeon, 2026-10-04).</summary>
     public const int MaxCount = 20000;
 

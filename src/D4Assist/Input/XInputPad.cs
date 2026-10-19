@@ -32,15 +32,19 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     }
 
     private readonly Func<int, ushort?> _readButtons;
+    private readonly Action<string>? _log;
     private readonly nint _library;
     private readonly bool[] _held = new bool[MaxUsers];
+    private readonly bool[] _connected = new bool[MaxUsers];
     private Timer? _timer;
 
     public event Action? DpadLeftPressed;
 
     /// <summary>Production: loads XInput from the system; if it is unavailable the pad never fires.</summary>
-    public XInputPad()
+    /// <param name="log">The library loaded and each slot's connect and disconnect (a few lines per session).</param>
+    public XInputPad(Action<string>? log = null)
     {
+        _log = log;
         _readButtons = _ => null;
         foreach (var name in LibraryCandidates)
         {
@@ -49,12 +53,14 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
             var getState = Marshal.GetDelegateForFunctionPointer<XInputGetStateFn>(export);
             _library = library;
             _readButtons = slot => getState((uint)slot, out var state) == ErrorSuccess ? state.Buttons : null;
+            log?.Invoke($"Pad: XInput loaded from {name}.");
             return;
         }
+        log?.Invoke("Pad: XInput unavailable; Xbox pads can't toggle the guide.");
     }
 
     /// <summary>Tests: <paramref name="readButtons"/> returns a slot's button bits, or null when it is disconnected.</summary>
-    public XInputPad(Func<int, ushort?> readButtons) => _readButtons = readButtons;
+    public XInputPad(Func<int, ushort?> readButtons, Action<string>? log = null) => (_readButtons, _log) = (readButtons, log);
 
     public bool IsAvailable => _library != 0;
 
@@ -66,6 +72,11 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
         for (int slot = 0; slot < MaxUsers; slot++)
         {
             var buttons = _readButtons(slot);
+            if (buttons.HasValue != _connected[slot])
+            {
+                _connected[slot] = buttons.HasValue;
+                _log?.Invoke($"Pad: XInput slot {slot} {(buttons.HasValue ? "connected" : "disconnected")}.");
+            }
             bool down = buttons is { } b && (b & DpadLeftMask) != 0;
             bool edge = down && !_held[slot];
             _held[slot] = down; // a disconnected slot clears, so a reconnect starts from a clean edge

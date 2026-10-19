@@ -230,6 +230,8 @@ and the recovery once no orb was seen for 2 s.
 - chests (`ChestGizmoData`, reward and locked chests) → chest;
 - readables (`SignGizmoData`, `*Lorebook*` chests) → scroll;
 - the "look" spot (`POI_Look_At`, the only gizmo of type 29) → scroll, and it keeps sounding after use (it can be looked at again);
+- healing wells (`Healing_Well_*`, gizmo type 11, which shrines and pylons share) → D2R's well loop (Diablo IV's own drink sound), a
+  container for the voice cap; tester request 2026-10-16 (the game spawns most at runtime, research/dungeon-objectives.md §22);
 - a chest or readable named `*Corpse*`, `*Remains*` or `*Body*` → corpse, like the prisoners (user request: a body on the ground shouldn't sound like a chest).
 
 They use D2R's door/container profile: reach 18 units (30 subtiles), squared fade. `ActorLoopBridge` plays only the
@@ -253,7 +255,8 @@ room announcements. A closed door does not register as an obstacle yet.
 - **menus**: `MenuMute`, fed by `GameSession.MenusRead`, mutes while any of the 85 watched screens (`MenuScreens.Watched`) is open:
   character panel, main menu, signs, Horadric shipments, vendor, artisans, stash (seen live), every other side panel and the
   full menus opened on purpose. `--debug` logs `MENU open: <screen>`. `MenuScreenTracker` locates the screen
-  records by a background scan and retries after a miss. After the NPC interaction menu (`screen_InteractPopup`) closes,
+  records by a background scan and retries after a miss; every scan logs `MENU located N/M screens in T ms` (no `--debug`
+  needed: after a return to character select a tester's log showed only the self-check failure). After the NPC interaction menu (`screen_InteractPopup`) closes,
   the mute holds 3 s more: a scene picked there can open with music 1.7 s before its conversation shows up (live
   2026-09-30). The conversation mute takes over if one starts.
 
@@ -284,7 +287,10 @@ yet: the game won't let them be used (`QuestLocked` or `ScriptDisabled`, e.g. a 
 within 3 units of the door and walked 20 away with it still closed (tried). A tried door waits until its quest state
 (`Unusable`, `QuestStep`, `NamedByQuest`) changes or the guide is switched on; any locked door is open once seen open, or missing
 within 15 units of its spot, and stays a wall while the client drops it far away. An objective at a locked door never leads
-(`ObjectiveMemory`). The log always says `DOOR locked|unlocked|tried|re-armed|open …`. When a barrier or locked door falls, the
+(`ObjectiveMemory`). When a followed quest moves on from a known phase (`GameSession.QuestMovedOn`), every locked or tried door
+leads again and every barrier not listed now stops blocking: a boss room's door opens by script once the objective is done,
+often while the player is too far for the client to list it (research/dungeon-objectives.md §22); one still locked locks again
+once listed. The log always says `DOOR locked|unlocked|tried|re-armed|open …`. When a barrier or locked door falls, the
 guide explores the ground it held back first (src/D4Assist.Navigation/README.md).
 
 ## Cutscenes
@@ -314,6 +320,22 @@ D2R taps one, user request 2026-10-02). Each repeats on its own rhythm, faster a
 - **No line of sight:** the open world loads no walk grid, so an NPC behind a wall taps too.
 - **Muting:** the cue gate mutes it like every cue.
 - **Log:** `--debug` logs `NPC tap: <name>` when an NPC starts tapping.
+
+## Enemy sound
+
+`Game/EnemyCueBridge` plays D2R's enemy cue (`Audio/EnemyCuePlayer`, `Audio/EnemyCueSynth`, a port of d2r-access
+`entity_cue_synth.cpp`): a short growl with a ring over it for bosses and minibosses, with chattering teeth for unique
+monsters. Every world, quest or not (tester request 2026-10-16: an open-world boss and boss lairs had no sound).
+- **Which monsters:** `Game/EnemyClassifier` reads the hostile monster's `eOverriddenMonsterRarity` (4 boss, 2 unique;
+  [dungeon-objectives](../../research/dungeon-objectives.md) §16). Elites and champions get their rarity at spawn, which
+  the offline data doesn't hold: not cued yet (Next step in STATUS).
+- **Which ones sound:** the nearest living boss and the nearest living unique within the quest loop's reach (27 units),
+  as D2R keeps one per class. An invulnerable one (a boss between phases) and remains (no ACD) are silent.
+- **Cadence:** 600 ms at the edge, 150 ms at contact, never two starts within 100 ms (d2r-access `entity_cues.h`); panned by
+  screen side, lower when below the player. Settings: `Boss` and `Elite` in the characters group.
+- **Kill targets:** a boss or unique a quest or the dungeon names keeps its objective (the guide leads to it) but plays
+  this cue instead of the quest loop (`LoopTarget.EnemyCue`).
+- **Log:** `--debug` logs `ENEMY cue (<class>): <name>` when an enemy starts sounding.
 
 ## Exploration guide
 
@@ -381,9 +403,11 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
 
 - **D-pad left** (any XInput controller, or a DualSense / DualShock 4 over USB or Bluetooth) — toggles the exploration guide for the current kind of world (Undercity and
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
-  it mutes and unmutes a leading quest route the same way, and otherwise does nothing. Ignored while a game menu is open
-  (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`). `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
-  D2R mod's `input_direction.cpp`); the game still receives every press. PlayStation pads never reach XInput, so
+  it mutes and unmutes a leading quest route the same way, and otherwise says "La guía solo funciona en mazmorras." (a
+  silent press read as a pad the app can't hear, tester 2026-10-16). Ignored while a game menu is open
+  (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`);
+  every press past that gate logs `Guide toggle pressed.`. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
+  D2R mod's `input_direction.cpp`; logs `Pad: XInput loaded from …` and `Pad: XInput slot N connected|disconnected`); the game still receives every press. PlayStation pads never reach XInput, so
   `Input/SonyHidPad` reads their HID input reports (shared, read-only handle; rescans every 3 s for pads plugged in
   later; logs `Pad: … connected` or why it can't open one) and `Input/CombinedPad` drops a second copy of the same
   press within 200 ms (Steam Input / DS4Windows also expose the pad as a virtual Xbox pad). Not saved to `d4assist.json`.

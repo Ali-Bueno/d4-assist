@@ -16,6 +16,7 @@ internal sealed class BarrierBridge
     private readonly Action<IReadOnlySet<(int X, int Y)>> _applyWalls;
     private readonly Action<IReadOnlySet<(int X, int Y)>> _applyRoutes;
     private PlayerState? _player;
+    private IReadOnlyList<ActorState> _actors = [];
     private IReadOnlySet<(int X, int Y)> _walls = None;
     private IReadOnlySet<(int X, int Y)> _routes = None;
 
@@ -28,14 +29,26 @@ internal sealed class BarrierBridge
         Action<IReadOnlySet<(int X, int Y)>> walls, Action<IReadOnlySet<(int X, int Y)>> routes)
     {
         (_barriers, _doors, _applyWalls, _applyRoutes) = (barriers, doors, walls, routes);
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _barriers?.Reset(); _doors?.Reset(); _player = null; Apply(None, None, force: true); } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _barriers?.Reset(); _doors?.Reset(); (_player, _actors) = (null, []); Apply(None, None, force: true); } };
         feed.PlayerMoved += p => { lock (_gate) _player = p; };
         // The open world has no guide routes and no radar.
         feed.ActorsUpdated += actors => { if (feed.CurrentWorldKind == WorldKind.Overworld) return; lock (_gate) OnActors(actors); };
     }
 
+    /// <summary>A quest phase moved on: doors and barriers out of sight may have opened, so they stop blocking until seen again.</summary>
+    public void QuestMovedOn()
+    {
+        lock (_gate)
+        {
+            _doors?.QuestMovedOn();
+            _barriers?.QuestMovedOn(_actors);
+            OnActors(_actors);
+        }
+    }
+
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
+        _actors = actors;
         if (_player is not { } player) return;
         var walls = _barriers?.Update(actors, player) ?? None;
         var doors = _doors?.Update(actors, player) ?? None;

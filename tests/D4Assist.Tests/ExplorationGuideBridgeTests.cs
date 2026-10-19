@@ -3,6 +3,7 @@ using D4Assist.Game;
 using D4Assist.Input;
 using D4Assist.Navigation;
 using D4Assist.Speech;
+using D4Assist.Strings;
 
 namespace D4Assist.Tests;
 
@@ -50,13 +51,14 @@ public class ExplorationGuideBridgeTests
         public List<GuideDestination> Objectives = [];
         public IReadOnlyList<GuideDestination>? AskedObjectives;
         public int Rearms;
+        public bool RouteActive;
 
         public Rig(bool guideInDungeons = false)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             _ = new ExplorationGuideBridge(
                 Feed, (_, _, _, objectives) => { AskedObjectives = objectives; return Step; }, Ping, Speech, () => BeaconActive, Log.Add, Pad,
-                guideInDungeons, objectives: () => Objectives, rearmObjectives: () => Rearms++);
+                guideInDungeons, objectives: () => Objectives, rearmObjectives: () => Rearms++, routeActive: () => RouteActive);
             Feed.RaiseWorld();
         }
 
@@ -308,16 +310,26 @@ public class ExplorationGuideBridgeTests
     }
 
     [Fact]
-    public void Press_outside_a_dungeon_is_ignored()
+    public void Press_outside_a_dungeon_says_the_guide_is_for_dungeons_and_changes_nothing()
     {
         var rig = new Rig();
         rig.Feed.RaiseWorld("Sanctuary_Hub", isDungeon: false);
         rig.Pad.Press();
+        Assert.Equal([(AppStrings.Spanish.GuideDungeonsOnly, true)], rig.Speech.Spoken);
+
         rig.Feed.RaiseWorld("X1_Undercity_B");
         rig.Feed.RaisePlayer();
+        Assert.True(rig.Hear().Right > 0);
+    }
+
+    [Fact]
+    public void Press_outside_a_dungeon_is_left_to_a_leading_quest_route()
+    {
+        var rig = new Rig { RouteActive = true };
+        rig.Feed.RaiseWorld("Kehj", isDungeon: false);
+        rig.Pad.Press();
 
         Assert.Empty(rig.Speech.Spoken);
-        Assert.True(rig.Hear().Right > 0);
     }
 
     [Fact]

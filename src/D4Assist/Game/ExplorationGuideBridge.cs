@@ -32,6 +32,7 @@ public sealed class ExplorationGuideBridge
     private readonly ISpeechSink _speech;
     private readonly LanguageSetting _language;
     private readonly Func<bool> _beaconActive;
+    private readonly Func<bool> _routeActive;
     private readonly Action<string>? _log;
     private readonly GuideSwitch _switch;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -65,12 +66,14 @@ public sealed class ExplorationGuideBridge
     /// <param name="destinations">Portals seen in this dungeon, unused ones in tier 0 (PortalMemory.Destinations); null for none.</param>
     /// <param name="objectives">Objectives heard in this dungeon, quest steps in tier 0 (ObjectiveMemory.Destinations); null for none. Never used in endgame worlds.</param>
     /// <param name="rearmObjectives">Called when the guide is switched on: objectives already reached lead again (ObjectiveMemory.Rearm).</param>
+    /// <param name="routeActive">True while a quest route takes D-pad left outside dungeons (QuestRouteBridge.IsActive); null for none.</param>
     public ExplorationGuideBridge(
         IDungeonFeed feed, Func<PlayerInput, bool, IReadOnlyList<GuideDestination>, IReadOnlyList<GuideDestination>, GuideStep> step,
         GuidePingPlayer ping, ISpeechSink speech, Func<bool> beaconActive, Action<string>? log = null, IGuideTogglePad? pad = null,
         bool guideInDungeons = false, LanguageSetting? language = null, Func<IReadOnlyList<GuideDestination>>? destinations = null,
-        Func<IReadOnlyList<GuideDestination>>? objectives = null, Action? rearmObjectives = null)
+        Func<IReadOnlyList<GuideDestination>>? objectives = null, Action? rearmObjectives = null, Func<bool>? routeActive = null)
     {
+        _routeActive = routeActive ?? (() => false);
         _language = language ?? new LanguageSetting();
         _switch = new GuideSwitch(guideInDungeons);
         _step = step;
@@ -93,8 +96,13 @@ public sealed class ExplorationGuideBridge
     {
         lock (_gate)
         {
-            if (_switch.Toggle() is not { } on) return;
             var strings = AppStrings.For(_language.Current);
+            if (_switch.Toggle() is not { } on)
+            {
+                // A silent press sounds like a pad the app can't hear (tester, 2026-10-16).
+                if (!_routeActive()) _speech.Speak(strings.GuideDungeonsOnly, interrupt: true);
+                return;
+            }
             _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE toggled {(on ? "on" : "off")}");
             _speech.Speak(on ? strings.GuideOn : strings.GuideOff, interrupt: true);
             if (on)

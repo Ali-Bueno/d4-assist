@@ -63,6 +63,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Corpse] = "Трупы",
             [SoundCue.Readable] = "Записки и книги",
             [SoundCue.PointOfInterest] = "Места для осмотра",
+            [SoundCue.HealingWell] = "Целебные колодцы",
             [SoundCue.Portal] = "Порталы",
             [SoundCue.QuestObjective] = "Цели заданий",
             [SoundCue.Prisoner] = "Пленники",
@@ -74,6 +75,8 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "Сигнал проводника",
             [SoundCue.GuideArrival] = "Прибытие",
             [SoundCue.Npc] = "Персонажи для разговора",
+            [SoundCue.Boss] = "Боссы",
+            [SoundCue.Elite] = "Элита и уникальные",
         },
 
         GeneralTab = "Общие",

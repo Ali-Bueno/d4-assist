@@ -49,6 +49,17 @@ public sealed class BarrierObstacles(Func<int, string?> nameOf, Func<int, ActorD
         return _standing.Values.SelectMany(b => b.Cells).ToHashSet();
     }
 
+    /// <summary>A quest phase moved on, which may have dropped a barrier out of range: those not listed now stand only once listed again.</summary>
+    public void QuestMovedOn(IReadOnlyList<ActorState> actors)
+    {
+        var listed = actors.Where(a => IsBarrier(a.ActorSno)).Select(a => Key(a.X, a.Y)).ToHashSet();
+        foreach (var (key, barrier) in _standing.Where(s => !listed.Contains(s.Key)).ToList())
+        {
+            _standing.Remove(key);
+            log?.Invoke($"BARRIER unconfirmed after the quest moved on: at ({barrier.Spot.X:F1},{barrier.Spot.Y:F1})");
+        }
+    }
+
     /// <summary>A new dungeon: nothing stands.</summary>
     public void Reset() => _standing.Clear();
 

@@ -84,6 +84,18 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
             }
     }
 
+    /// <summary>A quest phase moved on: a door unlocked or opened by script while the player was out of its listing range would
+    /// stay a wall for good, so every door leads again; one still locked locks again once the client lists it.</summary>
+    public void QuestMovedOn()
+    {
+        lock (_gate)
+            foreach (var door in _doors.Values.Where(d => d.Tried || d.GameLocked))
+            {
+                (door.Tried, door.GameLocked) = (false, false);
+                Log("re-armed (quest moved on)", door);
+            }
+    }
+
     /// <summary>A new world: no door known.</summary>
     public void Reset()
     {

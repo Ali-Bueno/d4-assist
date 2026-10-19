@@ -10,7 +10,7 @@ public static class SoundCatalog
     public static SoundGroup GroupOf(SoundCue cue) => cue switch
     {
         <= SoundCue.RadarLeft => SoundGroup.Radar,
-        <= SoundCue.PointOfInterest => SoundGroup.Objects,
+        <= SoundCue.HealingWell => SoundGroup.Objects,
         <= SoundCue.WardBreaker => SoundGroup.Quest,
         <= SoundCue.GuideArrival => SoundGroup.Guide,
         _ => SoundGroup.Characters,
@@ -19,9 +19,9 @@ public static class SoundCatalog
     /// <summary>The group's cues in settings-window order.</summary>
     public static IReadOnlyList<SoundCue> CuesOf(SoundGroup group) => [.. Enum.GetValues<SoundCue>().Where(c => GroupOf(c) == group)];
 
-    /// <summary>True for the looped and repeating cues (actor loops, guide ping, NPC tap), the ones a speed applies to.</summary>
+    /// <summary>True for the looped and repeating cues (actor loops, guide ping, NPC tap, enemy cues), the ones a speed applies to.</summary>
     public static bool Repeats(SoundCue cue) =>
-        GroupOf(cue) is SoundGroup.Objects or SoundGroup.Quest || cue is SoundCue.GuidePing or SoundCue.Npc;
+        GroupOf(cue) is SoundGroup.Objects or SoundGroup.Quest or SoundGroup.Characters || cue is SoundCue.GuidePing;
 
     public static bool Repeats(SoundGroup group) => CuesOf(group).Any(Repeats);
 

@@ -16,6 +16,7 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
     /// <summary>The ping and tap repeat at their mid-range cadence: half the distance over which they speed up.</summary>
     private static readonly double GuideIntervalSeconds = GuidePingPlayer.IntervalSeconds(GuidePingPlayer.FarDistanceUnits / 2);
     private static readonly double NpcIntervalSeconds = NpcCuePlayer.IntervalSeconds(NpcCuePlayer.DefaultRangeUnits / 2);
+    private static readonly double EnemyIntervalSeconds = EnemyCuePlayer.IntervalSeconds(EnemyCuePlayer.RangeUnits / 2);
 
     /// <summary>The cue a group's own volume and speed are heard on.</summary>
     public static SoundCue TypicalCue(SoundGroup group) => group switch
@@ -60,6 +61,8 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
             case SoundCue.GuidePing: return (Repeated(GuidePingSynth.Synthesize(1.0), GuideIntervalSeconds / rate), Boost, 0);
             case SoundCue.GuideArrival: return (GuidePingSynth.SynthesizeArrived(), Boost, 0);
             case SoundCue.Npc: return (Repeated(NpcCueSynth.Synthesize(1.0), NpcIntervalSeconds / rate), Boost, 0);
+            case SoundCue.Boss: return (Repeated(EnemyCueSynth.Synthesize(EnemyClass.Boss, 1.0), EnemyIntervalSeconds / rate), Boost, 0);
+            case SoundCue.Elite: return (Repeated(EnemyCueSynth.Synthesize(EnemyClass.Elite, 1.0), EnemyIntervalSeconds / rate), Boost, 0);
         }
         var (sound, profile) = Loop(cue);
         if (loopSounds?.GetValueOrDefault(sound) is not { } loop) return null;
@@ -73,6 +76,7 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
         SoundCue.Chest => (InteractableClassifier.ChestSound, LoopProfiles.Container),
         SoundCue.Corpse => (InteractableClassifier.CorpseSound, LoopProfiles.Container),
         SoundCue.Readable or SoundCue.PointOfInterest => (InteractableClassifier.ScrollSound, LoopProfiles.Container),
+        SoundCue.HealingWell => (InteractableClassifier.HealingWellSound, LoopProfiles.Container),
         SoundCue.Portal => (LoopTargetSelector.QuestItemSound, LoopProfiles.Beacon),
         SoundCue.Prisoner => (InteractableClassifier.CorpseSound, LoopProfiles.Quest),
         SoundCue.Enticement => (LoopTargetSelector.EnticementSound, LoopProfiles.Quest),

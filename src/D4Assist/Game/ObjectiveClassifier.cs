@@ -139,9 +139,7 @@ public sealed class ObjectiveClassifier(
         && name?.Contains(DestructibleToken, StringComparison.OrdinalIgnoreCase) == true
         && namedByAnyQuest?.Invoke(actorSno) == true;
 
-    private static bool IsBossOrUnique(ActorDefinitionInfo info) =>
-        info.EType == Conventions.ActorTypeMonster && info.DefaultTeam == Conventions.HostileTeam
-        && info.MonsterRarity is Conventions.MonsterRarityUnique or Conventions.MonsterRarityBoss;
+    private static bool IsBossOrUnique(ActorDefinitionInfo info) => EnemyClassifier.ClassOf(info) is not null;
 
     private static bool IsPrisoner(string? name, ActorDefinitionInfo info) =>
         name is not null

@@ -111,7 +111,7 @@ public sealed class ActorLoopBridge
     {
         _lastPlayer = p;
         _player.Update([.. _targets.Values
-            .Where(t => !Sheltered(t.Actor, t.Target, p))
+            .Where(t => !t.Target.EnemyCue && !Sheltered(t.Actor, t.Target, p))
             .Select(t => (t.Actor, t.Target, Level: _levelOf(t.Target.Cue)))
             .Where(t => t.Level.Gain > 0)
             .GroupBy(t => t.Target.Kind)

@@ -135,7 +135,8 @@ internal static class Program
         bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
         // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
         bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
-        var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(debug ? Console.WriteLine : null) : null;
+        // Scan results always logged: a tester's "can't find the game menus" after a character switch came with no other clue.
+        var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(Console.WriteLine) : null;
         // Where far quest objectives stand: the map's markers (research/dungeon-objectives.md §19); one line in every log.
         var mapMarkers = MapMarkerTracker.ForLiveProcess(Console.WriteLine);
         // ACD flags are read for gizmos (used), NPCs (quest followers) and bosses and uniques (invulnerable) only: other monsters and
@@ -207,9 +208,11 @@ internal static class Program
         // Barrier walls a dungeon raises until its objective is done: walls for the radar and the guide while they stand. Doors the
         // player can't open yet: walls for the guide only (the radar sounds every closed door).
         var lockedDoors = new LockedDoors(doors ?? new DoorObstacles(interactables, definitionOf), store.Name, Console.WriteLine);
-        _ = new BarrierBridge(
+        var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
             radarWorld.SetBarriers, navigation.SetBlockedCells);
+        // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
+        session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
         var loopMemory = loopSounds is null ? null : StartLoops(
             session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, dpo, portalRule,
@@ -218,6 +221,11 @@ internal static class Program
         var objectives = loopMemory?.Objectives;
         using var npcTap = new NpcCuePlayer(mixer);
         StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
+        var markerLog = new MapMarkerLog(store.Name, Console.WriteLine, everyKind: debug);
+        session.MapMarkersRead += markerLog.OnMarkers;
+        session.WorldChanged += (_, _, _) => markerLog.Reset();
+        using var enemyCue = new EnemyCuePlayer(mixer);
+        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).ClassOf, store.Name, debug ? Console.WriteLine : null);
         _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         _ = new ExplorationPersistence(
@@ -259,6 +267,11 @@ internal static class Program
             mixer.MasterVolume = mix.Master;
             (npcTap.Volume, npcTap.Rate) = mix.Level(SoundCue.Npc);
             npcTap.Voices = mix.NpcVoices;
+            foreach (var (kind, cue) in new[] { (EnemyClass.Boss, SoundCue.Boss), (EnemyClass.Elite, SoundCue.Elite) })
+            {
+                var (volume, rate) = mix.Level(cue);
+                enemyCue.SetLevel(kind, volume, rate);
+            }
             if (guidePing is null) return;
             (guidePing.Volume, guidePing.Rate) = mix.Level(SoundCue.GuidePing);
             guidePing.ArrivalVolume = mix.Level(SoundCue.GuideArrival).Gain;
@@ -266,7 +279,7 @@ internal static class Program
         ApplySound(liveSound.Current);
         liveSound.Changed += ApplySound;
         // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
-        using var xboxPad = guidePing is not null ? new XInputPad() : null;
+        using var xboxPad = guidePing is not null ? new XInputPad(Console.WriteLine) : null;
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
         // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below).
         using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount);
@@ -276,15 +289,18 @@ internal static class Program
                 new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null),
                 hotkeys])
             : null;
+        if (pad is not null) pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide
+        QuestRouteBridge? routeBridge = null;
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
                 pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations,
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
-                objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); });
+                objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); },
+                () => routeBridge?.IsActive == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
-            _ = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
+            routeBridge = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
         xboxPad?.Start();
         sonyPad?.Start();
 

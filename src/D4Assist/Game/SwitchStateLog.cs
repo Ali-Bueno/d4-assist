@@ -4,7 +4,9 @@ using D4Memory.Actors;
 namespace D4Assist.Game;
 
 /// <summary>Debug log of the state signals of switches used again and again (braziers to light, levers): one line when one is
-/// first seen, then one per change; which signal tells a lit brazier is unknown (research/dungeon-objectives.md §17).</summary>
+/// first seen, then one per change; which signal tells a lit brazier is unknown (research/dungeon-objectives.md §17). The quest
+/// lock and minimap flags show when a quest gizmo opens to the player (the warlock quests' binding altars stayed "unusable"
+/// through a whole demon fight, live 2026-10-19).</summary>
 /// <param name="isMultiUseSwitch">True for a switch SNO whose data allows many uses (ActorDefinitionInfo.MultiUseSwitch).</param>
 public sealed class SwitchStateLog(Func<int, bool> isMultiUseSwitch, Func<int, string?> nameOf, Action<string> log)
 {
@@ -13,7 +15,8 @@ public sealed class SwitchStateLog(Func<int, bool> isMultiUseSwitch, Func<int, s
 
     /// <summary>The ACD attributes logged; the RActor's previous-state word is logged too.</summary>
     public static readonly string[] Attributes =
-        [AcdFlagReader.GizmoState, AcdFlagReader.GizmoOperated, AcdFlagReader.GizmoDisabledByScript, Operatable, Disabled];
+        [AcdFlagReader.GizmoState, AcdFlagReader.GizmoOperated, AcdFlagReader.GizmoDisabledByScript, Operatable, Disabled,
+         AcdFlagReader.GizmoQuestRestricted, AcdFlagReader.MinimapActive];
 
     private const string StateWord = "PreviousState";
 

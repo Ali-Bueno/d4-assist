@@ -683,3 +683,13 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   quest found in progress stays followed while its {quest, phase} pair still reads (until it ends or the world changes).
   Not live-tested. Still open: the sockets loop only within the ~25 units the game streams; nothing leads to them from afar in
   the overworld.
+
+## 25. Rathma's soul split: the body left behind (offline, build 3.2.3, 2026-10-20)
+
+In the Rathma fight of "The Weight of a Blade" (QST_X2_Skov_Lycander_05, CSD_Skov_Lycander_RathmasArchive_02, boss
+`npcM_Rathma_boss` 2261914) the boss tears the player's spirit out, and it must get back to the body quickly; the body makes no
+sound (user, 2026-10-20). The actor data names the mechanic `SoulSplit`: `Rathma_Boss_SoulSplit_Location_Marker` 2502285 (eType 1,
+team 19), `Rathma_SoulSplit_resurection_invisibleActor` 2560454 (eType 3), `Rathma_SoulSplit_Trail` 2560422 (eType 3) and
+`vfx_Rathma_SoulSplit_*` effects. The app loops the first two with the quest sound (`ObjectiveReason.SoulBody`). Unchecked live:
+which of them stands on the body, whether eType 3 actors reach the actor list, and whether the player position read follows the
+spirit or the body. A `--debug` log of the fight answers all three (`LOOP started (Objective): Rathma_… reason=soulbody … distance=`).

@@ -13,7 +13,7 @@ public class ObjectiveTests
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
-        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33;
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -50,6 +50,8 @@ public class ObjectiveTests
         [PlainMonsterSno] = ("werewolf_warg_phys", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [CloneGateSno] = ("MorluGate_Triad_A_Boss_terrorCloneSource", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [DpoTriggerSno] = ("Trigger_Sphere_8m", new(Gizmo, Conventions.GizmoTrigger, TriggerRadius: 4)),
+        [SoulMarkerSno] = ("Rathma_Boss_SoulSplit_Location_Marker", new(Monster, NotGizmo, DefaultTeam: 19)),
+        [SoulRaiserSno] = ("Rathma_SoulSplit_resurection_invisibleActor", new(Prop, NotGizmo)),
     };
 
     // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
@@ -77,6 +79,8 @@ public class ObjectiveTests
     [InlineData(BeaconSno, ObjectiveReason.Enticement)]
     [InlineData(SkillOrbSno, ObjectiveReason.StolenSkill)] // a hostile monster, yet the player's to take back
     [InlineData(AkaratOrbSno, ObjectiveReason.AkaratLight)]
+    [InlineData(SoulMarkerSno, ObjectiveReason.SoulBody)] // the body Rathma's soul split leaves behind, silent in the game
+    [InlineData(SoulRaiserSno, ObjectiveReason.SoulBody)]
     [InlineData(VesselSno, ObjectiveReason.WardBreaker)]   // before the QST_ name rule
     [InlineData(TumorSno, ObjectiveReason.Destructible)]   // a hostile structure a quest asks the player to break
     [InlineData(MinibossSno, ObjectiveReason.KillTarget)]  // a monster the dungeon's objective asks the player to kill

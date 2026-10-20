@@ -5,7 +5,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget, Monolith, CloneGate }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, SoulBody, WardBreaker, Destructible, KillTarget, Monolith, CloneGate }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -32,6 +32,11 @@ public sealed class ObjectiveClassifier(
     // Akarat's lights in the Harbinger of Hatred fight: orbs (effects) the player picks up for Akarat's power; their
     // Akarat_Orb_Pillar companion stands on the same spot (research/dungeon-objectives.md §11).
     private const string AkaratLightName = "Akarat_Orb";
+
+    // Rathma's soul split: he tears the player's spirit out, and it must hurry back to the body it left, which makes no sound
+    // (user request 2026-10-20, "Das Gewicht einer Klinge"). The marker the boss places and the actor that raises the player
+    // again are the two the data names for it; which one stands on the body is unchecked live.
+    private static readonly string[] SoulBodyNames = ["Rathma_Boss_SoulSplit_Location_Marker", "Rathma_SoulSplit_resurection_invisibleActor"];
 
     // The Horadric Guardian's four vessels (QST_Skov_Skartara_WardBreakerShrine_Kulle/Rasha/Fahd/Cain), one per sigil: the
     // one matching the barrier's symbol breaks it, again at every barrier (research/dungeon-objectives.md §11).
@@ -119,6 +124,7 @@ public sealed class ObjectiveClassifier(
         if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
         if (name?.Contains(StolenSkillToken, StringComparison.OrdinalIgnoreCase) == true) return ObjectiveReason.StolenSkill;
         if (string.Equals(name, AkaratLightName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.AkaratLight;
+        if (SoulBodyNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return ObjectiveReason.SoulBody;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(WardBreakerToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.WardBreaker;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(EnticementToken, StringComparison.OrdinalIgnoreCase) == true)

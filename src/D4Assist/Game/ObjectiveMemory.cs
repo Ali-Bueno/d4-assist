@@ -36,6 +36,13 @@ public sealed class ObjectiveMemory
     /// <summary>Id prefix of a quest place's guide destination.</summary>
     public const string QuestPlaceKind = "quest-place";
 
+    /// <summary>Id prefix of a light to escort.</summary>
+    public const string EscortKind = "escort";
+
+    // The light moves on a few units ahead whenever the player is in it (live: in and out every second or two), so the guide holds
+    // a little beyond its edge rather than chime at every step; its own loop says inside or outside.
+    private const float EscortHoldFactor = 2f;
+
     // A placed gizmo never moves; a re-created actor (new id) lands on the same spot.
     private const float SameSpotUnits = 1f;
 
@@ -68,6 +75,8 @@ public sealed class ObjectiveMemory
     private readonly Func<int, bool?> _takesHeld;
     private readonly Func<int, (float X, float Y), bool> _locked;
     private readonly Func<int, bool?> _carryableWaits;
+    private readonly Func<int, float?> _escortRadius;
+    private IReadOnlyList<ActorState> _escorts = [];
     private readonly Action<string>? _log;
     private readonly object _gate = new();
     private readonly List<Objective> _objectives = [];
@@ -87,27 +96,34 @@ public sealed class ObjectiveMemory
     /// for any other actor. A carryable falls silent while another is carried, so it is done only once it left the ground (picked up,
     /// then delivered), and it leads only with empty hands (live 2026-10-16, the Lost Archives' second crate; the same in every
     /// statue, bloodstone and carving dungeon, research/dungeon-objectives.md §14). Null for none.</param>
+    /// <param name="escortRadius">For a light the player walks inside to where the quest needs it (SafeZoneClassifier.EscortRadius),
+    /// the distance that counts as inside; null for any other actor. Null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
         Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null,
-        Func<int, bool?>? carryableWaits = null)
+        Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null)
     {
         _carryableWaits = carryableWaits ?? (_ => null);
+        _escortRadius = escortRadius ?? (_ => null);
         _nameOf = nameOf;
         _triggerRadius = triggerRadius ?? (_ => null);
         _footprint = footprint ?? (_ => null);
         _takesHeld = takesHeld ?? (_ => null);
         _locked = locked ?? ((_, _) => false);
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _player = null; _namedSnos = new HashSet<int>(); } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _escorts = []; _player = null; _namedSnos = new HashSet<int>(); } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
-    /// <summary>The objectives to lead to: looping when last heard, not set aside and not a locked door; quest steps in <see cref="QuestTier"/>.</summary>
+    /// <summary>The objectives to lead to: looping when last heard, not set aside and not a locked door; quest steps in <see cref="QuestTier"/>.
+    /// A light to escort leads in the quest tier while it is listed: it travels to the quest's next place, and the step's own place
+    /// (where it was lit) would lead back the way it came (live 2026-10-20, Rathma's archive).</summary>
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
-            return [.. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
+            return [.. _escorts.Select(a => new GuideDestination(
+                    $"{EscortKind}:{a.Id}", (a.X, a.Y), QuestTier, a.Z, _escortRadius(a.ActorSno)!.Value * EscortHoldFactor, Located: true)),
+                .. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
                 .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position)
                     && _carryableWaits(x.Objective.Sno) != true)
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
@@ -216,6 +232,7 @@ public sealed class ObjectiveMemory
     {
         lock (_gate)
         {
+            _escorts = [.. seen.Present.Where(a => _escortRadius(a.ActorSno) is not null)];
             var heard = new HashSet<Objective>();
             foreach (var actor in seen.Looping)
             {

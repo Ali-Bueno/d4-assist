@@ -531,7 +531,7 @@ internal static class Program
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
             sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,
-            selector.CarryableWaits);
+            selector.CarryableWaits, safeZones.EscortRadius);
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(

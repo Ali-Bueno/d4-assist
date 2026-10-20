@@ -45,6 +45,29 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_light_to_escort_leads_in_the_quest_tier_where_it_is_now_and_not_once_gone()
+    {
+        // Rathma's archive (live 2026-10-20): the spirit fire lit, a light walks back to the golem chamber with the player inside
+        // it, while the step's place at the fire still pointed the guide back.
+        const int LightSno = 9;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, escortRadius: sno => sno == LightSno ? 4f : null);
+        feed.RaisePlayer(At(0, 0));
+        var light = new ActorState(7, LightSno, 10, 0, 1);
+
+        memory.Observe(new ObjectiveSighting([], [], [light]));
+        var lead = Assert.Single(memory.Destinations());
+        Assert.Equal((ObjectiveMemory.QuestTier, (10f, 0f), true), (lead.Tier, lead.Position, lead.Located));
+        Assert.True(lead.Radius > 4f);
+
+        memory.Observe(new ObjectiveSighting([], [], [light with { X = 30 }]));
+        Assert.Equal((30f, 0f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Observe(new ObjectiveSighting([], [], []));
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
     public void Out_of_earshot_it_stays_and_silent_near_the_player_it_is_done()
     {
         var (feed, memory) = NewMemory();

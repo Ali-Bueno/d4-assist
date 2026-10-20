@@ -11,8 +11,8 @@ internal readonly record struct TileHop(RoomOpening Opening, TileNode? To);
 
 /// <summary>
 /// The known tiles as a graph: nodes are tiles, edges are their exit openings (real walkable gaps, via
-/// OpeningFinder) that land on another known tile. Exit bits are assumed symmetric — only the side that
-/// carries the bit gets an edge. Touching tiles of one room (RoomModel) are linked without an exit bit, because preset
+/// OpeningFinder) that land on another known tile. An opening found from one side also leads back from the
+/// other where that tile has floor at it: a big preset room's mask can omit the sides its neighbours open into. Touching tiles of one room (RoomModel) are linked without an exit bit, because preset
 /// rooms' live exit masks can omit their internal sides (research/client-memory.md §1), but only where both walk maps
 /// have floor at their shared edge: the Skovos docks are one room, water parts two of its tiles, and the guide led to the
 /// far one across it (live 2026-10-17). A tile that live barriers split is one node per floor region (TileRegions),
@@ -49,6 +49,15 @@ internal sealed class TileGraph
                 foreach (var (from, to, crossing) in Contacts(near, far, opening))
                     from.Hops.Add(new TileHop(crossing, to));
             }
+
+        // A big preset room's live mask can leave out sides its neighbours open into: Rathma's golem chamber (64x64, mask S+E)
+        // was entered from the west and north, and the guide, standing in it, found every way out of it closed (live 2026-10-20).
+        var reverse = graph.Nodes
+            .SelectMany(from => from.Hops.Where(h => h.To is { } to && !to.Hops.Any(back => back.To == from)
+                    && FloorReaches(to.Tile, h.Opening, walkability))
+                .Select(h => (From: h.To!, Hop: new TileHop(h.Opening with { Side = Opposite(h.Opening.Side) }, from))))
+            .ToList();
+        foreach (var (from, hop) in reverse) from.Hops.Add(hop);
 
         foreach (var room in graph._tiles.Values.GroupBy(t => t.Tile.Input.NodeId))
             foreach (var near in room)
@@ -109,6 +118,29 @@ internal sealed class TileGraph
         }
         return false;
     }
+
+    // Somewhere along a crossing found from the other side, the tile beyond has floor within EdgeFloorUnits of it; true when a
+    // walk map is unknown.
+    private static bool FloorReaches(MapTile tile, RoomOpening crossing, ITileWalkability? walkability)
+    {
+        if (walkability is null || !walkability.TryGet(tile.Input.SceneSno, out var grid)) return true;
+        int turns = TileRotation.QuarterTurns(tile.Input.YawDegrees);
+        if (turns < 0) return true;
+        var normal = ExitMaskBits.Normal(crossing.Side);
+        var along = (MathF.Abs(normal.Y), MathF.Abs(normal.X));
+        float width = MathF.Max(crossing.Width, 1f);
+        for (var a = -width / 2f + HalfCell; a < width / 2f; a += 1f)
+            if (HasFloorNear(grid, tile.Input, turns, Offset(crossing.Position, along, a), normal, 1f)) return true;
+        return false;
+    }
+
+    private static ExitSide Opposite(ExitSide side) => side switch
+    {
+        ExitSide.North => ExitSide.South,
+        ExitSide.South => ExitSide.North,
+        ExitSide.East => ExitSide.West,
+        _ => ExitSide.East,
+    };
 
     // Floor within EdgeFloorUnits of the edge point, stepping into the tile (sign -1: against the normal, into the near tile).
     private static bool HasFloorNear(WalkGrid grid, TileInput tile, int turns, (float X, float Y) edgePoint, (float X, float Y) normal, float sign)

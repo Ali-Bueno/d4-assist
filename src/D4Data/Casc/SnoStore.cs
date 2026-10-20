@@ -12,6 +12,7 @@ public sealed class SnoStore : IDisposable
     private readonly ISnoArchive _archive;
     private readonly Dictionary<(int Group, string Name), int> _idsByName = new();
     private readonly Dictionary<int, string> _namesById = new();
+    private readonly Dictionary<string, StringListCatalog?> _strings = new();
 
     /// <param name="log">Where the Steam storage reports each opening step and its first failed reads.</param>
     public SnoStore(string installPath, Action<string>? log = null)
@@ -71,6 +72,13 @@ public sealed class SnoStore : IDisposable
         _archive.CoreToc.EntriesInGroup((SnoGroup)group)
             .Where(e => e.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(e => (e.Id, e.Name));
+
+    /// <summary>The localized StringList catalog of <paramref name="locale"/> (e.g. enUS, esES), loaded once; null when not installed.</summary>
+    public StringListCatalog? Strings(string locale)
+    {
+        if (!_strings.TryGetValue(locale, out var catalog)) _strings[locale] = catalog = _archive.ReadStrings(locale);
+        return catalog;
+    }
 
     /// <summary>Null when the SNO has no meta record or it is encrypted (content not yet released).</summary>
     public SnoBlob? Meta(int group, int id) =>

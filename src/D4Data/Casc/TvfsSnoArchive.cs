@@ -48,6 +48,9 @@ internal sealed class TvfsSnoArchive : ISnoArchive
         return false;
     }
 
+    public StringListCatalog? ReadStrings(string locale) =>
+        _readPath($@"Base\StringList-Text-{locale}.dat") is { } bytes ? StringListCatalog.Parse(bytes, locale, _ => string.Empty) : null;
+
     private bool TryReadSharedPayload(int id, out byte[] bytes)
     {
         bytes = [];

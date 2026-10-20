@@ -13,7 +13,8 @@ internal static class Program
 {
     private const string Usage =
         "usage: D4DungeonDump <world name|id> --defs <d4data definitions.json> [--install <Diablo IV dir>]\n" +
-        "                     [--tileset <scene name prefix>] [--scene <name|id>]... [--all-layers] [--grid] [--out <file.json>]";
+        "                     [--tileset <scene name prefix>] [--scene <name|id>]... [--all-layers] [--grid] [--out <file.json>]\n" +
+        "       D4DungeonDump --map-points --defs <d4data definitions.json> [--install <Diablo IV dir>] [--locale <enUS|esES|...>]";
 
     private static int Main(string[] args)
     {
@@ -22,6 +23,11 @@ internal static class Program
             var opt = Options.Parse(args);
             var schema = TypeSchema.Load(opt.DefinitionsPath);
             using var store = new SnoStore(opt.InstallPath);
+            if (opt.MapPoints)
+            {
+                MapPointsReport.Print(store, schema, opt.Locales, Console.Out);
+                return 0;
+            }
             var result = Dump(store, schema, opt);
             var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
             {
@@ -101,13 +107,14 @@ internal static class Program
     private static float[] ToArray(Vector3 v) => [v.X, v.Y, v.Z];
 
     private sealed record Options(string World, string DefinitionsPath, string InstallPath, string? Tileset,
-        List<string> Scenes, bool AllLayers, bool Grid, string? OutPath)
+        List<string> Scenes, bool AllLayers, bool Grid, string? OutPath, bool MapPoints = false, string[]? Locales = null)
     {
         public static Options Parse(string[] args)
         {
             string? world = null, defs = Environment.GetEnvironmentVariable("D4DATA_DEFINITIONS"), install = null, tileset = null, output = null;
             var scenes = new List<string>();
-            bool allLayers = false, grid = false;
+            bool allLayers = false, grid = false, mapPoints = false;
+            string[] locales = ["enUS", "esES"];
             for (int i = 0; i < args.Length; i++)
             {
                 string Next() => i + 1 < args.Length ? args[++i] : throw new ArgumentException($"Missing value for {args[i]}.");
@@ -120,6 +127,8 @@ internal static class Program
                     case "--all-layers": allLayers = true; break;
                     case "--grid": grid = true; break;
                     case "--out": output = Next(); break;
+                    case "--map-points": mapPoints = true; break;
+                    case "--locale": locales = Next().Split(',', StringSplitOptions.RemoveEmptyEntries); break;
                     default:
                         if (args[i].StartsWith("--", StringComparison.Ordinal) || world is not null)
                             throw new ArgumentException($"Unexpected argument '{args[i]}'.");
@@ -127,11 +136,11 @@ internal static class Program
                         break;
                 }
             }
-            if (world is null) throw new ArgumentException("Missing world name or id.");
+            if (world is null && !mapPoints) throw new ArgumentException("Missing world name or id.");
             if (defs is null) throw new ArgumentException("Missing --defs (or D4DATA_DEFINITIONS).");
             if (install is null && !SnoStore.TryLocateInstall(out install))
                 throw new ArgumentException("Diablo IV install not found; pass --install.");
-            return new Options(world, defs, install, tileset, scenes, allLayers, grid, output);
+            return new Options(world ?? "", defs, install, tileset, scenes, allLayers, grid, output, mapPoints, locales);
         }
     }
 }

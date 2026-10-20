@@ -100,6 +100,7 @@
 | Screen open state | heap table `{next, u32 key = name hash (×33 + c, lowercase), u32 padding, value}` → record `+0x10` open byte (0/1; anything else = freed); no static route, located by parallel scan (85 screens in 0.5 s) | live 2026-09-30, [client-memory](research/client-memory.md) §5 |
 | No verbose/debug log switch for players | `DebugLoggingTypesEnabled` is a server/debug attribute, not a pref | exe strings + `LocalPrefs.txt` |
 | Equipped skills and unlocked waypoints (type only) | `PlayerSavedData`: `tHotbarBtnAssignments` +0 = 6 × `HotbarButtonData {m_PowerSno +0, m_ItemSno +4, m_annItem +8}`, `tPotionBtn` +96, `arWaypointsActivated` +120 = 64 level-area SNOs, `tActiveSkills` +384. Not located in memory yet | `data/definitions.json` (build 3.2.1.73552), 2026-10-11 |
+| Map points (waypoints, dungeon entrances) | Global `global_markers` 332242: 3,260 marker actors with world position (53 waypoints, 656 portals incl. ~190 cellars); name = StringList `LevelArea_<area>` label `Name` (dungeons: the portal's destination area), per locale from `StringList-Text-<locale>.dat` (enUS + esES checked) | [map-points](research/map-points.md), `D4DungeonDump --map-points` |
 | Event currency (helltide cinders?) | `EventCurrencyData {eCurrencyType, bPlayerLosesCurrencyOnDeath}`; changes arrive as `CurrencyModifiedMessage`. Not located in memory | `data/definitions.json`, 2026-10-11 |
 
 ## Next step

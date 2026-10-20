@@ -70,6 +70,10 @@ steps; step away and it points you back. If you walk well away from it without u
 In the big seasonal dungeons with side dungeons inside, it also leads to the side dungeons' entrances you haven't used yet,
 even before you've seen them.
 
+**Sandstorm.** In the desert quest where Meshif leads you through the sandstorm, the guide ping leads you from shelter
+to shelter ("Shelter 1 of 3" and so on), waits while you're sheltering, and after the third one takes you to Meshif on
+the palace steps.
+
 **Sounds on things.** They repeat from where the thing is, louder as you get closer:
 
 - The quest sound (Ctrl+Alt+Shift+6 plays it) is for what your quest or the dungeon wants from you: levers, things you
@@ -119,7 +123,7 @@ door, unexplored exit, quest sound, guide ping and arrival.
 
 Left on the D-pad turns the guide on and off in dungeons (Xbox controllers, and PlayStation's DualSense or DualShock 4);
 elsewhere it tells you the guide only works in dungeons. In the
-desert sandstorm quest it mutes and unmutes the ping that leads you between shelters. While a game menu is open the
+desert sandstorm quest it mutes and unmutes the ping that leads you from shelter to shelter. While a game menu is open the
 D-pad does nothing, because there it belongs to the game. On the keyboard, Ctrl+Alt+Shift+G does the same as left on the
 D-pad, also in menus.
 

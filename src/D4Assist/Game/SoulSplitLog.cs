@@ -22,7 +22,7 @@ public sealed class SoulSplitLog
     private readonly HashSet<uint> _seen = [];
     private PlayerState? _player;
     private bool _active;
-    private TimeSpan _last = TimeSpan.MinValue;
+    private TimeSpan? _last;
 
     public SoulSplitLog(IDungeonFeed feed, Func<int, string?> nameOf, Func<int, ActorDefinitionInfo?> definition, Action<string> log)
     {
@@ -44,9 +44,10 @@ public sealed class SoulSplitLog
             {
                 _active = active;
                 _seen.Clear();
+                _last = null;
                 _log($"SOULSPLIT {(active ? "began" : "ended")}: player {Where(_player)}");
             }
-            if (!active || _clock.Elapsed - _last < Every) return;
+            if (!active || _clock.Elapsed - _last < Every) return; // null: never logged yet
             _last = _clock.Elapsed;
             _log($"SOULSPLIT player {Where(_player)}; " + string.Join("; ", split.Select(Describe)));
             foreach (var actor in actors.Where(a => !IsSplit(a.ActorSno) && _seen.Add(a.Id) && Near(a)))

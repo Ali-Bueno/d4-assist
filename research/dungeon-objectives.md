@@ -704,3 +704,9 @@ spot 6 s into the split and 8.1 at the death menu, with no radar or tile line in
 the spirit up during the split; a forum post calls the soul a disk that rejoins once under the player's feet. Under `--debug`,
 `SOULSPLIT` lines now log the player read and every soul-split actor twice a second while one other than the Location_Markers is
 listed, and once each actor near the player.
+
+Third live run (18:29-18:48, five splits, all ending in death): the player read stayed at the body. The resurrection actor
+appeared 6 s after the split began, 0.0-0.3 from the player, and at the death menu the player read was 0.7-0.9 from it in four
+of five splits. So the loop sat on the body, but the app hears from the body as well: the player, steering the spirit, heard it
+at their own spot whatever they did. The spirit's position is still unknown (the SOULSPLIT poll lines threw on the first poll and
+logged nothing; fixed). A candidate is `vfx_Rathma_SpiritSplit_burstAttractor_playerSpirit_parent` 2554784.

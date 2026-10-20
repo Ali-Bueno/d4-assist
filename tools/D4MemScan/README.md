@@ -37,7 +37,7 @@ D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]
 D4MemScan conversations --defs <definitions.json> [--install <dir>] [--watch <seconds>]
 D4MemScan quest --defs <definitions.json> --sno <quest> [--install <dir>] [--find] [--watch <seconds>]
-D4MemScan gizmos --defs <definitions.json> --type <eActorGizmoType> [--install <dir>]
+D4MemScan gizmos --defs <definitions.json> (--type <eActorGizmoType> | --match <name-regex> [--type N]) [--install <dir>]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
 D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
@@ -142,7 +142,8 @@ the repo.
     ±0x100 of the quest SNO anywhere in memory for S seconds, to see where the phase lives when the quest advances.
 
 13. **`gizmos --type N`** — every actor whose `eActorGizmoType` is N, by name (offline census), e.g. `--type 29` →
-    only `POI_Look_At`.
+    only `POI_Look_At`. `--match <regex>` lists the actors whose name matches instead, with eType, gizmo type, default
+    team and fIsNPC (e.g. `--match Prisoner`).
 
 Every live command finds the build's addresses itself (`Offsets.cs` → `BuildOffsetsDiscovery`) and prints them, e.g.
 `Module 0x7FF7B55F0000: game object at RVA 0x3670918, attribute names at RVA 0x36CF540.`

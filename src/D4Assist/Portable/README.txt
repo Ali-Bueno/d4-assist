@@ -109,7 +109,8 @@ closer:
 - Portals, including the Undercity's warp pads, have their own sound so you
   can find the way out.
 - Doors, chests, bodies you can search, books and notes, spots to look at and
-  healing wells have their own sounds too. Prisoners play the corpse sound.
+  healing wells have their own sounds too. Prisoners play the corpse sound,
+  and go quiet once a freed prisoner walks along with you.
 - Characters you can talk to get a little wooden tap, the two nearest at once
   (the settings let you pick 1 to 4). Companions who follow you in a quest
   stay quiet.

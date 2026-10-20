@@ -34,6 +34,7 @@ public sealed class ActorLoopBridge
     private Dictionary<uint, (ActorState Actor, LoopTarget Target)> _targets = [];
     private readonly HashSet<uint> _loggedSilent = [];
     private readonly HashSet<uint> _sheltered = [];
+    private readonly FollowerWatch _followers = new();
     private PlayerState? _lastPlayer;
 
     /// <param name="isUsed">True once an actor was used (lever pulled, chest opened): its loop stops if its target says so.
@@ -72,6 +73,7 @@ public sealed class ActorLoopBridge
         _targets = [];
         _loggedSilent.Clear();
         _sheltered.Clear();
+        _followers.Reset();
         _lastPlayer = null;
         _sightings?.Reset();
         _used?.Reset();
@@ -88,6 +90,7 @@ public sealed class ActorLoopBridge
             .Select(a => (Actor: a, Target: _selector.Select(a)))
             .Where(x => x.Target is not null)
             .GroupBy(x => x.Actor.Id).ToDictionary(g => g.Key, g => g.First());
+        _followers.Observe(selected.Values.Where(x => x.Target!.SilentWhileFollowing).Select(x => x.Actor), _lastPlayer);
         // An unusable gizmo (quest-restricted, script-disabled) offers no interaction: silent until the game allows it.
         var next = selected.Where(kv => !Silent(kv.Value.Actor, kv.Value.Target!))
             .ToDictionary(kv => kv.Key, kv => (kv.Value.Actor, Target: kv.Value.Target!));
@@ -121,7 +124,8 @@ public sealed class ActorLoopBridge
 
     private bool Silent(ActorState actor, LoopTarget target) =>
         (target.SilentWhileUnusable && actor.Unusable) || (target.SilentWhileInvulnerable && actor.Invulnerable)
-        || (target.StopsWhenUsed && (target.UsedWhenOpened ? actor.Operated || actor.GizmoStateSet : _isUsed(actor)));
+        || (target.StopsWhenUsed && (target.UsedWhenOpened ? actor.Operated || actor.GizmoStateSet : _isUsed(actor)))
+        || (target.SilentWhileFollowing && _followers.Follows(actor));
 
     // Inside a safe zone its loop has done its job: silent until the player steps out.
     private bool Sheltered(ActorState actor, LoopTarget target, PlayerState p)
@@ -159,8 +163,9 @@ public sealed class ActorLoopBridge
         }
     }
 
-    private static string Cause(ActorState actor, LoopTarget target) =>
-        target.SilentWhileInvulnerable && actor.Invulnerable ? "invulnerable"
+    private string Cause(ActorState actor, LoopTarget target) =>
+        target.SilentWhileFollowing && _followers.Follows(actor) ? "follows"
+        : target.SilentWhileInvulnerable && actor.Invulnerable ? "invulnerable"
         : target.SilentWhileUnusable && actor.Unusable ? "unusable" : "used";
 
     private void Log(string what, ActorState a, LoopTarget target, string? cause)

@@ -640,3 +640,21 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   stayed a wall, so the guide ran out of ground and led to the portal. **Since 2026-10-19:** a followed quest moving on from a
   known phase re-arms every locked or tried door and drops every barrier not listed now. Switching the guide off and on already
   re-armed tried doors. Not live-tested; `DOOR re-armed (quest moved on)` and `MAP marker kind 10` lines tell.
+
+## 23. Prisoners that follow the player (offline census + tester report, 2026-10-20)
+
+- **Report (tester, 2026-10-19, nightmare Hallowed Stones, 0.1.13, no `--debug`):** after a portal to another level, an
+  objective "right by my character" played the prisoner (corpse) cue, kept following the player, and the guide held there,
+  pointing behind them. The log only shows the same-instance warp (`World: back in DGN_Naha_HallowedStones`).
+- **Census (`D4MemScan gizmos --match Prisoner`, build 3.2.2, H):** free-able prisoners `DGN_NPC_<Region>_Prisoner_*` are
+  NPCs on team 1 (Nahantu has only `…_Naha_{Teg,Umba}_Prisoner_{F,M}_0N_Invulnerable`); `*_Prisoner_Follower_*` actors exist
+  (CAMP_Step_Cannibal, CMP_Hawe_Crusader) on team 2, the player's. The dungeon event `DGN_Standard_NPC_Prisoner_Follower`
+  1892247 (§2) names no actor. Which actor followed is not known (no `--debug` log).
+- **Likely cause (M, from code):** a prisoner NPC has no "used" signal and loops until it leaves the actor list; the guide's
+  objective takes the actor's position every poll and is set aside only once the player is 20 units from it, which a follower
+  never allows.
+- **Since 2026-10-20 (`FollowerWatch`):** a prisoner NPC that walks 8 units while never more than 10 from the player follows
+  for good in that world (a prisoner still to free never moves), and a copy of a follower's SNO first seen within 10 units
+  (re-created after a warp) follows at once: silent (`LOOP stopped … cause=follows`), so the guide counts it done. Both
+  distances unmeasured. Prisoner switches (gizmos) are not watched. Unknown: whether `DGN_Standard_NPC_PrisonerInTrance`
+  2329531's prisoner walks while still to free, which would silence it if the player walks beside it.

@@ -347,6 +347,57 @@ public class ObjectiveTests
         Assert.Equal(0, player.ActiveCount);
     }
 
+    [Fact]
+    public void Bridge_AFreedPrisonerWalkingBesideThePlayerFallsSilentAndStopsLeading_ACagedOneTheyCircleKeepsLooping()
+    {
+        var log = new List<string>();
+        var (feed, player, bridge) = CreateBridge(log: log.Add);
+        var memory = new ObjectiveMemory(feed, sno => Actors.TryGetValue(sno, out var a) ? a.Name : null);
+        bridge.ObjectivesSeen += memory.Observe;
+        feed.RaiseWorld(WorldA);
+        var prisoner = new ActorState(5, PrisonerNpcSno, 0, 0, 0);
+        // Fighting around the cage: the player moves, the prisoner doesn't.
+        foreach (var (x, y) in new[] { (3f, 0f), (0f, 6f), (-6f, 0f), (0f, -6f), (6f, 0f) })
+        {
+            feed.RaisePlayer(new PlayerState(x, y, 0, 0));
+            feed.RaiseActors(prisoner);
+        }
+        feed.RaisePlayer(new PlayerState(6, 0, 0, 0));
+        Assert.Equal(1, player.ActiveCount);
+        Assert.Single(memory.Destinations());
+
+        // Freed, it walks at the player's heels (tester, 2026-10-19: "it just kept following my character").
+        for (float x = 6; x <= 30; x += 4)
+        {
+            feed.RaisePlayer(new PlayerState(x, 0, 0, 0));
+            feed.RaiseActors(prisoner with { X = x - 2 });
+        }
+        feed.RaisePlayer(new PlayerState(30, 0, 0, 0));
+
+        Assert.Equal(0, player.ActiveCount);
+        Assert.Contains(log, line => line.Contains("stopped") && line.Contains("cause=follows"));
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void Bridge_AFollowersNewCopyBesideThePlayerIsSilentAtOnce_OneOfItsKindFurtherOnStillLoops()
+    {
+        var (feed, player, _) = CreateBridge();
+        feed.RaiseWorld(WorldA);
+        for (float x = 0; x <= 12; x += 4)
+        {
+            feed.RaisePlayer(new PlayerState(x, 0, 0, 0));
+            feed.RaiseActors(new ActorState(5, PrisonerNpcSno, x - 2, 0, 0));
+        }
+
+        // Through a portal the game re-creates it beside the player; a caged one of the same kind waits further on.
+        feed.RaisePlayer(new PlayerState(100, 100, 0, 0));
+        feed.RaiseActors(new ActorState(6, PrisonerNpcSno, 102, 100, 0), new ActorState(7, PrisonerNpcSno, 120, 100, 0));
+        feed.RaisePlayer(new PlayerState(100, 100, 0, 0));
+
+        Assert.Equal(1, player.ActiveCount);
+    }
+
     private static ActorState Placed(int sno) => new(1, sno, 0, 0, 0);
 
     private static LoopTargetSelector Selector() => new(new HashSet<int> { PadSno }, Classifier(), Dpo);

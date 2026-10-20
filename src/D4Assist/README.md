@@ -180,6 +180,8 @@ state word; remembered by spot for the world visit, so a re-created actor stays 
 quest door) is used only by the ACD marks: operated, or `Gizmo_State` set. Chest kinds seen glowing are saved next to
 the exe in `d4assist-chests.json`, so a chest first seen already open is judged too. `--debug` logs one `LOOP started/stopped` line
 per loop with its reason (`dpo`, `gizmo`, `prisoner`, `beacon`). Prisoners loop D2R's corpse sound, the others the quest sound.
+A prisoner NPC that walks along beside the player (freed, following them, through portals too) falls silent and stops leading
+the guide (`Game/FollowerWatch`, `cause=follows`, research/dungeon-objectives.md §23).
 Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): one the game shows on the minimap
 (`MinimapActive`), or one an active quest's current phase names (resolved offline by `D4Data.Readers.QuestScriptMarkerReader`:
 a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is the quest's current step and gets the quest loop whatever it is

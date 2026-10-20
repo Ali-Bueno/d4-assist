@@ -17,7 +17,8 @@ public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
 /// <param name="EnemyCue">A boss or unique to kill: the enemy cue (EnemyCueBridge) sounds it, so its loop stays silent and only tracks it.</param>
 public sealed record LoopTarget(
     LoopKind Kind, string Sound, LoopProfile Profile, string Reason, SoundCue Cue, bool StopsWhenUsed = false, float QuietWithin = 0,
-    bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false, bool EnemyCue = false)
+    bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false, bool EnemyCue = false,
+    bool SilentWhileFollowing = false)
 {
     /// <summary>A gizmo the game can lock (quest-restricted, script-disabled): silent until it is allowed.</summary>
     public bool SilentWhileUnusable => StopsWhenUsed || Reusable;
@@ -135,8 +136,10 @@ public sealed class LoopTargetSelector
         bool reusable = reason == ObjectiveReason.WardBreaker;
         // Clone gates are spread over a boss arena, past a quest loop's 27 units: they reach as far as a portal's beacon.
         var profile = reason == ObjectiveReason.CloneGate ? LoopProfiles.Beacon : LoopProfiles.Quest;
+        // A freed prisoner walks beside the player (FollowerWatch); a prisoner gizmo stays where it was freed.
         return new LoopTarget(LoopKind.Objective, sound, profile, reason.ToString().ToLowerInvariant(), cue,
-            StopsWhenUsed: gizmo && !reusable, Reusable: gizmo && reusable, SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget);
+            StopsWhenUsed: gizmo && !reusable, Reusable: gizmo && reusable, SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget,
+            SilentWhileFollowing: reason == ObjectiveReason.Prisoner && !gizmo);
     }
 
     private static (string Sound, SoundCue Cue) SoundOf(ObjectiveReason reason) => reason switch

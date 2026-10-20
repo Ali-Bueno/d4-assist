@@ -60,6 +60,7 @@ public sealed class LoopTargetSelector
     // A boss or unique to kill: tracked for the guide, sounded by the enemy cue.
     private readonly LoopTarget _enemyKillTarget;
     private readonly CarryGoals? _carry;
+    private readonly SoulSplitBody? _soulBody;
     private readonly InteractableClassifier? _interactables;
     private readonly Func<int, bool>? _isPortal;
     private readonly Func<int, float?>? _safeZoneRadius;
@@ -80,6 +81,7 @@ public sealed class LoopTargetSelector
         _safeZoneRadius = safeZoneRadius;
         _objectives = objectives;
         _carry = objectives is null ? null : new CarryGoals(objectives);
+        _soulBody = objectives is null ? null : new SoulSplitBody(objectives);
         _dpoActors = dpoActors;
         _interactables = interactables;
         _beacon = new LoopTarget(LoopKind.ExitBeacon, QuestItemSound, LoopProfiles.Beacon, BeaconReason, SoundCue.Portal);
@@ -98,6 +100,7 @@ public sealed class LoopTargetSelector
         _worldDpoActors = _objectives is null ? new HashSet<int>() : _dpoActors(worldSno);
         _inDungeon = isDungeon;
         _carry?.Reset();
+        _soulBody?.Reset();
     }
 
     /// <summary>Null when the actor gets no loop.</summary>
@@ -165,11 +168,12 @@ public sealed class LoopTargetSelector
         };
 
     /// <summary>The actors with the quest steps the game's flags don't mark: delivering a carried item (CarryGoals) and a boss or
-    /// unique the followed quests' current phase names; called on every actor poll before <see cref="Select"/>.</summary>
+    /// unique the followed quests' current phase names, and the body a soul split left behind (SoulSplitBody); called on every
+    /// actor poll before <see cref="Select"/>.</summary>
     public IReadOnlyList<ActorState> WithQuestGoals(IReadOnlyList<ActorState> actors)
     {
         if (_objectives is not { } objectives) return actors;
-        actors = _carry!.Apply(actors, _worldDpoActors);
+        actors = _soulBody!.Apply(_carry!.Apply(actors, _worldDpoActors));
         return actors.Any(a => IsQuestFoe(a, objectives))
             ? [.. actors.Select(a => IsQuestFoe(a, objectives) ? a with { QuestStep = true } : a)]
             : actors;

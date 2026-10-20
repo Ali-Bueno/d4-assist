@@ -79,8 +79,7 @@ public class ObjectiveTests
     [InlineData(BeaconSno, ObjectiveReason.Enticement)]
     [InlineData(SkillOrbSno, ObjectiveReason.StolenSkill)] // a hostile monster, yet the player's to take back
     [InlineData(AkaratOrbSno, ObjectiveReason.AkaratLight)]
-    [InlineData(SoulMarkerSno, ObjectiveReason.SoulBody)] // the body Rathma's soul split leaves behind, silent in the game
-    [InlineData(SoulRaiserSno, ObjectiveReason.SoulBody)]
+    [InlineData(SoulRaiserSno, ObjectiveReason.SoulBody)] // marks the body Rathma's soul split leaves behind, silent in the game
     [InlineData(VesselSno, ObjectiveReason.WardBreaker)]   // before the QST_ name rule
     [InlineData(TumorSno, ObjectiveReason.Destructible)]   // a hostile structure a quest asks the player to break
     [InlineData(MinibossSno, ObjectiveReason.KillTarget)]  // a monster the dungeon's objective asks the player to kill
@@ -98,6 +97,7 @@ public class ObjectiveTests
     [InlineData(TownNoteSno)]         // an ordinary note stays a readable
     [InlineData(EnticementIconSno)]   // the attunement switch's minimap icon
     [InlineData(AkaratPillarSno)]     // the light's pillar, on the orb's own spot
+    [InlineData(SoulMarkerSno)]       // five fixed spots round Rathma's arena from the fight's start (live 2026-10-20)
     [InlineData(UnreadableSno)]       // no ActorDefinition record
     [InlineData(MummySno)]            // a breakable prop no quest names
     [InlineData(TumorPieceSno)]       // the tumor's breakable pieces: destroyables, not the structure
@@ -142,6 +142,24 @@ public class ObjectiveTests
         Assert.False(selector.Select(Placed(MinibossSno))!.StopsWhenUsed); // loops until it dies and leaves the actor list
         // A companion following the player for the quest (live: S15_Warrior_NPC_Combat, which the hub quest names) never loops.
         Assert.Null(selector.Select(Placed(MinibossSno) with { QuestFollower = true, QuestStep = true }));
+    }
+
+    [Fact]
+    public void Selector_TheSoulSplitBodyLoopsWhereItWasFirstSeen_NotWithTheSpirit()
+    {
+        // Live 2026-10-20: the resurrection actor appeared at the player as Rathma's soul split began, then followed the spirit.
+        var selector = Selector();
+        selector.SetWorld(WorldA, isDungeon: true);
+        var raiser = new ActorState(5, SoulRaiserSno, -67.4f, -0.5f, 1.4f, ClientOnly: true);
+
+        Assert.Equal((-67.4f, -0.5f), Position(selector.WithQuestGoals([raiser])));
+        Assert.Equal((-67.4f, -0.5f), Position(selector.WithQuestGoals([raiser with { X = -62.3f, Y = -5.1f }])));
+        Assert.Equal("soulbody", selector.Select(raiser)!.Reason);
+
+        selector.WithQuestGoals([]); // the split is over
+        Assert.Equal((-62.3f, -5.1f), Position(selector.WithQuestGoals([raiser with { X = -62.3f, Y = -5.1f }])));
+
+        static (float, float) Position(IReadOnlyList<ActorState> actors) => (Assert.Single(actors).X, actors[0].Y);
     }
 
     [Fact]

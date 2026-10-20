@@ -690,6 +690,11 @@ In the Rathma fight of "The Weight of a Blade" (QST_X2_Skov_Lycander_05, CSD_Sko
 `npcM_Rathma_boss` 2261914) the boss tears the player's spirit out, and it must get back to the body quickly; the body makes no
 sound (user, 2026-10-20). The actor data names the mechanic `SoulSplit`: `Rathma_Boss_SoulSplit_Location_Marker` 2502285 (eType 1,
 team 19), `Rathma_SoulSplit_resurection_invisibleActor` 2560454 (eType 3), `Rathma_SoulSplit_Trail` 2560422 (eType 3) and
-`vfx_Rathma_SoulSplit_*` effects. The app loops the first two with the quest sound (`ObjectiveReason.SoulBody`). Unchecked live:
-which of them stands on the body, whether eType 3 actors reach the actor list, and whether the player position read follows the
-spirit or the body. A `--debug` log of the fight answers all three (`LOOP started (Objective): Rathma_… reason=soulbody … distance=`).
+`vfx_Rathma_SoulSplit_*` effects.
+
+Live, the same day (`--debug`, one split, the player died in it): the Location_Markers are five fixed spots round the arena
+middle ((-65,-3) to (-71,2)), listed from the fight's start, so they are not the body. The resurrection actor (client-only) was
+listed only during the split: first 0.2 units from the player as it began (18:08:07, three seconds after Rathma's line
+`QST_X2_Skov_Lycander_05_331`), then it followed the player position read, which is the spirit's (gone at the death menu 7 units
+on, still 0.0 from the player). The body itself has no actor in the list. So the app loops the resurrection actor with the quest
+sound at the spot it was first seen (`SoulSplitBody`, `ObjectiveReason.SoulBody`).

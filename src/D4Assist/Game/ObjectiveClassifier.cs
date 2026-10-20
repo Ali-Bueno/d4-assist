@@ -34,9 +34,9 @@ public sealed class ObjectiveClassifier(
     private const string AkaratLightName = "Akarat_Orb";
 
     // Rathma's soul split: he tears the player's spirit out, and it must hurry back to the body it left, which makes no sound
-    // (user request 2026-10-20, "Das Gewicht einer Klinge"). The marker the boss places and the actor that raises the player
-    // again are the two the data names for it; which one stands on the body is unchecked live.
-    private static readonly string[] SoulBodyNames = ["Rathma_Boss_SoulSplit_Location_Marker", "Rathma_SoulSplit_resurection_invisibleActor"];
+    // (user request 2026-10-20, "Das Gewicht einer Klinge"). The resurrection actor appears as the split begins (SoulSplitBody
+    // keeps it on the body); the boss's Location_Markers are five fixed spots round the arena, there from the fight's start.
+    private const string SoulBodyName = "Rathma_SoulSplit_resurection_invisibleActor";
 
     // The Horadric Guardian's four vessels (QST_Skov_Skartara_WardBreakerShrine_Kulle/Rasha/Fahd/Cain), one per sigil: the
     // one matching the barrier's symbol breaks it, again at every barrier (research/dungeon-objectives.md §11).
@@ -91,6 +91,9 @@ public sealed class ObjectiveClassifier(
     /// <summary>True for an orb holding one of the skills Mephisto stole from the player.</summary>
     public bool IsStolenSkill(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.StolenSkill;
 
+    /// <summary>True for the actor marking the body Rathma's soul split leaves behind.</summary>
+    public bool IsSoulBody(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.SoulBody;
+
     /// <summary>True for an item the player carries to a receptacle (relics, idols, stone carvings).</summary>
     public bool IsCarryable(int actorSno) => TraitsOf(actorSno)?.IsCarryable == true;
 
@@ -124,7 +127,7 @@ public sealed class ObjectiveClassifier(
         if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
         if (name?.Contains(StolenSkillToken, StringComparison.OrdinalIgnoreCase) == true) return ObjectiveReason.StolenSkill;
         if (string.Equals(name, AkaratLightName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.AkaratLight;
-        if (SoulBodyNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return ObjectiveReason.SoulBody;
+        if (string.Equals(name, SoulBodyName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.SoulBody;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(WardBreakerToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.WardBreaker;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(EnticementToken, StringComparison.OrdinalIgnoreCase) == true)

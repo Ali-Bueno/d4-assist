@@ -13,6 +13,7 @@ public class QuestRouteTests
     // The sandstorm crossing as the game data places it (MarkerSet 577564, research/campaign-routes.md).
     private static readonly Vector2 Start = new(-491.6f, 45.1f);
     private static readonly Vector2 A = new(-573.2f, 40.2f), B = new(-476.6f, -31.7f), C = new(-516.1f, -142.7f);
+    private static readonly Vector2 PalaceSteps = new(-672.6f, 7.0f); // QST_Kehj_EliasPalace_03's Meshif
     private const string World = "Sanctuary_Eastern_Continent";
     private const int GuideActor = 576066, OtherActor = 12;
 
@@ -73,6 +74,13 @@ public class QuestRouteTests
     }
 
     [Fact]
+    public void Ending_on_the_palace_steps_orders_the_shelters_as_the_quest_phases_name_them()
+    {
+        // Phases 452, 571 and 698 of QST_Kehj_EliasPalace_02 name B, C, A; the 2026-10-19 log ran them in that order.
+        Assert.Equal([B, C, A], RouteOrder.FromStart(Start, [A, B, C], PalaceSteps));
+    }
+
+    [Fact]
     public void Joining_at_the_start_or_between_points_targets_the_end_of_the_nearest_leg()
     {
         var guide = new RouteGuide(Start, [A, B, C], QuestRouteBridge.ReachRadius);
@@ -108,6 +116,7 @@ public class QuestRouteTests
     {
         (24, "Kehj_Ridge (Kehj_Ridge_Subzone_EliasPalace_Sandstorm)") => 577564,
         (31, "VGN_Kehj_EliasPalace_Sandstorm") => 577560,
+        (31, "QST_Kehj_EliasPalace_03") => 574673,
         (1, "BCD_Trigger_EliasPalace_SafeZone") => 972175,
         (1, "NPC_QST_Kehj_EliasPalace_Guide") => GuideActor,
         _ => null,
@@ -123,24 +132,44 @@ public class QuestRouteTests
         new(1, 972175, new Vector3(B, 33.1f)),
     ];
 
+    // The next quest's scripts name Meshif on the palace steps and a noble; the route's end is the Meshif marker.
+    private static IReadOnlyList<PlacedMarker> NextQuestMarkers(int quest) => quest == 574673
+        ? [new(1, GuideActor, new Vector3(PalaceSteps, 50f)), new(1, OtherActor, new Vector3(-720.1f, -41.1f, 50f))]
+        : [];
+
     [Fact]
-    public void Loading_takes_the_quest_marker_as_start_and_orders_the_target_markers()
+    public void Loading_takes_the_quest_marker_as_start_the_next_quests_guide_as_end_and_orders_the_target_markers()
     {
-        var route = QuestRouteLoader.Load(QuestRouteCatalog.SandstormShelters, Groups, Resolve, SandstormMarkers, _ => { });
+        var route = QuestRouteLoader.Load(QuestRouteCatalog.SandstormShelters, Groups, Resolve, SandstormMarkers, NextQuestMarkers, _ => { });
 
         Assert.NotNull(route);
         Assert.Equal(Start, route.Start);
-        Assert.Equal([A, B, C], route.Points);
+        Assert.Equal([B, C, A], route.Points);
+        Assert.Equal(PalaceSteps, route.End);
+        Assert.Equal([B, C, A, PalaceSteps], route.Path);
         Assert.True(route.ActivationSnos.SetEquals([GuideActor, 972175])); // the other names aren't resolvable here
+    }
+
+    [Fact]
+    public void Without_a_single_end_marker_the_route_ends_at_its_last_point_with_a_log_line()
+    {
+        var log = new List<string>();
+        var route = QuestRouteLoader.Load(QuestRouteCatalog.SandstormShelters, Groups, Resolve, SandstormMarkers, _ => [], log.Add);
+
+        Assert.NotNull(route);
+        Assert.Null(route.End);
+        Assert.Equal([A, B, C], route.Points);
+        Assert.Single(log);
     }
 
     [Fact]
     public void A_missing_name_or_quest_marker_turns_the_route_off_with_a_log_line()
     {
         var log = new List<string>();
-        Assert.Null(QuestRouteLoader.Load(QuestRouteCatalog.SandstormShelters, Groups, (_, _) => null, SandstormMarkers, log.Add));
+        Assert.Null(QuestRouteLoader.Load(QuestRouteCatalog.SandstormShelters, Groups, (_, _) => null, SandstormMarkers, NextQuestMarkers, log.Add));
         Assert.Null(QuestRouteLoader.Load(
-            QuestRouteCatalog.SandstormShelters, Groups, Resolve, set => [.. SandstormMarkers(set).Where(m => m.Group != 31)], log.Add));
+            QuestRouteCatalog.SandstormShelters, Groups, Resolve, set => [.. SandstormMarkers(set).Where(m => m.Group != 31)],
+            NextQuestMarkers, log.Add));
         Assert.Equal(2, log.Count);
     }
 
@@ -158,7 +187,7 @@ public class QuestRouteTests
         public Rig()
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
-            var route = new LoadedQuestRoute(QuestRouteCatalog.SandstormShelters, new HashSet<int> { GuideActor }, Start, [A, B, C]);
+            var route = new LoadedQuestRoute(QuestRouteCatalog.SandstormShelters, new HashSet<int> { GuideActor }, Start, [A, B, C], PalaceSteps);
             _ = new QuestRouteBridge(Feed, [route], Ping, Speech, pad: Pad);
             Feed.RaiseWorld(World);
         }
@@ -195,6 +224,22 @@ public class QuestRouteTests
 
         Assert.Equal(["Guía de refugios."], rig.Speech.Texts);
         Assert.True(rig.Pings());
+    }
+
+    [Fact]
+    public void The_guide_at_another_quests_place_never_starts_the_route()
+    {
+        // The drug den on the riverbank, far from the route: no start, so no start-and-stop on every poll.
+        var rig = new Rig();
+        rig.Move(new Vector2(-60, 90));
+        for (int i = 0; i < 3; i++) rig.Feed.RaiseActors(new ActorState(2, GuideActor, -63.0f, 93.3f, 0));
+
+        // The Forsaken Chapel, inside the route's area but 67 units from the nearest shelter.
+        rig.Move(new Vector2(-430, -70));
+        rig.Feed.RaiseActors(new ActorState(2, GuideActor, -422.9f, -72.0f, 0));
+
+        Assert.Empty(rig.Speech.Spoken);
+        Assert.False(rig.Pings());
     }
 
     [Fact]
@@ -239,7 +284,7 @@ public class QuestRouteTests
     }
 
     [Fact]
-    public void Each_shelter_is_announced_and_the_finished_route_does_not_restart()
+    public void After_the_last_shelter_the_ping_leads_on_to_the_end_and_the_finished_route_does_not_restart()
     {
         var rig = new Rig();
         rig.Move(Start);
@@ -247,10 +292,16 @@ public class QuestRouteTests
         rig.Move(A);
         rig.Move(B);
         rig.Move(C);
+        Assert.False(rig.Pings()); // waiting out the last storm
+        rig.Move(C + new Vector2(-12, 12)); // following Meshif toward the palace
+        Assert.True(rig.Pings());
+
+        rig.Move(PalaceSteps);
         rig.Feed.RaiseActors(new ActorState(2, GuideActor, C.X, C.Y, 0));
         rig.Move(C + new Vector2(1, 0));
 
-        Assert.Equal(["Guía de refugios.", "Refugio 1 de 3.", "Refugio 2 de 3.", "Refugio 3 de 3."], rig.Speech.Texts);
+        Assert.Equal(
+            ["Guía de refugios.", "Refugio 1 de 3.", "Refugio 2 de 3.", "Refugio 3 de 3.", "Fin de la guía de refugios."], rig.Speech.Texts);
         Assert.False(rig.Pings());
     }
 

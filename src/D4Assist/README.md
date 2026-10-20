@@ -44,7 +44,7 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   a story area (the Darkened Way, Tristram, the hells, the Mercenary den) and gets the radar too (`WorldKind.RadarOnly`,
   see `RadarOnlyWorlds`). Beacons, objective sounds and the quest routes run in both.
 - Leads through known campaign routes with the guide ping, e.g. shelter to shelter in the desert sandstorm quest with
-  Meshif (`Game/QuestRouteBridge`, see Quest routes).
+  Meshif and on to the palace steps (`Game/QuestRouteBridge`, see Quest routes).
 
 Controller input and the rest of the announcement content are future work — see `STATUS.md` P4-P6.
 
@@ -384,20 +384,25 @@ mid-dungeon still knows nothing of the way already walked, and takes the arrival
 the exploration guide's ping, aimed straight at the next point: the open world's walk grid isn't loaded, so there
 is no path to follow. Each route is resolved offline at startup (`QuestRouteLoader`). Its points are the target actor's
 markers in the quest's subzone MarkerSet, and its start is the marker that set holds for the quest itself. The points
-are visited in the shortest walk from that start (`RouteOrder`). Data and reasoning:
-[campaign-routes](../../research/campaign-routes.md).
+are visited in the shortest walk from that start to the route's end (`RouteOrder`). A route may end past its last
+point: the one marker of a named actor that the next quest's scripts name (`QuestRoute.EndQuest`/`EndActor`). Data and
+reasoning: [campaign-routes](../../research/campaign-routes.md).
 
-- A route starts when one of its quest actors appears in the live actor list, or when the player stands within
-  15 units of the quest marker. It speaks "Guía de refugios." and joins at the end of the nearest leg (`RouteGuide`).
+- A route starts when one of its quest actors appears in the live actor list within 15 units of the quest marker or
+  of a point, with the player inside the route's area, or when the player stands within 15 units of the quest marker.
+  The guide NPC also stands at other quests' places (the drug den, the Forsaken Chapel, the palace steps), which never
+  start it. It speaks "Guía de refugios." and joins at the end of the nearest leg (`RouteGuide`).
 - Within 4 units of a point it chimes and speaks "Refugio 1 de 3."; reaching a later point passes the earlier ones.
   The ping then holds while the player stays within 10 units of that point (a shelter is where they wait out the
   storm; the game's own audio says when it ends), and leads on to the next point once they step out. After the last
-  point it stops and doesn't restart until the world changes.
-- It stops when the player is more than 150 units from the start and from every point, and on any world change.
+  point it leads on to the route's end, if it has one; there it chimes, speaks "Fin de la guía de refugios.", stops and
+  doesn't restart until the world changes.
+- It stops when the player is more than 150 units from the start, every point and the end, and on any world change.
 - `--debug` logs the loaded routes at startup and one `ROUTE` line per start, point, stop and mute.
 
 The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalace_SafeZone` safe zones of
-`VGN_Kehj_EliasPalace_Sandstorm`. **Not live-tested yet.**
+`VGN_Kehj_EliasPalace_Sandstorm`, ending where `QST_Kehj_EliasPalace_03` has Meshif on the palace steps. A player's log
+(2026-10-19, no `--debug`) confirms the order; the route itself is not live-tested with `--debug` yet.
 
 ## Controls
 

@@ -11,17 +11,19 @@ namespace D4Assist.Game;
 /// <summary>
 /// Leads through a campaign route (<see cref="QuestRouteCatalog"/>) with the guide ping, straight at the next point:
 /// the overworld has no detailed walkable grid to path on (research/campaign-routes.md). A route starts when one of its
-/// quest actors shows up in the live actor list, or when the player stands at the quest's own marker. It ends at its
-/// last point, when the player leaves its area, or on a world change; a finished route doesn't restart in the same
-/// world visit. After each point the ping holds while the player stays there (a shelter is where they wait out the
-/// storm) and leads on once they step away. D-pad left mutes and unmutes the ping while a route leads.
+/// quest actors shows up in the live actor list at its start or at one of its points (the guide NPC also stands at other
+/// quests' places), or when the player stands at the quest's own marker. It ends at its end (or last point), when the
+/// player leaves its area, or on a world change; a finished route doesn't restart in the same world visit. After each
+/// point the ping holds while the player stays there (a shelter is where they wait out the storm) and leads on once they
+/// step away. D-pad left mutes and unmutes the ping while a route leads.
 /// </summary>
 public sealed class QuestRouteBridge
 {
     /// <summary>A point counts as reached this close to its marker; the safe-zone trigger's own size isn't in the data.</summary>
     public const float ReachRadius = 4f;
 
-    /// <summary>Standing this close to the quest's marker starts the route when none of its actors is visible live.</summary>
+    /// <summary>Standing this close to the quest's marker starts the route when none of its actors is visible live; a quest actor
+    /// starts it this close to the marker or to a point.</summary>
     public const float StartRadius = 15f;
 
     /// <summary>Farther than this from the start and every point, the player has left the route.</summary>
@@ -81,10 +83,11 @@ public sealed class QuestRouteBridge
 
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
-        if (_active is not null) return;
-        foreach (var route in _worldRoutes.Where(r => !_finished.Contains(r.Route.Name)))
+        if (_active is not null || _player is not { } player) return;
+        foreach (var route in _worldRoutes.Where(r => !_finished.Contains(r.Route.Name) && InArea(r, player)))
         {
-            if (actors.FirstOrDefault(a => route.ActivationSnos.Contains(a.ActorSno)) is not { } seen) continue;
+            if (actors.FirstOrDefault(a => route.ActivationSnos.Contains(a.ActorSno) && AtStartOrPoint(route, new Vector2(a.X, a.Y)))
+                is not { } seen) continue;
             Start(route, $"actor {_nameOf(seen.ActorSno) ?? seen.ActorSno.ToString()} at ({seen.X:F1},{seen.Y:F1})");
             return;
         }
@@ -105,12 +108,12 @@ public sealed class QuestRouteBridge
     private void Start(LoadedQuestRoute route, string reason)
     {
         _active = route;
-        _guide = new RouteGuide(route.Start, route.Points, ReachRadius);
+        _guide = new RouteGuide(route.Start, route.Path, ReachRadius);
         if (_player is { } player)
         {
             _guide.JoinAt(player);
-            if (_guide.Reached > 0 && Vector2.Distance(player, route.Points[_guide.Reached - 1]) <= HoldRadius)
-                _holdAt = route.Points[_guide.Reached - 1]; // started while waiting at a point
+            if (_guide.Reached > 0 && Vector2.Distance(player, route.Path[_guide.Reached - 1]) <= HoldRadius)
+                _holdAt = route.Path[_guide.Reached - 1]; // started while waiting at a point
         }
         Log($"ROUTE {route.Route.Name} started ({reason}), next point {_guide.Reached + 1} of {_guide.Count}");
         _speech.Speak(AppStrings.For(_language.Current).RouteStarted(route.Route.Kind), interrupt: false);
@@ -131,14 +134,17 @@ public sealed class QuestRouteBridge
         {
             if (!_muted) _ping.PlayArrived();
             Log($"ROUTE {route.Route.Name} reached point {guide.Reached} of {guide.Count} at ({player.X:F1},{player.Y:F1})");
-            _speech.Speak(AppStrings.For(_language.Current).RoutePointReached(route.Route.Kind, guide.Reached, guide.Count), interrupt: false);
+            var strings = AppStrings.For(_language.Current);
+            _speech.Speak(guide.Reached <= route.Points.Count
+                ? strings.RoutePointReached(route.Route.Kind, guide.Reached, route.Points.Count)
+                : strings.RouteEndReached(route.Route.Kind), interrupt: false);
             if (guide.Finished)
             {
                 _finished.Add(route.Route.Name);
                 Stop();
                 return;
             }
-            _holdAt = route.Points[guide.Reached - 1];
+            _holdAt = route.Path[guide.Reached - 1];
         }
 
         if (_holdAt is { } hold && Vector2.Distance(player, hold) > HoldRadius)
@@ -152,7 +158,10 @@ public sealed class QuestRouteBridge
     }
 
     private static bool InArea(LoadedQuestRoute route, Vector2 player) =>
-        Vector2.Distance(player, route.Start) <= AreaRadius || route.Points.Any(p => Vector2.Distance(player, p) <= AreaRadius);
+        Vector2.Distance(player, route.Start) <= AreaRadius || route.Path.Any(p => Vector2.Distance(player, p) <= AreaRadius);
+
+    private static bool AtStartOrPoint(LoadedQuestRoute route, Vector2 at) =>
+        Vector2.Distance(at, route.Start) <= StartRadius || route.Points.Any(p => Vector2.Distance(at, p) <= StartRadius);
 
     private void Stop()
     {

@@ -43,5 +43,6 @@ public sealed partial record AppStrings
         UpdateOnlyDownloaded: "更新仅适用于下载的版本。",
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "已更新到版本 {0}。",
-        GuideDungeonsOnly: "向导仅在地下城中有效。");
+        GuideDungeonsOnly: "向导仅在地下城中有效。",
+        ShelterRouteEnd: "避难所向导结束。");
 }

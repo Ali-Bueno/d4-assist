@@ -487,16 +487,19 @@ internal static class Program
     private static IReadOnlyList<LoadedQuestRoute> LoadQuestRoutes(SnoStore store, TypeSchema schema, object cascGate, bool debug)
     {
         var markers = new MarkerReader(store, schema);
+        var questScripts = new QuestScriptMarkerReader(store, schema, markers);
         var groups = new QuestRouteGroups(schema.SnoGroup(MarkerSetType), schema.SnoGroup(QuestDefinitionType), schema.SnoGroup(ActorDefinitionType));
         List<LoadedQuestRoute> routes;
         lock (cascGate)
             routes = [.. QuestRouteCatalog.All
-                .Select(route => QuestRouteLoader.Load(route, groups, (group, name) => SnoOrNull(store, group, name), markers.ReadAll, Console.WriteLine))
+                .Select(route => QuestRouteLoader.Load(
+                    route, groups, (group, name) => SnoOrNull(store, group, name), markers.ReadAll, questScripts.Markers, Console.WriteLine))
                 .OfType<LoadedQuestRoute>()];
         if (debug)
             foreach (var r in routes)
                 Console.WriteLine($"Quest route {r.Route.Name}: start ({r.Start.X:F1},{r.Start.Y:F1}), points " +
-                    string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) + $", {r.ActivationSnos.Count} activation actors.");
+                    string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) +
+                    (r.End is { } end ? $", end ({end.X:F1},{end.Y:F1})" : "") + $", {r.ActivationSnos.Count} activation actors.");
         return routes;
     }
 

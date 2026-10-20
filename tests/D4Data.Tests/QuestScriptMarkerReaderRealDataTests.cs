@@ -115,4 +115,26 @@ public class QuestScriptMarkerReaderRealDataTests
         Assert.Contains(quest, reader.QuestsNaming([(wardstoneBase, new System.Numerics.Vector3(-1767.8f, -487.6f, 0))], reach: 2));
         Assert.DoesNotContain(quest, reader.QuestsNaming([(wardstoneBase, new System.Numerics.Vector3(-1700f, -487.6f, 0))], reach: 2));
     }
+
+    [Fact]
+    public void TheSandstormQuestNamesItsSheltersPhaseByPhaseAndTheNextQuestHasMeshifOnThePalaceSteps()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+        int quest = schema.SnoGroup("QuestDefinition"), actor = schema.SnoGroup("ActorDefinition");
+        int safeZone = store.Resolve(actor, "BCD_Trigger_EliasPalace_SafeZone"), guide = store.Resolve(actor, "NPC_QST_Kehj_EliasPalace_Guide");
+
+        // research/campaign-routes.md §2: the 2026-10-19 log ran phases 452, 571, 698 in this order.
+        var shelters = reader.PhaseObjects(store.Resolve(quest, "QST_Kehj_EliasPalace_02"))
+            .SelectMany(p => p.Markers.Where(m => m.Sno == safeZone).Select(m => (p.PhaseUid, m.Position.X, m.Position.Y)))
+            .ToList();
+        Assert.Equal([452u, 571u, 698u], shelters.Select(s => s.PhaseUid));
+        Assert.Equal([-476.6f, -516.1f, -573.2f], shelters.Select(s => MathF.Round(s.X, 1)));
+
+        var meshif = Assert.Single(reader.Markers(store.Resolve(quest, "QST_Kehj_EliasPalace_03")), m => m.Sno == guide);
+        Assert.Equal(-672.6f, meshif.Position.X, 0.5f);
+        Assert.Equal(7.0f, meshif.Position.Y, 0.5f);
+    }
 }

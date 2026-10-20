@@ -11,10 +11,11 @@ public static class QuestRouteLoader
 {
     /// <param name="resolve">CoreTOC id of a name in a group; null when the name is missing.</param>
     /// <param name="readMarkers">Every marker of a marker set (MarkerReader.ReadAll).</param>
+    /// <param name="questMarkers">The markers a quest's scripts name (QuestScriptMarkerReader.Markers), for the route's end.</param>
     /// <returns>Null, with a log line, when a name is missing or the marker set lacks the quest or target markers.</returns>
     public static LoadedQuestRoute? Load(
         QuestRoute route, QuestRouteGroups groups, Func<int, string, int?> resolve,
-        Func<int, IReadOnlyList<PlacedMarker>> readMarkers, Action<string> log)
+        Func<int, IReadOnlyList<PlacedMarker>> readMarkers, Func<int, IReadOnlyList<PlacedMarker>> questMarkers, Action<string> log)
     {
         if (resolve(groups.MarkerSet, route.MarkerSet) is not { } markerSet
             || resolve(groups.Quest, route.Quest) is not { } quest
@@ -34,7 +35,21 @@ public static class QuestRouteLoader
         }
 
         var activation = route.ActivationActors.Select(name => resolve(groups.Actor, name)).OfType<int>().ToHashSet();
-        return new LoadedQuestRoute(route, activation, Flat(start.Position), RouteOrder.FromStart(Flat(start.Position), points));
+        var from = Flat(start.Position);
+        var end = End(route, groups, resolve, questMarkers, log);
+        return new LoadedQuestRoute(route, activation, from, RouteOrder.FromStart(from, points, end), end);
+    }
+
+    private static Vector2? End(
+        QuestRoute route, QuestRouteGroups groups, Func<int, string, int?> resolve, Func<int, IReadOnlyList<PlacedMarker>> questMarkers,
+        Action<string> log)
+    {
+        if (route.EndQuest is null || route.EndActor is null) return null;
+        if (resolve(groups.Quest, route.EndQuest) is { } quest && resolve(groups.Actor, route.EndActor) is { } actor
+            && questMarkers(quest).Where(m => m.Group == groups.Actor && m.Sno == actor).ToList() is [var marker])
+            return Flat(marker.Position);
+        log($"Quest route '{route.Name}': no single {route.EndActor} marker in {route.EndQuest}; the route ends at its last point.");
+        return null;
     }
 
     private static Vector2 Flat(Vector3 p) => new(p.X, p.Y);

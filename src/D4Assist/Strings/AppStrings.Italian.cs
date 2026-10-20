@@ -43,5 +43,6 @@ public sealed partial record AppStrings
         UpdateOnlyDownloaded: "Gli aggiornamenti funzionano solo nella versione scaricata.",
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Aggiornato alla versione {0}.",
-        GuideDungeonsOnly: "La guida funziona solo nei dungeon.");
+        GuideDungeonsOnly: "La guida funziona solo nei dungeon.",
+        ShelterRouteEnd: "Guida ai rifugi terminata.");
 }

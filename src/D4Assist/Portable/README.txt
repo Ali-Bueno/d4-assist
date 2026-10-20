@@ -168,7 +168,8 @@ sound, guide ping and arrival.
 Left on the D-pad turns the guide on and off in dungeons (Xbox controllers,
 and PlayStation's DualSense or DualShock 4); elsewhere it tells you the guide
 only works in dungeons. In the desert sandstorm quest it
-mutes and unmutes the ping that leads you between shelters. While a game menu
+mutes and unmutes the ping that leads you from shelter to shelter and on to
+Meshif on the palace steps. While a game menu
 is open the D-pad does nothing, because there it belongs to the game. On the
 keyboard, Ctrl+Alt+Shift+G does the same as left on the D-pad, also in menus.
 

@@ -43,5 +43,6 @@ public sealed partial record AppStrings
         UpdateOnlyDownloaded: "Aktualizacje działają tylko w pobranej wersji.",
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Zaktualizowano do wersji {0}.",
-        GuideDungeonsOnly: "Przewodnik działa tylko w lochach.");
+        GuideDungeonsOnly: "Przewodnik działa tylko w lochach.",
+        ShelterRouteEnd: "Przewodnik po schronieniach zakończony.");
 }

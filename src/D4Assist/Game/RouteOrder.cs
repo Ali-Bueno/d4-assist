@@ -2,14 +2,15 @@ using System.Numerics;
 
 namespace D4Assist.Game;
 
-/// <summary>Orders a route's points as the shortest walk from its start through all of them. Marker sets list points in
-/// no particular order; for the sandstorm shelters this gives the order their storm triggers sit between.</summary>
+/// <summary>Orders a route's points as the shortest walk from its start through all of them, on to its end when it has one.
+/// Marker sets list points in no particular order; for the sandstorm shelters this gives the order the quest's phases name
+/// them in (research/campaign-routes.md §2).</summary>
 public static class RouteOrder
 {
     // 8! = 40320 orders is instant; longer routes fall back to nearest-neighbour.
     public const int ExhaustiveLimit = 8;
 
-    public static IReadOnlyList<Vector2> FromStart(Vector2 start, IReadOnlyList<Vector2> points)
+    public static IReadOnlyList<Vector2> FromStart(Vector2 start, IReadOnlyList<Vector2> points, Vector2? end = null)
     {
         if (points.Count > ExhaustiveLimit) return NearestNeighbour(start, points);
 
@@ -17,18 +18,18 @@ public static class RouteOrder
         float bestLength = float.MaxValue;
         foreach (var order in Permutations([.. Enumerable.Range(0, points.Count)], 0))
         {
-            float length = WalkLength(start, points, order);
+            float length = WalkLength(start, points, order, end);
             if (length < bestLength) (bestLength, best) = (length, [.. order]);
         }
         return [.. best.Select(i => points[i])];
     }
 
-    private static float WalkLength(Vector2 start, IReadOnlyList<Vector2> points, int[] order)
+    private static float WalkLength(Vector2 start, IReadOnlyList<Vector2> points, int[] order, Vector2? end)
     {
         float length = 0;
         var at = start;
         foreach (int i in order) { length += Vector2.Distance(at, points[i]); at = points[i]; }
-        return length;
+        return end is { } last ? length + Vector2.Distance(at, last) : length;
     }
 
     // Yields every ordering of items[from..] in place; callers copy what they keep.

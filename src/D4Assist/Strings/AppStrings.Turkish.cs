@@ -43,5 +43,6 @@ public sealed partial record AppStrings
         UpdateOnlyDownloaded: "Güncellemeler yalnızca indirilen sürümde çalışır.",
         UpdateProgressFormat: "%{0}",
         UpdatedToFormat: "{0} sürümüne güncellendi.",
-        GuideDungeonsOnly: "Rehber yalnızca zindanlarda çalışır.");
+        GuideDungeonsOnly: "Rehber yalnızca zindanlarda çalışır.",
+        ShelterRouteEnd: "Sığınak rehberi tamamlandı.");
 }

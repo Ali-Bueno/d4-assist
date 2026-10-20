@@ -43,5 +43,6 @@ public sealed partial record AppStrings
         UpdateOnlyDownloaded: "Обновления работают только в скачанной версии.",
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Обновлено до версии {0}.",
-        GuideDungeonsOnly: "Проводник работает только в подземельях.");
+        GuideDungeonsOnly: "Проводник работает только в подземельях.",
+        ShelterRouteEnd: "Проводник по укрытиям завершён.");
 }

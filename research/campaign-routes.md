@@ -41,10 +41,22 @@ holds only a row of 6 invisible collision cubes at X≈−491, Y 22..59.
 - **Meshif** in this quest is the guide actor 576066: its definition references `npcM_Meshif` 1062927, and its
   appearance is `npcM_base_invisible` (M-H). The actors that are literally named Meshif (1798412, 2053597) are
   Nahantu content and unrelated.
-- **Visiting order** (L-M): shortest walk from the quest marker gives safe zone 1 (−573, 40), then 2 (−477, −32),
-  then 3 (−516, −143). That is about 320 units in all, against about 388 for the next best order. The Y coordinate falls
-  monotonically westward along it, and the highwind triggers sit on legs 1→2 and 2→3 (the one at (−501.6, −95.2)
-  lies on leg 2→3). Nearest-first from the start would wrongly pick zone 2 (78 units) before zone 1 (82).
+- **Visiting order** (H, corrected 2026-10-19): (−477, −32), then (−516, −143), then (−573, 40), then Meshif on the
+  palace steps (−672.6, 7.0). The campaign quest `QST_Kehj_EliasPalace_02` (574671, "Flesh from Bone") names one safe
+  zone per phase: 452 → (−476.6, −31.7), 571 → (−516.1, −142.7), 698 → (−573.2, 40.2); then 729 a trigger at
+  (−656.5, 24.8) and 740 ("Meet Meshif on the palace steps") triggers at (−672.6, 7.0). A player's log (2026-10-19)
+  ran 452 → 571 → 698 → 740 in that order. The shortest walk from the quest marker that ends on the palace steps gives
+  this order (≈493 units, next best ≈534); without the end it gave (−573, 40) first, which was wrong.
+- **Route end:** `QST_Kehj_EliasPalace_03` (574673, "Beneath the Mask") phase 124 ("Meet Meshif at the entrance to the
+  Outer Gardens") names exactly one guide marker, (−672.6, 7.0), in `Kehj_Ridge_Subzone_EliasPalace_01` (H). The palace
+  dungeon's entrance (`Portal_Dungeon_Generic` → `CSD_Kehj_Magnus_EliasPalace`) is at (−727.9, −44.4) (H, `global_markers`).
+- **The guide NPC stands at other quests' places** (H): `QST_Kehj_EliasPalace_01`'s drug den on the Argentek Riverbank
+  (−63.0, 93.3, "Find the drug den entrance"), the Forsaken Chapel (−422.9, −72.0, `_02` phases 44/170), the crossing's
+  start (−480.3, 43.6) and the palace steps (−672.6, 7.0). It is in the client's live actor list (M: at the drug den the
+  0.1.12 route started on it, stopped for being out of the area, and repeated "Shelter guide." every poll). The route
+  therefore starts on a quest actor only within 15 units of the quest marker or of a shelter.
+- Quest step texts: StringList `Quest_<quest name>`, labels `Phase<uid>OutsideSubzoneHeader` / `Callback<n>Header`
+  (enUS read through `SnoStore.Strings`).
 - **Safe zone size** (corrected 2026-10-01): the actor bounds say nothing, but the trigger's proximity shape does: a box
   with `wvOBB` (5, 5, 5), most likely half-extents (M). `BCD_Trigger_Sphere_8m` is r 4 (the name gives the diameter).
   Reader and evidence: [dungeon-objectives](dungeon-objectives.md) §10. The route counts a zone reached within 4 units.
@@ -61,7 +73,7 @@ holds only a row of 6 invisible collision cubes at X≈−491, Y 22..59.
 
 ## 3. Open questions (need a live session in the quest)
 
-- Which of these actors the client's RActor list shows: the guide 576066, the safe zone 972175, the highwind
+- Which of these actors the client's RActor list shows: the guide 576066 (yes, M, see §2), the safe zone 972175, the highwind
   978721, the tornado parent `VGN_Kehj_EliasPalace_Sandstorm_Tornado_Invisible_Parent` 1085730, and
   `environmentVFX_sandstorm_safeZone_wisps` 1362992. The triggers are server-side gizmos (eType 2, gizmo 44) and
   may be invisible (L). The app starts the route on any of them, or on standing at the quest marker.

@@ -43,5 +43,6 @@ public sealed partial record AppStrings
         UpdateOnlyDownloaded: "更新はダウンロードしたバージョンでのみ使えます。",
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "バージョン {0} に更新しました。",
-        GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。");
+        GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。",
+        ShelterRouteEnd: "避難所ガイド終了。");
 }

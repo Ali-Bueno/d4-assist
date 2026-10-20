@@ -717,4 +717,5 @@ to (-68.0,-2.1) and on to (-63.1,-7.2): the spirit, thrown out, and the player r
 and `vfx_Rathma_SpiritSplit_sphereCoaster` copies appear with the spirit and move with it; two `Rathma_SoulSplit_Trail` actors
 hover about 1 unit beside it. The beam stands on the body the whole split. So the earlier pinned loop sat where the spirit
 landed, 5.6 units from the body, and the player walked back to exactly that spot (ended at (-67.5,-1.7)). The loop now sounds at
-the beam (`SoulSplitBody`; with no beam listed, where the resurrection actor was first seen).
+the beam (`SoulSplitBody`; with no beam listed, where the resurrection actor was first seen). Fifth live run: the loop led the
+player back to the body and the fight was won.

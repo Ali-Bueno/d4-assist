@@ -38,6 +38,11 @@ public sealed class ObjectiveClassifier(
     // keeps it on the body); the boss's Location_Markers are five fixed spots round the arena, there from the fight's start.
     private const string SoulBodyName = "Rathma_SoulSplit_resurection_invisibleActor";
 
+    // The rune light beam the player is pulled into as the split begins; it stands on the body until the split ends
+    // (vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02).
+    private const string SoulSplitBeamToken = "SoulSplit_rune_lightbeams";
+    private readonly ConcurrentDictionary<int, bool> _beams = new();
+
     // The Horadric Guardian's four vessels (QST_Skov_Skartara_WardBreakerShrine_Kulle/Rasha/Fahd/Cain), one per sigil: the
     // one matching the barrier's symbol breaks it, again at every barrier (research/dungeon-objectives.md §11).
     private const string WardBreakerToken = "WardBreakerShrine";
@@ -93,6 +98,10 @@ public sealed class ObjectiveClassifier(
 
     /// <summary>True for the actor marking the body Rathma's soul split leaves behind.</summary>
     public bool IsSoulBody(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.SoulBody;
+
+    /// <summary>True for the light beam standing on the body during Rathma's soul split.</summary>
+    public bool IsSoulSplitBeam(int actorSno) =>
+        _beams.GetOrAdd(actorSno, sno => nameOf(sno)?.Contains(SoulSplitBeamToken, StringComparison.OrdinalIgnoreCase) == true);
 
     /// <summary>True for an item the player carries to a receptacle (relics, idols, stone carvings).</summary>
     public bool IsCarryable(int actorSno) => TraitsOf(actorSno)?.IsCarryable == true;

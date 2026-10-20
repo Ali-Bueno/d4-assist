@@ -13,7 +13,7 @@ public class ObjectiveTests
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
-        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35;
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35, SoulBeamSno = 36;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -52,6 +52,7 @@ public class ObjectiveTests
         [DpoTriggerSno] = ("Trigger_Sphere_8m", new(Gizmo, Conventions.GizmoTrigger, TriggerRadius: 4)),
         [SoulMarkerSno] = ("Rathma_Boss_SoulSplit_Location_Marker", new(Monster, NotGizmo, DefaultTeam: 19)),
         [SoulRaiserSno] = ("Rathma_SoulSplit_resurection_invisibleActor", new(Prop, NotGizmo)),
+        [SoulBeamSno] = ("vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02", new(Prop, NotGizmo)),
     };
 
     // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
@@ -145,9 +146,25 @@ public class ObjectiveTests
     }
 
     [Fact]
-    public void Selector_TheSoulSplitBodyLoopsWhereItWasFirstSeen_NotWithTheSpirit()
+    public void Selector_TheSoulSplitBodyLoopsAtTheLightBeam_NotWithTheSpirit()
     {
-        // Live 2026-10-20: the resurrection actor appeared at the player as Rathma's soul split began, then followed the spirit.
+        // Live 2026-10-20: the player was pulled into the beam at (-70.9,1.8); the resurrection actor appeared with the spirit
+        // thrown 5.6 units off and followed it.
+        var selector = Selector();
+        selector.SetWorld(WorldA, isDungeon: true);
+        var beam = new ActorState(4, SoulBeamSno, -70.9f, 1.8f, 1.6f, ClientOnly: true);
+        var raiser = new ActorState(5, SoulRaiserSno, -68.0f, -2.1f, 1.5f, ClientOnly: true);
+
+        var actors = selector.WithQuestGoals([beam, raiser]);
+        Assert.Equal((-70.9f, 1.8f), (actors[1].X, actors[1].Y));
+        actors = selector.WithQuestGoals([beam, raiser with { X = -63.1f, Y = -7.2f }]);
+        Assert.Equal((-70.9f, 1.8f), (actors[1].X, actors[1].Y));
+        Assert.Null(selector.Select(beam)); // the beam itself stays silent
+    }
+
+    [Fact]
+    public void Selector_WithNoBeamTheSoulSplitBodyLoopsWhereItWasFirstSeen()
+    {
         var selector = Selector();
         selector.SetWorld(WorldA, isDungeon: true);
         var raiser = new ActorState(5, SoulRaiserSno, -67.4f, -0.5f, 1.4f, ClientOnly: true);

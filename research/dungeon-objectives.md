@@ -710,3 +710,11 @@ appeared 6 s after the split began, 0.0-0.3 from the player, and at the death me
 of five splits. So the loop sat on the body, but the app hears from the body as well: the player, steering the spirit, heard it
 at their own spot whatever they did. The spirit's position is still unknown (the SOULSPLIT poll lines threw on the first poll and
 logged nothing; fixed). A candidate is `vfx_Rathma_SpiritSplit_burstAttractor_playerSpirit_parent` 2554784.
+
+Fourth live run (18:55, SOULSPLIT lines): that reading was wrong. The split goes: the player read jumps 14 units into
+`vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02` at (-70.9,1.8) and stays 4 s (the body); then it jumps
+to (-68.0,-2.1) and on to (-63.1,-7.2): the spirit, thrown out, and the player read follows it from then on. The resurrection actor
+and `vfx_Rathma_SpiritSplit_sphereCoaster` copies appear with the spirit and move with it; two `Rathma_SoulSplit_Trail` actors
+hover about 1 unit beside it. The beam stands on the body the whole split. So the earlier pinned loop sat where the spirit
+landed, 5.6 units from the body, and the player walked back to exactly that spot (ended at (-67.5,-1.7)). The loop now sounds at
+the beam (`SoulSplitBody`; with no beam listed, where the resurrection actor was first seen).

@@ -698,3 +698,9 @@ listed only during the split: first 0.2 units from the player as it began (18:08
 `QST_X2_Skov_Lycander_05_331`), then it followed the player position read, which is the spirit's (gone at the death menu 7 units
 on, still 0.0 from the player). The body itself has no actor in the list. So the app loops the resurrection actor with the quest
 sound at the spot it was first seen (`SoulSplitBody`, `ObjectiveReason.SoulBody`).
+
+Second live run (18:16): the loop sounded far right and seemed not to move; the player read was over 20 units from the pinned
+spot 6 s into the split and 8.1 at the death menu, with no radar or tile line in between. Players' guides say every button speeds
+the spirit up during the split; a forum post calls the soul a disk that rejoins once under the player's feet. Under `--debug`,
+`SOULSPLIT` lines now log the player read and every soul-split actor twice a second while one other than the Location_Markers is
+listed, and once each actor near the player.

@@ -147,6 +147,9 @@ public sealed class ObjectiveClassifier(
             && name?.Contains(CloneSourceToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.CloneGate;
         if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
+        // A chargeable a quest names is the quest's to use: Inarius's chain stations, used to chain him in "Die Erde, die Saat,
+        // die Frucht" and again in his fight, stayed silent (user, 2026-10-21). Capture points and pillars no quest names stay so.
+        if (info.GizmoType == Conventions.GizmoChargeable && namedByAnyQuest?.Invoke(actorSno) == true) return ObjectiveReason.Gizmo;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
         return questNamed || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;

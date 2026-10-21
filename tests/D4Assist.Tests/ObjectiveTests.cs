@@ -13,7 +13,8 @@ public class ObjectiveTests
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
-        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35, SoulBeamSno = 36;
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35, SoulBeamSno = 36,
+        ChainStationSno = 37, CapturePointSno = 38;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -53,10 +54,13 @@ public class ObjectiveTests
         [SoulMarkerSno] = ("Rathma_Boss_SoulSplit_Location_Marker", new(Monster, NotGizmo, DefaultTeam: 19)),
         [SoulRaiserSno] = ("Rathma_SoulSplit_resurection_invisibleActor", new(Prop, NotGizmo)),
         [SoulBeamSno] = ("vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02", new(Prop, NotGizmo)),
+        [ChainStationSno] = ("inarius_chainStation", new(Gizmo, Conventions.GizmoChargeable)),
+        [CapturePointSno] = ("Ancient_CapturePoint_Obelisk_01_Dyn", new(Gizmo, Conventions.GizmoChargeable)),
     };
 
-    // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
-    private static readonly HashSet<int> QuestNamed = [TumorSno, TumorPieceSno];
+    // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies;
+    // Inarius's chain stations, not a capture point.
+    private static readonly HashSet<int> QuestNamed = [TumorSno, TumorPieceSno, ChainStationSno];
 
     private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno, DpoTriggerSno };
 
@@ -86,6 +90,7 @@ public class ObjectiveTests
     [InlineData(MinibossSno, ObjectiveReason.KillTarget)]  // a monster the dungeon's objective asks the player to kill
     [InlineData(DpoMonsterSno, ObjectiveReason.KillTarget)]
     [InlineData(CloneGateSno, ObjectiveReason.CloneGate)] // a boss stays immune while its clone gates stand, in any world
+    [InlineData(ChainStationSno, ObjectiveReason.Gizmo)]  // a chargeable a quest names: Inarius's chains (user, 2026-10-21)
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 
@@ -102,6 +107,7 @@ public class ObjectiveTests
     [InlineData(UnreadableSno)]       // no ActorDefinition record
     [InlineData(MummySno)]            // a breakable prop no quest names
     [InlineData(TumorPieceSno)]       // the tumor's breakable pieces: destroyables, not the structure
+    [InlineData(CapturePointSno)]     // a chargeable no quest names
     [InlineData(DpoTriggerSno)]       // an invisible "enter the trigger" zone the DPO names: looped forever at nothing (tester, 2026-10-05)
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));

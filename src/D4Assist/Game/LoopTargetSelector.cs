@@ -15,13 +15,15 @@ public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
 /// <param name="UsedWhenOpened">A door-type objective (a monolith, a blocker) is used once the game marks it operated or open; the
 /// state word that marks a used chest or clickable is not validated on these.</param>
 /// <param name="EnemyCue">A boss or unique to kill: the enemy cue (EnemyCueBridge) sounds it, so its loop stays silent and only tracks it.</param>
+/// <param name="SoundsOnceUsed">A gizmo the game itself sets off, silent until then: Inarius's chain stations, each released by his
+/// script (its state word set, the player far away), where the player then takes its chain (live 2026-10-21).</param>
 public sealed record LoopTarget(
     LoopKind Kind, string Sound, LoopProfile Profile, string Reason, SoundCue Cue, bool StopsWhenUsed = false, float QuietWithin = 0,
     bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false, bool EnemyCue = false,
-    bool SilentWhileFollowing = false)
+    bool SilentWhileFollowing = false, bool SoundsOnceUsed = false)
 {
     /// <summary>A gizmo the game can lock (quest-restricted, script-disabled): silent until it is allowed.</summary>
-    public bool SilentWhileUnusable => StopsWhenUsed || Reusable;
+    public bool SilentWhileUnusable => StopsWhenUsed || Reusable || SoundsOnceUsed;
 }
 
 /// <summary>Maps each placed actor to its loop (or none): safe zones, exit beacons (by SNO, or any portal in a dungeon), then the
@@ -141,8 +143,9 @@ public sealed class LoopTargetSelector
         var profile = reason == ObjectiveReason.CloneGate ? LoopProfiles.Beacon : LoopProfiles.Quest;
         // A freed prisoner walks beside the player (FollowerWatch); a prisoner gizmo stays where it was freed.
         return new LoopTarget(LoopKind.Objective, sound, profile, reason.ToString().ToLowerInvariant(), cue,
-            StopsWhenUsed: gizmo && !reusable, Reusable: gizmo && reusable, SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget,
-            SilentWhileFollowing: reason == ObjectiveReason.Prisoner && !gizmo);
+            StopsWhenUsed: gizmo && !reusable && reason != ObjectiveReason.Chargeable, Reusable: gizmo && reusable,
+            SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget, SilentWhileFollowing: reason == ObjectiveReason.Prisoner && !gizmo,
+            SoundsOnceUsed: reason == ObjectiveReason.Chargeable);
     }
 
     private static (string Sound, SoundCue Cue) SoundOf(ObjectiveReason reason) => reason switch

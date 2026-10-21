@@ -192,6 +192,39 @@ public class QuestGoalTests
     }
 
     [Fact]
+    public void A_chain_station_sounds_once_released_and_not_once_its_chain_is_taken()
+    {
+        // Inarius (live 2026-10-21): his script releases a station (its state word set, the player 9 units away); the player takes
+        // its chain there; a station not released did nothing, though the guide led there three times.
+        const int StationSno = 40;
+        var actors = new Dictionary<int, (string Name, ActorDefinitionInfo Info)>(Actors)
+        {
+            [StationSno] = ("inarius_chainStation", new(Gizmo, Conventions.GizmoChargeable)),
+        };
+        var classifier = new ObjectiveClassifier(sno => actors.TryGetValue(sno, out var a) ? a.Info : null, NameOf, sno => sno == StationSno);
+        var selector = new LoopTargetSelector(new HashSet<int>(), classifier, _ => new HashSet<int>());
+        var log = new List<string>();
+        var feed = new FakeFeed();
+        _ = new ActorLoopBridge(feed, LoopTestKit.Player(), selector, n => actors.TryGetValue(n, out var a) ? a.Name : null,
+            isUsed: _ => false, log: log.Add);
+        feed.RaiseWorld(OtherWorld);
+        var station = new ActorState(1, StationSno, 5, 0, 0);
+
+        feed.RaiseActors(station);
+        Assert.Contains(log, l => l.Contains("LOOP silent") && l.Contains("cause=not set off"));
+
+        feed.RaiseActors(station with { StateChanged = true });
+        Assert.Contains(log, l => l.Contains("LOOP started") && l.Contains("reason=chargeable"));
+
+        feed.RaiseActors(station with { StateChanged = true }, Held(CarvingSno) with { X = 5, Y = 3 });
+        Assert.Contains(log, l => l.Contains("LOOP stopped") && l.Contains("inarius_chainStation"));
+
+        Assert.True(selector.WithQuestGoals([station with { StateChanged = true }])[0].Unusable); // taken: emptied
+        Assert.False(selector.WithQuestGoals([station])[0].Unusable); // back up after a wipe
+        Assert.False(selector.WithQuestGoals([station with { StateChanged = true }])[0].Unusable); // released again
+    }
+
+    [Fact]
     public void Steady_invulnerability_ignores_a_leap_and_holds_once_it_lasts()
     {
         var now = new DateTime(2026, 10, 21, 12, 0, 0, DateTimeKind.Utc);

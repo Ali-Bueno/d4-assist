@@ -125,6 +125,7 @@ public sealed class ActorLoopBridge
     private bool Silent(ActorState actor, LoopTarget target) =>
         (target.SilentWhileUnusable && actor.Unusable) || (target.SilentWhileInvulnerable && actor.Invulnerable)
         || (target.StopsWhenUsed && (target.UsedWhenOpened ? actor.Operated || actor.GizmoStateSet : _isUsed(actor)))
+        || (target.SoundsOnceUsed && !CarryGoals.SetOff(actor))
         || (target.SilentWhileFollowing && _followers.Follows(actor));
 
     // Inside a safe zone its loop has done its job: silent until the player steps out.
@@ -166,7 +167,8 @@ public sealed class ActorLoopBridge
     private string Cause(ActorState actor, LoopTarget target) =>
         target.SilentWhileFollowing && _followers.Follows(actor) ? "follows"
         : target.SilentWhileInvulnerable && actor.Invulnerable ? "invulnerable"
-        : target.SilentWhileUnusable && actor.Unusable ? "unusable" : "used";
+        : target.SilentWhileUnusable && actor.Unusable ? "unusable"
+        : target.SoundsOnceUsed ? "not set off" : "used";
 
     private void Log(string what, ActorState a, LoopTarget target, string? cause)
     {

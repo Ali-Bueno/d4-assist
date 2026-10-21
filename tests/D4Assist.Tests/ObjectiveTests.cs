@@ -90,7 +90,7 @@ public class ObjectiveTests
     [InlineData(MinibossSno, ObjectiveReason.KillTarget)]  // a monster the dungeon's objective asks the player to kill
     [InlineData(DpoMonsterSno, ObjectiveReason.KillTarget)]
     [InlineData(CloneGateSno, ObjectiveReason.CloneGate)] // a boss stays immune while its clone gates stand, in any world
-    [InlineData(ChainStationSno, ObjectiveReason.Gizmo)]  // a chargeable a quest names: Inarius's chains (user, 2026-10-21)
+    [InlineData(ChainStationSno, ObjectiveReason.Chargeable)] // a chargeable a quest names: Inarius's chains (user, 2026-10-21)
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 

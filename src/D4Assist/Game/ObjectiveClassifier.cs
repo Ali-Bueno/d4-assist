@@ -5,7 +5,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, SoulBody, WardBreaker, Destructible, KillTarget, Monolith, CloneGate }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, SoulBody, WardBreaker, Destructible, KillTarget, Monolith, CloneGate, Chargeable }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -147,13 +147,19 @@ public sealed class ObjectiveClassifier(
             && name?.Contains(CloneSourceToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.CloneGate;
         if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
-        // A chargeable a quest names is the quest's to use: Inarius's chain stations, used to chain him in "Die Erde, die Saat,
-        // die Frucht" and again in his fight, stayed silent (user, 2026-10-21). Capture points and pillars no quest names stay so.
-        if (info.GizmoType == Conventions.GizmoChargeable && namedByAnyQuest?.Invoke(actorSno) == true) return ObjectiveReason.Gizmo;
+        // A chargeable a quest names is the quest's to use once set off: Inarius's chain stations, each released by his script in
+        // his fight, give the chain that binds him (live 2026-10-21). Capture points and pillars no quest names stay silent.
+        if (IsQuestChargeable(actorSno, info)) return ObjectiveReason.Chargeable;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
         return questNamed || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
     }
+
+    /// <summary>True for a chargeable gizmo some quest names (Inarius's chain stations).</summary>
+    public bool IsChargeable(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.Chargeable;
+
+    private bool IsQuestChargeable(int actorSno, ActorDefinitionInfo info) =>
+        info.GizmoType == Conventions.GizmoChargeable && namedByAnyQuest?.Invoke(actorSno) == true;
 
     private bool IsQuestDestructible(int actorSno, string? name, ActorDefinitionInfo info) =>
         info.GizmoType < 0 && info.DefaultTeam == Conventions.HostileTeam

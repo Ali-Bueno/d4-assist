@@ -251,7 +251,9 @@ internal static class Program
         session.MapMarkersRead += markerLog.OnMarkers;
         session.WorldChanged += (_, _, _) => markerLog.Reset();
         using var enemyCue = new EnemyCuePlayer(mixer);
-        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).ClassOf, store.Name, debug ? Console.WriteLine : null);
+        var carried = new CarryGoals(new ObjectiveClassifier(definitionOf, store.Name));
+        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).ClassOf, store.Name, debug ? Console.WriteLine : null,
+            actors => actors.Any(carried.IsHeld) ? [.. actors.Select(a => carried.IsBossToBind(a) ? a with { Invulnerable = false } : a)] : actors);
         _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         _ = new ExplorationPersistence(

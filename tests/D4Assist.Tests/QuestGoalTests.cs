@@ -176,6 +176,38 @@ public class QuestGoalTests
     }
 
     [Fact]
+    public void An_invulnerable_boss_the_quest_names_is_the_goal_while_the_player_carries_something()
+    {
+        // Inarius (live 2026-10-21): his chains come free at 75 %, he stays invulnerable, and a chain pulled down goes to him.
+        var selector = Selector();
+        var boss = new ActorState(1, BossSno, 20, 0, 0, NamedByQuest: true, Invulnerable: true);
+
+        var idle = selector.WithQuestGoals([boss])[0];
+        Assert.True(idle.Invulnerable);
+
+        var carrying = selector.WithQuestGoals([boss, Held(CarvingSno)])[0];
+        Assert.False(carrying.Invulnerable);
+        Assert.True(carrying.QuestStep);
+        Assert.True(selector.WithQuestGoals([boss with { NamedByQuest = false }, Held(CarvingSno)])[0].Invulnerable); // not the quest's
+    }
+
+    [Fact]
+    public void Steady_invulnerability_ignores_a_leap_and_holds_once_it_lasts()
+    {
+        var now = new DateTime(2026, 10, 21, 12, 0, 0, DateTimeKind.Utc);
+        var steady = new SteadyInvulnerability(() => now);
+        var boss = new ActorState(1, BossSno, 0, 0, 0, Invulnerable: true);
+
+        Assert.False(steady.Apply([boss])[0].Invulnerable);
+        now += TimeSpan.FromSeconds(1);
+        Assert.False(steady.Apply([boss with { Invulnerable = false }])[0].Invulnerable); // the leap is over
+        now += TimeSpan.FromSeconds(1);
+        Assert.False(steady.Apply([boss])[0].Invulnerable); // a new one starts the count again
+        now += SteadyInvulnerability.Steady;
+        Assert.True(steady.Apply([boss])[0].Invulnerable);
+    }
+
+    [Fact]
     public void Clone_gates_reach_as_far_as_a_portal_beacon()
     {
         var gate = new LoopTargetSelector(new HashSet<int>(), new ObjectiveClassifier(

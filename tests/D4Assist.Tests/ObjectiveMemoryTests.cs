@@ -133,6 +133,23 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void One_set_aside_then_done_leads_again_once_it_loops_again()
+    {
+        // Inarius (live 2026-10-21): the player left him, he fell silent while invulnerable, and sounded again with his chain in hand.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0)); // set aside
+        feed.RaisePlayer(At(ObjectiveMemory.ConfirmRadiusUnits - 1, 0));
+        memory.Heard(Altar(100, 0)); // silent near the player: done
+        Assert.DoesNotContain(memory.Destinations(), d => d.Position == (0, 0));
+
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+    }
+
+    [Fact]
     public void An_objective_left_undone_twice_no_longer_returns_when_another_one_is_done()
     {
         // Live 2026-10-16, the Light's Watch: a lectern drew the guide back four times, and the second guard was never found.

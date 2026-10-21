@@ -49,6 +49,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly ReadHealth? _health;
     private readonly SwitchStateLog? _switches;
     private readonly Func<int, int?>? _questOwner;
+    private readonly SteadyInvulnerability _invulnerability = new();
 
     // The actors' flags, plus the player's cinematic flag.
     private static readonly string[] AcdNames = [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying];
@@ -386,9 +387,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var mapped = MarkedGizmos(offsets);
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
                 .. mapped.Where(g => named.ActorSnos.Contains(g.Sno)).Select(g => (g.Sno, g.Position, true))];
-            var actors = ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
+            var actors = _invulnerability.Apply(ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
                 r => Naming(r, named, places), r => mapped.Any(g => g.Sno == r.ActorSno &&
-                    Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach));
+                    Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach)));
             return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Owned);
         }
 

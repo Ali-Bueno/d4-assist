@@ -38,8 +38,15 @@ public sealed class CarryGoals(ObjectiveClassifier objectives)
             WaitsForReceptacle(a, empty, dpoActors) ? Waiting(a)
             : held.Count == 0 ? a
             : held.Any(c => objectives.Accepts(a.ActorSno, c)) ? a.QuestLocked ? a with { QuestLocked = false, QuestStep = true } : a
+            : IsBossToBind(a) ? a with { Invulnerable = false, QuestStep = true }
             : a.QuestStep ? Waiting(a) : a)];
     }
+
+    /// <summary>True for a boss the quest names, invulnerable while the player carries something: what is carried goes to him.
+    /// Inarius's chains, pulled down from their stations, bind him, and he stood silent from the moment they came free (live
+    /// 2026-10-21, "Die Erde, die Saat, die Frucht": the player held a chain and could not find him).</summary>
+    public bool IsBossToBind(ActorState actor) =>
+        actor.Invulnerable && actor.NamedByQuest && !actor.ClientOnly && objectives.IsBossOrUnique(actor.ActorSno);
 
     private static ActorState Waiting(ActorState actor) => actor with { QuestStep = false, QuestLocked = true };
 

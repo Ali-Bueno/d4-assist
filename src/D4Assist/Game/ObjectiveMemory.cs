@@ -242,7 +242,13 @@ public sealed class ObjectiveMemory
                 objective.Z = actor.Z;
                 objective.Quest = actor.QuestStep;
                 objective.PlacedOnly = false;
-                if (!objective.Pending) Log("looping again", objective);
+                // Done and looping again is a new step at it: a boss silent while invulnerable, sounding again once the player
+                // carries his chain, leads though the player left him earlier (live 2026-10-21, Inarius).
+                if (!objective.Pending)
+                {
+                    Log("looping again", objective);
+                    objective.Reached = false;
+                }
                 objective.Pending = true;
                 heard.Add(objective);
             }

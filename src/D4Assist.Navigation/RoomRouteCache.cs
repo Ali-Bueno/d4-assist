@@ -53,10 +53,27 @@ public sealed class RoomRouteCache
     /// point along it. Falls back to the opening's own position when the room has no grid or no path.</summary>
     public static PathBearing Trace(Room room, (float X, float Y) player, RoomOpening goal, IReadOnlyList<JumpLink>? jumps = null)
     {
-        if (room.NavGrid is { } grid &&
-            RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), jumps ?? [], out var path, out var length, out var jump))
+        if (room.NavGrid is not { } grid) return new PathBearing(goal.Position, 0f, true);
+        if (Doorway(grid, player, goal) is { } beyond) return new PathBearing(beyond, Distance(player, goal.Position), false);
+        if (RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), jumps ?? [], out var path, out var length, out var jump))
             return Bearing(grid, player, path, length, jump, goal.Position);
         return new PathBearing(goal.Position, 0f, true);
+    }
+
+    // In the opening's doorway, no deeper than its inward targets, the way on is through it, to a point past its edge. The
+    // nearest target lay behind a player standing there: a step short of the mindscape entrance tile's way into the next one,
+    // the guide pointed back towards the exit portal, and the player turned back twice (live 2026-10-21).
+    private static (float X, float Y)? Doorway(WalkGrid grid, (float X, float Y) player, RoomOpening goal)
+    {
+        var (nx, ny) = ExitMaskBits.Normal(goal.Side);
+        var (ax, ay) = (MathF.Abs(ny), MathF.Abs(nx));
+        float band = InwardTargetSteps * grid.Resolution;
+        float depth = (goal.Position.X - player.X) * nx + (goal.Position.Y - player.Y) * ny;
+        float along = (player.X - goal.Position.X) * ax + (player.Y - goal.Position.Y) * ay;
+        float half = MathF.Max(goal.Width / 2f, grid.Resolution);
+        if (depth < -grid.Resolution || depth > band || MathF.Abs(along) > half) return null;
+        float onto = Math.Clamp(along, -MathF.Max(half - grid.Resolution, 0f), MathF.Max(half - grid.Resolution, 0f));
+        return (goal.Position.X + ax * onto + nx * band, goal.Position.Y + ay * onto + ny * band);
     }
 
     /// <summary>BFS path from the player to the floor within <paramref name="reach"/> of <paramref name="point"/> (an object stands

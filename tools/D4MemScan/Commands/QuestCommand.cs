@@ -56,6 +56,7 @@ internal static class QuestCommand
         using var process = ProcessReader.OpenDiabloIv();
         var clock = Stopwatch.StartNew();
         var candidates = new ConcurrentBag<long>();
+        var offsets = new ConcurrentDictionary<long, int>();
         var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
         Parallel.ForEach(process.Regions(), options, () => new byte[RegionWindows.DefaultWindowBytes], (region, _, buffer) =>
         {
@@ -66,7 +67,7 @@ internal static class QuestCommand
                 {
                     if (BitConverter.ToInt32(span[i..]) != sno) continue;
                     for (int d = Math.Max(-i, -Around) & ~3; d <= Around && i + d + 4 <= span.Length; d += 4)
-                        if (d != 0 && uids.Contains(BitConverter.ToUInt32(span[(i + d)..]))) candidates.Add(address + i + d);
+                        if (d != 0 && uids.Contains(BitConverter.ToUInt32(span[(i + d)..]))) { candidates.Add(address + i + d); offsets.TryAdd(address + i + d, d); }
                 }
             }
             return buffer;
@@ -75,6 +76,8 @@ internal static class QuestCommand
         Console.WriteLine($"{watched.Count} phase-UID word(s) near the quest SNO ({clock.ElapsedMilliseconds} ms). Advance the quest now.");
 
         var last = watched.ToDictionary(a => a, a => PoolContainer.TryReadU32(process, a, out uint v) ? v : (uint?)null);
+        foreach (var group in watched.GroupBy(a => last[a]).OrderByDescending(g => g.Count()))
+            Console.WriteLine($"  phase {group.Key}: {group.Count()} word(s), e.g. {string.Join(" ", group.Select(a => $"0x{a:X}({offsets[a]:+0;-0})"))}");
         var watch = Stopwatch.StartNew();
         while (watch.Elapsed.TotalSeconds < seconds)
         {

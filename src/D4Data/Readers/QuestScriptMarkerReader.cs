@@ -85,7 +85,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
                 .Concat(groups.Where(g => g.PhaseUid == uid).SelectMany(g => BlueprintGroupMarkers(g.Group))).Distinct().ToList();
-            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => OverlayGroupMarkers(g.Group)).Distinct();
+            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => OverlayGroupMarkers(g.Group).Concat(SceneGroupMarkers(g.Group))).Distinct();
             var hidden = handles.Where(h => h.PhaseUid == uid).GroupBy(h => (h.MarkerSet, h.Id)).Where(h => h.All(n => n.Hidden))
                 .Select(h => markers.Find(h.Key.MarkerSet, h.Key.Id)).OfType<PlacedMarker>().ToHashSet();
             return new QuestPhaseObjects(uid,
@@ -217,12 +217,22 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private IEnumerable<SceneMarker> OverlayGroupMarkers(uint group)
     {
         foreach (var (set, marker) in GroupMarkers(group))
-            if (BlueprintOf(set) is null)
+            if (FrameOf(store.Name(set)) is null && BlueprintOf(set) is null)
                 foreach (var (scene, footprint) in Footprints())
                     yield return new SceneMarker(scene, marker with { Position = footprint + marker.Position });
     }
 
-    // Every set without a frame that holds actor groups (blueprints and overlays), read once on first use (1.5 s in 3.2.3).
+    // The markers of an actor group a step names in a scene's layer set, scene-local. "Die Erde, die Saat, die Frucht" phase 52
+    // hides a trigger sphere in the traversal bridges' Game layers: at TT_Sightless_Skovos_to_Sightless_Mephisto_NE_Traversal_Bridge_01
+    // it stands before the rising bridge the shown sphere lies across, and the guide, its goal behind the bridge, found nothing
+    // else to lead to (live 2026-10-21).
+    private IEnumerable<SceneMarker> SceneGroupMarkers(uint group)
+    {
+        foreach (var (set, marker) in GroupMarkers(group))
+            if (SceneOf(set) is { } scene) yield return new SceneMarker(scene, marker);
+    }
+
+    // Every set that holds actor groups (blueprints, overlays and scene layers), read once on first use.
     private List<(int MarkerSet, PlacedMarker Marker)> GroupMarkers(uint group)
     {
         if (_groupMarkers is null)
@@ -230,7 +240,6 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             _groupMarkers = [];
             foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
             {
-                if (FrameOf(name) is not null) continue;
                 foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
                 foreach (uint g in groups.Distinct())
                     (_groupMarkers.TryGetValue(g, out var list) ? list : _groupMarkers[g] = []).Add((set, marker));

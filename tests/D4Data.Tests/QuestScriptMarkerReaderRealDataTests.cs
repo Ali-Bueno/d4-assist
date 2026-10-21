@@ -61,6 +61,23 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AStepsGroupInASceneLayerLandsInThatScene()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // "Die Erde, die Saat, die Frucht" phase 52 (2026-10-21): the hidden trigger before the rising bridge is in the traversal
+        // bridge tile's Game layer.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Lycander_Mindscape_01")).Single(p => p.PhaseUid == 52);
+        var bridge = store.Resolve(schema.SnoGroup("SceneDefinition"), "TT_Sightless_Skovos_to_Sightless_Mephisto_NE_Traversal_Bridge_01");
+        var marker = Assert.Single(step.SceneMarkers, m => m.SceneSno == bridge).Marker;
+        Assert.Equal(23.9f, marker.Position.X, 0.5f);
+        Assert.Equal(14.9f, marker.Position.Y, 0.5f);
+    }
+
+    [Fact]
     public void TheFirstQuestDoesNotNameTheGate()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

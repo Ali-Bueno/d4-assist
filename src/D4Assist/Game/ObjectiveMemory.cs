@@ -67,6 +67,8 @@ public sealed class ObjectiveMemory
         public bool PlacedOnly { get; set; }
         /// <summary>The game's map marks it now.</summary>
         public bool Marked { get; set; }
+        /// <summary>Actor polls in a row it was missing from the actors read.</summary>
+        public int MissingPolls { get; set; }
     }
 
     private readonly Func<int, string?> _nameOf;
@@ -76,6 +78,17 @@ public sealed class ObjectiveMemory
     private readonly Func<int, (float X, float Y), bool> _locked;
     private readonly Func<int, bool?> _carryableWaits;
     private readonly Func<int, float?> _escortRadius;
+    private readonly Func<int, bool> _isBoss;
+    private volatile bool _bossFight;
+
+    /// <summary>True while a boss or unique to kill is among the objective actors read (looping, or silent while invulnerable): a
+    /// fight's objectives are its mechanics, used again and again, and the guide stays in the arena (ExplorationGuideBridge).</summary>
+    public bool BossFight => _bossFight;
+
+    /// <summary>Actor polls an objective heard earlier may be missing near the player before it reads done: in Inarius's fight
+    /// the chain stations left the actor list for a poll or two and came back under a new id, and each one near the player read
+    /// done (live 2026-10-21). About 3 s at the 0.5 s actor poll.</summary>
+    public const int MissingPollsForDone = 6;
     private IReadOnlyList<ActorState> _escorts = [];
     private readonly Action<string>? _log;
     private readonly object _gate = new();
@@ -101,8 +114,9 @@ public sealed class ObjectiveMemory
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
         Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null,
-        Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null)
+        Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null, Func<int, bool>? isBoss = null)
     {
+        _isBoss = isBoss ?? (_ => false);
         _carryableWaits = carryableWaits ?? (_ => null);
         _escortRadius = escortRadius ?? (_ => null);
         _nameOf = nameOf;
@@ -233,6 +247,9 @@ public sealed class ObjectiveMemory
         lock (_gate)
         {
             _escorts = [.. seen.Present.Where(a => _escortRadius(a.ActorSno) is not null)];
+            _bossFight = seen.Looping.Concat(seen.Silent).Any(a => !a.ClientOnly && _isBoss(a.ActorSno));
+            foreach (var objective in _objectives)
+                objective.MissingPolls = Among(objective, seen.Present) ? 0 : objective.MissingPolls + 1;
             var heard = new HashSet<Objective>();
             foreach (var actor in seen.Looping)
             {
@@ -265,12 +282,17 @@ public sealed class ObjectiveMemory
         }
     }
 
-    // Heard earlier: silent now. Not heard yet: its actor there is silent (used), or a tile's copy the map doesn't mark has no actor.
-    // A door's or a trigger's copy loops as something else or not at all: it waits for the phase.
-    // A carryable: once no copy lies on the ground there (the one in the player's hands has no game record).
+    // Heard earlier: silent now, or missing for MissingPollsForDone polls. Not heard yet: its actor there is silent (used), or a
+    // tile's copy the map doesn't mark has no actor. A door's or a trigger's copy loops as something else or not at all: it waits
+    // for the phase. A carryable: once no copy lies on the ground there (the one in the player's hands has no game record).
     private bool Ended(Objective objective, ObjectiveSighting seen) =>
         _carryableWaits(objective.Sno) is not null ? !Stands(objective, [.. seen.Present.Where(a => !a.ClientOnly)])
-        : !objective.PlacedOnly || Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
+        : !objective.PlacedOnly ? Among(objective, seen.Silent) || objective.MissingPolls >= MissingPollsForDone
+        : Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
+
+    // Its own actor (a boss moves), or one of its kind on its spot (a gizmo re-created under a new id).
+    private static bool Among(Objective objective, IReadOnlyList<ActorState> actors) =>
+        actors.Any(a => a.ActorSno == objective.Sno && (a.Id == objective.ActorId || Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits));
 
     // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to.
     private bool Located(Objective objective) => _objectives.Contains(objective) && (!objective.PlacedOnly || objective.Marked);
@@ -307,6 +329,8 @@ public sealed class ObjectiveMemory
                 objective.AtIt = true;
                 Log("reached", objective);
             }
+            else if (objective.AtIt && distance > LeaveDistance(objective) && _bossFight)
+                objective.AtIt = false; // a fight's objective is used again and again: never set aside
             else if (objective.AtIt && distance > LeaveDistance(objective))
             {
                 objective.AtIt = false;

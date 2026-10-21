@@ -329,7 +329,7 @@ internal static class Program
                 portals is null ? bossRoom.Destinations : () => [.. bossRoom.Destinations(), .. portals.Destinations()],
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
                 objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); },
-                () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true);
+                () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             routeBridge = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
@@ -547,7 +547,7 @@ internal static class Program
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
             sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,
-            selector.CarryableWaits, safeZones.EscortRadius);
+            selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique);
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(

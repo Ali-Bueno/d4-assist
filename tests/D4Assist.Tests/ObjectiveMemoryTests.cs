@@ -79,7 +79,7 @@ public class ObjectiveMemoryTests
         Assert.Single(memory.Destinations());
 
         feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
-        memory.Heard(); // used, locked or removed
+        memory.Gone(); // used, locked or removed
         Assert.Empty(memory.Destinations());
     }
 
@@ -95,7 +95,7 @@ public class ObjectiveMemoryTests
         memory.Heard(Lever(0, 0), Altar(100, 0));
         Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
 
-        memory.Heard(Altar(100, 0)); // pulled
+        memory.Gone(Altar(100, 0)); // pulled
         Assert.Equal((100f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
@@ -128,7 +128,7 @@ public class ObjectiveMemoryTests
         Assert.Equal((100f, 0f), Assert.Single(memory.Destinations()).Position);
 
         feed.RaisePlayer(At(100, 0));
-        memory.Heard(Lever(0, 0)); // the altar was used: the lever may open now
+        memory.Gone(Lever(0, 0)); // the altar was used: the lever may open now
         Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
@@ -142,10 +142,44 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(1, 0));
         feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0)); // set aside
         feed.RaisePlayer(At(ObjectiveMemory.ConfirmRadiusUnits - 1, 0));
-        memory.Heard(Altar(100, 0)); // silent near the player: done
+        memory.Gone(Altar(100, 0)); // silent near the player: done
         Assert.DoesNotContain(memory.Destinations(), d => d.Position == (0, 0));
 
         memory.Heard(Lever(0, 0), Altar(100, 0));
+        Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+    }
+
+    [Fact]
+    public void One_missing_for_a_poll_or_two_near_the_player_is_not_done()
+    {
+        // Inarius's chain stations (live 2026-10-21) left the actor list for a poll or two and came back under a new id.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
+        memory.Heard(Lever(50, 0));
+
+        memory.Heard();
+        memory.Heard();
+        Assert.Single(memory.Destinations());
+
+        memory.Heard(Lever(50, 0, id: 9));
+        memory.Gone();
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void In_a_boss_fight_an_objective_walked_away_from_is_never_set_aside()
+    {
+        const int BossSno = 50;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, isBoss: sno => sno == BossSno);
+        feed.RaisePlayer(At(0, 0));
+        var boss = new ActorState(8, BossSno, 30, 30, 0);
+        memory.Heard(Lever(0, 0), boss);
+        Assert.True(memory.BossFight);
+
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0));
+
         Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
     }
 
@@ -162,12 +196,12 @@ public class ObjectiveMemoryTests
             feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0));
             if (i > 0) break;
             feed.RaisePlayer(At(100, 0));
-            memory.Heard(Lever(0, 0), Altar(0, 100, id: 3)); // the first altar was used: the lever leads again
+            memory.Gone(Lever(0, 0), Altar(0, 100, id: 3)); // the first altar was used: the lever leads again
             Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
         }
 
         feed.RaisePlayer(At(0, 100));
-        memory.Heard(Lever(0, 0)); // the second altar was used
+        memory.Gone(Lever(0, 0)); // the second altar was used
         Assert.Empty(memory.Destinations());
 
         memory.Rearm();
@@ -182,7 +216,7 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(0, 0));
         memory.Heard(Lever(0, 0), Altar(100, 0));
         feed.RaisePlayer(At(100, 0));
-        memory.Heard(Lever(0, 0)); // the altar done
+        memory.Gone(Lever(0, 0)); // the altar done
         feed.RaisePlayer(At(1, 0));
         feed.RaisePlayer(At(-Far, 0)); // the lever set aside
         memory.ObserveNamed(new HashSet<int>());
@@ -221,7 +255,7 @@ public class ObjectiveMemoryTests
         var (feed, memory) = NewMemory();
         feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
         memory.Heard(Lever(50, 0));
-        memory.Heard(); // locked while the player carries an item elsewhere
+        memory.Gone(); // locked while the player carries an item elsewhere
         Assert.Empty(memory.Destinations());
 
         memory.Heard(Lever(50, 0));

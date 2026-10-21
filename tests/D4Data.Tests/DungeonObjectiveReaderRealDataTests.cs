@@ -41,6 +41,21 @@ public class DungeonObjectiveReaderRealDataTests
     }
 
     [Fact]
+    public void HallsOfTheBlind_WithoutDpoEntry_UsesTheQuestNamedAfterTheWorldWithDpo()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var world = store.Resolve(schema.SnoGroup(WorldDefinition), "S15_Rift_HallsOfTheBlind");
+
+        var actors = new DungeonObjectiveReader(store, schema).ActorSnos(world);
+
+        // S15_Rift_HallsOfTheBlind_DPO: the amulet goes into the book's receptacle (live 2026-10-21, the guide never led there).
+        Assert.Contains(2648956, actors);
+        Assert.Contains(2630974, actors);
+    }
+
+    [Fact]
     public void ActorDefinitionReader_ReturnsNullForAnIdOfAnotherType()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

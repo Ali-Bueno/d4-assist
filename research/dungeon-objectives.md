@@ -229,7 +229,9 @@ them as missing. Gizmos (`eType` 2): 22,725.
   (`S15_Triad_B_Worldstone`, 31/2638473): `S15_Arreat_Summit_Altar_A_Gizmo` 2647200 (the Ancients' altar, floor 01),
   the Ancients Korlic 2679638, Madawc 2679640 and Talic 2679642, Baal `S15_Triad_B_Boss_QST` 2671540,
   `S15_TriadB_QST_Soulshard` 2671217 and Tal Rasha 2671529. `DungeonObjectiveReader` falls back to that quest, so the
-  altar and the soulshard get objective loops (monsters never do).
+  altar and the soulshard get objective loops (monsters never do). Eight other seasonal worlds name it after the world
+  plus `_DPO` (`S15_Rift_HallsOfTheBlind_DPO` 2629465 and the other S15 rifts, `S15_Lair_Nakrul`, `S15_Playhouse`, the
+  S14 chambers; offline 2026-10-21); the reader tries both names.
 - **Still to confirm live:** the real floor-exit actor names (`--debug` logs `PORTAL seen` and `ACTOR seen`), and the
   distance at which the player appears from the portal they came through (the 15-unit "used" radius).
 

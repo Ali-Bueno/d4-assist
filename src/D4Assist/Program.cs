@@ -190,7 +190,7 @@ internal static class Program
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
         var conversationAddresses = new ConversationAddresses(
             Path.Combine(AppContext.BaseDirectory, "d4assist-addresses.json"), conversationSnos.Contains, debug ? Console.WriteLine : null);
-        var questHistory = new QuestPhaseHistory();
+        var questHistory = QuestPhaseHistory.Load(AppContext.BaseDirectory, log: Console.WriteLine);
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
@@ -611,7 +611,9 @@ internal static class Program
     // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out, and so are a
     // quest's objects of other steps than the one last read (QuestStep.Of). A quest the map names that isn't owned yet is looked
     // for in progress at once (its {quest, phase} pair): owned quests are found only once their objects load around the player,
-    // and right after the app started D-pad left said "no quest place" beside "In Rathmas Fußstapfen" (live 2026-10-21).
+    // and right after the app started D-pad left said "no quest place" beside "In Rathmas Fußstapfen" (live 2026-10-21). One not
+    // found that way counts as in progress at its phase remembered from earlier (QuestPhaseHistory, kept across runs): the module
+    // data holds one quest's pair at a time, and after a restart "Verwundete Seelen" was never found again (live 2026-10-21).
     private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
         IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned,
         Func<IReadOnlyDictionary<int, IReadOnlySet<uint>>, IReadOnlyDictionary<int, uint>?> findPhases, QuestPhaseHistory questHistory,
@@ -637,8 +639,11 @@ internal static class Program
                 questHistory.Record(quest, phase);
                 inProgress.Add(quest);
             }
+            var remembered = unknown.Where(q => !found.ContainsKey(q) && questHistory.Last(q) is not null).ToList();
+            inProgress.UnionWith(remembered);
             log?.Invoke($"PATH quests the map names, not owned: {string.Join(", ", unknown)}; in progress: " +
-                (found.Count > 0 ? string.Join(", ", found.Select(f => $"{f.Key} at {f.Value}")) : "none"));
+                (found.Count > 0 ? string.Join(", ", found.Select(f => $"{f.Key} at {f.Value}")) : "none") +
+                (remembered.Count > 0 ? "; remembered: " + string.Join(", ", remembered.Select(q => $"{q} at {questHistory.Last(q)}")) : ""));
         }
 
         var places = new List<QuestMapPlace>();

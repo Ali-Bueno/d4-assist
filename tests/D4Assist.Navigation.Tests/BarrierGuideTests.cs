@@ -59,6 +59,31 @@ public class BarrierGuideTests
     }
 
     [Fact]
+    public void An_opening_with_only_stray_floor_cells_beyond_it_is_no_way_through()
+    {
+        // The Labyrinthhain's entrance (live 2026-10-21): floor along the tile's edge at two stretches, but beyond the first
+        // only two single floor cells among the trees; the guide sent the player into them instead of the stretch further on.
+        var near = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 31; c++) near[r, c] = true;
+        for (var r = 4; r <= 12; r++) near[r, 31] = true;
+        for (var r = 20; r <= 25; r++) near[r, 31] = true;
+        var far = new bool[32, 32];
+        for (var r = 20; r < 32; r++)
+            for (var c = 0; c < 32; c++) far[r, c] = true;
+        far[6, 1] = far[10, 2] = true; // stray cells, out of reach of each other
+        var walkability = new FakeTileWalkability().Add(1, new WalkGrid(1f, 0f, 0f, 32, 32, near)).Add(2, new WalkGrid(1f, 0f, 0f, 32, 32, far));
+        var map = new DungeonMap();
+        map.AddOrUpdate([new TileInput(1, "t", 0, 0, 32, 32, E, 1000, 0), new TileInput(2, "t", 0, 32, 32, 32, W, 1001, 0)]);
+        map.MarkVisited(Half, Half);
+
+        var step = new ExplorationGuide(map, walkability).Step(new PlayerInput(8f, 28f, 0));
+
+        Assert.Equal("tile:0,1", step.Target!.Id);
+        Assert.True(step.Waypoint.X > 16f, $"waypoint {step.Waypoint} heads for the stray cells"); // the stretch at rows 20-25
+    }
+
+    [Fact]
     public void A_barrier_splitting_a_corridor_tile_cuts_off_the_tiles_beyond_until_it_opens()
     {
         var (_, guide) = Corridor();

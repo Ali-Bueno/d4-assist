@@ -46,6 +46,10 @@ internal sealed class TileGraph
                 var probe = OpeningFinder.Probe(opening.Side, opening.Position);
                 var neighbour = opening.Unexplored ? null : map.TileAt(probe.X, probe.Y);
                 var far = neighbour is null ? null : graph._tiles.GetValueOrDefault(Key(neighbour));
+                // The Labyrinthhain's entrance tile has floor along its west edge at y 8-14 and 20-26; beyond the first run lie only
+                // two stray floor cells, and the guide led into the trees there (live 2026-10-21). The far side's own opening
+                // comes back as a reverse hop below.
+                if (far is not null && !FloorReaches(far.Tile, opening, walkability, FloorRunCells)) continue;
                 foreach (var (from, to, crossing) in Contacts(near, far, opening))
                     from.Hops.Add(new TileHop(crossing, to));
             }
@@ -119,9 +123,12 @@ internal sealed class TileGraph
         return false;
     }
 
-    // Somewhere along a crossing found from the other side, the tile beyond has floor within EdgeFloorUnits of it; true when a
-    // walk map is unknown.
-    private static bool FloorReaches(MapTile tile, RoomOpening crossing, ITileWalkability? walkability)
+    /// <summary>Points in a row along an opening the tile beyond must have floor at: one stray floor cell is no way through.</summary>
+    public const int FloorRunCells = 2;
+
+    // Somewhere along a crossing found from the other side, the tile beyond has floor within EdgeFloorUnits of it at
+    // <paramref name="run"/> points in a row (fewer on a narrower crossing); true when a walk map is unknown.
+    private static bool FloorReaches(MapTile tile, RoomOpening crossing, ITileWalkability? walkability, int run = 1)
     {
         if (walkability is null || !walkability.TryGet(tile.Input.SceneSno, out var grid)) return true;
         int turns = TileRotation.QuarterTurns(tile.Input.YawDegrees);
@@ -129,8 +136,13 @@ internal sealed class TileGraph
         var normal = ExitMaskBits.Normal(crossing.Side);
         var along = (MathF.Abs(normal.Y), MathF.Abs(normal.X));
         float width = MathF.Max(crossing.Width, 1f);
+        run = Math.Clamp((int)width, 1, run);
+        int inRow = 0;
         for (var a = -width / 2f + HalfCell; a < width / 2f; a += 1f)
-            if (HasFloorNear(grid, tile.Input, turns, Offset(crossing.Position, along, a), normal, 1f)) return true;
+        {
+            inRow = HasFloorNear(grid, tile.Input, turns, Offset(crossing.Position, along, a), normal, 1f) ? inRow + 1 : 0;
+            if (inRow >= run) return true;
+        }
         return false;
     }
 

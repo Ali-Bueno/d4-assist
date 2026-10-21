@@ -43,6 +43,24 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AStepsOverlayLandsOnTheHoldoutTunnelsFootprint()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // "Die Erde, die Saat, die Frucht" phase 43 (2026-10-21): the shown trigger sphere is in the overlay
+        // CSD_Skov_Skartara_Mindscape_03_Holdout, which the holdout tunnel's arena footprint places, at the tile's middle.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Lycander_Mindscape_01")).Single(p => p.PhaseUid == 43);
+        var tunnel = store.Resolve(schema.SnoGroup("SceneDefinition"), "Sightless_Skovos_EW_POI_HoldoutTunnel_01");
+        var marker = Assert.Single(step.SceneMarkers, m => m.SceneSno == tunnel).Marker;
+        Assert.Equal("Trigger_Sphere_8m", store.Name(marker.Sno));
+        Assert.Equal(16.3f, marker.Position.X, 0.5f);
+        Assert.Equal(15.9f, marker.Position.Y, 0.5f);
+    }
+
+    [Fact]
     public void TheFirstQuestDoesNotNameTheGate()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

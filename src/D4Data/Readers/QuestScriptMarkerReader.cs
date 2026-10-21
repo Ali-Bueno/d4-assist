@@ -50,7 +50,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
     private Dictionary<int, List<int>>? _questsByWorld;
     private readonly Dictionary<int, Blueprint> _blueprints = [];
-    private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _blueprintGroups;
+    private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _groupMarkers;
+    private List<(int Scene, Vector3 Local)>? _footprints;
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -84,12 +85,13 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
                 .Concat(groups.Where(g => g.PhaseUid == uid).SelectMany(g => BlueprintGroupMarkers(g.Group))).Distinct().ToList();
+            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => OverlayGroupMarkers(g.Group)).Distinct();
             var hidden = handles.Where(h => h.PhaseUid == uid).GroupBy(h => (h.MarkerSet, h.Id)).Where(h => h.All(n => n.Hidden))
                 .Select(h => markers.Find(h.Key.MarkerSet, h.Key.Id)).OfType<PlacedMarker>().ToHashSet();
             return new QuestPhaseObjects(uid,
                 [.. named.Where(m => m.Scene is null && m.Blueprint is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
-                [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))],
+                [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!)), .. overlays],
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
@@ -200,24 +202,61 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private static bool IsBlueprintSet(string name) =>
         FrameOf(name) is null && (name.EndsWith("_BPMS", StringComparison.OrdinalIgnoreCase) || name.Contains("_BPMS_", StringComparison.OrdinalIgnoreCase));
 
-    // The blueprint markers of an actor group a step names (ScriptEventParamActorGroup). Only blueprint sets are indexed: few
-    // (97 in 3.2.3), read once on first use; a group in a world's or scene's layer set isn't found.
+    // The blueprint markers of an actor group a step names (ScriptEventParamActorGroup).
     private IEnumerable<BlueprintMarker> BlueprintGroupMarkers(uint group)
     {
-        if (_blueprintGroups is null)
-        {
-            _blueprintGroups = [];
-            foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
-            {
-                if (!IsBlueprintSet(name)) continue;
-                foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
-                foreach (uint g in groups.Distinct())
-                    (_blueprintGroups.TryGetValue(g, out var list) ? list : _blueprintGroups[g] = []).Add((set, marker));
-            }
-        }
-        foreach (var (set, marker) in _blueprintGroups.GetValueOrDefault(group) ?? [])
+        foreach (var (set, marker) in GroupMarkers(group))
             if (BlueprintOf(set) is { } frame) yield return new BlueprintMarker(frame, marker);
     }
+
+    // The markers of an actor group a step names in an overlay: a set no world, scene or blueprint places (no layer, no _BPMS),
+    // which the server drops on a dungeon tile's arena footprint, the set's origin there. "Die Erde, die Saat, die Frucht" phase
+    // 43 shows a trigger sphere of CSD_Skov_Skartara_Mindscape_03_Holdout at (0,0); the holdout tunnel's footprint sits at its
+    // middle (16,16), where the next step's Lilith and memory fragments stand (live 2026-10-21). Every tile with a footprint
+    // gets a copy; only placed ones land in the world.
+    private IEnumerable<SceneMarker> OverlayGroupMarkers(uint group)
+    {
+        foreach (var (set, marker) in GroupMarkers(group))
+            if (BlueprintOf(set) is null)
+                foreach (var (scene, footprint) in Footprints())
+                    yield return new SceneMarker(scene, marker with { Position = footprint + marker.Position });
+    }
+
+    // Every set without a frame that holds actor groups (blueprints and overlays), read once on first use (1.5 s in 3.2.3).
+    private List<(int MarkerSet, PlacedMarker Marker)> GroupMarkers(uint group)
+    {
+        if (_groupMarkers is null)
+        {
+            _groupMarkers = [];
+            foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
+            {
+                if (FrameOf(name) is not null) continue;
+                foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
+                foreach (uint g in groups.Distinct())
+                    (_groupMarkers.TryGetValue(g, out var list) ? list : _groupMarkers[g] = []).Add((set, marker));
+            }
+        }
+        return _groupMarkers.GetValueOrDefault(group) ?? [];
+    }
+
+    // The arena footprints (prefab sets Dungeon_Template_*_Footprint_*) in the scenes' layers, scene-local; read once on first use.
+    private List<(int Scene, Vector3 Local)> Footprints()
+    {
+        if (_footprints is not null) return _footprints;
+        _footprints = [];
+        int sceneGroup = schema.SnoGroup(SceneDefinition), markerSetGroup = schema.SnoGroup("MarkerSetDefinition");
+        foreach (var (scene, _) in store.AllEntries(sceneGroup))
+        {
+            if (store.Meta(sceneGroup, scene) is not { } meta) continue;
+            foreach (int layer in meta.Array(schema.Offset(SceneDefinition, "arLayers"), schema.Size("LayerData")))
+            foreach (var marker in markers.TopLevel(meta.I32(layer + schema.Offset("LayerData", "snoLayerMarkerset"))).Values)
+                if (marker.Group == markerSetGroup && IsFootprint(store.Name(marker.Sno))) _footprints.Add((scene, marker.Position));
+        }
+        return _footprints;
+    }
+
+    private static bool IsFootprint(string? actor) =>
+        actor is not null && actor.StartsWith("Dungeon_Template_", StringComparison.OrdinalIgnoreCase) && actor.Contains("_Footprint", StringComparison.OrdinalIgnoreCase);
 
     // The actor groups (GBIDs) a phase's scripts name; 0 is none.
     private IEnumerable<(uint PhaseUid, uint Group)> ActorGroups(SnoBlob quest) =>

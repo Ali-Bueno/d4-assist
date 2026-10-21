@@ -5,6 +5,7 @@ using D4Assist.Input;
 using D4Assist.Navigation;
 using D4Assist.Speech;
 using D4Assist.Strings;
+using D4Data.Readers;
 
 namespace D4Assist.Tests;
 
@@ -24,10 +25,12 @@ public class QuestPathTests
         new(Sphere, LostPlains.X, LostPlains.Y, 11, 0, 11),
     ];
 
-    // The quest scripts name the sphere and the corpse at their spots; the shrine is nobody's.
+    // The quest scripts name the sphere and the corpse at their spots; the shrine is nobody's. A sphere of kind 13 stands for one
+    // only a hidden callback names.
     private static IReadOnlyList<QuestMapPlace> QuestPlaces(IReadOnlyList<MarkedActor> markers) =>
     [
-        .. markers.Where(m => m.ActorSno == Sphere).Select(m => new QuestMapPlace(Warlock, "Disciples of the Forbidden", m.ActorSno, new(m.X, m.Y))),
+        .. markers.Where(m => m.ActorSno == Sphere).Select(m => new QuestMapPlace(Warlock, "Disciples of the Forbidden", m.ActorSno, new(m.X, m.Y),
+            Hidden: m.Kind == 13)),
         .. markers.Where(m => m.ActorSno == Corpse).Select(m => new QuestMapPlace(Fruits, "By Their Fruits", m.ActorSno, new(m.X, m.Y))),
         .. markers.Where(m => m.Kind == 12).Select(m => new QuestMapPlace(0, "Quest marker", m.ActorSno, new(m.X, m.Y), GameMarker: true)),
     ];
@@ -137,6 +140,40 @@ public class QuestPathTests
 
         Assert.Equal(proxy, rig.Searches[^1].To);
         Assert.StartsWith("Quest goal: Quest marker,", rig.Speech.Texts.Last());
+    }
+
+    [Fact]
+    public void A_place_only_a_hidden_step_names_comes_after_the_shown_ones()
+    {
+        var rig = new Rig();
+        var onTheWay = KedBardu + new Vector2(-20, 0);
+        rig.Move(KedBardu);
+        rig.Bridge.OnMapMarkers([.. Markers, new(Sphere, onTheWay.X, onTheWay.Y, 11, 0, 13)]);
+
+        rig.Pad.Press();
+        Assert.Equal(LostPlains, rig.Searches[^1].To);
+        rig.Pad.Press();
+        Assert.Equal(FarCorpse, rig.Searches[^1].To);
+
+        rig.Pad.Press();
+        Assert.Equal(onTheWay, rig.Searches[^1].To);
+    }
+
+    // "In Rathmas Fußstapfen" phase 12 (find the untouched forests): the trigger at the Rathmic statue is shown, the two on the way
+    // there are hidden, and Tharra, who gave the quest at phase 0, is no longer the step (live 2026-10-21).
+    [Fact]
+    public void A_step_names_its_own_markers_shown_or_hidden_and_actors_by_sno()
+    {
+        const int Tharra = 1952922, Boss = 2420000;
+        var statue = new PlacedMarker(1, Sphere, new(2719.3f, -24.8f, 5.8f));
+        var forest = new PlacedMarker(1, Sphere, new(2498.8f, 29.9f, 15.7f));
+        var step = new QuestPhaseObjects(12, [statue, forest], new HashSet<int> { Boss }, [], HiddenMarkers: new HashSet<PlacedMarker> { forest });
+
+        Assert.Equal(StepPlace.Shown, QuestStep.Of(step, Sphere, new(2719.5f, -25f)));
+        Assert.Equal(StepPlace.Hidden, QuestStep.Of(step, Sphere, new(2498.8f, 29.9f)));
+        Assert.Equal(StepPlace.NotInStep, QuestStep.Of(step, Sphere, new(2650.8f, -46.6f)));
+        Assert.Equal(StepPlace.NotInStep, QuestStep.Of(step, Tharra, new(2381.2f, -27.6f)));
+        Assert.Equal(StepPlace.Shown, QuestStep.Of(step, Boss, new(0, 0)));
     }
 
     [Fact]

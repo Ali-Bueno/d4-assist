@@ -336,7 +336,7 @@ internal static class Program
         {
             var paths = NewOverworldPaths(store, schema, cascGate);
             pathBridge = new QuestPathBridge(
-                session, WorldClassifier.OpenWorldName, markers => { IReadOnlyList<int>? owned = null; session.Query(r => owned = r.ReadOwnedQuests()); return QuestMapPlaces(markers, owned, store, questScripts, language, cascGate); }, paths.Find,
+                session, WorldClassifier.OpenWorldName, markers => { IReadOnlyList<int>? owned = null; session.Query(r => owned = r.ReadOwnedQuests()); return QuestMapPlaces(markers, owned, questHistory, store, questScripts, language, cascGate); }, paths.Find,
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
@@ -592,10 +592,11 @@ internal static class Program
     // The game's own quest markers (Symbol_Quest_Proxy, map kind 12: an area step such as "kill the fiend roaming here", live
     // 2026-10-19), named after a quest read as in progress with an object near, else "quest marker"; and the map's markers that a
     // quest read as in progress names at their spot (ActiveQuests.MarkerReach). The map also shows objects of quests the player
-    // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out.
+    // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out, and so are a
+    // quest's objects of other steps than the one last read (QuestStep.Of).
     private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
-        IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned, SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language,
-        object cascGate)
+        IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned, QuestPhaseHistory questHistory, SnoStore store,
+        QuestScriptMarkerReader questScripts, LanguageSetting language, object cascGate)
     {
         var places = new List<QuestMapPlace>();
         string locale = SpeechLanguages.GameLocale(language.Current);
@@ -612,7 +613,12 @@ internal static class Program
                     continue;
                 }
                 foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
-                    if (owned?.Contains(quest) == true) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at));
+                {
+                    if (owned?.Contains(quest) != true) continue;
+                    var step = questHistory.Last(quest) is { } phase ? questScripts.PhaseObjects(quest).FirstOrDefault(p => p.PhaseUid == phase) : null;
+                    var role = step is null ? StepPlace.Shown : QuestStep.Of(step, marker.ActorSno, at);
+                    if (role != StepPlace.NotInStep) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at, Hidden: role == StepPlace.Hidden));
+                }
             }
         return places;
     }

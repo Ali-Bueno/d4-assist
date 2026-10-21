@@ -28,6 +28,21 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AStepKnowsWhichOfItsMarkersTheGameHides()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // "In Rathmas Fußstapfen" phase 12, find the untouched forests (2026-10-21): three trigger spheres; the game shows the one
+        // at the Rathmic statue that phase 21 has the player examine, and hides the two on the way there.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Lycander_06")).Single(p => p.PhaseUid == 12);
+        Assert.Equal(3, step.Markers.Count);
+        Assert.Equal([2499, 2651], step.HiddenMarkers!.Select(m => (int)MathF.Round(m.Position.X)).Order());
+    }
+
+    [Fact]
     public void TheFirstQuestDoesNotNameTheGate()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

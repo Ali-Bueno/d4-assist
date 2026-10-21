@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using D4Data.Readers;
 using D4Assist.Audio;
 using D4Assist.Input;
 using D4Assist.Navigation;
@@ -11,7 +12,24 @@ namespace D4Assist.Game;
 /// <summary>A place the game's map marks for a quest: a map marker whose actor and spot a quest's scripts name, or the game's own
 /// quest marker.</summary>
 /// <param name="GameMarker">The game's own quest marker (Symbol_Quest_Proxy): offered before quest objects.</param>
-public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false);
+/// <param name="Hidden">Named only by a step the game doesn't show (QuestPhaseObjects.HiddenMarkers): offered after the shown ones.</param>
+public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false, bool Hidden = false);
+
+/// <summary>Where a map marker stands in a quest's current step.</summary>
+public enum StepPlace { NotInStep, Shown, Hidden }
+
+public static class QuestStep
+{
+    /// <summary>Whether the step names the marked actor: a marker of it at its spot (ActiveQuests.MarkerReach), or its SNO alone (any
+    /// copy). The map marks every phase's objects of a quest in progress: "In Rathmas Fußstapfen" at "find the untouched forests"
+    /// still marked Tharra, its first step, and D-pad left led there as the nearer place (live 2026-10-21).</summary>
+    public static StepPlace Of(QuestPhaseObjects step, int actorSno, Vector2 at)
+    {
+        var named = step.Markers.Where(m => m.Sno == actorSno && Vector2.Distance(new(m.Position.X, m.Position.Y), at) <= ActiveQuests.MarkerReach).ToList();
+        if (named.Count > 0) return named.All(m => step.HiddenMarkers?.Contains(m) == true) ? StepPlace.Hidden : StepPlace.Shown;
+        return step.ActorSnos.Contains(actorSno) ? StepPlace.Shown : StepPlace.NotInStep;
+    }
+}
 
 /// <summary>
 /// Leads with the guide ping along a computed path (OverworldPaths) to a quest place the game's map marks, in the open
@@ -157,11 +175,11 @@ public sealed class QuestPathBridge
         }
     }
 
-    // The marked quest places in reach, the game's own quest markers first, then nearest first, one per spot.
+    // The marked quest places in reach, the game's own quest markers first, hidden steps last, else nearest first, one per spot.
     private List<QuestMapPlace> Places(Vector2 here)
     {
         var places = new List<QuestMapPlace>();
-        foreach (var place in _questPlaces(_markers).OrderBy(p => !p.GameMarker).ThenBy(p => Vector2.Distance(here, p.Position)))
+        foreach (var place in _questPlaces(_markers).OrderBy(p => !p.GameMarker).ThenBy(p => p.Hidden).ThenBy(p => Vector2.Distance(here, p.Position)))
             if (Vector2.Distance(here, place.Position) is > HereUnits and <= MaxDistanceUnits
                 && !places.Any(p => Vector2.Distance(p.Position, place.Position) <= SamePlaceUnits))
                 places.Add(place);

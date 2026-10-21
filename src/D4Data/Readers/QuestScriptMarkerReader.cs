@@ -25,9 +25,12 @@ public sealed record BlueprintMarker(Blueprint Frame, PlacedMarker Marker);
 /// <param name="KindMarkers">The markers in a blueprint's marker set, whose spot is the blueprint's, not the world's: the instance
 /// moves it (live 2026-10-17, the ship to Skovos: QST_Skov_Prologue_Apostle stood at (6,-58) and Lorath at (16,-46), their markers
 /// said (38,69) and (48,81)). They name a kind of object, and a place once the blueprint's shift is known. Null for none.</param>
+/// <param name="HiddenMarkers">The markers only callbacks the game doesn't show name (eIndicatorType 3): "In Rathmas Fußstapfen"
+/// phase 12, find the untouched forests, shows the trigger at the Rathmic statue and hides two on the way there. Null for none.</param>
 public sealed record QuestPhaseObjects(
     uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
-    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<BlueprintMarker>? KindMarkers = null);
+    IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<BlueprintMarker>? KindMarkers = null,
+    IReadOnlySet<PlacedMarker>? HiddenMarkers = null);
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
@@ -81,13 +84,16 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
                 .Concat(groups.Where(g => g.PhaseUid == uid).SelectMany(g => BlueprintGroupMarkers(g.Group))).Distinct().ToList();
+            var hidden = handles.Where(h => h.PhaseUid == uid).GroupBy(h => (h.MarkerSet, h.Id)).Where(h => h.All(n => n.Hidden))
+                .Select(h => markers.Find(h.Key.MarkerSet, h.Key.Id)).OfType<PlacedMarker>().ToHashSet();
             return new QuestPhaseObjects(uid,
                 [.. named.Where(m => m.Scene is null && m.Blueprint is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
                 [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!))],
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
-                kinds.Count > 0 ? kinds : null);
+                kinds.Count > 0 ? kinds : null,
+                hidden.Count > 0 ? hidden : null);
         })];
     }
 
@@ -247,15 +253,20 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             if (quest.I32(token) == actorGroup) yield return (PhaseUid(quest, phase), quest.I32(token + sizeof(int)));
     }
 
-    private IEnumerable<(uint PhaseUid, int MarkerSet, int Id)> Handles(SnoBlob quest)
+    // Hidden: named by a callback the game doesn't show as an objective (QuestCallback.eIndicatorType 3, research/client-memory.md §4).
+    private IEnumerable<(uint PhaseUid, int MarkerSet, int Id, bool Hidden)> Handles(SnoBlob quest)
     {
-        foreach (var (phaseUid, param, type) in Params(quest))
+        int? indicator = schema.HasField(Callback, "eIndicatorType") ? schema.Offset(Callback, "eIndicatorType") : null;
+        foreach (var (phaseUid, callback, param, type) in Params(quest))
         {
             if (type != MarkerHandleParam) continue;
             int handle = param + schema.Offset(MarkerHandleParam, "tMarkerHandle");
-            yield return (phaseUid, quest.I32(handle + schema.Offset("MarkerHandle", "snoMarkerSet")), quest.I32(handle + schema.Offset("MarkerHandle", "nID")));
+            yield return (phaseUid, quest.I32(handle + schema.Offset("MarkerHandle", "snoMarkerSet")), quest.I32(handle + schema.Offset("MarkerHandle", "nID")),
+                indicator is { } at && quest.I32(callback + at) == HiddenIndicator);
         }
     }
+
+    private const int HiddenIndicator = 3;
 
     private IEnumerable<(uint PhaseUid, int Quest)> SubQuests(SnoBlob quest, int questSno) =>
         Params(quest).Where(p => p.Type == QuestParam)
@@ -263,7 +274,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             .Where(s => s.Quest > 0 && s.Quest != questSno);
 
     // Every script parameter of the callbacks' message maps, the event filters' included, with its phase and its type name.
-    private IEnumerable<(uint PhaseUid, int Param, string? Type)> Params(SnoBlob quest)
+    private IEnumerable<(uint PhaseUid, int Callback, int Param, string? Type)> Params(SnoBlob quest)
     {
         int map = schema.Offset(Callback, "tScriptMessageMap");
         foreach (int phase in Phases(quest))
@@ -274,7 +285,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 parameterArrays.Add(filter + schema.Offset(Filter, "pMessageFilter"));
             foreach (int array in parameterArrays)
             foreach (int param in quest.PolymorphicElements(array, p => ParamType(quest, p) is { } t ? schema.Size(t) : null) ?? [])
-                yield return (PhaseUid(quest, phase), param, ParamType(quest, param));
+                yield return (PhaseUid(quest, phase), callback, param, ParamType(quest, param));
         }
     }
 

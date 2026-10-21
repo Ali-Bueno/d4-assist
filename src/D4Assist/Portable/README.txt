@@ -106,6 +106,7 @@ closer:
   dungeon wants from you: levers, things you have to carry and where they go,
   quest chests, stuff your quest asks you to use or break, the person your
   quest asks you to talk to, and the monsters the dungeon asks you to kill.
+  Tracked or not: any quest you have in progress counts.
 - Portals, including the Undercity's warp pads, have their own sound so you
   can find the way out.
 - Doors, chests, bodies you can search, books and notes, spots to look at and

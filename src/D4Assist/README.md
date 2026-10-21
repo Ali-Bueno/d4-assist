@@ -189,9 +189,10 @@ a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is th
 one to talk to; it keeps its loop while it moves). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
 (`ActorState.Unusable`) and stays silent. Active quests (`ActiveQuests`): the player's tracked quest (`ManuallyTrackedQuestSNO`)
 plus the quests in progress here, those with markers in this world or its scenes, or on an actor loaded around the player (an
-overworld side quest marks its objects in a subzone layer set), the world's objective quest, and any quest a phase of the
-tracked quest waits on (`ScriptEventParamQuest`: the game then shows that quest's phase instead, research/dungeon-objectives.md
-§18), whose {quest, phase} pair the module data holds. `--debug`
+overworld side quest marks its objects in a subzone layer set), the world's objective quest, and any quest a phase of a
+followed quest waits on (`ScriptEventParamQuest`: the game then shows that quest's phase instead, research/dungeon-objectives.md
+§18, §24), whose {quest, phase} pair the module data holds. A quest found in progress stays followed while that pair still
+reads, so walking away from its objects doesn't drop it. `--debug`
 logs `Quest tracked: <snos>; in progress here: <snos>; N object(s) named, <sno> at phase <uid>.` on each change and
 `LOOP silent … cause=unusable|used` once per gizmo silent at first sight. It also logs every multi-use switch (braziers, levers)
 once seen and on each change of its state signals: `SWITCH <name> sno=<sno> at (x,y): <signal>=<old>→<new>` (`Game/SwitchStateLog`,

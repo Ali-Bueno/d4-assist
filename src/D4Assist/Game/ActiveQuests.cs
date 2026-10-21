@@ -28,15 +28,16 @@ public sealed record QuestNames(IReadOnlyList<PlacedMarker> Markers, IReadOnlySe
 /// </summary>
 /// <param name="phases">The objects each phase of a quest names (QuestScriptMarkerReader.PhaseObjects).</param>
 /// <param name="questsHere">The quests that name something in an area (QuestScriptMarkerReader); null follows tracked quests only.</param>
+/// <param name="clock">UTC now; null for the system clock.</param>
 public sealed class ActiveQuests(
     IMemoryReader memory, IReadOnlyList<MemoryRegion> moduleData, Func<int, IReadOnlyList<QuestPhaseObjects>> phases,
-    Func<QuestSearchArea, IReadOnlyList<int>>? questsHere)
+    Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, Func<DateTime>? clock = null)
 {
     /// <summary>A quest's marker and the actor it placed share a spot (live: the Darkened Way gate, 0.0 apart).</summary>
     public const float MarkerReach = 2f;
 
     // The phase pair can move (a new quest record); a failed search waits this long before the next scan of the module data.
-    private static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
 
     private int[] _followed = [];
     private List<FollowedQuest> _quests = [];
@@ -89,26 +90,29 @@ public sealed class ActiveQuests(
             Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : Phases;
     }
 
-    // The quests named in the area, or handed over to by a tracked quest, whose {quest, phase} pair the module data holds; one pass
-    // every PhaseSearchInterval (live 2026-10-01: QST_Frac_Underworld2_02 at phase 80 in the Ancient Mausoleum, none tracked).
+    // The quests named in the area, or handed over to by a followed quest, whose {quest, phase} pair the module data holds, plus
+    // the followed ones whose phase still reads: an overworld quest is found only near its objects (research/dungeon-objectives.md
+    // §24). One pass every PhaseSearchInterval (live 2026-10-01: QST_Frac_Underworld2_02 at phase 80 in the Ancient Mausoleum).
     private IReadOnlyDictionary<int, long> InProgressHere(IReadOnlyList<int> tracked, Func<QuestSearchArea> area)
     {
-        if (questsHere is null || DateTime.UtcNow < _nextSearch) return _inProgressHere;
-        _nextSearch = DateTime.UtcNow + PhaseSearchInterval;
-        var candidates = questsHere(area()).Union(SubQuests(tracked))
+        if (questsHere is null || Now < _nextSearch) return _inProgressHere;
+        _nextSearch = Now + PhaseSearchInterval;
+        var running = _quests.Where(q => q.Phase is not null && q.PhaseAddress is not null)
+            .ToDictionary(q => q.Sno, q => q.PhaseAddress!.Value);
+        var named = questsHere(area());
+        var candidates = named.Union(SubQuests([.. tracked, .. named, .. running.Keys])).Where(q => !running.ContainsKey(q))
             .ToDictionary(q => q, q => (IReadOnlySet<uint>)phases(q).Select(p => p.PhaseUid).ToHashSet());
-        return _inProgressHere = candidates.Count == 0
-            ? new Dictionary<int, long>()
-            : QuestPhaseLocator.FindAll(memory, moduleData, candidates);
+        var found = candidates.Count == 0 ? new Dictionary<int, long>() : QuestPhaseLocator.FindAll(memory, moduleData, candidates);
+        return _inProgressHere = running.Concat(found).ToDictionary();
     }
 
-    // The quests some phase of a tracked quest waits on, and theirs: while one runs the game shows its phase in place of the
+    // The quests some phase of these quests waits on, and theirs: while one runs the game shows its phase in place of the
     // tracked quest's (live 2026-10-04: S15_QST_Main_03_TriadC_01 phase 81 → S15_Triad_C_Travincal). Any phase, since the
     // tracked quest's own phase is no longer readable then.
-    private IEnumerable<int> SubQuests(IReadOnlyList<int> tracked)
+    private IEnumerable<int> SubQuests(IReadOnlyList<int> quests)
     {
-        var seen = tracked.ToHashSet();
-        var pending = new Queue<int>(tracked);
+        var seen = quests.ToHashSet();
+        var pending = new Queue<int>(quests);
         while (pending.TryDequeue(out int quest))
             foreach (int sub in phases(quest).SelectMany(p => p.SubQuests ?? Enumerable.Empty<int>()))
                 if (seen.Add(sub))
@@ -125,10 +129,10 @@ public sealed class ActiveQuests(
         foreach (var quest in _quests)
         {
             uint? phase = quest.PhaseAddress is { } at ? QuestPhaseLocator.Read(memory, at, quest.Sno, quest.Uids) : null;
-            if (phase is null && DateTime.UtcNow >= quest.NextSearch)
+            if (phase is null && Now >= quest.NextSearch)
             {
                 quest.PhaseAddress = QuestPhaseLocator.Find(memory, moduleData, quest.Sno, quest.Uids) is [var found, ..] ? found : null;
-                quest.NextSearch = DateTime.UtcNow + PhaseSearchInterval;
+                quest.NextSearch = Now + PhaseSearchInterval;
                 phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
             }
             if (phase == quest.Phase) continue;
@@ -140,6 +144,8 @@ public sealed class ActiveQuests(
         }
         return changed;
     }
+
+    private DateTime Now => clock?.Invoke() ?? DateTime.UtcNow;
 
     private static string List(IEnumerable<int> quests) => quests.Any() ? string.Join(", ", quests) : "none";
 

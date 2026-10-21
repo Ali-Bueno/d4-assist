@@ -78,7 +78,7 @@ the palace steps.
 
 - The quest sound (Ctrl+Alt+Shift+6 plays it) is for what your quest or the dungeon wants from you: levers, things you
   have to carry and where they go, quest chests, stuff your quest asks you to use or break, the person your quest asks you
-  to talk to, and the monsters the dungeon asks you to kill.
+  to talk to, and the monsters the dungeon asks you to kill. Tracked or not: any quest you have in progress counts.
 - Portals, including the Undercity's warp pads, have their own sound so you can find the way out.
 - Doors, chests, bodies you can search, books and notes, spots to look at and healing wells have their own sounds too. Prisoners play
   the corpse sound, and go quiet once a freed prisoner walks along with you.

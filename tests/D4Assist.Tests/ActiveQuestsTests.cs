@@ -23,8 +23,16 @@ public class ActiveQuestsTests
     private const int MainQuest = 2651255, HubQuest = 2605635, PortalSno = 2647347, OrbSno = 2597583;
     private const uint HandOverPhase = 81, PortalsPhase = 0, OrbPhase = 8;
 
+    // research/dungeon-objectives.md §24: Wrack & Ruin (QST_Hawe_Marsh_03) phase 24 waits on the Right Eye quest, whose phase 21
+    // names the right eye socket; the quest is found by the villager near the stone door, untracked.
+    private const int WrackAndRuin = 594326, RightEyeQuest = 1222498, RightSocketSno = 1302768, VillagerSno = 400;
+    private const uint FindTheEyesPhase = 24, ReturnTheEyePhase = 21;
+    private static readonly PlacedMarker RightSocket = Marker(RightSocketSno, -777, 825);
+
     private static readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> Phases = new()
     {
+        [WrackAndRuin] = [new QuestPhaseObjects(FindTheEyesPhase, [], new HashSet<int>(), [], new HashSet<int> { RightEyeQuest })],
+        [RightEyeQuest] = [Phase(ReturnTheEyePhase, [RightSocket])],
         [FieldsOfRuin] = [Phase(PickUpPhase, [Marker(CollectionSno, -1700, -400)]), Phase(PlacePhase, Bases)],
         [CampaignQuest] = [new QuestPhaseObjects(CampaignPhase, [], new HashSet<int> { PetalSno }, [])],
         [MainQuest] = [new QuestPhaseObjects(HandOverPhase, [], new HashSet<int>(), [], new HashSet<int> { HubQuest })],
@@ -74,12 +82,39 @@ public class ActiveQuestsTests
         Assert.Equal(0, quests.Update(tracked: [], AreaWith(BaseSno)).Count);
     }
 
-    // Finds the Fields of Ruin by its bases, as QuestScriptMarkerReader.QuestsNaming does.
-    private static ActiveQuests Create(ModuleReader memory) =>
+    [Fact]
+    public void AnUntrackedQuestInProgressHereNamesTheCurrentPhaseOfTheQuestItWaitsOn()
+    {
+        var quests = Create(new ModuleReader((WrackAndRuin, FindTheEyesPhase), (RightEyeQuest, ReturnTheEyePhase)));
+
+        var named = quests.Update(tracked: [], AreaWith(VillagerSno));
+
+        Assert.Equal([RightSocket], named.Markers);
+    }
+
+    [Fact]
+    public void AQuestFoundInProgressStaysFollowedAwayFromItsObjects()
+    {
+        var now = DateTime.UtcNow;
+        var quests = Create(new ModuleReader((FieldsOfRuin, PlacePhase)), () => now);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+
+        now += ActiveQuests.PhaseSearchInterval * 2;
+        var named = quests.Update(tracked: [], Nowhere);
+
+        Assert.Equal(Bases, named.Markers);
+    }
+
+    // Finds a quest by one of its objects, as QuestScriptMarkerReader.QuestsNaming does.
+    private static ActiveQuests Create(ModuleReader memory, Func<DateTime>? clock = null) =>
         new(memory, memory.Regions(), q => Phases.GetValueOrDefault(q) ?? [],
-            area => area.Actors.Any(a => a.ActorSno == BaseSno) ? [FieldsOfRuin] : []);
+            area => [.. area.Actors.Select(a => a.ActorSno switch { BaseSno => FieldsOfRuin, VillagerSno => WrackAndRuin, _ => 0 })
+                .Where(q => q != 0).Distinct()],
+            clock);
 
     private static Func<QuestSearchArea> AreaWith(int actorSno) => () => new QuestSearchArea(0, [], [(actorSno, Vector3.Zero)]);
+
+    private static readonly Func<QuestSearchArea> Nowhere = () => new QuestSearchArea(0, [], []);
 
     private static PlacedMarker Marker(int sno, float x, float y) => new(Group: 1, sno, new Vector3(x, y, 0));
 

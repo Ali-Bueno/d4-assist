@@ -658,3 +658,28 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   (re-created after a warp) follows at once: silent (`LOOP stopped … cause=follows`), so the guide counts it done. Both
   distances unmeasured. Prisoner switches (gizmos) are not watched. Unknown: whether `DGN_Standard_NPC_PrisonerInTrance`
   2329531's prisoner walks while still to free, which would silence it if the player walks beside it.
+
+## 24. Overworld quests that hand over: Wrack & Ruin's eye sockets (offline + tester log, 2026-10-21)
+
+- **Report (tester, 0.1.14, no `--debug`, Hawezar):** at "Following Whispers" (the codex group header
+  `CampaignCodexGroup174_Header`, not a quest), objective "Slay the serpents. Return the Serpent's Right Eye", no quest loop
+  told where the eye sockets are. The log: `Quest tracked: none` the whole time; `594326` came and went as "in progress here"
+  at phase 24 for ~9 minutes near the villager; serpents only as map markers kind 10 (`snake_serpent_poison` 691069,
+  `snake_caster_poison` 691072, level area `Hawe_Marsh_Altar`, about (−932, 726)).
+- **Quests (H, offline):** `QST_Hawe_Marsh_03` 594326 "Wrack & Ruin": phase 24 ("Find the eyes for the engraved stone at
+  Yngovani") names `QST_Hawe_Marsh_YngovaniVillager` (−775, 839) and waits on two hidden quests, both also named "Wrack & Ruin":
+  `QST_VGN_Hawe_Marsh_03_BanditScene` 1080159 (survivor, "Slay the serpents", Left Eye) and
+  `QST_VGN_Hawe_Marsh_03_DestroyedAltar` 1222498 (Right Eye, "Search the cultist corpses": `corpse_serpentcultist_melee`
+  (−840, 946), phase 32). Phase 21 of each, "Return the eye", names its socket. No phase names the serpents. The player
+  sees both hidden quests' objectives at once.
+- **Actors (H):** `Hawe_Marsh_Snake_Temple_Blocker_Door_Socket_Right_gizmo` 1302768 ("Right Eye Socket") and `…_Left_gizmo`
+  1302770, gizmo 57 (switch), team 0, both at about (−777, 825) in `Hawe_Marsh (Hawe_Marsh_Campaign_TempleClosed)`, at the
+  `…_Blocker_Door_gizmo` 1261703 ("Engraved Stone Door"). The eyes are inventory items (`Item_QST_Hawe_Marsh_Temple{Left,Right}Eye`
+  943276/943277), not carryables. Whether the sockets are `Gizmo_Is_Quest_Restricted` or `MinimapActive`: unknown (ACD flags).
+- **Cause (H, code):** the hand-over to hidden quests (§18) was followed from tracked quests only, so an untracked 594326 never
+  made 1080159/1222498 candidates; and an overworld quest is found only while one of its objects is loaded around the player,
+  so it dropped in and out at the edge of that range.
+- **Since 2026-10-21 (`ActiveQuests`):** the hand-over is followed from every followed quest (tracked or found here), and a
+  quest found in progress stays followed while its {quest, phase} pair still reads (until it ends or the world changes).
+  Not live-tested. Still open: the sockets loop only within the ~25 units the game streams; nothing leads to them from afar in
+  the overworld.

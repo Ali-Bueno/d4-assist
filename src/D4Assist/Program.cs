@@ -336,7 +336,20 @@ internal static class Program
         {
             var paths = NewOverworldPaths(store, schema, cascGate);
             pathBridge = new QuestPathBridge(
-                session, WorldClassifier.OpenWorldName, markers => { IReadOnlyList<int>? owned = null; session.Query(r => owned = r.ReadOwnedQuests()); return QuestMapPlaces(markers, owned, questHistory, store, questScripts, language, cascGate); }, paths.Find,
+                session, WorldClassifier.OpenWorldName,
+                markers =>
+                {
+                    IReadOnlyList<int>? owned = null;
+                    session.Query(r => owned = r.ReadOwnedQuests());
+                    IReadOnlyDictionary<int, uint>? FindPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests)
+                    {
+                        IReadOnlyDictionary<int, uint>? found = null;
+                        session.Query(r => found = r.FindQuestPhases(quests));
+                        return found;
+                    }
+                    return QuestMapPlaces(markers, owned, FindPhases, questHistory, store, questScripts, language, cascGate, debug ? Console.WriteLine : null);
+                },
+                paths.Find,
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
@@ -593,34 +606,59 @@ internal static class Program
     // 2026-10-19), named after a quest read as in progress with an object near, else "quest marker"; and the map's markers that a
     // quest read as in progress names at their spot (ActiveQuests.MarkerReach). The map also shows objects of quests the player
     // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out, and so are a
-    // quest's objects of other steps than the one last read (QuestStep.Of).
+    // quest's objects of other steps than the one last read (QuestStep.Of). A quest the map names that isn't owned yet is looked
+    // for in progress at once (its {quest, phase} pair): owned quests are found only once their objects load around the player,
+    // and right after the app started D-pad left said "no quest place" beside "In Rathmas Fußstapfen" (live 2026-10-21).
     private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
-        IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned, QuestPhaseHistory questHistory, SnoStore store,
-        QuestScriptMarkerReader questScripts, LanguageSetting language, object cascGate)
+        IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned,
+        Func<IReadOnlyDictionary<int, IReadOnlySet<uint>>, IReadOnlyDictionary<int, uint>?> findPhases, QuestPhaseHistory questHistory,
+        SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language, object cascGate, Action<string>? log)
     {
-        var places = new List<QuestMapPlace>();
         string locale = SpeechLanguages.GameLocale(language.Current);
         string NameOf(int quest) => store.Name(quest) is { } coreName ? store.Text(locale, "Quest_" + coreName, "Name") ?? coreName : quest.ToString();
+        var named = new List<(MarkedActor Marker, int Quest)>();
         lock (cascGate)
-            foreach (var marker in markers)
+            foreach (var marker in markers.Where(m => !IsQuestSymbol(m)))
+                foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
+                    named.Add((marker, quest));
+
+        var inProgress = new HashSet<int>(owned ?? []);
+        var unknown = named.Select(n => n.Quest).Where(q => !inProgress.Contains(q)).Distinct().ToList();
+        if (unknown.Count > 0)
+        {
+            Dictionary<int, IReadOnlySet<uint>> phaseUids;
+            lock (cascGate) phaseUids = unknown.ToDictionary(q => q, q => (IReadOnlySet<uint>)questScripts.PhaseObjects(q).Select(p => p.PhaseUid).ToHashSet());
+            var found = findPhases(phaseUids) ?? new Dictionary<int, uint>();
+            foreach (var (quest, phase) in found)
+            {
+                questHistory.Record(quest, phase);
+                inProgress.Add(quest);
+            }
+            log?.Invoke($"PATH quests the map names, not owned: {string.Join(", ", unknown)}; in progress: " +
+                (found.Count > 0 ? string.Join(", ", found.Select(f => $"{f.Key} at {f.Value}")) : "none"));
+        }
+
+        var places = new List<QuestMapPlace>();
+        lock (cascGate)
+        {
+            foreach (var marker in markers.Where(IsQuestSymbol))
             {
                 var at = new System.Numerics.Vector2(marker.X, marker.Y);
-                if (marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) == QuestSymbolActor)
-                {
-                    int? quest = owned is null ? null : questScripts.QuestNearest(at, QuestSymbolNamingUnits, owned);
-                    places.Add(new QuestMapPlace(quest ?? 0, quest is { } q ? NameOf(q) : AppStrings.For(language.Current).QuestMarker, marker.ActorSno, at,
-                        GameMarker: true));
-                    continue;
-                }
-                foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
-                {
-                    if (owned?.Contains(quest) != true) continue;
-                    var step = questHistory.Last(quest) is { } phase ? questScripts.PhaseObjects(quest).FirstOrDefault(p => p.PhaseUid == phase) : null;
-                    var role = step is null ? StepPlace.Shown : QuestStep.Of(step, marker.ActorSno, at);
-                    if (role != StepPlace.NotInStep) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at, Hidden: role == StepPlace.Hidden));
-                }
+                int? quest = owned is null ? null : questScripts.QuestNearest(at, QuestSymbolNamingUnits, inProgress);
+                places.Add(new QuestMapPlace(quest ?? 0, quest is { } q ? NameOf(q) : AppStrings.For(language.Current).QuestMarker, marker.ActorSno, at,
+                    GameMarker: true));
             }
+            foreach (var (marker, quest) in named.Where(n => inProgress.Contains(n.Quest)))
+            {
+                var at = new System.Numerics.Vector2(marker.X, marker.Y);
+                var step = questHistory.Last(quest) is { } phase ? questScripts.PhaseObjects(quest).FirstOrDefault(p => p.PhaseUid == phase) : null;
+                var role = step is null ? StepPlace.Shown : QuestStep.Of(step, marker.ActorSno, at);
+                if (role != StepPlace.NotInStep) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at, Hidden: role == StepPlace.Hidden));
+            }
+        }
         return places;
+
+        bool IsQuestSymbol(MarkedActor marker) => marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) == QuestSymbolActor;
     }
 
     // The game's generic quest map marker and its marker kind; quest objects this near name its quest.

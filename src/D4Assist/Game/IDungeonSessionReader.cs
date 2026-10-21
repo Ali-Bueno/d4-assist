@@ -45,6 +45,11 @@ public interface IDungeonSessionReader : IDisposable
     /// quests aren't read.</summary>
     IReadOnlyList<int>? ReadOwnedQuests() => null;
 
+    /// <summary>The phase of each of <paramref name="quests"/> (quest SNO → its phase UIDs) whose {quest, phase} pair the module data
+    /// holds: one scan, on the caller's thread. A pair at phase 0 is left out (a stray one, QuestPhaseLocator.Pick). Null when
+    /// quests aren't read.</summary>
+    IReadOnlyDictionary<int, uint>? FindQuestPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests) => null;
+
     /// <summary>The LevelArea SNOs of the local player's activated waypoints among <paramref name="waypointLevelAreas"/>, in
     /// activation order; null when unreadable.</summary>
     IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) => null;

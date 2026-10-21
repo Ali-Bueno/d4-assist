@@ -462,6 +462,11 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlyList<int>? ReadOwnedQuests() => _activeQuests?.Owned;
 
+    public IReadOnlyDictionary<int, uint>? FindQuestPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests) =>
+        _activeQuests is null ? null : QuestPhaseLocator.FindAllCandidates(_process, _moduleData, quests)
+            .Select(found => (Quest: found.Key, found.Value.First(c => c.Address == QuestPhaseLocator.Pick(found.Value)).Phase))
+            .Where(found => found.Phase != 0).ToDictionary(found => found.Quest, found => found.Phase);
+
     public IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) =>
         _offsets is { } offsets ? ActivatedWaypointsReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva, waypointLevelAreas) : null;
 

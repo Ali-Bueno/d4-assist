@@ -171,7 +171,7 @@ public sealed class QuestPathBridge
                 _speech.Speak(strings.NoQuestPlace, interrupt: true);
                 return;
             }
-            Start(places[next], here, $"D-pad left, {next + 1} of {places.Count}");
+            Start(places[next], here, $"D-pad left, {next + 1} of {places.Count}", next + 1, places.Count);
         }
     }
 
@@ -186,13 +186,17 @@ public sealed class QuestPathBridge
         return places;
     }
 
-    private void Start(QuestMapPlace place, Vector2 here, string reason)
+    // Several places marked: says which one of how many, so further presses are known to reach the others (live 2026-10-21: the
+    // last siege tower of "Verwundete Seelen" was the fifth of five, and one press each time led elsewhere).
+    private void Start(QuestMapPlace place, Vector2 here, string reason, int number, int count)
     {
         Stop();
         _active = place;
         float distance = Vector2.Distance(here, place.Position);
         Log($"PATH to {place.QuestName} (quest {place.QuestSno}) at ({place.Position.X:F1},{place.Position.Y:F1}), {distance:F0} units ({reason})");
-        _speech.Speak(string.Format(AppStrings.For(_language.Current).PathGuideFormat, place.QuestName, MathF.Round(distance)), interrupt: true);
+        var strings = AppStrings.For(_language.Current);
+        string text = string.Format(strings.PathGuideFormat, place.QuestName, MathF.Round(distance));
+        _speech.Speak(count > 1 ? $"{text} {string.Format(strings.PlaceCountFormat, number, count)}" : text, interrupt: true);
         if (_player is { } player) FindPath(player);
     }
 

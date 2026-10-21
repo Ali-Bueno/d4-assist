@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "지도에 퀘스트 목표가 없습니다.",
         PentagramGuide: "오각별 안내.",
         PentagramEnd: "오각별 끝.",
-        QuestMarker: "퀘스트 표시");
+        QuestMarker: "퀘스트 표시",
+        PlaceCountFormat: "{1}개 중 {0}번째.");
 }

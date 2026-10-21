@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "На карте нет целей заданий.",
         PentagramGuide: "Проводник по пентаграмме.",
         PentagramEnd: "Конец пентаграммы.",
-        QuestMarker: "Отметка задания");
+        QuestMarker: "Отметка задания",
+        PlaceCountFormat: "{0} из {1}.");
 }

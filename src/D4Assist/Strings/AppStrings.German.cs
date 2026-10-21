@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "Kein Questziel auf der Karte.",
         PentagramGuide: "Pentagramm-Führung.",
         PentagramEnd: "Ende des Pentagramms.",
-        QuestMarker: "Questmarkierung");
+        QuestMarker: "Questmarkierung",
+        PlaceCountFormat: "{0} von {1}.");
 }

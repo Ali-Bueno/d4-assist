@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "マップにクエスト目標がありません。",
         PentagramGuide: "五芒星ガイド。",
         PentagramEnd: "五芒星の終わり。",
-        QuestMarker: "クエストマーカー");
+        QuestMarker: "クエストマーカー",
+        PlaceCountFormat: "{1}件中{0}件目。");
 }

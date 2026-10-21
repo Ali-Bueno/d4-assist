@@ -94,7 +94,7 @@ public class QuestPathTests
 
         rig.Pad.Press();
 
-        Assert.Equal("Quest goal: Disciples of the Forbidden, 85 meters.", rig.Speech.Texts.Last());
+        Assert.Equal("Quest goal: Disciples of the Forbidden, 85 meters. 1 of 2.", rig.Speech.Texts.Last());
         Assert.Equal((World, new Vector3(KedBardu, 0), LostPlains), Assert.Single(rig.Searches));
         Assert.True(rig.Pings());
     }
@@ -107,7 +107,7 @@ public class QuestPathTests
         rig.Pad.Press();
 
         rig.Pad.Press();
-        Assert.Equal("Quest goal: By Their Fruits, 207 meters.", rig.Speech.Texts.Last());
+        Assert.Equal("Quest goal: By Their Fruits, 207 meters. 2 of 2.", rig.Speech.Texts.Last());
         Assert.Equal(FarCorpse, rig.Searches[^1].To);
         Assert.True(rig.Pings());
 

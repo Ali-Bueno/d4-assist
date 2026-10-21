@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "Haritada görev hedefi yok.",
         PentagramGuide: "Pentagram rehberi.",
         PentagramEnd: "Pentagramın sonu.",
-        QuestMarker: "Görev işareti");
+        QuestMarker: "Görev işareti",
+        PlaceCountFormat: "{1} içinden {0}.");
 }

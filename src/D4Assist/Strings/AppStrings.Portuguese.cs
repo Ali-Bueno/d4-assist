@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "Nenhum objetivo de missão no mapa.",
         PentagramGuide: "Guia do pentagrama.",
         PentagramEnd: "Fim do pentagrama.",
-        QuestMarker: "Marcador de missão");
+        QuestMarker: "Marcador de missão",
+        PlaceCountFormat: "{0} de {1}.");
 }

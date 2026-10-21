@@ -55,5 +55,6 @@ public sealed partial record AppStrings
         NoQuestPlace: "地图上没有任务目标。",
         PentagramGuide: "五芒星引导。",
         PentagramEnd: "五芒星结束。",
-        QuestMarker: "任务标记");
+        QuestMarker: "任务标记",
+        PlaceCountFormat: "第{0}个，共{1}个。");
 }

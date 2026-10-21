@@ -50,4 +50,30 @@ public class BlueprintPlacementTests
 
         Assert.Equal(2, placement.Place(named, []).Count()); // the anchors out of range again
     }
+
+    // CSD_Skov_Athulua_AskariDungeon_BPMS (live 2026-10-21): a trigger and a spawner near the player agreed on (102.4,67.5), while
+    // the map's NPCs (anywhere in the dungeon) put it at (-32,32).
+    private const int SpawnerSno = 1098682, WarriorSno = 2410941, TharraSno = 2460979;
+
+    private static readonly Blueprint Askari = new(2401650,
+    [
+        Marker(TriggerSno, 16.0f, 35.0f), Marker(TriggerSno, 150.5f, 70.5f), Marker(SpawnerSno, 11.8f, 35.7f),
+        Marker(WarriorSno, 58.1f, 79.0f), Marker(TharraSno, -8.5f, -40.9f),
+    ]);
+
+    [Fact]
+    public void More_kinds_agreeing_on_another_shift_move_the_blueprint()
+    {
+        var placement = new BlueprintPlacement();
+        BlueprintMarker[] named = [new(Askari, Marker(TriggerSno, 16.0f, 35.0f))];
+        (int, Vector3)[] near = [Live(TriggerSno, 118.5f, 102.5f), Live(SpawnerSno, 114.2f, 103.2f)];
+
+        var wrong = Assert.Single(placement.Place(named, near));
+        Assert.Equal((118.4f, 102.5f), (MathF.Round(wrong.Position.X, 1), MathF.Round(wrong.Position.Y, 1)));
+
+        var placed = Assert.Single(placement.Place(named, [.. near, Live(WarriorSno, 26.1f, 111.0f), Live(TharraSno, -40.5f, -8.9f)]));
+        Assert.Equal((-16.0f, 67.0f), (MathF.Round(placed.Position.X, 1), MathF.Round(placed.Position.Y, 1)));
+
+        Assert.Equal(-16.0f, MathF.Round(Assert.Single(placement.Place(named, near)).Position.X, 1)); // fewer kinds don't move it back
+    }
 }

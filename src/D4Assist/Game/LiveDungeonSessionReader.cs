@@ -380,11 +380,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             if (flags is null) return ActorFilter.Placed(records);
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
+            var marked = _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) ?? [];
             var places = named.Markers.Concat(InWorld(named.SceneMarkers))
-                .Concat(_blueprints.Place(named.KindMarkers, [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position))])).ToList();
+                .Concat(named.KindMarkers.Count == 0 ? [] : _blueprints.Place(named.KindMarkers,
+                    [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))])).ToList();
             _questPlaces = places;
             _questActorSnos = named.ActorSnos;
-            var mapped = MarkedGizmos(offsets);
+            var mapped = MarkedGizmos(marked);
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
                 .. mapped.Where(g => named.ActorSnos.Contains(g.Sno)).Select(g => (g.Sno, g.Position, true))];
             var actors = _invulnerability.Apply(ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
@@ -476,9 +478,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // The gizmos and triggers the map marks, wherever they are: those the current phases name are quest places even out of reach
     // (the server places some, the Labyrinth's lair door, and the game only streams actors in about 25 units around the player);
     // a quest gizmo marked is open to the player (ActorFilter).
-    private List<(int Sno, Vector3 Position)> MarkedGizmos(GameBuildOffsets offsets) =>
-        _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is not { } markers ? []
-        : [.. markers.Where(m => m.Kind == MapMarkerReader.KindGizmo).Select(m => (m.ActorSno, m.Position))];
+    private static List<(int Sno, Vector3 Position)> MarkedGizmos(IReadOnlyList<MapMarker> markers) =>
+        [.. markers.Where(m => m.Kind == MapMarkerReader.KindGizmo).Select(m => (m.ActorSno, m.Position))];
 
     // The gizmos the current phases name by SNO alone, wherever the loaded tiles place them.
     private List<(int Sno, Vector3 Position)> PlacedByTiles(IReadOnlySet<int> snos)

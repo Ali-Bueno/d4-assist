@@ -11,7 +11,7 @@ namespace D4Assist.Game;
 
 /// <summary>A place the game's map marks for a quest: a map marker whose actor and spot a quest's scripts name, or the game's own
 /// quest marker.</summary>
-/// <param name="GameMarker">The game's own quest marker (Symbol_Quest_Proxy): offered before quest objects.</param>
+/// <param name="GameMarker">The game's own quest marker (Symbol_Quest_Proxy, MarkerLocation): offered before quest objects.</param>
 /// <param name="Hidden">Named only by a step the game doesn't show (QuestPhaseObjects.HiddenMarkers): offered after the shown ones.</param>
 public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false, bool Hidden = false);
 

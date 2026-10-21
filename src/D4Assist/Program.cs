@@ -604,8 +604,9 @@ internal static class Program
         return routes;
     }
 
-    // The game's own quest markers (Symbol_Quest_Proxy, map kind 12: an area step such as "kill the fiend roaming here", live
-    // 2026-10-19), named after a quest read as in progress with an object near, else "quest marker"; and the map's markers that a
+    // The game's own quest markers (map kind 12: Symbol_Quest_Proxy for an area step such as "kill the fiend roaming here", live
+    // 2026-10-19; MarkerLocation by the siege towers of "Verwundete Seelen", where D-pad left found no third tower, live 2026-10-21),
+    // named after a quest read as in progress with an object near, else "quest marker"; and the map's markers that a
     // quest read as in progress names at their spot (ActiveQuests.MarkerReach). The map also shows objects of quests the player
     // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out, and so are a
     // quest's objects of other steps than the one last read (QuestStep.Of). A quest the map names that isn't owned yet is looked
@@ -660,11 +661,11 @@ internal static class Program
         }
         return places;
 
-        bool IsQuestSymbol(MarkedActor marker) => marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) == QuestSymbolActor;
+        bool IsQuestSymbol(MarkedActor marker) => marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) is { } name && QuestSymbolActors.Contains(name);
     }
 
-    // The game's generic quest map marker and its marker kind; quest objects this near name its quest.
-    private const string QuestSymbolActor = "Symbol_Quest_Proxy";
+    // The game's generic quest map markers and their marker kind; quest objects this near name their quest.
+    private static readonly string[] QuestSymbolActors = ["Symbol_Quest_Proxy", "MarkerLocation"];
     private const int QuestSymbolMarkerKind = 12;
     private const float QuestSymbolNamingUnits = 60f;
 

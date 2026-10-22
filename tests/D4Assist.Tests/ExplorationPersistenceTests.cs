@@ -118,6 +118,27 @@ public class ExplorationPersistenceTests : IDisposable
     }
 
     [Fact]
+    public void Another_instance_with_the_same_tiles_in_the_same_game_run_keeps_the_map()
+    {
+        // Live 2026-10-22, "Die Leere": after a death beside the boss the game named instance 3670019 instead of 3145731, same
+        // tiles, and the guide explored the whole dungeon again instead of leading to the boss room.
+        var tileC = new TileState(12, "C", 32, 0, 32, 32, 1, 3, 3);
+        var app = Start();
+        app.Feed.RaiseTiles(TileA, TileB, tileC);
+        app.Feed.RaisePlayer(16, 16);
+        app.Feed.RaiseTiles(TileA, TileB, tileC);
+
+        var sameTiles = Start(instance: "1048578");
+        sameTiles.Feed.RaiseTiles(TileA, TileB, tileC);
+        Assert.Contains((0, 0), sameTiles.Navigation.ExportExploration().Visited);
+        Assert.Contains(sameTiles.Log, l => l.StartsWith("Exploration: restored instance 524290's"));
+
+        var fewTiles = Start(instance: "2097154");
+        fewTiles.Feed.RaiseTiles(TileA, TileB); // two tiles agree: too few to call it the same layout
+        Assert.DoesNotContain((0, 0), fewTiles.Navigation.ExportExploration().Visited);
+    }
+
+    [Fact]
     public void A_save_whose_tiles_disagree_with_the_loaded_ones_is_another_layout()
     {
         ExploreTileA();

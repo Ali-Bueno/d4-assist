@@ -20,6 +20,11 @@ public sealed class ExplorationPersistence
     private readonly object _gate = new();
     private (string World, string Instance, DateTime GameStartedUtc)? _key;
     private ExplorationSnapshot? _pending;
+    // The save names another instance of the same world in the same game run: a death can move the player to one with the same
+    // tiles (live 2026-10-22, "Die Leere": 3145731, then 3670019 beside the boss; the guide explored the whole dungeon again).
+    private bool _otherInstance;
+    /// <summary>Loaded tiles that must agree with another instance's save before it is taken for this one.</summary>
+    public const int SameLayoutTiles = 3;
 
     /// <param name="gameStartedUtc">When the running game process started; null when unknown (then nothing is kept).</param>
     public ExplorationPersistence(
@@ -35,7 +40,8 @@ public sealed class ExplorationPersistence
         _log = log;
 
         _key = KeyOf(feed); // app started mid-dungeon: only this world can have a save to restore
-        if (_key is { } key && store.Load() is { } saved && (saved.World, saved.Instance, saved.GameStartedUtc) == key) _pending = saved;
+        if (_key is { } key && store.Load() is { } saved && (saved.World, saved.GameStartedUtc) == (key.World, key.GameStartedUtc))
+            (_pending, _otherInstance) = (saved, saved.Instance != key.Instance);
         feed.WorldChanged += (_, _, _) =>
         {
             lock (_gate)
@@ -72,7 +78,8 @@ public sealed class ExplorationPersistence
     private void Restore(ExplorationSnapshot saved, IReadOnlyList<TileState> live)
     {
         // CWorldIDs repeat across game sessions: a save whose tiles disagree with the loaded ones is another layout.
-        bool sameLayout = live.All(t => saved.Tiles.FirstOrDefault(s => s.OriginX == t.OriginX && s.OriginY == t.OriginY) is not { } s || s.SceneSno == t.SceneSno);
+        bool sameLayout = live.All(t => saved.Tiles.FirstOrDefault(s => s.OriginX == t.OriginX && s.OriginY == t.OriginY) is not { } s || s.SceneSno == t.SceneSno)
+            && (!_otherInstance || live.Count(t => saved.Tiles.Any(s => s.OriginX == t.OriginX && s.OriginY == t.OriginY)) >= SameLayoutTiles);
         if (!sameLayout)
         {
             _log?.Invoke("Exploration: the saved map doesn't match this dungeon; starting fresh.");
@@ -82,7 +89,7 @@ public sealed class ExplorationPersistence
         _portals?.Restore(saved.Portals);
         _objectives?.Restore(saved.Objectives ?? []);
         _layers?.Restore(saved.Layers ?? []);
-        _log?.Invoke($"Exploration: restored {saved.Tiles.Count} tiles ({saved.Visited.Count} explored), {saved.Portals.Count} portals and " +
+        _log?.Invoke($"Exploration: restored {(_otherInstance ? $"instance {saved.Instance}'s " : "")}{saved.Tiles.Count} tiles ({saved.Visited.Count} explored), {saved.Portals.Count} portals and " +
             $"{saved.Objectives?.Count ?? 0} objectives from the last run.");
     }
 }

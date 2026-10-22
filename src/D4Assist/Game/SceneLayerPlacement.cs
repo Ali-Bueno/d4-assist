@@ -23,6 +23,10 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
     private readonly Dictionary<int, (int Scene, Vector3 Wp, Quaternion Q)> _layers = [];
     // Session reads and the exploration save run on different threads.
     private readonly object _gate = new();
+    // This world's loaded tiles, for the map's markers: the map lists other worlds' too (live 2026-10-22: the open world's copy of
+    // a boss-room trigger, 3000 units off, placed a layer there and the guide explored towards it for nine minutes).
+    private List<Vector2> _tiles = [];
+    private const float NearTilesUnits = 256f;
 
     /// <summary>A new world: its tiles are new.</summary>
     public void Reset()
@@ -61,6 +65,7 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
         IReadOnlyList<(int Sno, Vector3 Position)> marked)
     {
         var placed = new List<PlacedMarker>();
+        _tiles = [.. placements.Values.SelectMany(p => p.Select(t => Flat(t.Wp)))];
         lock (_gate)
             foreach (var m in markers)
             {
@@ -100,12 +105,13 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
     // The tile origins the map's markers of the layer's own actors imply, unturned as every DRLG tile seen so far; one per tile.
     // Only an origin on the tile grid: the same barrier wall stands in other layers too (the banishment room's, at another spot
     // in its tile), and its marker there implies an origin off the grid.
-    private static List<Vector3> MapAnchored(IReadOnlyList<PlacedMarker> anchors, IReadOnlyList<(int Sno, Vector3 Position)> marked)
+    private List<Vector3> MapAnchored(IReadOnlyList<PlacedMarker> anchors, IReadOnlyList<(int Sno, Vector3 Position)> marked)
     {
         var origins = new List<Vector3>();
         foreach (var anchor in anchors)
             foreach (var (sno, position) in marked)
                 if (sno == anchor.Sno && position - anchor.Position is var origin && OnGrid(origin.X) && OnGrid(origin.Y)
+                    && _tiles.Any(t => Vector2.Distance(t, Flat(origin)) <= NearTilesUnits)
                     && !origins.Any(o => Vector2.Distance(Flat(o), Flat(origin)) <= SameTileUnits))
                     origins.Add(origin);
         return origins;

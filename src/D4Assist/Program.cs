@@ -208,12 +208,13 @@ internal static class Program
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains,
             config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
         // Traversal points join floor the walk map splits (a gap to jump, a ladder, a gap to duck under): the guide routes over them
-        // and leads to the traversal point. Every kind but the one-way slide (jumps: live 2026-10-18, Philios mindscape; ladders and a
-        // duck-under: three of the Necropolis's five tumors stand on ground reached only by them, research/dungeon-objectives.md §12).
+        // and leads to the traversal point; a slide one way to its exit, a climb from its top exit to its bottom one (jumps: live
+        // 2026-10-18, Philios mindscape; ladders and a duck-under: three of the Necropolis's five tumors stand on ground reached only
+        // by them, research/dungeon-objectives.md §12; slide and climb: live 2026-10-22, "Die Leere").
         var jumpScenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false);
-        var tileJumps = new TileActorReader(jumpScenes, sno => store.Name(sno) is { } name
-            && name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) && name != TraversalSlideName);
-        _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null);
+        var tileJumps = new TileActorReader(jumpScenes, sno => TraversalKinds.Of(store.Name(sno)) != TraversalKind.None);
+        _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null,
+            sno => TraversalKinds.Of(store.Name(sno)));
 
         // One mixer and one output for the radar cues and the beacon loops.
         var interactables = new InteractableClassifier(definitionOf, store.Name);

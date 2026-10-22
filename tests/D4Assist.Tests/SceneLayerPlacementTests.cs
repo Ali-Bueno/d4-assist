@@ -99,6 +99,8 @@ public class SceneLayerPlacementTests
         var layers = new SceneLayerPlacement();
 
         var b = Assert.Single(layers.Place([In(LayerB)], Tiles(RoomA), Map((Trigger, -16, 205), (Trigger, 3027.7f, -1019.6f))));
+        // Live 2026-10-22, phase 328: the open world's copy at (2959.2+16,-1088.5+13) is on the grid but 3000 units off this world's tiles.
+        Assert.Empty(layers.Place([new SceneMarker(Scene + 1, TriggerMarker, 99, [])], Tiles(RoomA), Map((Trigger, 2975.2f, -1075.5f))));
 
         Assert.Equal((-16f, 205f), (b.Position.X, b.Position.Y));
         Assert.Equal(-48f, Assert.Single(layers.Place([In(LayerA)], Tiles(RoomA), [])).Position.X);

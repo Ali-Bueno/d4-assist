@@ -116,14 +116,14 @@ public static class RoomPathfinder
         return true;
     }
 
-    // Every cell a jump starts from, with where it lands, what the leap costs and the jump point used; both ways. A jump whose
+    // Every cell a jump starts from, with where it lands, what the leap costs and the jump point used; both ways unless one-way. A jump whose
     // either end has no floor within JumpReachUnits on this grid is left out.
     private static Dictionary<(int, int), List<((int, int) Landing, float Cost, (float X, float Y) At)>> Takeoffs(
         WalkGrid grid, IReadOnlyList<JumpLink> jumps)
     {
         var takeoffs = new Dictionary<(int, int), List<((int, int), float, (float X, float Y))>>();
         foreach (var jump in jumps)
-            foreach (var (from, to) in new[] { (jump.A, jump.B), (jump.B, jump.A) })
+            foreach (var (from, to) in jump.OneWay ? new[] { (jump.A, jump.B) } : new[] { (jump.A, jump.B), (jump.B, jump.A) })
             {
                 if (NearestFloor(grid, to) is not { } landing) continue;
                 float leap = Distance(from, to) + JumpExtraCost;

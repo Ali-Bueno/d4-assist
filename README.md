@@ -145,5 +145,5 @@ The program saves a log next to it, `d4assist-log.txt` (and the one before as `d
 program, open an [issue](../../issues), tell me where you were in the game and attach both files.
 
 Speech goes through [PRISM](https://github.com/ethindp/prism) and the game data definitions come from
-[d4data](https://github.com/blizzhackers/d4data). The source code is in this repository: [DEVELOPMENT.md](DEVELOPMENT.md)
-explains how it's built and organised.
+[d4data](https://github.com/blizzhackers/d4data). The source code is in this repository under the [MIT license](LICENSE):
+[DEVELOPMENT.md](DEVELOPMENT.md) explains how it's built and organised.

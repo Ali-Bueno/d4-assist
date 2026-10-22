@@ -129,7 +129,7 @@
 - **Radar-only worlds:** built 2026-09-28 for the Mercenary den (video). 2026-09-30: the user asked for the radar in the Darkened Way; every story area (non-DRLG world but the open world) now gets it automatically. **Open world: no radar** (user 2026-09-30: Blizzard's own navigation assist works well there; enable it only if that stops working).
 - **Features (2026-09-28):** first = automatic spoken announcements (junctions, dead ends, big rooms) in stick directions, then the radar. Language: C# (.NET 10).
 - **Live sessions (2026-09-29):** after each new feature, stop the running app, rebuild and relaunch it with `--debug` without asking.
-- **Repository:** private GitHub `Ali-Bueno/d4-assist-source` (renamed from `d4-dungeon-assist` 2026-10-01). Never make it public without asking (it reads game memory). Builds are published as releases of the public `Ali-Bueno/d4-assist`, whose README is `release/README.md` here (2026-10-01, user).
+- **Repository:** public GitHub `Ali-Bueno/d4-assist`, source and releases together (2026-10-22, user). The updater reads its releases. The old source repo `Ali-Bueno/d4-assist-source` was made public and archived the same day. The root `README.md` is the player guide; the developer overview is `DEVELOPMENT.md`.
 - **Project knowledge lives in this repo only** (this file, `research/`, READMEs), never in assistant memory.
 
 ## Known issues / open questions

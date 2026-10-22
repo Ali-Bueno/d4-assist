@@ -189,13 +189,15 @@ internal static class Program
         var conversationAddresses = new ConversationAddresses(
             Path.Combine(AppContext.BaseDirectory, "d4assist-addresses.json"), conversationSnos.Contains, debug ? Console.WriteLine : null);
         var questHistory = QuestPhaseHistory.Load(AppContext.BaseDirectory, log: Console.WriteLine);
+        var sceneLayers = new SceneLayerPlacement(Console.WriteLine);
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
                 scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner, questHistory,
-                sno => definitionOf(sno) is { } definition && ObjectiveClassifier.IsStructure(store.Name(sno), definition)),
+                sno => definitionOf(sno) is { } definition && ObjectiveClassifier.IsStructure(store.Name(sno), definition),
+                sceneLayers),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 
@@ -268,7 +270,8 @@ internal static class Program
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         _ = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine,
-            objectives);
+            objectives, sceneLayers);
+        session.WorldChanged += (_, _, _) => sceneLayers.Reset();
         var cueGate = new CueGate(paused => mixer.Paused = paused, Console.WriteLine); // mute reasons always logged: testers' "no sound" reports
         session.TransitChanged += loading => cueGate.Set(CueMute.Loading, loading); // the loops would hang on their last positions
         if (config.PauseCuesInCutscenes)

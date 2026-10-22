@@ -33,6 +33,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly int _worldSno;
     // Where each scene was placed this visit (tile reads), to land scene-local quest markers in the world.
     private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
+    private readonly SceneLayerPlacement _layers;
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
     private readonly BlueprintPlacement _blueprints = new();
     private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
@@ -65,10 +66,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
         Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, SwitchStateLog? switches,
         Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner,
-        QuestPhaseHistory? questHistory, Func<int, bool>? staysPut)
+        QuestPhaseHistory? questHistory, Func<int, bool>? staysPut,
+        SceneLayerPlacement? layers)
     {
         _questOwner = questOwner;
         _staysPut = staysPut ?? (_ => false);
+        _layers = layers ?? new SceneLayerPlacement(Console.WriteLine);
         _health = health;
         _switches = switches;
         _tileGizmos = tileGizmos;
@@ -102,13 +105,15 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     /// <param name="questOwner">The quest a quest chest belongs to by name (QuestOwnerIndex); it stays locked while that quest is not
     /// followed. Null for none.</param>
     /// <param name="questHistory">The last phase of each quest read in any world, shared by every world session; null for this one's own.</param>
+    /// <param name="layers">Which tile carries each scene layer in this world, shared with the exploration save; null for this session's own.</param>
     public static LiveDungeonSessionReader? TryOpen(
         string installPath, CandidateIndex candidates, IReadOnlySet<int> playerActorSnos, int worldSno, IReadOnlySet<int> sceneSnos,
         MenuScreenTracker? menus = null, Func<int, bool>? readsFlags = null, Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers = null,
         ConversationAddresses? conversations = null, Func<QuestSearchArea, IReadOnlyList<int>>? questsHere = null,
         ReadHealth? health = null, Func<int, bool>? isActorSno = null, SwitchStateLog? switches = null,
         Func<int, IReadOnlyList<TileActor>>? tileGizmos = null, MapMarkerTracker? mapMarkers = null, Func<int, int?>? questOwner = null,
-        QuestPhaseHistory? questHistory = null, Func<int, bool>? staysPut = null)
+        QuestPhaseHistory? questHistory = null, Func<int, bool>? staysPut = null,
+        SceneLayerPlacement? layers = null)
     {
         ProcessReader process;
         using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
@@ -120,7 +125,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         try
         {
             return OpenWith(process, installPath, candidates, playerActorSnos, worldSno, sceneSnos, menus, readsFlags, questMarkers,
-                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers, questOwner, questHistory, staysPut);
+                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers, questOwner, questHistory, staysPut,
+                layers);
         }
         catch
         {
@@ -135,7 +141,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers, ConversationAddresses? conversations,
         Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, Func<int, bool>? isActorSno,
         SwitchStateLog? switches, Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner,
-        QuestPhaseHistory? questHistory, Func<int, bool>? staysPut)
+        QuestPhaseHistory? questHistory, Func<int, bool>? staysPut,
+        SceneLayerPlacement? layers)
     {
         string exePath = Path.Combine(installPath, ExecutableFileName);
         // A store that keeps the exe outside the data root: identify the module by the running game's own file.
@@ -181,7 +188,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
             conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health, switches, tileGizmos, mapMarkers,
-            questOwner, questHistory, staysPut);
+            questOwner, questHistory, staysPut,
+            layers);
     }
 
     // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer
@@ -384,7 +392,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
             var marked = _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) ?? [];
-            var places = named.Markers.Concat(InWorld(named.SceneMarkers))
+            var places = named.Markers.Concat(InWorld(named.SceneMarkers, marked))
                 .Concat(named.KindMarkers.Count == 0 ? [] : _blueprints.Place(named.KindMarkers,
                     [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))])).ToList();
             _questPlaces = places;
@@ -419,15 +427,14 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         return values;
     }
 
-    // A scene-local marker lands where its scene is placed: world = wp + rotate(q, local) (research/client-memory.md §5). A
-    // scene not placed yet, or placed more than once, says nothing.
-    private IEnumerable<PlacedMarker> InWorld(IReadOnlyList<SceneMarker> markers)
+    // A scene-local marker lands where its scene is placed: world = wp + rotate(q, local) (research/client-memory.md §5), on the
+    // tile that carries its layer (SceneLayerPlacement).
+    private IEnumerable<PlacedMarker> InWorld(IReadOnlyList<SceneMarker> markers, IReadOnlyList<MapMarker> marked)
     {
-        if (markers.Count == 0) yield break;
-        lock (_placements)
-            foreach (var (scene, marker) in markers)
-                if (_placements.TryGetValue(scene, out var at) && at.Count == 1)
-                    yield return marker with { Position = at[0].Wp + Vector3.Transform(marker.Position, at[0].Q) };
+        if (markers.Count == 0) return [];
+        Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> placed;
+        lock (_placements) placed = _placements.ToDictionary(kv => kv.Key, kv => kv.Value.ToList());
+        return [.. _layers.Place(markers, placed, [.. marked.Select(m => (m.ActorSno, m.Position))])];
     }
 
     // What the active quests' current phases name (research/client-memory.md §4); the player's record holds the tracked quests.

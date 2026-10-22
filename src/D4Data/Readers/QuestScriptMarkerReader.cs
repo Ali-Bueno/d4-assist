@@ -7,7 +7,10 @@ namespace D4Data.Readers;
 
 /// <summary>A marker in a scene's own layer set (<c>&lt;Scene&gt; (&lt;Layer&gt;)</c>): its position is scene-local, so it lands in the
 /// world only where that scene is placed (a DRLG dungeon's tile, live 2026-10-01: the Ancient Mausoleum's central chamber).</summary>
-public sealed record SceneMarker(int SceneSno, PlacedMarker Marker);
+/// <param name="Layer">The layer's marker set: a scene placed twice can carry two layers, one per tile (QST_Skov_Celestia_03's lock
+/// rooms A and B, both <c>Cave_Tomb_EW_01</c>, live 2026-10-22). Null for a marker no layer names (an overlay's).</param>
+/// <param name="Anchors">The layer's own actor markers, scene-local: one the map marks tells the tile that carries it. Null with no layer.</param>
+public sealed record SceneMarker(int SceneSno, PlacedMarker Marker, int? Layer = null, IReadOnlyList<PlacedMarker>? Anchors = null);
 
 /// <summary>A blueprint's own marker set (<c>&lt;Name&gt;_BPMS</c>, no layer) and its actor markers, which anchor it: the instance
 /// places the blueprint shifted, not turned (live 2026-10-17: the ship to Skovos by (-32,-127), CSD_Skov_Temis_SmugglersRun_02 by
@@ -51,6 +54,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
     private Dictionary<int, List<int>>? _questsByWorld;
     private readonly Dictionary<int, Blueprint> _blueprints = [];
+    private readonly Dictionary<int, IReadOnlyList<PlacedMarker>> _layerAnchors = [];
     private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _groupMarkers;
     private SceneLayerIndex? _sceneLayers;
 
@@ -81,7 +85,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
-                .Select(h => (Scenes: ScenesOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
+                .Select(h => (h.MarkerSet, Scenes: ScenesOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
@@ -92,7 +96,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             return new QuestPhaseObjects(uid,
                 [.. named.Where(m => m.Scenes is null && m.Blueprint is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
-                [.. named.Where(m => m.Scenes is not null).SelectMany(m => m.Scenes!.Select(scene => new SceneMarker(scene, m.Marker!))), .. overlays],
+                [.. named.Where(m => m.Scenes is not null).SelectMany(m => m.Scenes!.Select(scene => new SceneMarker(scene, m.Marker!, m.MarkerSet, LayerAnchors(m.MarkerSet)))), .. overlays],
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
@@ -190,6 +194,14 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         if (store.Name(markerSet) is not { } name || !IsBlueprintSet(name)) return null;
         int actorGroup = schema.SnoGroup(ActorDefinition);
         return _blueprints[markerSet] = new Blueprint(markerSet, [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)]);
+    }
+
+    // A scene layer's actor markers (its barrier walls, NPCs, spawners), read once per set.
+    private IReadOnlyList<PlacedMarker> LayerAnchors(int markerSet)
+    {
+        if (_layerAnchors.TryGetValue(markerSet, out var known)) return known;
+        int actorGroup = schema.SnoGroup(ActorDefinition);
+        return _layerAnchors[markerSet] = [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)];
     }
 
     // The scenes a marker set belongs to; null for a world's or a subzone's layer set (world space) or a set with no frame. A scene

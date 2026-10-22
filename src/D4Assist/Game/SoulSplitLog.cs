@@ -4,7 +4,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>
-/// Debug log for Rathma's soul split (research/dungeon-objectives.md §24): while any soul-split actor is listed, twice a second the
+/// Debug log for Rathma's soul split (research/dungeon-objectives.md §25): while any soul-split actor is listed, twice a second the
 /// player position read and every soul-split actor, and once each actor that turns up near the player meanwhile, to learn where
 /// the body and the spirit are (the second live run, 2026-10-20: the loop sounded far right and never moved).
 /// </summary>

@@ -1,7 +1,7 @@
 namespace D4Assist.Game;
 
 /// <summary>
-/// Rathma's soul split (research/dungeon-objectives.md §24): the spirit leaves the body and must get back to it. The body has no
+/// Rathma's soul split (research/dungeon-objectives.md §25): the spirit leaves the body and must get back to it. The body has no
 /// actor of its own: the player is pulled into a rune light beam, which stays on the body for the whole split, then the spirit is
 /// thrown out and the resurrection actor appears with it and follows it, as the player position read does (live 2026-10-20: beam
 /// at (-70.9,1.8) where the player stood 4 s, the resurrection actor first seen 5.6 units off). So the resurrection actor's loop

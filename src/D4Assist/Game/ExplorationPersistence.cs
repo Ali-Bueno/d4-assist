@@ -5,7 +5,7 @@ namespace D4Assist.Game;
 /// <summary>
 /// Saves the current dungeon's map, explored tiles, portals, objectives heard and scene layers' tiles (ExplorationStore) and restores them when the app restarts
 /// in the same instance of the same game run, so the guide never leads back over explored ground and the arrival portal
-/// is not taken for a new one. Leaving the dungeon discards the save.
+/// is not taken for a new one. A trip to town keeps it for the way back; the next dungeon's save replaces it.
 /// </summary>
 public sealed class ExplorationPersistence
 {
@@ -43,19 +43,20 @@ public sealed class ExplorationPersistence
         _gameStartedUtc = gameStartedUtc;
         _log = log;
 
-        _key = KeyOf(feed); // app started mid-dungeon: only this world can have a save to restore
-        if (_key is { } key && store.Load() is { } saved && (saved.World, saved.GameStartedUtc) == (key.World, key.GameStartedUtc))
-            (_pending, _otherInstance) = (saved, saved.Instance != key.Instance);
-        feed.WorldChanged += (_, _, _) =>
-        {
-            lock (_gate)
-            {
-                _pending = null;
-                _key = KeyOf(feed);
-                _store.Delete();
-            }
-        };
+        Enter(feed); // app started mid-dungeon
+        // A town trip keeps the save: back through the town portal, the same dungeon restores it (live 2026-10-22, "Die Leere": the
+        // trip to the blacksmith deleted it, and the guide explored the whole dungeon again).
+        feed.WorldChanged += (_, _, _) => { lock (_gate) Enter(feed); };
         feed.TilesUpdated += tiles => { lock (_gate) OnTiles(tiles); };
+    }
+
+    // Only this world can have a save to restore: the one of this game run, of this instance or, its tiles agreeing, another.
+    private void Enter(IDungeonFeed feed)
+    {
+        (_pending, _otherInstance) = (null, false);
+        _key = KeyOf(feed);
+        if (_key is { } key && _store.Load() is { } saved && (saved.World, saved.GameStartedUtc) == (key.World, key.GameStartedUtc))
+            (_pending, _otherInstance) = (saved, saved.Instance != key.Instance);
     }
 
     private (string, string, DateTime)? KeyOf(IDungeonFeed feed) =>

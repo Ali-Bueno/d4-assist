@@ -15,7 +15,14 @@ internal sealed class FakeTileWalkability : ITileWalkability
         return this;
     }
 
-    public bool TryGet(int sceneSno, out WalkGrid grid) => _grids.TryGetValue(sceneSno, out grid!);
+    /// <summary>How many times a grid was asked for: one room build asks once per member tile.</summary>
+    public int Lookups { get; private set; }
+
+    public bool TryGet(int sceneSno, out WalkGrid grid)
+    {
+        Lookups++;
+        return _grids.TryGetValue(sceneSno, out grid!);
+    }
 
     public static WalkGrid GridFromRows(string[] rows, float resolution = 1f, float originX = 0f, float originY = 0f)
     {

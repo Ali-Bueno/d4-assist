@@ -21,6 +21,7 @@ public sealed class NavigationEngine
     private Room? _current;
     private Room? _previous;
     private RoomKey? _entranceKey;
+    private (int Version, (int X, int Y) Cell, Room Room)? _lastRoom;
 
     /// <summary>Toggles and phrasing options for automatic announcements.</summary>
     public AnnouncementPolicy Settings => _policy;
@@ -66,7 +67,7 @@ public sealed class NavigationEngine
     {
         var nowMs = (long)now.TotalMilliseconds;
         _map.MarkVisited(player.X, player.Y);
-        if (!RoomModel.TryGetRoom(_map, player.X, player.Y, out var room, _walkability))
+        if (!TryGetRoomAt(player, out var room))
         {
             _hysteresis.Observe(RoomKey.Invalid, nowMs); // off-grid: not knowing is not leaving
             return;
@@ -103,6 +104,21 @@ public sealed class NavigationEngine
         Announce?.Invoke(text, Interrupt);
     }
 
+    // A room depends only on the map (its tiles and explored cells, both in DungeonMap.Version) and the tile it is built from,
+    // while the player poll runs every 100 ms: the room, its openings and walk grid are built again only when one of them changes.
+    private bool TryGetRoomAt(PlayerInput player, out Room room)
+    {
+        if (_map.TileAt(player.X, player.Y) is not { } tile) { room = null!; return false; }
+        if (_lastRoom is { } last && last.Version == _map.Version && last.Cell == (tile.CellX, tile.CellY))
+        {
+            room = last.Room;
+            return true;
+        }
+        if (!RoomModel.TryGetRoom(_map, player.X, player.Y, out room, _walkability)) return false;
+        _lastRoom = (_map.Version, (tile.CellX, tile.CellY), room);
+        return true;
+    }
+
     // Rooms are connected components of same-NodeId tiles; two Room instances that share a member
     // tile (by grid cell, not reference — DungeonMap replaces tile instances on every update) are the
     // same room observed before/after it grew.
@@ -119,5 +135,6 @@ public sealed class NavigationEngine
         _current = null;
         _previous = null;
         _entranceKey = null;
+        _lastRoom = null;
     }
 }

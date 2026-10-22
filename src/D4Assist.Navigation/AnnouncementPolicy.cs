@@ -5,7 +5,7 @@ namespace D4Assist.Navigation;
 /// Junctions, dead ends and big rooms are announced; corridors are silent by
 /// default (toggle below). Openings are listed as stick directions, clockwise from up, following a
 /// BFS path from the player's position (RoomRouteCache) rather than a straight line, which can cross
-/// walls on an irregular room. Diff-gated: an unchanged announcement text is never repeated.
+/// walls on an irregular room. Diff-gated: the same room with an unchanged text is never repeated.
 /// </summary>
 public sealed class AnnouncementPolicy
 {
@@ -21,7 +21,10 @@ public sealed class AnnouncementPolicy
 
     private readonly LanguageSetting _language;
     private readonly RoomRouteCache _routes = new();
+    // The room last announced and its text: back in that room (a step into a silent corridor and back) with nothing new
+    // to say stays quiet, but another room that reads the same (two alike junctions with a corridor between) is spoken.
     private string? _lastText;
+    private RoomKey _lastKey = RoomKey.Invalid;
 
     public AnnouncementPolicy(LanguageSetting? language = null) => _language = language ?? new LanguageSetting();
 
@@ -47,8 +50,8 @@ public sealed class AnnouncementPolicy
             .ToList();
 
         var text = words.Announcement(kind, phrases, isEntrance);
-        if (text == _lastText) return (null, routes);
-        _lastText = text;
+        if (text == _lastText && room.Key == _lastKey) return (null, routes);
+        (_lastText, _lastKey) = (text, room.Key);
         return (text, routes);
     }
 
@@ -59,5 +62,5 @@ public sealed class AnnouncementPolicy
         return cameFrom.Contains(opening.Position.X + nx * EntryProbeUnits, opening.Position.Y + ny * EntryProbeUnits);
     }
 
-    public void Reset() => _lastText = null;
+    public void Reset() => (_lastText, _lastKey) = (null, RoomKey.Invalid);
 }

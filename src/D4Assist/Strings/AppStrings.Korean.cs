@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "버전 {0}(으)로 업데이트했습니다.",
         GuideDungeonsOnly: "안내는 던전에서만 작동합니다.",
-        ShelterRouteEnd: "은신처 안내 종료.");
+        ShelterRouteEnd: "은신처 안내 종료.",
+        DebugMode: "디버그 모드 켜짐.",
+        GuideToBossRoom: "모두 탐색했습니다. 보스 방으로 안내합니다.",
+        TrailGuide: "꽃잎 길 안내.",
+        TrailEnd: "길의 끝.",
+        PathGuideFormat: "퀘스트 목표: {0}, {1}미터.",
+        PathEnd: "퀘스트 목표에 도착했습니다.",
+        PathNotFound: "길을 찾지 못했습니다. 방향을 알려 드립니다.",
+        NoQuestPlace: "지도에 퀘스트 목표가 없습니다.",
+        PentagramGuide: "오각별 안내.",
+        PentagramEnd: "오각별 끝.",
+        QuestMarker: "퀘스트 표시",
+        PlaceCountFormat: "{1}개 중 {0}번째.");
 }

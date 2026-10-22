@@ -4,9 +4,11 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Walks an ordered route one point at a time. A point counts as reached within the reach radius, and reaching a
-/// later point passes the earlier ones (the player may cut a corner).
+/// later point passes the earlier ones (the player may cut a corner), unless the route is walked strictly in order.
 /// </summary>
-public sealed class RouteGuide(Vector2 start, IReadOnlyList<Vector2> points, float reachRadius)
+/// <param name="inOrder">Only the next point counts: a pentagram's strokes cross, and standing where they do would skip a
+/// whole stroke.</param>
+public sealed class RouteGuide(Vector2 start, IReadOnlyList<Vector2> points, float reachRadius, bool inOrder = false)
 {
     // Distances to two legs sharing the point the player stands near differ only by float rounding.
     private const float TieTolerance = 0.01f;
@@ -19,6 +21,9 @@ public sealed class RouteGuide(Vector2 start, IReadOnlyList<Vector2> points, flo
     public bool Finished => Reached >= points.Count;
 
     public Vector2? Target => Finished ? null : points[Reached];
+
+    /// <summary>Starts the walk at point <paramref name="index"/> (0-based): the earlier ones count as reached.</summary>
+    public void StartAt(int index) => Reached = Math.Clamp(index, 0, points.Count);
 
     /// <summary>Joins the route where the player stands: the target becomes the end of the nearest leg of
     /// start, point 1, point 2 and so on; on a tie (standing on a point) the later leg wins.</summary>
@@ -37,7 +42,7 @@ public sealed class RouteGuide(Vector2 start, IReadOnlyList<Vector2> points, flo
     /// <summary>True when this position reaches a new point.</summary>
     public bool Update(Vector2 player)
     {
-        for (int i = points.Count - 1; i >= Reached; i--)
+        for (int i = inOrder ? Math.Min(Reached, points.Count - 1) : points.Count - 1; i >= Reached; i--)
         {
             if (Vector2.Distance(points[i], player) > reachRadius) continue;
             Reached = i + 1;

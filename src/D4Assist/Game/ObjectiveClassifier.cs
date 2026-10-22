@@ -5,7 +5,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>Why an actor counts as a dungeon objective (logged with the loop).</summary>
-public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, WardBreaker, Destructible, KillTarget, Monolith, CloneGate }
+public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSkill, AkaratLight, SoulBody, WardBreaker, Destructible, KillTarget, Monolith, CloneGate, Chargeable }
 
 /// <summary>Decides whether an actor SNO is a dungeon objective to interact with (research/dungeon-objectives.md §3-4).</summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
@@ -32,6 +32,16 @@ public sealed class ObjectiveClassifier(
     // Akarat's lights in the Harbinger of Hatred fight: orbs (effects) the player picks up for Akarat's power; their
     // Akarat_Orb_Pillar companion stands on the same spot (research/dungeon-objectives.md §11).
     private const string AkaratLightName = "Akarat_Orb";
+
+    // Rathma's soul split: he tears the player's spirit out, and it must hurry back to the body it left, which makes no sound
+    // (user request 2026-10-20, "Das Gewicht einer Klinge"). The resurrection actor appears as the split begins (SoulSplitBody
+    // keeps it on the body); the boss's Location_Markers are five fixed spots round the arena, there from the fight's start.
+    private const string SoulBodyName = "Rathma_SoulSplit_resurection_invisibleActor";
+
+    // The rune light beam the player is pulled into as the split begins; it stands on the body until the split ends
+    // (vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02).
+    private const string SoulSplitBeamToken = "SoulSplit_rune_lightbeams";
+    private readonly ConcurrentDictionary<int, bool> _beams = new();
 
     // The Horadric Guardian's four vessels (QST_Skov_Skartara_WardBreakerShrine_Kulle/Rasha/Fahd/Cain), one per sigil: the
     // one matching the barrier's symbol breaks it, again at every barrier (research/dungeon-objectives.md §11).
@@ -86,6 +96,13 @@ public sealed class ObjectiveClassifier(
     /// <summary>True for an orb holding one of the skills Mephisto stole from the player.</summary>
     public bool IsStolenSkill(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.StolenSkill;
 
+    /// <summary>True for the actor marking the body Rathma's soul split leaves behind.</summary>
+    public bool IsSoulBody(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.SoulBody;
+
+    /// <summary>True for the light beam standing on the body during Rathma's soul split.</summary>
+    public bool IsSoulSplitBeam(int actorSno) =>
+        _beams.GetOrAdd(actorSno, sno => nameOf(sno)?.Contains(SoulSplitBeamToken, StringComparison.OrdinalIgnoreCase) == true);
+
     /// <summary>True for an item the player carries to a receptacle (relics, idols, stone carvings).</summary>
     public bool IsCarryable(int actorSno) => TraitsOf(actorSno)?.IsCarryable == true;
 
@@ -119,6 +136,7 @@ public sealed class ObjectiveClassifier(
         if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
         if (name?.Contains(StolenSkillToken, StringComparison.OrdinalIgnoreCase) == true) return ObjectiveReason.StolenSkill;
         if (string.Equals(name, AkaratLightName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.AkaratLight;
+        if (string.Equals(name, SoulBodyName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.SoulBody;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(WardBreakerToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.WardBreaker;
         if (info.GizmoType == Conventions.GizmoSwitch && name?.Contains(EnticementToken, StringComparison.OrdinalIgnoreCase) == true)
@@ -129,10 +147,19 @@ public sealed class ObjectiveClassifier(
             && name?.Contains(CloneSourceToken, StringComparison.OrdinalIgnoreCase) == true)
             return ObjectiveReason.CloneGate;
         if (IsQuestDestructible(actorSno, name, info)) return ObjectiveReason.Destructible;
+        // A chargeable a quest names is the quest's to use once set off: Inarius's chain stations, each released by his script in
+        // his fight, give the chain that binds him (live 2026-10-21). Capture points and pillars no quest names stay silent.
+        if (IsQuestChargeable(actorSno, info)) return ObjectiveReason.Chargeable;
         bool questNamed = QuestNamedGizmos.Contains(info.GizmoType) && name is not null
             && QuestTokens.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase));
         return questNamed || AlwaysGizmos.Contains(info.GizmoType) ? ObjectiveReason.Gizmo : null;
     }
+
+    /// <summary>True for a chargeable gizmo some quest names (Inarius's chain stations).</summary>
+    public bool IsChargeable(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.Chargeable;
+
+    private bool IsQuestChargeable(int actorSno, ActorDefinitionInfo info) =>
+        info.GizmoType == Conventions.GizmoChargeable && namedByAnyQuest?.Invoke(actorSno) == true;
 
     private bool IsQuestDestructible(int actorSno, string? name, ActorDefinitionInfo info) =>
         info.GizmoType < 0 && info.DefaultTeam == Conventions.HostileTeam

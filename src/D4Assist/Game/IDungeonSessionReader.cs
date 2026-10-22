@@ -37,6 +37,25 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>Every actor the game's map marks; null while the marker list isn't found.</summary>
     IReadOnlyList<MarkedActor>? ReadMapMarkers() => null;
+
+    /// <summary>The actor SNOs the active quests' current phases name outright, as of the last actor read; null when unknown.</summary>
+    IReadOnlySet<int>? ReadQuestActorSnos() => null;
+
+    /// <summary>The quests whose objects are the player's (ActiveQuests.Owned: followed now or found in progress here); null when
+    /// quests aren't read.</summary>
+    IReadOnlyList<int>? ReadOwnedQuests() => null;
+
+    /// <summary>The phase of each of <paramref name="quests"/> (quest SNO → its phase UIDs) whose {quest, phase} pair the module data
+    /// holds: one scan, on the caller's thread. A pair at phase 0 is left out (a stray one, QuestPhaseLocator.Pick). Null when
+    /// quests aren't read.</summary>
+    IReadOnlyDictionary<int, uint>? FindQuestPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests) => null;
+
+    /// <summary>The LevelArea SNOs of the local player's activated waypoints among <paramref name="waypointLevelAreas"/>, in
+    /// activation order; null when unreadable.</summary>
+    IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) => null;
+
+    /// <summary>The world map's center and zoom; null when unreadable. Meaningful while the map is open.</summary>
+    MapView? ReadMapView() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

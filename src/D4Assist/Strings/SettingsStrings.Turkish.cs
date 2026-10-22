@@ -89,6 +89,7 @@ public sealed partial record SettingsStrings
         InterruptOnContextChange = "Zindana girerken veya çıkarken konuşmayı kes",
         RadarClosedDoors = "Radarda kapalı kapılar",
         LiveBarriers = "Radarda ve rehberde zindan bariyerleri",
+        WaypointList = "Haritada geçiş noktası listesi (Shift+F1)",
         ExplorationGuide = "Keşif rehberi (yön tuşlarının solu açar ve kapatır)",
         ExplorationGuideInDungeons = "Normal zindanlara girerken rehber açık (Yeraltı Şehri ve Çukur'da her zaman açık başlar)",
         CompassDirections = "Yönleri yukarı, sağ… yerine ana yönler (kuzey, doğu…) olarak söyle",

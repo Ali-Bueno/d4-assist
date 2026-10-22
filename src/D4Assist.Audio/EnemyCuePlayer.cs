@@ -70,6 +70,7 @@ public sealed class EnemyCuePlayer : IDisposable
         double volume;
         lock (_gate)
         {
+            if (_schedule.IsEmpty) return; // mostly nobody to cue: allocates nothing then
             double now = _nowSeconds();
             if ((now - _lastStart) * 1000 < GapMs) return;
             var due = _schedule.TakeDue(now, e => IntervalSeconds(e.DistanceUnits) / Math.Max(_levels[e.Class].Rate, MinRate), max: 1);

@@ -22,6 +22,7 @@ public sealed class WaveOutAudioOut : IAudioOut
     private volatile bool _running;
     private AudioRenderCallback? _render;
     private bool _disposed;
+    private bool _renderFailureReported;
 
     public void Start(AudioRenderCallback render)
     {
@@ -33,20 +34,42 @@ public sealed class WaveOutAudioOut : IAudioOut
         _thread.Start();
     }
 
-    public void Stop()
+    public void Stop() => StopThread();
+
+    /// <summary>True when the audio thread has ended (or never ran).</summary>
+    private bool StopThread()
     {
         _running = false;
         _bufferDone.Set();
-        _thread?.Join(TimeSpan.FromSeconds(2));
+        bool ended = _thread?.Join(TimeSpan.FromSeconds(2)) ?? true;
         _thread = null;
+        return ended;
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        Stop();
-        _bufferDone.Dispose();
+        // A thread still inside a driver call goes on to wait on the event (and the device signals it): disposing it then
+        // would throw on that thread and end the process at exit. The process exit frees it instead.
+        if (StopThread()) _bufferDone.Dispose();
+    }
+
+    /// <summary>Fills <paramref name="samples"/> through <paramref name="render"/>, or with silence when it throws: on the
+    /// audio thread an exception would end the process. Public so tests can drive it without a sound device.</summary>
+    /// <returns>What the render threw, or null when it filled the buffer.</returns>
+    public static Exception? RenderOrSilence(AudioRenderCallback? render, short[] samples, int frameCount)
+    {
+        try
+        {
+            render?.Invoke(samples, frameCount);
+            return null;
+        }
+        catch (Exception e)
+        {
+            Array.Clear(samples);
+            return e;
+        }
     }
 
     private void RunLoop()
@@ -106,7 +129,11 @@ public sealed class WaveOutAudioOut : IAudioOut
             IntPtr headerPtr = HeaderPtr(headersBase, headerSize, next);
             if (written[next] && !WaitForBufferDone(headerPtr)) break; // Stop() requested mid-wait
 
-            _render?.Invoke(buffers[next], _frameCount);
+            if (RenderOrSilence(_render, buffers[next], _frameCount) is { } failure && !_renderFailureReported)
+            {
+                _renderFailureReported = true;
+                Console.Error.WriteLine($"Audio: mixing a buffer failed; it plays as silence and the sound goes on. {failure}");
+            }
             if (NativeWaveOut.waveOutWrite(device, headerPtr, (uint)headerSize) != 0) break; // device failed; reopen
             written[next] = true;
             next = (next + 1) % BufferCount;

@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0} %",
         UpdatedToFormat: "Auf Version {0} aktualisiert.",
         GuideDungeonsOnly: "Die Führung funktioniert nur in Dungeons.",
-        ShelterRouteEnd: "Unterschlupf-Führung beendet.");
+        ShelterRouteEnd: "Unterschlupf-Führung beendet.",
+        DebugMode: "Debug-Modus aktiv.",
+        GuideToBossRoom: "Alles erforscht. Ich führe dich zum Bossraum.",
+        TrailGuide: "Blütenspur-Führung.",
+        TrailEnd: "Ende der Spur.",
+        PathGuideFormat: "Questziel: {0}, {1} Meter.",
+        PathEnd: "Questziel erreicht.",
+        PathNotFound: "Kein Weg gefunden; ich zeige die Richtung.",
+        NoQuestPlace: "Kein Questziel auf der Karte.",
+        PentagramGuide: "Pentagramm-Führung.",
+        PentagramEnd: "Ende des Pentagramms.",
+        QuestMarker: "Questmarkierung",
+        PlaceCountFormat: "{0} von {1}.");
 }

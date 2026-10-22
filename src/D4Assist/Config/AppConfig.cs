@@ -31,6 +31,9 @@ public sealed class AppConfig
     /// <summary>Say directions as compass points on the screen map (north is up) instead of up, right...; only the wording changes.</summary>
     public bool CompassDirections { get; set; } = false;
 
+    /// <summary>Shift+F1 on the world map lists the activated waypoints; Enter puts the mouse cursor on the chosen one.</summary>
+    public bool WaypointListEnabled { get; set; } = true;
+
     /// <summary>Look for a newer version on GitHub at start and offer to update (the downloaded build only).</summary>
     public bool CheckForUpdates { get; set; } = true;
 
@@ -104,9 +107,22 @@ public sealed class AppConfig
         if (!File.Exists(path)) return new AppConfig();
         var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path), JsonOptions)
             ?? throw new InvalidDataException($"{path} did not contain a valid config.");
+        config.ReplaceNulls();
         config.ForcedLanguage(); // validate now so a bad value fails at startup
-        config.Sound ??= new SoundSettings();
         return config;
+    }
+
+    // A hand-edited "Field": null means the default, like a missing field: the JSON reader writes the null over the
+    // initializer, and the app (a window-less exe) would crash on it later without a word.
+    private void ReplaceNulls()
+    {
+        var defaults = new AppConfig();
+        InstallPath ??= defaults.InstallPath;
+        DefinitionsPath ??= defaults.DefinitionsPath;
+        Language ??= defaults.Language;
+        Sound ??= defaults.Sound;
+        BeaconActorNames = BeaconActorNames?.OfType<string>().ToArray() ?? defaults.BeaconActorNames;
+        RadarOnlyWorlds = RadarOnlyWorlds?.OfType<string>().ToArray() ?? defaults.RadarOnlyWorlds;
     }
 
     /// <summary>Writes the whole config (every sound entry listed), replacing the file only once the new one is complete.</summary>

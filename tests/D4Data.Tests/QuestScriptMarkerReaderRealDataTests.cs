@@ -28,6 +28,56 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AStepKnowsWhichOfItsMarkersTheGameHides()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // "In Rathmas Fußstapfen" phase 12, find the untouched forests (2026-10-21): three trigger spheres; the game shows the one
+        // at the Rathmic statue that phase 21 has the player examine, and hides the two on the way there.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Lycander_06")).Single(p => p.PhaseUid == 12);
+        Assert.Equal(3, step.Markers.Count);
+        Assert.Equal([2499, 2651], step.HiddenMarkers!.Select(m => (int)MathF.Round(m.Position.X)).Order());
+    }
+
+    [Fact]
+    public void AStepsOverlayLandsOnTheHoldoutTunnelsFootprint()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // "Die Erde, die Saat, die Frucht" phase 43 (2026-10-21): the shown trigger sphere is in the overlay
+        // CSD_Skov_Skartara_Mindscape_03_Holdout, which the holdout tunnel's arena footprint places, at the tile's middle.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Lycander_Mindscape_01")).Single(p => p.PhaseUid == 43);
+        var tunnel = store.Resolve(schema.SnoGroup("SceneDefinition"), "Sightless_Skovos_EW_POI_HoldoutTunnel_01");
+        var marker = Assert.Single(step.SceneMarkers, m => m.SceneSno == tunnel).Marker;
+        Assert.Equal("Trigger_Sphere_8m", store.Name(marker.Sno));
+        Assert.Equal(16.3f, marker.Position.X, 0.5f);
+        Assert.Equal(15.9f, marker.Position.Y, 0.5f);
+    }
+
+    [Fact]
+    public void AStepsGroupInASceneLayerLandsInThatScene()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // "Die Erde, die Saat, die Frucht" phase 52 (2026-10-21): the hidden trigger before the rising bridge is in the traversal
+        // bridge tile's Game layer.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Lycander_Mindscape_01")).Single(p => p.PhaseUid == 52);
+        var bridge = store.Resolve(schema.SnoGroup("SceneDefinition"), "TT_Sightless_Skovos_to_Sightless_Mephisto_NE_Traversal_Bridge_01");
+        var marker = Assert.Single(step.SceneMarkers, m => m.SceneSno == bridge).Marker;
+        Assert.Equal(23.9f, marker.Position.X, 0.5f);
+        Assert.Equal(14.9f, marker.Position.Y, 0.5f);
+    }
+
+    [Fact]
     public void TheFirstQuestDoesNotNameTheGate()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
@@ -99,6 +149,23 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void EachPhaseKnowsTheWorldItsStepIsShownIn()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        var phases = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Frac_PaleKnightsKin"));
+
+        // Live 2026-10-17: "Legacies of Light's Watch", the journals found in the dungeon (152), brought back to Margrave (15).
+        int world = schema.SnoGroup("WorldDefinition");
+        Assert.Equal([store.Resolve(world, "DGN_Frac_LightsWatch")], phases.Single(p => p.PhaseUid == 152).Worlds!);
+        Assert.Equal([store.Resolve(world, "Sanctuary_Eastern_Continent")], phases.Single(p => p.PhaseUid == 15).Worlds!);
+        Assert.Null(phases.Single(p => p.PhaseUid == 3).Worlds);
+    }
+
+    [Fact]
     public void AnOverworldSideQuestIsFoundByTheObjectsItsStepNames()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
@@ -136,5 +203,27 @@ public class QuestScriptMarkerReaderRealDataTests
         var meshif = Assert.Single(reader.Markers(store.Resolve(quest, "QST_Kehj_EliasPalace_03")), m => m.Sno == guide);
         Assert.Equal(-672.6f, meshif.Position.X, 0.5f);
         Assert.Equal(7.0f, meshif.Position.Y, 0.5f);
+    }
+
+    [Fact]
+    public void AStepNamingAnActorGroupLeadsToTheBlueprintMarkersOfThatGroup()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+        int quest = store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_X2_Skov_Philios_Mindscape_02");
+        int sphere = store.Resolve(schema.SnoGroup("ActorDefinition"), "Trigger_Sphere_8m");
+        int section = store.Resolve(schema.SnoGroup("MarkerSetDefinition"), "CSD_Skov_Lycander_Mindscape_02_BPMS_Section_01");
+
+        // Live 2026-10-18 ("Was gegeben wurde", CSD_Skov_Philios_Mindscape_02): phase 285 asks the player into actor group
+        // 1357711822, a Trigger_Sphere_8m by the exit portal in a blueprint section; no marker handle or actor names it, so the
+        // dungeon read explored and the guide had nowhere to go.
+        var phase = reader.PhaseObjects(quest).Single(p => p.PhaseUid == 285);
+        var exit = Assert.Single(phase.KindMarkers!, k => k.Marker.Sno == sphere && k.Marker.Position.Y > 150);
+        Assert.Equal(section, exit.Frame.MarkerSet);
+        Assert.Equal(-33.4f, exit.Marker.Position.X, 0.1f);
+        Assert.Equal(181.0f, exit.Marker.Position.Y, 0.1f);
+        Assert.NotEmpty(exit.Frame.Anchors);
     }
 }

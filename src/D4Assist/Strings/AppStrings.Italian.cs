@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Aggiornato alla versione {0}.",
         GuideDungeonsOnly: "La guida funziona solo nei dungeon.",
-        ShelterRouteEnd: "Guida ai rifugi terminata.");
+        ShelterRouteEnd: "Guida ai rifugi terminata.",
+        DebugMode: "Modalità debug attiva.",
+        GuideToBossRoom: "Tutto esplorato. Ti porto alla stanza del boss.",
+        TrailGuide: "Guida alla scia di petali.",
+        TrailEnd: "Fine della scia.",
+        PathGuideFormat: "Obiettivo della missione: {0}, {1} metri.",
+        PathEnd: "Obiettivo della missione raggiunto.",
+        PathNotFound: "Nessun percorso trovato; indico la direzione.",
+        NoQuestPlace: "Nessun obiettivo della missione sulla mappa.",
+        PentagramGuide: "Guida del pentagramma.",
+        PentagramEnd: "Fine del pentagramma.",
+        QuestMarker: "Indicatore di missione",
+        PlaceCountFormat: "{0} di {1}.");
 }

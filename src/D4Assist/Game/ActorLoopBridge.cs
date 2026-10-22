@@ -125,6 +125,7 @@ public sealed class ActorLoopBridge
     private bool Silent(ActorState actor, LoopTarget target) =>
         (target.SilentWhileUnusable && actor.Unusable) || (target.SilentWhileInvulnerable && actor.Invulnerable)
         || (target.StopsWhenUsed && (target.UsedWhenOpened ? actor.Operated || actor.GizmoStateSet : _isUsed(actor)))
+        || (target.SoundsOnceUsed && !CarryGoals.SetOff(actor))
         || (target.SilentWhileFollowing && _followers.Follows(actor));
 
     // Inside a safe zone its loop has done its job: silent until the player steps out.
@@ -166,14 +167,32 @@ public sealed class ActorLoopBridge
     private string Cause(ActorState actor, LoopTarget target) =>
         target.SilentWhileFollowing && _followers.Follows(actor) ? "follows"
         : target.SilentWhileInvulnerable && actor.Invulnerable ? "invulnerable"
-        : target.SilentWhileUnusable && actor.Unusable ? "unusable" : "used";
+        : target.SilentWhileUnusable && actor.Unusable ? "unusable"
+        : target.SoundsOnceUsed ? "not set off" : "used";
 
     private void Log(string what, ActorState a, LoopTarget target, string? cause)
     {
         string distance = _lastPlayer is { } p ? $"{Math.Sqrt(Sq(a.X - p.X) + Sq(a.Y - p.Y)):F1}" : "?";
         string because = cause is null ? "" : $" cause={cause}";
+        string flags = what == "started" && target.Kind == LoopKind.Objective ? Flags(a) : "";
         _log!($"[{_clock.Elapsed.TotalSeconds,7:F1}s] LOOP {what} ({target.Kind}): {_nameOf(a.ActorSno) ?? a.ActorSno.ToString()} id={a.Id} " +
-              $"at ({a.X:F1},{a.Y:F1},{a.Z:F1}) distance={distance} reason={target.Reason}{because}");
+              $"at ({a.X:F1},{a.Y:F1},{a.Z:F1}) distance={distance} reason={target.Reason}{because}{flags}");
+    }
+
+    // What the game says of an objective when its loop starts, to tell a usable one from one sounding at nothing (live
+    // 2026-10-16: a quest-chest lectern in the Light's Watch looped where the player found nothing to use).
+    private static string Flags(ActorState a)
+    {
+        var set = new List<string>();
+        if (a.QuestStep) set.Add("questStep");
+        if (a.QuestLocked) set.Add("questLocked");
+        if (a.ScriptDisabled) set.Add("scriptDisabled");
+        if (a.Operated) set.Add("operated");
+        if (a.GizmoStateSet) set.Add("stateSet");
+        if (a.NamedByQuest) set.Add("namedByQuest");
+        if (a.ClientOnly) set.Add("clientOnly");
+        if (a.Invulnerable) set.Add("invulnerable");
+        return $" flags={(set.Count == 0 ? "none" : string.Join(',', set))}";
     }
 
     private static double Sq(double v) => v * v;

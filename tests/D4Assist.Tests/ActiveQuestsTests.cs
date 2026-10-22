@@ -105,6 +105,129 @@ public class ActiveQuestsTests
         Assert.Equal(Bases, named.Markers);
     }
 
+    // Live 2026-10-16: tracked quest 1931517, phase never found, led the guide in the Light's Watch to Neyrelle's archive spots
+    // in another world; its phases' actors may still sound.
+    [Fact]
+    public void A_tracked_quest_whose_phase_is_unknown_names_its_actors_but_no_world_marker()
+    {
+        var quests = Create(new ModuleReader());
+
+        var named = quests.Update(tracked: [FieldsOfRuin, CampaignQuest], AreaWith(PetalSno));
+
+        Assert.Empty(named.Markers);
+        Assert.Equal([PetalSno], named.ActorSnos);
+    }
+
+    // Live 2026-10-18: the Philios quest, found in the open world by its trigger sphere alone, dropped out each time it unloaded.
+    [Fact]
+    public void A_quest_found_in_progress_stays_followed_while_its_pair_holds_it_and_nothing_it_names_is_loaded()
+    {
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((FieldsOfRuin, PlacePhase));
+        var quests = Create(memory, () => now);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+
+        now += TimeSpan.FromSeconds(10);
+        var named = quests.Update(tracked: [], AreaWith(PetalSno));
+
+        Assert.Equal([FieldsOfRuin], quests.Followed);
+        Assert.Equal(Bases, named.Markers);
+
+        memory.Hold(CampaignQuest, CampaignPhase); // the quest ended
+        now += TimeSpan.FromSeconds(10);
+        quests.Update(tracked: [], AreaWith(PetalSno));
+
+        Assert.Empty(quests.Followed);
+    }
+
+    // Live 2026-10-17, the Light's Watch: the side quest and the dungeon's own quest took turns at one address, and the side
+    // quest's third lectern stayed silent while the dungeon's quest held it.
+    [Fact]
+    public void A_quest_found_in_progress_here_keeps_its_objects_while_another_quest_holds_the_pair()
+    {
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((FieldsOfRuin, PlacePhase));
+        var quests = Create(memory, () => now);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+        Assert.Equal([FieldsOfRuin], quests.Owned);
+
+        memory.Hold(CampaignQuest, CampaignPhase);
+        now += TimeSpan.FromSeconds(10);
+        quests.Update(tracked: [], AreaWith(BaseSno));
+
+        Assert.Empty(quests.Followed);
+        Assert.Equal([FieldsOfRuin], quests.Owned);
+    }
+
+    // QST_Frac_PaleKnightsKin: phase 152 finds the journals in the Light's Watch, phase 15 brings them back to Margrave.
+    private const int SideQuest = 699940, LightsWatch = 573900, Overworld = 69068, LecternSno = 400;
+    private const uint FindPhase = 152, ReturnPhase = 15;
+
+    private static readonly IReadOnlyList<QuestPhaseObjects> SideQuestPhases =
+    [
+        new(FindPhase, [], new HashSet<int>(), [], Worlds: new HashSet<int> { LightsWatch }),
+        new(ReturnPhase, [Marker(CollectionSno, -1182, 301)], new HashSet<int>(), [], Worlds: new HashSet<int> { Overworld }),
+    ];
+
+    private static ActiveQuests SideQuestSession(ModuleReader memory, int world, QuestPhaseHistory history, Func<DateTime>? clock = null) =>
+        new(memory, memory.Regions(), q => q == SideQuest ? SideQuestPhases : [],
+            area => area.Actors.Any(a => a.ActorSno == LecternSno) ? [SideQuest] : [], clock, world, history);
+
+    // Live 2026-10-17: the journals found, the side quest stayed tracked until handed in, and its lecterns in a new Light's Watch
+    // drew the guide away from the guards; its phase was read only in the overworld.
+    [Fact]
+    public void A_quest_whose_last_read_step_is_shown_in_another_world_owns_nothing_here()
+    {
+        var history = new QuestPhaseHistory();
+        SideQuestSession(new ModuleReader((SideQuest, ReturnPhase)), Overworld, history).Update(tracked: [SideQuest], AreaWith(PetalSno));
+
+        var dungeon = SideQuestSession(new ModuleReader(), LightsWatch, history); // the dungeon's quest holds the pair here
+        dungeon.Update(tracked: [SideQuest], AreaWith(LecternSno));
+
+        Assert.Equal([SideQuest], dungeon.Followed);
+        Assert.Empty(dungeon.Owned);
+    }
+
+    [Fact]
+    public void A_quest_whose_step_is_shown_here_keeps_its_objects_after_another_quest_takes_the_pair()
+    {
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((SideQuest, FindPhase));
+        var quests = SideQuestSession(memory, LightsWatch, new QuestPhaseHistory(), () => now);
+        quests.Update(tracked: [], AreaWith(LecternSno));
+        Assert.Equal([SideQuest], quests.Owned);
+
+        memory.Hold(CampaignQuest, CampaignPhase);
+        now += TimeSpan.FromSeconds(10);
+        quests.Update(tracked: [], AreaWith(LecternSno));
+
+        Assert.Empty(quests.Followed);
+        Assert.Equal([SideQuest], quests.Owned);
+    }
+
+    [Fact]
+    public void A_tracked_quest_never_read_keeps_its_objects()
+    {
+        var quests = SideQuestSession(new ModuleReader(), LightsWatch, new QuestPhaseHistory());
+
+        quests.Update(tracked: [SideQuest], AreaWith(PetalSno));
+
+        Assert.Equal([SideQuest], quests.Owned);
+    }
+
+    [Fact]
+    public void A_blueprint_marker_names_a_kind_and_no_place_of_its_own()
+    {
+        var blueprint = new Blueprint(7, []);
+        var phase = new QuestPhaseObjects(1, [Marker(PortalSno, 5, 5)], new HashSet<int>(), [], KindMarkers: [new(blueprint, Marker(PetalSno, 13, -17))]);
+
+        var names = QuestNames.Of([phase]);
+
+        Assert.Equal([PortalSno], names.Markers.Select(m => m.Sno));
+        Assert.Equal([PetalSno], names.KindMarkers.Select(m => m.Marker.Sno));
+        Assert.Equal(2, names.Count);
+    }
+
     // Finds a quest by one of its objects, as QuestScriptMarkerReader.QuestsNaming does.
     private static ActiveQuests Create(ModuleReader memory, Func<DateTime>? clock = null) =>
         new(memory, memory.Regions(), q => Phases.GetValueOrDefault(q) ?? [],
@@ -132,6 +255,13 @@ public class ActiveQuestsTests
                 BinaryPrimitives.WriteInt32LittleEndian(_data.AsSpan(0x100 + i * 0x40), pairs[i].Quest);
                 BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(0x104 + i * 0x40), pairs[i].Phase);
             }
+        }
+
+        // Another quest's pair takes the first one's place.
+        public void Hold(int quest, uint phase)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(_data.AsSpan(0x100), quest);
+            BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(0x104), phase);
         }
 
         public IReadOnlyList<MemoryRegion> Regions() => [new MemoryRegion(ModuleData, _data.Length)];

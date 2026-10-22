@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "バージョン {0} に更新しました。",
         GuideDungeonsOnly: "ガイドはダンジョンでのみ機能します。",
-        ShelterRouteEnd: "避難所ガイド終了。");
+        ShelterRouteEnd: "避難所ガイド終了。",
+        DebugMode: "デバッグモード有効。",
+        GuideToBossRoom: "すべて探索済み。ボス部屋へ案内します。",
+        TrailGuide: "花びらの道ガイド。",
+        TrailEnd: "道の終わり。",
+        PathGuideFormat: "クエスト目標：{0}、{1}メートル。",
+        PathEnd: "クエスト目標に到着しました。",
+        PathNotFound: "道が見つかりません。方向を示します。",
+        NoQuestPlace: "マップにクエスト目標がありません。",
+        PentagramGuide: "五芒星ガイド。",
+        PentagramEnd: "五芒星の終わり。",
+        QuestMarker: "クエストマーカー",
+        PlaceCountFormat: "{1}件中{0}件目。");
 }

@@ -11,7 +11,7 @@ namespace D4Assist.Game;
 /// Feeds the exploration guide's waypoint to the guide ping on every player poll and tile update. Toggled by D-pad left (off outside endgame worlds by default);
 /// switching it on says where it leads. Outside the endgame it leads first to an objective heard earlier (ObjectiveMemory) and holds,
 /// silent, while the player stands at it. Chimes on each target reached, yields to the beacon while an unused portal is in sight, stays off in Undercity's boss room, and
-/// once nothing is left to explore leads to the portals seen earlier (PortalMemory) or says so once.
+/// once nothing is left to explore leads to the boss room and the portals seen earlier (BossRoomDestination, PortalMemory) or says so once.
 /// </summary>
 public sealed class ExplorationGuideBridge
 {
@@ -45,8 +45,11 @@ public sealed class ExplorationGuideBridge
     private string? _announcedDestination;
     private int _announcedRound;
     private bool _inBossRoom;
+    private readonly Func<bool> _bossFight;
+    private bool _heldForFight;
     private bool _muted = true;
     private int _arrivals;
+    private int _rearmedAtArrivals = -1;
     private string? _heldAt;
     private string? _heightToldFor;
 
@@ -67,12 +70,16 @@ public sealed class ExplorationGuideBridge
     /// <param name="objectives">Objectives heard in this dungeon, quest steps in tier 0 (ObjectiveMemory.Destinations); null for none. Never used in endgame worlds.</param>
     /// <param name="rearmObjectives">Called when the guide is switched on: objectives already reached lead again (ObjectiveMemory.Rearm).</param>
     /// <param name="routeActive">True while a quest route takes D-pad left outside dungeons (QuestRouteBridge.IsActive); null for none.</param>
+    /// <param name="bossFight">True while a boss fight is on (ObjectiveMemory.BossFight): the guide leads to the fight's objectives
+    /// and holds between them, never out to explore; null for never.</param>
     public ExplorationGuideBridge(
         IDungeonFeed feed, Func<PlayerInput, bool, IReadOnlyList<GuideDestination>, IReadOnlyList<GuideDestination>, GuideStep> step,
         GuidePingPlayer ping, ISpeechSink speech, Func<bool> beaconActive, Action<string>? log = null, IGuideTogglePad? pad = null,
         bool guideInDungeons = false, LanguageSetting? language = null, Func<IReadOnlyList<GuideDestination>>? destinations = null,
-        Func<IReadOnlyList<GuideDestination>>? objectives = null, Action? rearmObjectives = null, Func<bool>? routeActive = null)
+        Func<IReadOnlyList<GuideDestination>>? objectives = null, Action? rearmObjectives = null, Func<bool>? routeActive = null,
+        Func<bool>? bossFight = null)
     {
+        _bossFight = bossFight ?? (() => false);
         _routeActive = routeActive ?? (() => false);
         _language = language ?? new LanguageSetting();
         _switch = new GuideSwitch(guideInDungeons);
@@ -128,6 +135,7 @@ public sealed class ExplorationGuideBridge
         _announcedRound = 0;
         _inBossRoom = false;
         _arrivals = 0;
+        _rearmedAtArrivals = -1;
         Mute();
     }
 
@@ -174,6 +182,7 @@ public sealed class ExplorationGuideBridge
                 AnnounceRound(step);
                 goto case GuideStatus.Guiding;
             case GuideStatus.Guiding:
+                if (HoldsForFight(step)) { _ping.Silence(); break; }
                 LogTargetChange(step);
                 AnnounceGoal(step, destinations, objectives);
                 if (HoldsAtObjective(step, objectives)) { _ping.Silence(); break; }
@@ -183,6 +192,7 @@ public sealed class ExplorationGuideBridge
             case GuideStatus.AllExplored:
                 _ping.Silence();
                 _loggedTargetId = null;
+                if (RearmWhenAllExplored(step)) { Update(); return; }
                 if (_announcedAllExplored) break;
                 _announcedAllExplored = true;
                 _speech.Speak(NavigationPhrases.For(_language.Current).AllExplored, interrupt: false);
@@ -202,11 +212,14 @@ public sealed class ExplorationGuideBridge
         if (target.Kind == GuideTargetKind.Destination)
         {
             _announcedGoal = PortalGoal;
-            if (target.Id == _announcedDestination) return;
-            _announcedDestination = target.Id;
+            // The boss room's entrance and middle are one goal: said once.
+            bool boss = target.Id.StartsWith(BossRoomDestination.IdPrefix, StringComparison.Ordinal);
+            string announced = boss ? BossRoomDestination.IdPrefix : target.Id;
+            if (announced == _announcedDestination) return;
+            _announcedDestination = announced;
             bool back = destinations.FirstOrDefault(d => d.Id == target.Id)?.Tier > 0;
             var strings = AppStrings.For(_language.Current);
-            _speech.Speak(back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
+            _speech.Speak(boss ? strings.GuideToBossRoom : back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
             return;
         }
 
@@ -221,6 +234,30 @@ public sealed class ExplorationGuideBridge
         bool speak = goal != ExploreGoal || _announcedGoal is null or QuestGoal or DungeonGoal;
         _announcedGoal = goal;
         if (speak) _speech.Speak(goal switch { QuestGoal => phrases.ToQuestObjective, DungeonGoal => phrases.ToDungeonObjective, _ => phrases.ToUnexplored }, interrupt: false);
+    }
+
+    // Nothing left to explore or lead to: what is left is what the player walked away from, so it leads again, as switching the
+    // guide on does; once per target reached, so a door that still won't open isn't offered in a loop. Live 2026-10-17, the
+    // Light's Watch: the key taken, the quest's phase never read as moving on to the gate, the gate stayed tried and the guide
+    // fell silent. Never in endgame worlds, whose tuned order ends with the portals.
+    private bool RearmWhenAllExplored(GuideStep step)
+    {
+        if (_rearmObjectives is null || _switch.IsEndgame || step.Arrivals <= _rearmedAtArrivals) return false;
+        _rearmedAtArrivals = step.Arrivals;
+        _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE all explored: objectives and doors left undone lead again");
+        _rearmObjectives();
+        return true;
+    }
+
+    // In a boss fight, nothing to lead to now (the boss untouchable, the chains not yet free) is no cue to explore: the guide led
+    // out of Inarius's arena to unexplored tiles 80-100 units away (live 2026-10-21).
+    private bool HoldsForFight(GuideStep step)
+    {
+        bool hold = (step.Target?.Kind is GuideTargetKind.UnvisitedTile or GuideTargetKind.Frontier or GuideTargetKind.ExitCandidate) && _bossFight();
+        if (hold && !_heldForFight) _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE holding: boss fight");
+        if (hold) _loggedTargetId = null;
+        _heldForFight = hold;
+        return hold;
     }
 
     private static string GoalOf(GuideDestination? objective) => objective?.Tier == ObjectiveMemory.QuestTier ? QuestGoal : DungeonGoal;
@@ -268,8 +305,16 @@ public sealed class ExplorationGuideBridge
 
     private void LogTargetChange(GuideStep step)
     {
-        if (_log is null || step.Target is not { } target || target.Id == _loggedTargetId) return;
+        if (_log is null) return;
+        if (step.JumpAt != _loggedJump)
+        {
+            _loggedJump = step.JumpAt;
+            if (step.JumpAt is { } jump) _log($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE via jump at ({jump.X:F1},{jump.Y:F1})");
+        }
+        if (step.Target is not { } target || target.Id == _loggedTargetId) return;
         _loggedTargetId = target.Id;
         _log($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE target {target.Kind} {target.Id} at ({target.Position.X:F1},{target.Position.Y:F1}) route={step.RemainingLength:F1}");
     }
+
+    private (float X, float Y)? _loggedJump;
 }

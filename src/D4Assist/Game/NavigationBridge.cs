@@ -13,6 +13,7 @@ public sealed class NavigationBridge
     private readonly object _gate = new();
     private readonly bool _diagnostics;
     private string _lastTileSignature = "";
+    private readonly HashSet<int> _rotatedScenesLogged = [];
     private PlayerInput? _lastPlayer;
 
     public NavigationBridge(IDungeonFeed feed, ISpeechSink speech, bool announcementsEnabled, bool diagnostics, ITileWalkability? walkability = null, LanguageSetting? language = null,
@@ -29,7 +30,16 @@ public sealed class NavigationBridge
         };
 
         feed.WorldChanged += (_, _, _) => { lock (_gate) _engine.Reset(); };
-        feed.TilesUpdated += tiles => { lock (_gate) { if (feed.CurrentWorldRadarOnly) return; LogTilesIfChanged(tiles); _engine.OnTiles([.. tiles.Select(ToInput)]); } };
+        feed.TilesUpdated += tiles =>
+        {
+            lock (_gate)
+            {
+                LogRotatedTiles(tiles);
+                if (feed.CurrentWorldRadarOnly) return;
+                LogTilesIfChanged(tiles);
+                _engine.OnTiles([.. tiles.Select(ToInput)]);
+            }
+        };
         feed.PlayerMoved += p =>
         {
             lock (_gate)
@@ -54,6 +64,12 @@ public sealed class NavigationBridge
         lock (_gate) _engine.Guide.SetBlockedCells(cells);
     }
 
+    /// <summary>The jump links of the loaded tiles, for the guide's routes; an equal list is a no-op (ExplorationGuide.SetJumpLinks).</summary>
+    public void SetJumpLinks(IReadOnlyList<JumpLink> jumps)
+    {
+        lock (_gate) _engine.Guide.SetJumpLinks(jumps);
+    }
+
     public ExplorationState ExportExploration()
     {
         lock (_gate) return _engine.ExportExploration();
@@ -63,6 +79,20 @@ public sealed class NavigationBridge
     {
         lock (_gate) _engine.RestoreExploration(state);
     }
+
+    // No tile seen live so far is rotated, and rooms, openings and the guide take every tile's footprint as unrotated
+    // (TileRotation; STATUS.md Known issues). One line per scene, debug or not, so a tester's log shows when one turns up.
+    private void LogRotatedTiles(IReadOnlyList<TileState> tiles)
+    {
+        foreach (var tile in tiles)
+            if (RotatedTileNote(tile) is { } note && _rotatedScenesLogged.Add(tile.SceneSno)) Log(note);
+    }
+
+    /// <summary>The log line for a tile placed at a yaw other than 0, or null for an unrotated one.</summary>
+    public static string? RotatedTileNote(TileState tile) =>
+        TileRotation.QuarterTurns(tile.YawDegrees) == 0 ? null
+        : $"TILE ROTATED {tile.Name} (scene {tile.SceneSno}) yaw={tile.YawDegrees:F1} at ({tile.OriginX:F0},{tile.OriginY:F0}) " +
+          $"{tile.SizeX:F0}x{tile.SizeY:F0}: rooms, openings and the guide take its footprint as unrotated.";
 
     private void LogTilesIfChanged(IReadOnlyList<TileState> tiles)
     {

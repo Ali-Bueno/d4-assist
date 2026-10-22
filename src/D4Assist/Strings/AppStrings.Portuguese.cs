@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Atualizado para a versão {0}.",
         GuideDungeonsOnly: "O guia só funciona em masmorras.",
-        ShelterRouteEnd: "Guia de abrigos concluído.");
+        ShelterRouteEnd: "Guia de abrigos concluído.",
+        DebugMode: "Modo de depuração ativo.",
+        GuideToBossRoom: "Tudo explorado. Levando você à sala do chefe.",
+        TrailGuide: "Guia da trilha de pétalas.",
+        TrailEnd: "Fim da trilha.",
+        PathGuideFormat: "Objetivo da missão: {0}, {1} metros.",
+        PathEnd: "Objetivo da missão alcançado.",
+        PathNotFound: "Nenhum caminho encontrado; indicando a direção.",
+        NoQuestPlace: "Nenhum objetivo de missão no mapa.",
+        PentagramGuide: "Guia do pentagrama.",
+        PentagramEnd: "Fim do pentagrama.",
+        QuestMarker: "Marcador de missão",
+        PlaceCountFormat: "{0} de {1}.");
 }

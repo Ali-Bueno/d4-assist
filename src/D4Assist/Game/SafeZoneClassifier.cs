@@ -38,6 +38,13 @@ public sealed class SafeZoneClassifier(Func<int, ActorDefinitionInfo?> definitio
         return _cache[actorSno] = Classify(actorSno);
     }
 
+    /// <summary>For a light that travels to where the quest needs it and shelters the player on the way, the distance within
+    /// which the player is inside it; null for any other actor. Rathma's archive: each spirit fire lit sends a light back to
+    /// the golem chamber, and the player walks inside it (live 2026-10-20).</summary>
+    public float? EscortRadius(int actorSno) => Has(nameOf(actorSno) ?? "", MovingToken) ? InsideRadius(actorSno) : null;
+
+    private const string MovingToken = "MovingLight";
+
     private float? Classify(int actorSno)
     {
         if (definition(actorSno) is not { } info || info.DefaultTeam == Conventions.HostileTeam) return null;

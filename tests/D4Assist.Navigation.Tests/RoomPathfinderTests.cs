@@ -99,6 +99,40 @@ public class RoomPathfinderTests
         Assert.Equal((1.5f, 1.5f), farthest);
     }
 
+    [Fact]
+    public void Clearance_counts_cells_to_the_nearest_wall_or_grid_edge()
+    {
+        var grid = new WalkGrid(1f, 0f, 0f, 5, 9, FullyWalkable(5, 9));
+
+        Assert.Equal(1, grid.Clearance(0, 4));
+        Assert.Equal(2, grid.Clearance(1, 4));
+        Assert.Equal(3, grid.Clearance(2, 4));
+        Assert.Equal(0, grid.Clearance(5, 4));
+    }
+
+    [Fact]
+    public void A_route_runs_down_the_middle_of_a_walkway_not_along_its_edge()
+    {
+        // The Skovos docks' pier (live 2026-10-17): a walkway five cells wide, the player at its edge.
+        var grid = new WalkGrid(1f, 0f, 0f, 5, 40, FullyWalkable(5, 40));
+
+        Assert.True(RoomPathfinder.TryFindPath(grid, (4.5f, 39.5f), [(2, 0)], out var path, out _));
+
+        Assert.All(path.Where(p => p.Y is > 5f and < 34f), p => Assert.Equal(2.5f, p.X));
+    }
+
+    [Fact]
+    public void A_bearing_from_beside_a_wall_leads_away_from_it_first()
+    {
+        var grid = new WalkGrid(1f, 0f, 0f, 5, 40, FullyWalkable(5, 40));
+        Assert.True(RoomPathfinder.TryFindPath(grid, (4.5f, 39.5f), [(2, 0)], out var path, out _));
+
+        var aim = RoomPathfinder.FarthestVisiblePoint(grid, path);
+
+        Assert.True(aim.Y > 30f, $"aimed at {aim}, along the edge"); // a near point toward the middle, not the far end
+        Assert.True(aim.X < 4f);
+    }
+
     private static bool[,] FullyWalkable(int rows, int cols)
     {
         var cells = new bool[rows, cols];

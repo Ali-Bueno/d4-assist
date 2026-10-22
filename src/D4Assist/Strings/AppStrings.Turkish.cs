@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "%{0}",
         UpdatedToFormat: "{0} sürümüne güncellendi.",
         GuideDungeonsOnly: "Rehber yalnızca zindanlarda çalışır.",
-        ShelterRouteEnd: "Sığınak rehberi tamamlandı.");
+        ShelterRouteEnd: "Sığınak rehberi tamamlandı.",
+        DebugMode: "Hata ayıklama modu açık.",
+        GuideToBossRoom: "Her yer keşfedildi. Seni boss odasına götürüyorum.",
+        TrailGuide: "Yaprak izi rehberi.",
+        TrailEnd: "İzin sonu.",
+        PathGuideFormat: "Görev hedefi: {0}, {1} metre.",
+        PathEnd: "Görev hedefine ulaşıldı.",
+        PathNotFound: "Yol bulunamadı; yönü gösteriyorum.",
+        NoQuestPlace: "Haritada görev hedefi yok.",
+        PentagramGuide: "Pentagram rehberi.",
+        PentagramEnd: "Pentagramın sonu.",
+        QuestMarker: "Görev işareti",
+        PlaceCountFormat: "{1} içinden {0}.");
 }

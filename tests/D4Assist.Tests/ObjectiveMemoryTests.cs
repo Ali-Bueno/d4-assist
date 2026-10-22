@@ -45,6 +45,29 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_light_to_escort_leads_in_the_quest_tier_where_it_is_now_and_not_once_gone()
+    {
+        // Rathma's archive (live 2026-10-20): the spirit fire lit, a light walks back to the golem chamber with the player inside
+        // it, while the step's place at the fire still pointed the guide back.
+        const int LightSno = 9;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, escortRadius: sno => sno == LightSno ? 4f : null);
+        feed.RaisePlayer(At(0, 0));
+        var light = new ActorState(7, LightSno, 10, 0, 1);
+
+        memory.Observe(new ObjectiveSighting([], [], [light]));
+        var lead = Assert.Single(memory.Destinations());
+        Assert.Equal((ObjectiveMemory.QuestTier, (10f, 0f), true), (lead.Tier, lead.Position, lead.Located));
+        Assert.True(lead.Radius > 4f);
+
+        memory.Observe(new ObjectiveSighting([], [], [light with { X = 30 }]));
+        Assert.Equal((30f, 0f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Observe(new ObjectiveSighting([], [], []));
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
     public void Out_of_earshot_it_stays_and_silent_near_the_player_it_is_done()
     {
         var (feed, memory) = NewMemory();
@@ -56,7 +79,7 @@ public class ObjectiveMemoryTests
         Assert.Single(memory.Destinations());
 
         feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
-        memory.Heard(); // used, locked or removed
+        memory.Gone(); // used, locked or removed
         Assert.Empty(memory.Destinations());
     }
 
@@ -72,7 +95,7 @@ public class ObjectiveMemoryTests
         memory.Heard(Lever(0, 0), Altar(100, 0));
         Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
 
-        memory.Heard(Altar(100, 0)); // pulled
+        memory.Gone(Altar(100, 0)); // pulled
         Assert.Equal((100f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
@@ -105,7 +128,109 @@ public class ObjectiveMemoryTests
         Assert.Equal((100f, 0f), Assert.Single(memory.Destinations()).Position);
 
         feed.RaisePlayer(At(100, 0));
-        memory.Heard(Lever(0, 0)); // the altar was used: the lever may open now
+        memory.Gone(Lever(0, 0)); // the altar was used: the lever may open now
+        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void One_set_aside_then_done_leads_again_once_it_loops_again()
+    {
+        // Inarius (live 2026-10-21): the player left him, he fell silent while invulnerable, and sounded again with his chain in hand.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0)); // set aside
+        feed.RaisePlayer(At(ObjectiveMemory.ConfirmRadiusUnits - 1, 0));
+        memory.Gone(Altar(100, 0)); // silent near the player: done
+        Assert.DoesNotContain(memory.Destinations(), d => d.Position == (0, 0));
+
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+    }
+
+    [Fact]
+    public void One_missing_for_a_poll_or_two_near_the_player_is_not_done()
+    {
+        // Inarius's chain stations (live 2026-10-21) left the actor list for a poll or two and came back under a new id.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
+        memory.Heard(Lever(50, 0));
+
+        memory.Heard();
+        memory.Heard();
+        Assert.Single(memory.Destinations());
+
+        memory.Heard(Lever(50, 0, id: 9));
+        memory.Gone();
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void In_a_boss_fight_an_objective_walked_away_from_is_never_set_aside()
+    {
+        const int BossSno = 50;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, isBoss: sno => sno == BossSno);
+        feed.RaisePlayer(At(0, 0));
+        var boss = new ActorState(8, BossSno, 30, 30, 0);
+        memory.Heard(Lever(0, 0), boss);
+        Assert.True(memory.BossFight);
+
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0));
+
+        Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+    }
+
+    [Fact]
+    public void An_objective_left_undone_twice_no_longer_returns_when_another_one_is_done()
+    {
+        // Live 2026-10-16, the Light's Watch: a lectern drew the guide back four times, and the second guard was never found.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0, id: 2), Altar(0, 100, id: 3));
+        for (int i = 0; i < ObjectiveMemory.MaxTimesLeft; i++)
+        {
+            feed.RaisePlayer(At(1, 0));
+            feed.RaisePlayer(At(ObjectiveMemory.LeaveUnits + 2, 0));
+            if (i > 0) break;
+            feed.RaisePlayer(At(100, 0));
+            memory.Gone(Lever(0, 0), Altar(0, 100, id: 3)); // the first altar was used: the lever leads again
+            Assert.Contains(memory.Destinations(), d => d.Position == (0, 0));
+        }
+
+        feed.RaisePlayer(At(0, 100));
+        memory.Gone(Lever(0, 0)); // the second altar was used
+        Assert.Empty(memory.Destinations());
+
+        memory.Rearm();
+        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void An_objective_done_or_set_aside_leads_again_as_a_quest_step_once_a_phase_names_its_sno()
+    {
+        // Live 2026-10-17, the Light's Watch: the gate read done, the key was found far away, and the guide fell silent.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(0, 0), Altar(100, 0));
+        feed.RaisePlayer(At(100, 0));
+        memory.Gone(Lever(0, 0)); // the altar done
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(-Far, 0)); // the lever set aside
+        memory.ObserveNamed(new HashSet<int>());
+        Assert.Empty(memory.Destinations());
+
+        memory.ObserveNamed(new HashSet<int> { AltarSno, LeverSno });
+
+        var points = memory.Destinations();
+        Assert.Equal(2, points.Count);
+        Assert.All(points, p => Assert.Equal(ObjectiveMemory.QuestTier, p.Tier));
+
+        feed.RaisePlayer(At(99, 0));
+        memory.Heard(Lever(0, 0)); // the altar used again; still named, it stays done
+        memory.ObserveNamed(new HashSet<int> { AltarSno, LeverSno });
         Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
@@ -128,9 +253,9 @@ public class ObjectiveMemoryTests
     public void An_objective_that_loops_again_leads_again()
     {
         var (feed, memory) = NewMemory();
-        feed.RaisePlayer(At(30, 0));
+        feed.RaisePlayer(At(50 - ObjectiveMemory.ConfirmRadiusUnits + 1, 0));
         memory.Heard(Lever(50, 0));
-        memory.Heard(); // locked while the player carries an item elsewhere
+        memory.Gone(); // locked while the player carries an item elsewhere
         Assert.Empty(memory.Destinations());
 
         memory.Heard(Lever(50, 0));
@@ -199,6 +324,47 @@ public class ObjectiveMemoryTests
         Assert.Equal(ObjectiveMemory.DungeonTier, Assert.Single(memory.Destinations(), d => d.Position == (0, 50)).Tier);
     }
 
+    [Fact]
+    public void A_crate_silent_while_another_is_carried_is_not_done_and_leads_again_once_the_hands_are_free()
+    {
+        // The Lost Archives' two crates (live 2026-10-16): carrying the first, the second fell silent beside it and was taken for
+        // done, so the guide never led back to it. The same in every statue, bloodstone and carving dungeon.
+        const int CrateSno = 983768;
+        bool holding = false;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, carryableWaits: sno => sno == CrateSno ? holding : null);
+        ActorState Crate(float x, uint id) => new(id, CrateSno, x, 0, 0, QuestStep: true);
+        var first = Crate(30, 11);
+        var second = Crate(33, 12);
+        feed.RaisePlayer(At(30, 0));
+        memory.Heard(first, second);
+        Assert.Equal(2, memory.Destinations().Count);
+
+        holding = true; // the first is picked up: its copy follows the player, the second waits silent beside it
+        var inHands = new ActorState(99, CrateSno, 30, 0, 0, ClientOnly: true);
+        memory.Observe(new ObjectiveSighting([], [second], [second, inHands]));
+        Assert.Empty(memory.Destinations()); // laden: the receptacle leads, not another crate
+
+        feed.RaisePlayer(At(100, 0)); // delivered far away, hands free again
+        holding = false;
+        memory.Observe(new ObjectiveSighting([], [], []));
+        Assert.Equal((33f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_crate_is_done_once_it_left_the_ground()
+    {
+        const int CrateSno = 983768;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, carryableWaits: sno => sno == CrateSno ? false : null);
+        feed.RaisePlayer(At(30, 0));
+        memory.Heard(new ActorState(11, CrateSno, 30, 0, 0, QuestStep: true));
+
+        memory.Observe(new ObjectiveSighting([], [], [new ActorState(99, CrateSno, 30, 0, 0, ClientOnly: true)])); // in the hands
+
+        Assert.Empty(memory.Destinations());
+    }
+
     // The Ancient Mausoleum's "chase Lilith" step (QST_Frac_Underworld2_02 phase 80, live 2026-10-01): a trigger to walk into.
     private const int TriggerSno = 42298;
 
@@ -220,6 +386,26 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(-1, 49)); // inside the trigger
         memory.ObservePlaces([new QuestPlace(TriggerSno, -1, 51)]);
         Assert.Contains(memory.Destinations(), d => d.Position == (-1, 51));
+    }
+
+    [Fact]
+    public void Of_several_quest_places_one_stood_in_and_walked_on_from_gives_way_to_the_next()
+    {
+        // Live 2026-10-17 (CSD_Skov_Temis_SmugglersRun_02): one step named six triggers through the dungeon.
+        var (feed, memory) = NewMemory();
+        QuestPlace[] places = [new(TriggerSno, 0, 0), new(TriggerSno, 10, 0)];
+        feed.RaisePlayer(At(-20, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal(2, memory.Destinations().Count);
+
+        feed.RaisePlayer(At(0, 1)); // in the first
+        feed.RaisePlayer(At(8, 0)); // on into the second, closer than LeaveUnits
+        memory.ObservePlaces(places);
+        Assert.Equal((10f, 0f), Assert.Single(memory.Destinations()).Position);
+
+        feed.RaisePlayer(At(-Far, 0)); // the last one left stays the goal
+        memory.ObservePlaces(places);
+        Assert.Equal((10f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
     [Fact]

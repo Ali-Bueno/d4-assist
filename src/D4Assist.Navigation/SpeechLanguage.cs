@@ -47,6 +47,9 @@ public static class SpeechLanguages
     /// <summary>The value of d4assist.json's "Language" that forces this language.</summary>
     public static string Code(SpeechLanguage language) => Of(language).Code;
 
+    /// <summary>The game text locale of the language (e.g. "deDE"), for names read from the game's StringLists.</summary>
+    public static string GameLocale(SpeechLanguage language) => Of(language).Locales[0];
+
     /// <summary>The language's name in itself, for the settings window.</summary>
     public static string NativeName(SpeechLanguage language) => Of(language).NativeName;
 

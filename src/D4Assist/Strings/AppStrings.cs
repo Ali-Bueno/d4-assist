@@ -11,7 +11,10 @@ public sealed partial record AppStrings(
     IReadOnlyDictionary<ReadCheck, string> ReadFailures, string ReadWarningFormat, string Stopped,
     string UpdateAvailableFormat, string UpdateDownloading, string UpdateRestarting, string UpdateFailed,
     string UpdateFolderNotWritable, string UpToDate, string UpdateCheckFailed, string UpdateOnlyDownloaded,
-    string UpdateProgressFormat, string UpdatedToFormat, string GuideDungeonsOnly, string ShelterRouteEnd)
+    string UpdateProgressFormat, string UpdatedToFormat, string GuideDungeonsOnly, string ShelterRouteEnd,
+    string DebugMode, string GuideToBossRoom, string TrailGuide, string TrailEnd, string PathGuideFormat,
+    string PathEnd, string PathNotFound, string NoQuestPlace, string PentagramGuide, string PentagramEnd,
+    string QuestMarker, string PlaceCountFormat)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -43,7 +46,13 @@ public sealed partial record AppStrings(
         "{0} %",
         "Actualizado a la versión {0}.",
         "La guía solo funciona en mazmorras.",
-        "Fin de la guía de refugios.");
+        "Fin de la guía de refugios.",
+        "Modo de depuración activo.",
+        "Todo explorado. Te llevo a la sala del jefe.",
+        "Guía del rastro de pétalos.", "Fin del rastro.",
+        "Objetivo de misión: {0}, {1} metros.", "Objetivo de la misión alcanzado.", "No encuentro un camino; te indico la dirección.",
+        "No hay objetivos de misión en el mapa.", "Guía del pentagrama.", "Fin del pentagrama.", "Marcador de misión",
+        "{0} de {1}.");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -75,7 +84,13 @@ public sealed partial record AppStrings(
         "{0}%",
         "Updated to version {0}.",
         "The guide only works in dungeons.",
-        "Shelter guide finished.");
+        "Shelter guide finished.",
+        "Debug mode on.",
+        "All explored. Leading you to the boss room.",
+        "Petal trail guide.", "End of the trail.",
+        "Quest goal: {0}, {1} meters.", "Quest goal reached.", "No path found; pointing the way.",
+        "No quest goal on the map.", "Pentagram guide.", "End of the pentagram.", "Quest marker",
+        "{0} of {1}.");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {
@@ -100,12 +115,23 @@ public sealed partial record AppStrings(
     public string ReadWarning(ReadCheck check) => string.Format(ReadWarningFormat, ReadFailures[check]);
 
     /// <summary>Spoken when a quest route starts leading.</summary>
-    public string RouteStarted(RouteKind kind) =>
-        kind == RouteKind.Shelters ? ShelterGuide : throw new ArgumentOutOfRangeException(nameof(kind));
+    public string RouteStarted(RouteKind kind) => kind switch
+    {
+        RouteKind.Shelters => ShelterGuide,
+        RouteKind.Trail => TrailGuide,
+        RouteKind.Pentagram => PentagramGuide,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
-    /// <summary>Spoken on reaching point <paramref name="number"/> of <paramref name="count"/> (1-based).</summary>
-    public string RoutePointReached(RouteKind kind, int number, int count) =>
-        kind == RouteKind.Shelters ? string.Format(ShelterReachedFormat, number, count) : throw new ArgumentOutOfRangeException(nameof(kind));
+    /// <summary>Spoken on reaching point <paramref name="number"/> of <paramref name="count"/> (1-based); a trail speaks only
+    /// its last point (null otherwise: a phrase every 10 units would talk over the game).</summary>
+    public string? RoutePointReached(RouteKind kind, int number, int count) => kind switch
+    {
+        RouteKind.Shelters => string.Format(ShelterReachedFormat, number, count),
+        RouteKind.Trail => number == count ? TrailEnd : null,
+        RouteKind.Pentagram => number == count ? PentagramEnd : null,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
     /// <summary>Spoken on reaching the place a quest route ends at, past its last point.</summary>
     public string RouteEndReached(RouteKind kind) =>

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace D4Assist.Audio;
 
 /// <summary>
@@ -36,21 +38,19 @@ public sealed class RadarCuePlayer : IRadarCuePlayer, IDisposable
     {
         double gain = GainOf(kind, ray) * LoudnessBoost;
         if (gain <= 0) return; // muted: must not hold a scheduler slot
-        var samples = RadarCueSynth.Synthesize(kind, RadarDirectionModel.Vertical(ray, Frame), unexplored);
+        var samples = Cue(kind, RadarDirectionModel.Vertical(ray, Frame), unexplored);
         var delay = _scheduler.Reserve(_nowSeconds(), (double)samples.Length / AudioFormat.SampleRate);
         if (delay is not { } seconds) return; // too stale to be useful (CueScheduler.MaxStartDelaySeconds)
-        _mixer.Play(WithLeadingSilence(samples, seconds), gain, RadarDirectionModel.Pan(ray, Frame), kind.Priority());
+        // Delayed inside the mixer, so queued cues keep their slot without a timer thread.
+        _mixer.Play(samples, gain, RadarDirectionModel.Pan(ray, Frame), kind.Priority(), delaySeconds: seconds);
     }
 
-    // Delays a cue inside the mixer by prepending silence, so queued cues keep their slot without a timer thread.
-    private static float[] WithLeadingSilence(float[] samples, double seconds)
-    {
-        int silentFrames = (int)Math.Round(seconds * AudioFormat.SampleRate);
-        if (silentFrames == 0) return samples;
-        var delayed = new float[silentFrames + samples.Length];
-        samples.CopyTo(delayed, silentFrames);
-        return delayed;
-    }
+    // The synth is a pure function of these three (a fixed noise seed), and a batch plays up to four cues every few hundred
+    // milliseconds: each cue is synthesized once. The mixer only reads the samples.
+    private static readonly ConcurrentDictionary<(RadarCueKind Kind, int Vertical, bool Unexplored), float[]> Cues = new();
+
+    private static float[] Cue(RadarCueKind kind, int vertical, bool unexplored) =>
+        Cues.GetOrAdd((kind, vertical, unexplored), key => RadarCueSynth.Synthesize(key.Kind, key.Vertical, key.Unexplored));
 
     public void Dispose()
     {

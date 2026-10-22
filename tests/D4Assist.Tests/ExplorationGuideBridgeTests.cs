@@ -202,6 +202,38 @@ public class ExplorationGuideBridgeTests
     }
 
     [Fact]
+    public void All_explored_lets_what_was_left_undone_lead_again_once_per_target_reached()
+    {
+        // Live 2026-10-17, the Light's Watch: the key taken, the gate stayed tried and the guide fell silent.
+        var rig = new Rig { Step = GuideStep.AllExplored };
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Pad.Press(); // on: one re-arm of its own
+        rig.Speech.Spoken.Clear();
+
+        rig.Feed.RaisePlayer();
+        Assert.Equal(2, rig.Rearms);
+        Assert.Single(rig.Log, l => l.Contains("GUIDE all explored"));
+        Assert.Equal([(NavigationPhrases.Spanish.AllExplored, false)], rig.Speech.Spoken); // nothing came back to lead to
+
+        rig.Feed.RaisePlayer();
+        Assert.Equal(2, rig.Rearms);
+
+        rig.Step = GuideStep.AllExplored with { Arrivals = 1 }; // the player went to the gate and came away again
+        rig.Feed.RaisePlayer();
+        Assert.Equal(3, rig.Rearms);
+    }
+
+    [Fact]
+    public void All_explored_in_an_endgame_world_re_arms_nothing()
+    {
+        var rig = new Rig { Step = GuideStep.AllExplored };
+
+        rig.Feed.RaisePlayer();
+
+        Assert.Equal(0, rig.Rearms);
+    }
+
+    [Fact]
     public void A_new_dungeon_stops_the_ping_and_lets_all_explored_be_spoken_again()
     {
         var rig = new Rig { Step = GuideStep.AllExplored };
@@ -465,6 +497,21 @@ public class ExplorationGuideBridgeTests
 
         Assert.Equal([(NavigationPhrases.Spanish.ToDungeonObjective, false), (NavigationPhrases.Spanish.ToUnexplored, false)], rig.Speech.Spoken);
         Assert.Equal("Hacia zona sin explorar.", NavigationPhrases.Spanish.ToUnexplored);
+    }
+
+    [Fact]
+    public void The_boss_rooms_entrance_and_middle_are_announced_once()
+    {
+        var rig = new Rig(guideInDungeons: true);
+        rig.Feed.RaiseWorld("DGN_Test");
+        string room = $"{BossRoomDestination.IdPrefix}:20:-32,-128";
+        foreach (string id in new[] { $"{room}:entrance", room })
+        {
+            rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Destination, id, (-10, 10)), (-10, 10), 30);
+            rig.Feed.RaisePlayer();
+        }
+
+        Assert.Equal([(D4Assist.Strings.AppStrings.Spanish.GuideToBossRoom, false)], rig.Speech.Spoken);
     }
 
     [Fact]

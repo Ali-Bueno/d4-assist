@@ -89,6 +89,7 @@ public sealed partial record SettingsStrings
         InterruptOnContextChange = "Przerywaj mowę przy wchodzeniu do lochu lub wychodzeniu z niego",
         RadarClosedDoors = "Zamknięte drzwi na radarze",
         LiveBarriers = "Bariery lochów na radarze i w przewodniku",
+        WaypointList = "Lista punktów podróży na mapie (Shift+F1)",
         ExplorationGuide = "Przewodnik po eksploracji (lewy przycisk krzyżaka włącza go i wyłącza)",
         ExplorationGuideInDungeons = "Przewodnik włączony po wejściu do zwykłych lochów (w Podmieściu i Jamie zawsze zaczyna jako włączony)",
         CompassDirections = "Podawaj kierunki jako strony świata (północ, wschód…) zamiast góra, prawo…",

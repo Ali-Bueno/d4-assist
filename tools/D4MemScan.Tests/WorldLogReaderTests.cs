@@ -7,9 +7,17 @@ public class WorldLogReaderTests
     [Fact]
     public void ExtractsWorldNameFromMarkerLine()
     {
-        var lines = new[] { "[Game] Client entered world | world: DGN_Hawe_HeathensKeep CWorldID: 4194306" };
+        var lines = new[] { "[Game] Client entered world | world: DGN_Hawe_HeathensKeep | CWorldID: 4194306" };
 
         Assert.Equal("DGN_Hawe_HeathensKeep", WorldLogReader.LastWorldName(lines));
+    }
+
+    [Fact]
+    public void KeepsASpaceInTheWorldName()
+    {
+        var lines = new[] { "[Game] Client entered world | world: CSD_Skov_Philios_ River_Skovos_MorluDungeon | CWorldID: 524291" };
+
+        Assert.Equal("CSD_Skov_Philios_ River_Skovos_MorluDungeon", WorldLogReader.LastWorldName(lines));
     }
 
     [Fact]

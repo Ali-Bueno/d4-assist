@@ -62,6 +62,20 @@ public class ExplorationGuideTests
     }
 
     [Fact]
+    public void An_opening_found_only_from_the_neighbours_side_also_leads_out_of_the_room()
+    {
+        // Rathma's golem chamber (live 2026-10-20): a 64x64 preset room whose mask names two sides, entered from a third; standing
+        // in it the guide found no way out and said all explored with the next spirit fire beyond the tile it opens into.
+        var map = Map(Tile(0, 0, 0), Tile(0, 1, W));
+        Visit(map, (0, 0));
+
+        var step = new ExplorationGuide(map).Step(Centre(0, 0));
+
+        Assert.Equal(GuideStatus.Guiding, step.Status);
+        Assert.Equal("tile:0,1", step.Target!.Id);
+    }
+
+    [Fact]
     public void Counts_an_arrival_when_the_player_steps_into_the_target_tile()
     {
         var map = Map(Tile(0, 0, E), Tile(0, 1, W | E));

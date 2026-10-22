@@ -81,6 +81,18 @@ public sealed class ExplorationGuide
         _blockedVersion++;
     }
 
+    /// <summary>The jump links of the loaded tiles: the routes inside a room may use them, and the guide then leads to the
+    /// jump point first. Compared by content, like <see cref="SetBlockedCells"/>.</summary>
+    public void SetJumpLinks(IReadOnlyList<JumpLink> jumps)
+    {
+        if (jumps.SequenceEqual(_jumps)) return;
+        _jumps = jumps;
+        _jumpsVersion++;
+    }
+
+    private IReadOnlyList<JumpLink> _jumps = [];
+    private int _jumpsVersion, _cachedJumps = -1;
+
     /// <summary>Forget the current target, every dead exit and the barriers. Call on dungeon change.</summary>
     public void Reset()
     {
@@ -92,6 +104,8 @@ public sealed class ExplorationGuide
         _round = 1;
         _rechecking = false;
         _blocked = BlockedCells.None;
+        _jumps = [];
+        _jumpsVersion++;
         _beforeOpening = null;
         _behindTiles = [];
         _behindFrontiers = [];
@@ -130,7 +144,7 @@ public sealed class ExplorationGuide
 
         var here = (player.X, player.Y);
         if (_cached is not null && _cachedVersion == _map.Version && _cachedBlocked == _blockedVersion && _cachedSpent == _spentFrontiers.Count &&
-            _cachedRecheck == _recheckVersion && _cachedExitMissing == exitMissing && _cachedDestinations == destinationKey &&
+            _cachedRecheck == _recheckVersion && _cachedExitMissing == exitMissing && _cachedDestinations == destinationKey && _cachedJumps == _jumpsVersion &&
             TileRoutes.Distance(here, _cachedPlayer) <= RoomRouteCache.RecomputeThresholdUnits)
             return _cached;
 
@@ -142,6 +156,7 @@ public sealed class ExplorationGuide
         _cachedRecheck = _recheckVersion;
         _cachedExitMissing = exitMissing;
         _cachedDestinations = destinationKey;
+        _cachedJumps = _jumpsVersion;
         return _cached;
     }
 
@@ -197,9 +212,9 @@ public sealed class ExplorationGuide
         var hops = routes.HopsTo(chosen.Node);
         if (chosen.FrontierHop is { } exit) hops.Add(new RouteHop(exit.Opening, null, chosen.Cost));
         var status = _rechecking ? GuideStatus.Rechecking : GuideStatus.Guiding;
-        var waypoint = Waypoint(hops, chosen, player, out var remaining);
+        var waypoint = Waypoint(hops, chosen, player, out var remaining, out var jumpAt);
         var toward = waiting.Count > 0 && exploring.Contains(chosen) ? waiting.MinBy(w => TileRoutes.Distance(chosen.Target.Position, w.Position)) : null;
-        return new GuideStep(status, chosen.Target, waypoint, remaining, Arrivals, _rechecking ? _round : 0, toward);
+        return new GuideStep(status, chosen.Target, waypoint, remaining, Arrivals, _rechecking ? _round : 0, toward, jumpAt);
     }
 
     // A dungeon goes on through the door it just unlocked: the ground a barrier held back leads, the ground left behind waits
@@ -334,10 +349,11 @@ public sealed class ExplorationGuide
 
     // Heads for the first opening that leaves the player's room; a target tile inside the room is the route's last hop, and a
     // point target there (an objective, a portal) is walked to over the room's floor.
-    private (float X, float Y) Waypoint(List<RouteHop> hops, Candidate chosen, PlayerInput player, out float remaining)
+    private (float X, float Y) Waypoint(List<RouteHop> hops, Candidate chosen, PlayerInput player, out float remaining, out (float X, float Y)? jumpAt)
     {
         float total = chosen.Cost;
         remaining = total;
+        jumpAt = null;
         bool point = chosen.FrontierHop is null && chosen.Target.Kind is GuideTargetKind.Objective or GuideTargetKind.Destination;
         if (hops.Count == 0 && !point) return chosen.Target.Position; // the target is in the player's tile
         var room = RoomModel.TryGetRoom(_map, player.X, player.Y, out var found, _walkability, _blocked) ? found : null;
@@ -345,10 +361,11 @@ public sealed class ExplorationGuide
         if (point && room is not null && hops.All(h => h.To is { } next && roomTiles.Contains(TileGraph.Key(next.Tile))))
         {
             float reach = chosen.Reach > 0 ? chosen.Reach : DestinationArrivalUnits;
-            var near = RoomRouteCache.TraceToPoint(room, (player.X, player.Y), chosen.Target.Position, reach);
+            var near = RoomRouteCache.TraceToPoint(room, (player.X, player.Y), chosen.Target.Position, reach, _jumps);
             if (!near.UsedFallback)
             {
                 remaining = near.Length;
+                jumpAt = near.JumpAt;
                 return near.Point;
             }
         }
@@ -357,8 +374,9 @@ public sealed class ExplorationGuide
         var hop = hops.FirstOrDefault(h => h.To is null || !roomTiles.Contains(TileGraph.Key(h.To.Tile))) ?? hops[^1];
         if (room is null) return hop.Opening.Position;
 
-        var trace = RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening);
+        var trace = RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening, _jumps);
         remaining = trace.UsedFallback ? total : trace.Length + (total - hop.LengthSoFar);
+        jumpAt = trace.JumpAt;
         return trace.Point;
     }
 

@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0} %",
         UpdatedToFormat: "Mis à jour vers la version {0}.",
         GuideDungeonsOnly: "Le guide ne fonctionne que dans les donjons.",
-        ShelterRouteEnd: "Guide des abris terminé.");
+        ShelterRouteEnd: "Guide des abris terminé.",
+        DebugMode: "Mode débogage activé.",
+        GuideToBossRoom: "Tout est exploré. Je vous mène à la salle du boss.",
+        TrailGuide: "Guide de la piste de pétales.",
+        TrailEnd: "Fin de la piste.",
+        PathGuideFormat: "Objectif de quête : {0}, {1} mètres.",
+        PathEnd: "Objectif de quête atteint.",
+        PathNotFound: "Aucun chemin trouvé ; j'indique la direction.",
+        NoQuestPlace: "Aucun objectif de quête sur la carte.",
+        PentagramGuide: "Guide du pentagramme.",
+        PentagramEnd: "Fin du pentagramme.",
+        QuestMarker: "Marqueur de quête",
+        PlaceCountFormat: "{0} sur {1}.");
 }

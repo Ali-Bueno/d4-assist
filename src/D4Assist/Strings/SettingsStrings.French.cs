@@ -89,6 +89,7 @@ public sealed partial record SettingsStrings
         InterruptOnContextChange = "Interrompre la voix en entrant dans un donjon ou en en sortant",
         RadarClosedDoors = "Portes fermées dans le radar",
         LiveBarriers = "Barrières des donjons dans le radar et le guide",
+        WaypointList = "Liste des points de passage sur la carte (Maj+F1)",
         ExplorationGuide = "Guide d'exploration (la croix directionnelle gauche l'active et le désactive)",
         ExplorationGuideInDungeons = "Guide activé en entrant dans les donjons ordinaires (dans les Souterrains et la Fosse, il démarre toujours activé)",
         CompassDirections = "Annoncer les directions en points cardinaux (nord, est…) au lieu de haut, droite…",

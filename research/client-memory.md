@@ -513,6 +513,41 @@ works in a world for its grace (position and menus 60 s, rooms and actors 20 s, 
 `Self-check: <read> FAILED after N s: <reason>` and is spoken once per run. Live 2026-10-01: all six ok in town, after a
 restart while mounted (the player's RActor is still listed) and in a dungeon.
 
+### Activated waypoints (live 2026-10-18, build 3.2.3.73883, Temis)
+
+- **Offline catalog** (`D4Data.Readers.WaypointCatalog`, H): the Global `global_markers` (332242) holds GlobalWaypointData
+  whose `arGlobalMarkerActors` with a `GlobalMarkerActorWaypointData` ptData are the game's 53 waypoints: `snoLevelArea`,
+  `snoWorld`, `tWorldTransform.wp` (e.g. Skov_Temis 1893662 at (2581,−482) in Sanctuary_Eastern_Continent; also
+  Mercenary_Hideout, S03_Hub_TWN, X1R_Khazra_Hub_KeyRoom). Names: StringList `LevelArea_<name>`, label `Name`, from
+  `Base\StringList-Text-<locale>.dat` (deDE: Skov_Philios_OracleTown → „Visionsende“). `D4MemScan waypoints` prints them.
+- **Player slots** (H): `[G + 0xA80]` (G = the game object, RVA 0x3651918) points at a block whose four player slots
+  start at +0x1F8, stride 0xF520; u32 slot index at slot+0. Each slot holds a `PlayerSavedData` at slot+0xE0:
+  u32 `uSecondsPlayed` at +0x70, `arWaypointsActivated` (64 × u32 LevelArea SNO, in activation order) at +0x78.
+  The other slots are other players in the same game (Temis town: two players with 35 and 37 waypoints, no hotbar).
+- **The local player's slot** is the one whose `tHotbarBtnAssignments` (+0x00) hold power SNOs; others read 0xFFFFFFFF
+  there (live: slot 0, Warlock_Summon_Lunatic / BurningSkull / WraithStep / Demonic_Drain, player actor warlockF; its
+  seconds played rose 18082 → 20305 across a character switch and back). No ACD attribute names a player index.
+- The list ends at the first word that is no waypoint LevelArea: unused slots read 0xFFFFFFFF in the other players'
+  copies, but the local slot held other data right after its 36th entry (0x34CF077B…). So read entries in order while
+  each is a catalog LevelArea, at most 64.
+- Found with `D4MemScan waypoints --scan --saved` (runs of waypoint LevelAreas, 20 s heap scan) and pointer scans back to G.
+
+### World map view (live 2026-10-18, Gea Kul, 1920×1080 windowed)
+
+- **Open:** `screen_Map` opens and closes with the map (together with `screen_MainInGameMenu`); the pause menu opens only
+  `screen_MainInGameMenu` (`D4MemScan screens --watch`).
+- **View state** (H): `[G + 0xC78]` points at the map object; f32 zoom at +0x2F4, f32 center X, Y (world units) at +0x2FC.
+  The object stays at one address while the map closes and reopens; opening re-centers on the player. Panning with the
+  left stick moved the center (681.6,−410.3) → (574.9,−267.6); zoom (right stick, or R2/L2) steps 125.6 · 417.6 ·
+  1001.6 · 1877.6 (larger = farther out). Found by finding f32 pairs at the player's position with the map open, keeping
+  those that stayed still, then watching which followed a pan; zoom is the word that changed on R2/L2.
+- **Projection** (H, three screenshots at zoom 418 / 1002 / 1878, waypoints Gea Kul, Zarbinzet, Kurast Bazaar placed
+  within ~3 px): for a world point at d = (dX, dY) from the center, pixel = C + (k / zoom) · (−dX + dY, dX + dY) with
+  k ≈ 732 at a 1080-px-high client (≈ ⅔ · height, ⅔ = the open world's `ZoneMapParams.flZoneArtScale`), and C = (920, 541):
+  the map area's middle, left of the 80-px side bar. Same axes as the play camera (screen right = −X+Y).
+- **Mouse:** the game ignores `SetCursorPos`; `SendInput` moves its cursor (only while it is the foreground window) and
+  switches the game's input hints to mouse and keyboard. No world position under the mouse was found in memory.
+
 ## 7. Open questions
 
 - The tile-hash units for tiles larger than 32×32, and whether RVAs stay stable across restarts.

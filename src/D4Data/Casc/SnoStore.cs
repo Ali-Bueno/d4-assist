@@ -88,6 +88,15 @@ public sealed class SnoStore : IDisposable
         TryRead(group, id, SnoFolder.Payload, out var bytes) && bytes.Length > 0
             ? SnoBlob.FromPayload(bytes) : null;
 
+    /// <summary>The text of <paramref name="label"/> in the StringList table named <paramref name="table"/>, in
+    /// <paramref name="locale"/> (a D4 code such as deDE); null when the locale, table or label is missing.</summary>
+    public string? Text(string locale, string table, string label)
+    {
+        if (Strings(locale) is not { } strings) return null;
+        if (!_idsByName.TryGetValue(((int)SnoGroup.StringList, table.ToUpperInvariant()), out int id)) return null;
+        return strings.TryGet(id, label, out string? text) ? text : null;
+    }
+
     // 1087 of 62490 actor metas were TACT-encrypted in build 3.2.1.73552 (census 2026-09-29).
     private bool TryRead(int group, int id, SnoFolder folder, out byte[] bytes)
     {

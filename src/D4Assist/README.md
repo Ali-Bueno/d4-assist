@@ -19,7 +19,7 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
     build, with further rescans only on demand (`GameSession.RescanTiles`).
 - Speaks "Diablo 4 Assist activo" at startup and dungeon-enter/leave announcements through PRISM, in
   the game's language (`Strings/AppStrings`, one file per language; see `Language` below). The NVDA voice itself is your choice.
-- `--debug` logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
+- `--debug` says "Debug mode on" after the startup line and logs changes only (tile set, spoken announcements with their openings, radar readings); `--no-speech`
   swaps PRISM for a console sink so you can run it without a screen reader.
 - Everything printed also goes to `d4assist-log.txt` next to the exe, timestamped (`Logging/LogFile`; the previous
   run's log becomes `d4assist-log.old.txt`). Always logged, even without `--debug`: why memory can't be read
@@ -111,7 +111,7 @@ the next start. Only the single-file portable build replaces itself; a dev build
 
 The app has no console window: it puts an icon ("D4") in the notification area (`Ui/TrayApp`, its own STA thread). Enter,
 a click or the context-menu key on the icon opens its menu: **Settings…**, **Check for updates**, **Restart assistant**, **Exit** (speaks
-"Diablo 4 Assist cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere. A second copy refuses to start
+"Diablo 4 Assist cerrado"). **Ctrl+Alt+Shift+C** opens the settings from anywhere, **Ctrl+Alt+Shift+Q** exits at once (as the tray's Exit). A second copy refuses to start
 (`SingleInstance`, a session mutex) and says where the running one is; a restart starts a new copy with `--restarted`, which
 waits for the old one to exit. Startup errors (no install, bad `d4assist.json`) show a message box as well as the log.
 
@@ -275,6 +275,17 @@ within the closing depth. A quest-restricted door stays a door: nothing in memor
 (research/client-memory.md §4). `--debug` logs `RADAR door … ends=A/B` once per door; both ends should be `Blocked`, which
 means the yaw lays the door across its doorway.
 
+## Jump points in the guide
+
+A gap the walk map can't cross may carry a jump: two `Traversal_Gizmo_Jump` points a few units apart, one on each side, used
+with the interact button (the Philios mindscape's `Sightless_Skovos_SW_Traversal_01`: one tile's floor in four islands joined
+by three pairs, live 2026-10-18). `Game/JumpLinkCollector` reads each loaded tile's jump points offline (every marker layer:
+some tiles keep them in `Traversals`), pairs each with its mutual nearest within 8 units and hands them to
+`NavigationBridge.SetJumpLinks`. `RoomPathfinder` then joins the floor within 2.5 units of one end to the floor nearest the
+other (the leap costs its length + 4), and while a route needs a jump the guide aims at the first jump point
+(`GuideStep.JumpAt`, `--debug`: `GUIDE via jump at (x,y)`, `JUMPS <tile>: …`). No sound of its own: the game sounds jump
+points (user, 2026-10-18).
+
 ## Barriers in the radar and the guide
 
 `Game/BarrierObstacles` lays every barrier wall a dungeon raises on the 1-unit grid: a non-gizmo actor named
@@ -401,17 +412,52 @@ reasoning: [campaign-routes](../../research/campaign-routes.md).
   point it leads on to the route's end, if it has one; there it chimes, speaks "Fin de la guía de refugios.", stops and
   doesn't restart until the world changes.
 - It stops when the player is more than 150 units from the start, every point and the end, and on any world change.
+- A trail (`RouteKind.Trail`, no quest marker) is a row of markers the set lists in walking order; it starts at the
+  first, and only a live quest actor starts it. It speaks "Guía del rastro de pétalos.", counts a point reached within
+  6 units, leads straight on without holding, and speaks only "Fin del rastro." at its last point.
 - `--debug` logs the loaded routes at startup and one `ROUTE` line per start, point, stop and mute.
 
-The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalace_SafeZone` safe zones of
-`VGN_Kehj_EliasPalace_Sandstorm`, ending where `QST_Kehj_EliasPalace_03` has Meshif on the palace steps. A player's log
-(2026-10-19, no `--debug`) confirms the order; the route itself is not live-tested with `--debug` yet.
+Routes so far: `sandstorm-shelters`, the three `BCD_Trigger_EliasPalace_SafeZone` safe zones of
+`VGN_Kehj_EliasPalace_Sandstorm`, ending where `QST_Kehj_EliasPalace_03` has Meshif on the palace steps (a player's log
+of 2026-10-19, no `--debug`, confirms the order; not live-tested with `--debug` yet), and `philios-blood-petals`, the
+trail of 21 `QST_X2_Skov_Lilith_BloodPetal_Trigger_Sphere` markers in `Skov_Philios (Skov_Philios_Campaign_Design)`
+from Lorath to the waterfall shrine in "Auf blutigem Pfad" (`QST_Skov_Philios_06`, 2440931), started by a live petal; and
+`warlock-pentagram` (`RouteKind.Pentagram`), "Folgt dem Pentagramm." in "Hexenmeister: Bauch der Bestie"
+(`QST_Warlock_ClassQ_02` phase 5, sub-quest `QST_Warlock_ClassQ_Trace_Ritual`): the 20 `Trigger_Sphere_8m` markers of
+`Step_WesternFlats (QST_Warlock_ClassQ_2a)`, ~2.5 units apart in strokes ~10 units long, which the game's map doesn't mark.
+It starts only once `QST_Warlock_ClassQ_Trace_Sacrifice` is used (`StartWhenUsed`), counts a point within 1.5 units
+(`ReachUnits`), and is traced strictly in order from its first point (`RouteGuide` `inOrder`: its strokes cross, and a
+later point 0.4 units from an earlier one must not skip a stroke). It speaks "Guía del pentagrama." and "Fin del
+pentagrama." (live 2026-10-19: worked). It is walked in parts (`Sections` 5, 7, 8): live the quest moved on to its dungeon after the start and the first stroke. At a part's end the ping waits up to 6 s; if a followed quest moves on then (`GameSession.QuestMovedOn`), the route stops and goes on with the next part once the player has been 150 units away and comes back (the sacrifice stays used); otherwise it leads on. While a route leads, D-pad left mutes it and starts no quest-place guide.
+
+### Quest places over a found path
+
+`Game/QuestPathBridge` leads, in the open world, to a quest place the game's map marks, for when the game's own
+navigation assist doesn't lead there (live 2026-10-19: "Jünger des Verbotenen" until the quest was untracked and tracked
+again). A quest place is a map marker (`GameSession.MapMarkersRead`) whose actor a quest's scripts name at that spot
+(`QuestScriptMarkerReader.QuestsNaming`, 2 units), named by the quest's title in the game's language, or the game's own quest marker `Symbol_Quest_Proxy` or `MarkerLocation` (map kind 12; a `MarkerLocation` marked the last siege tower of "Verwundete Seelen", live 2026-10-21), which it sets on area steps ("kill the fiend roaming here", a pentagram, a dungeon entrance; live 2026-10-19): it is offered first and named after a quest read as in progress (`ReadOwnedQuests`) with an object within 60 units, else "Marcador de misión" (the nearest quest of all named the fiend's spot after a side quest). Quest objects are offered only for quests read as in progress: the map also shows objects of quests not taken. A quest the map names counts as in progress when its {quest, phase} pair is found, or else at the phase last read, kept across runs in `d4assist-quests.json` next to the exe (`QuestPhaseHistory`, a phase not read for 30 days is dropped): the module data holds one quest's pair at a time, and after an app restart "Verwundete Seelen" was never found again, its pair taken by a nearby collectible quest (live 2026-10-21). Places within 8 units are skipped (standing at one, it was reached at once and the next press started over with it). It follows a real
+path: `Game/OverworldPaths` reads the surfaces of the open-world chunks around the walk (`SceneReader.SurfaceVoxels`, the
+scenes' compressed `m_cellBytes` with their heights) and `D4Assist.Navigation/SurfacePathfinder` searches them as a 2.5D
+map: a step joins two floors only when their heights differ by at most 1 unit, so a cliff's top and foot stay apart; a step
+near an edge costs more.
+
+- **D-pad left** in the open world leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
+  misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
+  desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
+- The ping aims 8 units ahead of the player's spot on the path (`PathFollower`), so a path point passed aside never
+  pulls back. More than 12 units off the path, a new path is searched from where the player stands, at most every 3 s.
+  With no path it says "No encuentro un camino; te indico la dirección." and points straight at the place.
+- Within 4 units of the place it chimes and speaks "Objetivo de la misión alcanzado.". It stops beyond 1800 units (a
+  teleport) and on any world change; torn player reads (far beyond any world) are ignored.
+- `--debug` logs one `PATH` line per start (quest, spot, distance), path (points, length, search time), stray and stop,
+  and where the ping aims every 5 s.
 
 ## Controls
 
 - **D-pad left** (any XInput controller, or a DualSense / DualShock 4 over USB or Bluetooth) — toggles the exploration guide for the current kind of world (Undercity and
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
-  it mutes and unmutes a leading quest route the same way, and otherwise says "La guía solo funciona en mazmorras." (a
+  it mutes and unmutes a leading quest route the same way, leads in the open world to the quest places the map marks
+  (see Quest places over a found path), and otherwise says "La guía solo funciona en mazmorras." (a
   silent press read as a pad the app can't hear, tester 2026-10-16). Ignored while a game menu is open
   (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`);
   every press past that gate logs `Guide toggle pressed.`. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
@@ -425,7 +471,20 @@ The only route so far is `sandstorm-shelters`: the three `BCD_Trigger_EliasPalac
   at a time. `Input/GlobalHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
 - **Ctrl+Alt+Shift+G** (keyboard, anywhere) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
+- **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
+  the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
+  it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),
+  nearest first. Up/down speak `name, N meters, direction. i of n`; Enter moves the mouse to the waypoint's pixel
+  (`MapViewReader` center and zoom, `MapProjection`) with `SendInput` (`Input/GameMouse`, the app's only input to the
+  game, never a click) and closes the list; Escape closes it. A waypoint off the view that zooming out would show says
+  "zoom out"; one farther than the map shows even all the way out (zoom 3046: ~1400 units above and below the center,
+  live 2026-10-19, Farobru from Temis and Ichorfall) puts the cursor on a stopover instead: the activated waypoint in
+  view nearest to it, preferring one from which it is in view (`WAYPOINT hop …`), and says to choose it again after the
+  trip; with no stopover it says which way to move the map. `Input/MapListKeys` registers Shift+F1 only while
+  `screen_Map` is open and the game has the focus, the list keys only while the list is open. `--debug` logs
+  `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
+- **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 
 ## Command-line flags
 

@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "已更新至版本 {0}。",
         GuideDungeonsOnly: "導引僅在地城中有效。",
-        ShelterRouteEnd: "避難所導引結束。");
+        ShelterRouteEnd: "避難所導引結束。",
+        DebugMode: "偵錯模式已開啟。",
+        GuideToBossRoom: "全部探索完畢。正在帶你前往首領房間。",
+        TrailGuide: "花瓣路徑導引。",
+        TrailEnd: "路徑終點。",
+        PathGuideFormat: "任務目標：{0}，{1}公尺。",
+        PathEnd: "已到達任務目標。",
+        PathNotFound: "找不到路徑，指示方向。",
+        NoQuestPlace: "地圖上沒有任務目標。",
+        PentagramGuide: "五芒星引導。",
+        PentagramEnd: "五芒星結束。",
+        QuestMarker: "任務標記",
+        PlaceCountFormat: "第{0}個，共{1}個。");
 }

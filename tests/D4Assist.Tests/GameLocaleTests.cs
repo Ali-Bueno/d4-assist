@@ -115,5 +115,7 @@ public class GameLocaleTests
         Assert.Equal("Diablo 4 Assist activo", AppStrings.For(SpeechLanguage.Spanish).AssistantActive);
         Assert.Equal("Entering X", AppStrings.English.EnteredWorld("X"));
         Assert.Equal("Guide off.", AppStrings.English.GuideOff);
+        Assert.Equal("Debug-Modus aktiv.", AppStrings.For(SpeechLanguage.German).DebugMode);
+        Assert.All(Enum.GetValues<SpeechLanguage>(), lang => Assert.False(string.IsNullOrWhiteSpace(AppStrings.For(lang).DebugMode)));
     }
 }

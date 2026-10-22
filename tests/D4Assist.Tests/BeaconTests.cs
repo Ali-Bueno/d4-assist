@@ -25,7 +25,7 @@ public class BeaconTests
     }
 
     [Fact]
-    public void ActorFilter_KeepsOnlyPlacedActorsWithFinitePositions()
+    public void ActorFilter_KeepsOnlyPlacedActorsWithFinitePositionsOffTheOrigin()
     {
         var records = new[]
         {
@@ -33,11 +33,16 @@ public class BeaconTests
             Record(2, Vector3.One, placement: -1),
             Record(3, new Vector3(float.NaN, 0, 0), placement: 0),
             Record(4, new Vector3(0, float.PositiveInfinity, 0), placement: 0),
+            Record(5, Vector3.Zero, placement: 0),      // junk read while the world unloads or the game closes
+            Record(6, new Vector3(0, 0, 1), placement: 0),
+            Record(7, new Vector3(1e-30f, -1e-30f, 0), placement: 0),
+            Record(8, new Vector3(1.1e21f, 1.8e31f, 0), placement: 0),
+            Record(9, new Vector3(-3000, 2500, 40), placement: 0),
         };
 
         var placed = ActorFilter.Placed(records);
 
-        Assert.Equal([1u], placed.Select(a => a.Id));
+        Assert.Equal([1u, 6u, 9u], placed.Select(a => a.Id));
     }
 
     [Fact]
@@ -90,6 +95,20 @@ public class BeaconTests
 
         Assert.Equal([true, false, true, false, false, true], actors.Select(a => a.Unusable));
         Assert.Equal([false, true, false, false, true, false], actors.Select(a => a.QuestStep));
+    }
+
+    [Fact]
+    public void ActorFilter_AQuestGizmoTheMapMarksIsTheQuestStep()
+    {
+        // The warlock lair's binding altar keeps its lock flag as it opens; only the map marking it shows it (live 2026-10-19).
+        var records = Enumerable.Range(1, 3).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        IReadOnlySet<string> quest = new HashSet<string> { AcdFlagReader.GizmoQuestRestricted };
+        IReadOnlySet<string> none = new HashSet<string>();
+
+        var actors = ActorFilter.Placed(records, r => r.Id == 3 ? none : quest, markedOnMap: r => r.Id != 1);
+
+        Assert.Equal([true, false, false], actors.Select(a => a.Unusable));
+        Assert.Equal([false, true, false], actors.Select(a => a.QuestStep)); // a marked gizmo without the lock is no quest step
     }
 
     [Fact]

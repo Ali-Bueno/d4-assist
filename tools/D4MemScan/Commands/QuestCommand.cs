@@ -24,12 +24,14 @@ internal static class QuestCommand
             var quests = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
             var phases = quests.PhaseObjects(sno);
             int index = 0;
-            foreach (var (uid, markers, actors, sceneMarkers, subQuests) in phases)
+            foreach (var (uid, markers, actors, sceneMarkers, subQuests, worlds, kindMarkers, hidden) in phases)
                 Console.WriteLine($"phase {index++,2} uid {uid} (0x{uid:X}): " +
-                    string.Join(", ", markers.Select(m => $"{store.Name(m.Sno)} ({m.Position.X:F0},{m.Position.Y:F0})")
+                    string.Join(", ", markers.Select(m => $"{store.Name(m.Sno)} ({m.Position.X:F0},{m.Position.Y:F0}){(hidden?.Contains(m) == true ? " hidden" : "")}")
                         .Concat(sceneMarkers.Select(s => $"{store.Name(s.Marker.Sno)} ({s.Marker.Position.X:F0},{s.Marker.Position.Y:F0} in {store.Name(s.SceneSno)})"))
+                        .Concat((kindMarkers ?? []).Select(k => $"{store.Name(k.Marker.Sno)} (blueprint {k.Marker.Position.X:F0},{k.Marker.Position.Y:F0})"))
                         .Concat(actors.Select(a => $"{store.Name(a)} (any)"))
-                        .Concat((subQuests ?? new HashSet<int>()).Select(q => $"waits on quest {q} {store.Name(q)}"))));
+                        .Concat((subQuests ?? new HashSet<int>()).Select(q => $"waits on quest {q} {store.Name(q)}"))
+                        .Concat((worlds ?? new HashSet<int>()).Select(w => $"shown in {store.Name(w)}"))));
             var uids = phases.Select(p => p.PhaseUid).ToHashSet();
             if (reader.Has("--find")) Find(sno, uids, Path.Combine(install, GameData.MainModuleFileName));
             if (reader.Get("--watch") is { } watch) Watch(sno, uids, int.Parse(watch));
@@ -54,6 +56,7 @@ internal static class QuestCommand
         using var process = ProcessReader.OpenDiabloIv();
         var clock = Stopwatch.StartNew();
         var candidates = new ConcurrentBag<long>();
+        var offsets = new ConcurrentDictionary<long, int>();
         var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
         Parallel.ForEach(process.Regions(), options, () => new byte[RegionWindows.DefaultWindowBytes], (region, _, buffer) =>
         {
@@ -64,7 +67,7 @@ internal static class QuestCommand
                 {
                     if (BitConverter.ToInt32(span[i..]) != sno) continue;
                     for (int d = Math.Max(-i, -Around) & ~3; d <= Around && i + d + 4 <= span.Length; d += 4)
-                        if (d != 0 && uids.Contains(BitConverter.ToUInt32(span[(i + d)..]))) candidates.Add(address + i + d);
+                        if (d != 0 && uids.Contains(BitConverter.ToUInt32(span[(i + d)..]))) { candidates.Add(address + i + d); offsets.TryAdd(address + i + d, d); }
                 }
             }
             return buffer;
@@ -73,6 +76,8 @@ internal static class QuestCommand
         Console.WriteLine($"{watched.Count} phase-UID word(s) near the quest SNO ({clock.ElapsedMilliseconds} ms). Advance the quest now.");
 
         var last = watched.ToDictionary(a => a, a => PoolContainer.TryReadU32(process, a, out uint v) ? v : (uint?)null);
+        foreach (var group in watched.GroupBy(a => last[a]).OrderByDescending(g => g.Count()))
+            Console.WriteLine($"  phase {group.Key}: {group.Count()} word(s), e.g. {string.Join(" ", group.Select(a => $"0x{a:X}({offsets[a]:+0;-0})"))}");
         var watch = Stopwatch.StartNew();
         while (watch.Elapsed.TotalSeconds < seconds)
         {

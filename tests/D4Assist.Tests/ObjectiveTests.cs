@@ -13,7 +13,8 @@ public class ObjectiveTests
         CarryableSno = 7, ReceptacleSno = 8, QuestSwitchSno = 9, QuestChestSno = 10, DpoSwitchSno = 11, DpoMonsterSno = 12,
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
-        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33;
+        TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35, SoulBeamSno = 36,
+        ChainStationSno = 37, CapturePointSno = 38;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -50,10 +51,16 @@ public class ObjectiveTests
         [PlainMonsterSno] = ("werewolf_warg_phys", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [CloneGateSno] = ("MorluGate_Triad_A_Boss_terrorCloneSource", new(Monster, NotGizmo, DefaultTeam: Conventions.HostileTeam)),
         [DpoTriggerSno] = ("Trigger_Sphere_8m", new(Gizmo, Conventions.GizmoTrigger, TriggerRadius: 4)),
+        [SoulMarkerSno] = ("Rathma_Boss_SoulSplit_Location_Marker", new(Monster, NotGizmo, DefaultTeam: 19)),
+        [SoulRaiserSno] = ("Rathma_SoulSplit_resurection_invisibleActor", new(Prop, NotGizmo)),
+        [SoulBeamSno] = ("vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02", new(Prop, NotGizmo)),
+        [ChainStationSno] = ("inarius_chainStation", new(Gizmo, Conventions.GizmoChargeable)),
+        [CapturePointSno] = ("Ancient_CapturePoint_Obelisk_01_Dyn", new(Gizmo, Conventions.GizmoChargeable)),
     };
 
-    // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies.
-    private static readonly HashSet<int> QuestNamed = [TumorSno, TumorPieceSno];
+    // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies;
+    // Inarius's chain stations, not a capture point.
+    private static readonly HashSet<int> QuestNamed = [TumorSno, TumorPieceSno, ChainStationSno];
 
     private static readonly IReadOnlySet<int> WorldADpo = new HashSet<int> { DpoSwitchSno, DpoMonsterSno, MinibossSno, UnreadableSno, DpoTriggerSno };
 
@@ -77,11 +84,13 @@ public class ObjectiveTests
     [InlineData(BeaconSno, ObjectiveReason.Enticement)]
     [InlineData(SkillOrbSno, ObjectiveReason.StolenSkill)] // a hostile monster, yet the player's to take back
     [InlineData(AkaratOrbSno, ObjectiveReason.AkaratLight)]
+    [InlineData(SoulRaiserSno, ObjectiveReason.SoulBody)] // marks the body Rathma's soul split leaves behind, silent in the game
     [InlineData(VesselSno, ObjectiveReason.WardBreaker)]   // before the QST_ name rule
     [InlineData(TumorSno, ObjectiveReason.Destructible)]   // a hostile structure a quest asks the player to break
     [InlineData(MinibossSno, ObjectiveReason.KillTarget)]  // a monster the dungeon's objective asks the player to kill
     [InlineData(DpoMonsterSno, ObjectiveReason.KillTarget)]
     [InlineData(CloneGateSno, ObjectiveReason.CloneGate)] // a boss stays immune while its clone gates stand, in any world
+    [InlineData(ChainStationSno, ObjectiveReason.Chargeable)] // a chargeable a quest names: Inarius's chains (user, 2026-10-21)
     public void Classify_AcceptsObjectivesInTheirDungeon(int sno, ObjectiveReason expected) =>
         Assert.Equal(expected, Classifier().Classify(sno, WorldADpo));
 
@@ -94,9 +103,11 @@ public class ObjectiveTests
     [InlineData(TownNoteSno)]         // an ordinary note stays a readable
     [InlineData(EnticementIconSno)]   // the attunement switch's minimap icon
     [InlineData(AkaratPillarSno)]     // the light's pillar, on the orb's own spot
+    [InlineData(SoulMarkerSno)]       // five fixed spots round Rathma's arena from the fight's start (live 2026-10-20)
     [InlineData(UnreadableSno)]       // no ActorDefinition record
     [InlineData(MummySno)]            // a breakable prop no quest names
     [InlineData(TumorPieceSno)]       // the tumor's breakable pieces: destroyables, not the structure
+    [InlineData(CapturePointSno)]     // a chargeable no quest names
     [InlineData(DpoTriggerSno)]       // an invisible "enter the trigger" zone the DPO names: looped forever at nothing (tester, 2026-10-05)
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));
@@ -138,6 +149,40 @@ public class ObjectiveTests
         Assert.False(selector.Select(Placed(MinibossSno))!.StopsWhenUsed); // loops until it dies and leaves the actor list
         // A companion following the player for the quest (live: S15_Warrior_NPC_Combat, which the hub quest names) never loops.
         Assert.Null(selector.Select(Placed(MinibossSno) with { QuestFollower = true, QuestStep = true }));
+    }
+
+    [Fact]
+    public void Selector_TheSoulSplitBodyLoopsAtTheLightBeam_NotWithTheSpirit()
+    {
+        // Live 2026-10-20: the player was pulled into the beam at (-70.9,1.8); the resurrection actor appeared with the spirit
+        // thrown 5.6 units off and followed it.
+        var selector = Selector();
+        selector.SetWorld(WorldA, isDungeon: true);
+        var beam = new ActorState(4, SoulBeamSno, -70.9f, 1.8f, 1.6f, ClientOnly: true);
+        var raiser = new ActorState(5, SoulRaiserSno, -68.0f, -2.1f, 1.5f, ClientOnly: true);
+
+        var actors = selector.WithQuestGoals([beam, raiser]);
+        Assert.Equal((-70.9f, 1.8f), (actors[1].X, actors[1].Y));
+        actors = selector.WithQuestGoals([beam, raiser with { X = -63.1f, Y = -7.2f }]);
+        Assert.Equal((-70.9f, 1.8f), (actors[1].X, actors[1].Y));
+        Assert.Null(selector.Select(beam)); // the beam itself stays silent
+    }
+
+    [Fact]
+    public void Selector_WithNoBeamTheSoulSplitBodyLoopsWhereItWasFirstSeen()
+    {
+        var selector = Selector();
+        selector.SetWorld(WorldA, isDungeon: true);
+        var raiser = new ActorState(5, SoulRaiserSno, -67.4f, -0.5f, 1.4f, ClientOnly: true);
+
+        Assert.Equal((-67.4f, -0.5f), Position(selector.WithQuestGoals([raiser])));
+        Assert.Equal((-67.4f, -0.5f), Position(selector.WithQuestGoals([raiser with { X = -62.3f, Y = -5.1f }])));
+        Assert.Equal("soulbody", selector.Select(raiser)!.Reason);
+
+        selector.WithQuestGoals([]); // the split is over
+        Assert.Equal((-62.3f, -5.1f), Position(selector.WithQuestGoals([raiser with { X = -62.3f, Y = -5.1f }])));
+
+        static (float, float) Position(IReadOnlyList<ActorState> actors) => (Assert.Single(actors).X, actors[0].Y);
     }
 
     [Fact]

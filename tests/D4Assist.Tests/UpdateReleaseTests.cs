@@ -39,7 +39,7 @@ public class UpdateReleaseTests
     }
 
     [Fact]
-    public void A_missing_digest_is_allowed_but_a_missing_zip_or_a_garbage_tag_is_not()
+    public void A_missing_digest_parses_as_none_but_a_missing_zip_or_a_garbage_tag_is_no_release()
     {
         Assert.Null(ReleaseInfo.Parse(LatestJson.Replace("\"digest\"", "\"other\""))!.Sha256);
         Assert.Null(ReleaseInfo.Parse(LatestJson.Replace("\"D4Assist.zip\"", "\"other.zip\"")));
@@ -83,6 +83,38 @@ public class UpdateReleaseTests
         Assert.DoesNotContain("`", text);
         Assert.True(text.Length < settings.UpdateTextFormat.Length + 1700);
         Assert.EndsWith("…", text);
+    }
+
+    [Fact]
+    public async Task A_release_without_a_digest_is_refused_before_anything_is_downloaded()
+    {
+        var version = new Version(99, 98, 97, 0);
+        var release = new ReleaseInfo(version, "", "https://example.invalid/D4Assist.zip", Sha256: null);
+        using var client = new ReleaseClient(V016);
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => UpdatePackage.PrepareAsync(release, client));
+
+        Assert.Contains("SHA-256", error.Message);
+        Assert.False(Directory.Exists(UpdatePackage.WorkPath(version)));
+    }
+
+    [Fact]
+    public void The_work_folders_of_earlier_updates_are_removed_and_a_clean_temp_says_nothing()
+    {
+        var temp = Directory.CreateTempSubdirectory("d4assist-temp").FullName;
+        try
+        {
+            Assert.Null(UpdatePackage.DeleteWorkFolders(temp));
+
+            var backup = Path.Combine(temp, "D4AssistUpdate", "0.1.10", "backup");
+            Directory.CreateDirectory(backup);
+            File.WriteAllText(Path.Combine(backup, "d4assist-log.txt"), "old");
+            File.WriteAllText(Path.Combine(temp, "D4AssistUpdate", "0.1.10", "D4Assist.zip"), "zip");
+
+            Assert.NotNull(UpdatePackage.DeleteWorkFolders(temp));
+            Assert.False(Directory.Exists(Path.Combine(temp, "D4AssistUpdate")));
+        }
+        finally { Directory.Delete(temp, recursive: true); }
     }
 
     [Fact]

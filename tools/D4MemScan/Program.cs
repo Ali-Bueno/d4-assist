@@ -20,7 +20,8 @@ internal static class Program
         "       D4MemScan pose-context --in <file.json> [--out <file.focus.json>]\n" +
         "       D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]\n" +
         "       D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]\n" +
-        "       D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]";
+        "       D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]\n" +
+        "       D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--scan] [--min N] [--watch <seconds>]";
 
     private static int Main(string[] args)
     {
@@ -45,6 +46,7 @@ internal static class Program
                 "conversations" => ConversationsCommand.Run(rest),
                 "quest" => QuestCommand.Run(rest),
                 "gizmos" => GizmosCommand.Run(rest),
+                "waypoints" => WaypointsCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

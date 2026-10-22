@@ -7,15 +7,16 @@ using D4Assist.Strings;
 namespace D4Assist.Ui;
 
 /// <summary>
-/// The notification-area icon (settings, check for updates, restart, exit) and the Ctrl+Alt+Shift+C settings hotkey, on their own STA
+/// The notification-area icon (settings, check for updates, restart, exit), the Ctrl+Alt+Shift+C settings hotkey and the
+/// Ctrl+Alt+Shift+Q exit hotkey, on their own STA
 /// thread and message loop. Enter or a click on the icon opens the same menu as the context-menu key.
 /// </summary>
 public sealed class TrayApp : IDisposable
 {
-    // winuser.h: MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, WM_HOTKEY; 'C' for "configuración"/"settings".
+    // winuser.h: MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, WM_HOTKEY; 'C' for "configuración"/"settings", 'Q' for quit.
     private const uint HotkeyModifiers = 0x1 | 0x2 | 0x4 | 0x4000;
-    private const int WmHotkey = 0x0312, SettingsHotkeyId = 1;
-    private const Keys SettingsKey = Keys.C;
+    private const int WmHotkey = 0x0312, SettingsHotkeyId = 1, ExitHotkeyId = 2;
+    private const Keys SettingsKey = Keys.C, ExitKey = Keys.Q;
     private const int IconSize = 32;
 
     private readonly SettingsStrings _text;
@@ -27,7 +28,7 @@ public sealed class TrayApp : IDisposable
     private NotifyIcon? _icon;
     private SettingsForm? _settings;
 
-    /// <summary>Raised on the tray thread when the user picks Exit.</summary>
+    /// <summary>Raised on the tray thread when the user picks Exit or presses Ctrl+Alt+Shift+Q.</summary>
     public event Action? ExitRequested;
 
     /// <summary>Raised on the tray thread when the user picks Restart, or asks the settings window to restart.</summary>
@@ -69,7 +70,7 @@ public sealed class TrayApp : IDisposable
 
         _icon = new NotifyIcon { Icon = CreateIcon(), Text = _text.AppName, ContextMenuStrip = menu, Visible = true };
         _icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowMenu(); };
-        _hotkeys = new HotkeyWindow(ShowSettings);
+        _hotkeys = new HotkeyWindow(ShowSettings, () => ExitRequested?.Invoke());
 
         _started.Set();
         Application.Run(_context);
@@ -126,25 +127,29 @@ public sealed class TrayApp : IDisposable
         _thread?.Join(TimeSpan.FromSeconds(2));
     }
 
-    /// <summary>A message-only window that receives the settings hotkey and runs work on the tray thread.</summary>
+    /// <summary>A message-only window that receives the settings and exit hotkeys and runs work on the tray thread.</summary>
     private sealed class HotkeyWindow : NativeWindow, IDisposable
     {
-        private readonly Action _onHotkey;
+        private readonly Action _onSettings, _onExit;
         private readonly SynchronizationContext _loop = new WindowsFormsSynchronizationContext();
 
-        public HotkeyWindow(Action onHotkey)
+        public HotkeyWindow(Action onSettings, Action onExit)
         {
-            _onHotkey = onHotkey;
+            _onSettings = onSettings;
+            _onExit = onExit;
             CreateHandle(new CreateParams());
             if (!RegisterHotKey(Handle, SettingsHotkeyId, HotkeyModifiers, (uint)SettingsKey))
                 Console.Error.WriteLine("Ctrl+Alt+Shift+C is already taken by another program; open the settings from the notification area.");
+            if (!RegisterHotKey(Handle, ExitHotkeyId, HotkeyModifiers, (uint)ExitKey))
+                Console.Error.WriteLine("Ctrl+Alt+Shift+Q is already taken by another program; exit from the notification area.");
         }
 
         public void Invoke(Action work) => _loop.Send(_ => work(), null);
 
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == WmHotkey && m.WParam == SettingsHotkeyId) _onHotkey();
+            if (m.Msg == WmHotkey && m.WParam == SettingsHotkeyId) _onSettings();
+            else if (m.Msg == WmHotkey && m.WParam == ExitHotkeyId) _onExit();
             base.WndProc(ref m);
         }
 
@@ -152,6 +157,7 @@ public sealed class TrayApp : IDisposable
         {
             if (Handle == IntPtr.Zero) return;
             UnregisterHotKey(Handle, SettingsHotkeyId);
+            UnregisterHotKey(Handle, ExitHotkeyId);
             DestroyHandle();
         }
     }

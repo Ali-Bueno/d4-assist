@@ -1,3 +1,4 @@
+using System.Numerics;
 using D4Data.Format;
 using D4Data.Model;
 using D4Data.Schema;
@@ -74,6 +75,39 @@ public sealed class NavGridReader(TypeSchema schema)
             lines[r] = new string(chars);
         }
         return new WalkableMap(MapResolution, [x0 * MapResolution, y0 * MapResolution], lines);
+    }
+
+    /// <summary>Adds one cell's surface voxels with their heights, in scene-local units (the voxel's low corner; Z is the
+    /// level's floor), from a grid in the detail word layout (CellBytesDecoder.Surfaces). For a 2.5D map: floors at
+    /// different heights stay apart.</summary>
+    public void AddSurfaceVoxels(Func<int, ulong> word, int ix, int iy, int iz, float cellWidth, float cellHeight, List<Vector3> voxels)
+    {
+        int columns = (int)(cellWidth / VoxelSize), bricksPerRow = columns / BrickEdge;
+        int wordsPerLayer = bricksPerRow * bricksPerRow;
+        int words = (schema.Offset(Grid, "m_slicesInternal") - schema.Offset(Grid, "m_detailGridWalkable")) / sizeof(ulong);
+        int levels = words / wordsPerLayer * BrickEdge;
+        int margin = (levels - (int)(cellHeight / VoxelSize)) / 2;
+
+        for (int w = 0; w < words; w++)
+        {
+            ulong bits = word(w);
+            if (bits == 0) continue;
+            int layer = w / wordsPerLayer, brick = w % wordsPerLayer;
+            int bx = brick % bricksPerRow, by = brick / bricksPerRow;
+            for (int n = 0; n < BrickEdge * BrickEdge; n++)
+            {
+                uint nibble = (uint)(bits >> (n * BrickEdge)) & 0xF;
+                for (int b = 0; b < BrickEdge; b++)
+                {
+                    int level = layer * BrickEdge + b;
+                    if ((nibble >> b & 1) == 0 || level < margin || level >= levels - margin) continue;
+                    voxels.Add(new Vector3(
+                        (ix * columns + bx * BrickEdge + n % ColumnsPerNibbleRow) * VoxelSize,
+                        (iy * columns + by * BrickEdge + n / ColumnsPerNibbleRow) * VoxelSize,
+                        iz * cellHeight + (level - margin) * VoxelSize));
+                }
+            }
+        }
     }
 
     private static bool HasCoreLevel(uint nibble, int firstLevel, int minLevel, int maxLevel)

@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "已更新到版本 {0}。",
         GuideDungeonsOnly: "向导仅在地下城中有效。",
-        ShelterRouteEnd: "避难所向导结束。");
+        ShelterRouteEnd: "避难所向导结束。",
+        DebugMode: "调试模式已开启。",
+        GuideToBossRoom: "全部探索完毕。正在带你前往首领房间。",
+        TrailGuide: "花瓣路径向导。",
+        TrailEnd: "路径终点。",
+        PathGuideFormat: "任务目标：{0}，{1}米。",
+        PathEnd: "已到达任务目标。",
+        PathNotFound: "未找到路径，指示方向。",
+        NoQuestPlace: "地图上没有任务目标。",
+        PentagramGuide: "五芒星引导。",
+        PentagramEnd: "五芒星结束。",
+        QuestMarker: "任务标记",
+        PlaceCountFormat: "第{0}个，共{1}个。");
 }

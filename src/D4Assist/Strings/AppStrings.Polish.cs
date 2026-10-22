@@ -44,5 +44,17 @@ public sealed partial record AppStrings
         UpdateProgressFormat: "{0}%",
         UpdatedToFormat: "Zaktualizowano do wersji {0}.",
         GuideDungeonsOnly: "Przewodnik działa tylko w lochach.",
-        ShelterRouteEnd: "Przewodnik po schronieniach zakończony.");
+        ShelterRouteEnd: "Przewodnik po schronieniach zakończony.",
+        DebugMode: "Tryb debugowania włączony.",
+        GuideToBossRoom: "Wszystko zbadane. Prowadzę do komnaty bossa.",
+        TrailGuide: "Przewodnik po śladzie płatków.",
+        TrailEnd: "Koniec śladu.",
+        PathGuideFormat: "Cel zadania: {0}, {1} metrów.",
+        PathEnd: "Cel zadania osiągnięty.",
+        PathNotFound: "Nie znaleziono drogi; wskazuję kierunek.",
+        NoQuestPlace: "Brak celu zadania na mapie.",
+        PentagramGuide: "Przewodnik po pentagramie.",
+        PentagramEnd: "Koniec pentagramu.",
+        QuestMarker: "Znacznik zadania",
+        PlaceCountFormat: "{0} z {1}.");
 }

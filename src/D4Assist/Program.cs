@@ -36,6 +36,8 @@ internal static class Program
     private const string WorldDefinitionType = "WorldDefinition";
     private const string MarkerSetType = "MarkerSetDefinition";
     private const string QuestDefinitionType = "QuestDefinition";
+    // The jump points a gap's two sides carry (Traversal_Gizmo_Jump; live 2026-10-18, Philios mindscape).
+    private const string JumpGizmoPrefix = "Traversal_Gizmo_Jump";
     // data/definitions.json, embedded by D4Assist.csproj when it existed at build time; the default DefinitionsPath.
     private const string EmbeddedDefinitions = "definitions.json";
     // Passed to the copy a restart starts, which then waits for this one to exit.
@@ -70,7 +72,8 @@ internal static class Program
         var configPath = Path.Combine(AppContext.BaseDirectory, AppConfig.FileName);
         AppConfig config;
         try { config = AppConfig.Load(configPath); }
-        catch (Exception e) when (e is InvalidDataException or JsonException or IOException) { return Fail($"{AppConfig.FileName}: {e.Message}"); }
+        catch (Exception e) when (e is InvalidDataException or JsonException or IOException or UnauthorizedAccessException)
+        { return Fail($"{AppConfig.FileName}: {e.Message}"); }
         var installPath = config.ResolveInstallPath(Directory.Exists, LocateInstall) ?? SearchOrAskForInstall(config, configPath);
         if (installPath is null)
             return Fail($"Diablo IV install not found. Start Diablo IV and open Diablo 4 Assist again, or set InstallPath in {AppConfig.FileName}, "
@@ -92,6 +95,7 @@ internal static class Program
         using ISpeechSink speech = noSpeech || !config.SpeechEnabled ? new ConsoleSpeechSink() : new PrismSpeechSink();
         Console.WriteLine($"Speech backend: {speech.BackendName}");
         speech.Speak(AppStrings.For(language.Current).AssistantActive, interrupt: true);
+        if (debug) speech.Speak(AppStrings.For(language.Current).DebugMode, interrupt: false);
         if (justUpdated) speech.Speak(string.Format(AppStrings.For(language.Current).UpdatedToFormat, UpdateVersion.Current.ToString(3)), interrupt: false);
         // A crash would otherwise end in silence.
         AppDomain.CurrentDomain.UnhandledException += (_, _) => speech.Speak(AppStrings.For(language.Current).Stopped, interrupt: true);
@@ -100,6 +104,7 @@ internal static class Program
         // Checked before the slow loading: just started from the desktop, the app may still bring its question to the front.
         using var exit = new ManualResetEventSlim();
         bool restart = false, updated = false;
+        if (UpdatePackage.DeleteWorkFolders(Path.GetTempPath()) is { } cleaned) Console.WriteLine(cleaned); // the last update's download
         var updates = UpdateService.ForThisApp(speech, language, Console.WriteLine, () => { restart = updated = true; exit.Set(); });
         if (config.CheckForUpdates) { updates.CheckAtStart(); updates.CheckPeriodically(); }
 
@@ -112,6 +117,7 @@ internal static class Program
         }
         using var storeLifetime = store;
         var schema = definitionsPath is null ? LoadEmbeddedDefinitions() : TypeSchema.Load(definitionsPath);
+        LogSchemaCheck(store, schema, definitionsPath);
         var worldReader = new WorldReader(store, schema);
         var classifier = new WorldClassifier(store, worldReader, config.RadarOnlyWorlds, config.OutsideDungeonsEnabled);
 
@@ -134,7 +140,7 @@ internal static class Program
 
         bool routesEnabled = config.QuestRoutesEnabled && config.OutsideDungeonsEnabled;
         // Open menus also gate D-pad left (the guide toggle), so they are watched whenever the guide or the routes run.
-        bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled;
+        bool watchMenus = config.PauseCuesInMenus || config.ExplorationGuideEnabled || routesEnabled || config.WaypointListEnabled;
         // Scan results always logged: a tester's "can't find the game menus" after a character switch came with no other clue.
         var menuScreens = watchMenus ? MenuScreenTracker.ForLiveProcess(Console.WriteLine) : null;
         // Where far quest objectives stand: the map's markers (research/dungeon-objectives.md §19); one line in every log.
@@ -161,25 +167,36 @@ internal static class Program
         // Not triggers: a generic trigger SNO is placed all over a tileset; the map marks the copy a phase means (same doc, §19).
         var tileGizmos = new TileActorReader(
             markerScenes, sno => definitionOf(sno) is { GizmoType: >= 0 and not Conventions.GizmoTrigger } && !portalRule.IsPortal(sno));
+        // A quest chest belongs to the quest its name starts with (QuestOwnerIndex): silent while that quest isn't followed.
+        var questOwners = new QuestOwnerIndex(store.AllEntries(schema.SnoGroup("QuestDefinition")));
+        var chestOwners = new System.Collections.Concurrent.ConcurrentDictionary<int, int?>();
+        Func<int, int?> questOwner = sno => chestOwners.GetOrAdd(sno, s =>
+            definitionOf(s) is { GizmoType: Conventions.GizmoQuestChest } && store.Name(s) is { } name ? questOwners.OwnerOf(name) : null);
         // The world's own objective quest too: a seasonal hub's zone quest names its steps by actor, with no marker to find it by,
-        // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18).
+        // and the game shows its phase once the main quest hands over to it (research/dungeon-objectives.md §18). And the quest of a
+        // quest chest nearby, so the chest sounds once its quest runs. Outside the open world, every quest whose step is shown in
+        // this world (the open world shows 2041 quests' steps, a story instance a handful).
         Func<QuestSearchArea, IReadOnlyList<int>> questsHere = area =>
         {
+            var owners = area.Actors.Select(a => questOwner(a.ActorSno)).OfType<int>().ToList();
             lock (cascGate)
                 return [.. questScripts.QuestsWithMarkersIn(new[] { area.WorldSno }.Concat(area.Scenes).Select(store.Name).OfType<string>())
                     .Union(questScripts.QuestsNaming(area.Actors, ActiveQuests.MarkerReach))
-                    .Union(dpo.QuestSnos(area.WorldSno))];
+                    .Union(dpo.QuestSnos(area.WorldSno))
+                    .Union(store.Name(area.WorldSno) == WorldClassifier.OpenWorldName ? [] : questScripts.QuestsShownIn(area.WorldSno))
+                    .Union(owners)];
         };
         // Found once per game build while someone talks, then kept in a file next to the exe (research/client-memory.md §5).
         var conversationSnos = store.AllEntries(schema.SnoGroup("ConversationDefinition")).Select(e => e.Id).ToHashSet();
         var conversationAddresses = new ConversationAddresses(
             Path.Combine(AppContext.BaseDirectory, "d4assist-addresses.json"), conversationSnos.Contains, debug ? Console.WriteLine : null);
+        var questHistory = QuestPhaseHistory.Load(AppContext.BaseDirectory, log: Console.WriteLine);
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
-                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers),
+                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner, questHistory),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 
@@ -189,6 +206,10 @@ internal static class Program
         var navigation = new NavigationBridge(
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains,
             config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
+        // Jump points join floor the walk map splits (a gap to jump): the guide routes over them and leads to the jump point.
+        var jumpScenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false);
+        var tileJumps = new TileActorReader(jumpScenes, sno => store.Name(sno)?.StartsWith(JumpGizmoPrefix, StringComparison.Ordinal) == true);
+        _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null);
 
         // One mixer and one output for the radar cues and the beacon loops.
         var interactables = new InteractableClassifier(definitionOf, store.Name);
@@ -219,13 +240,20 @@ internal static class Program
             scene => { lock (cascGate) return tilePortals.In(scene); }, cue => liveSound.Current.Level(cue), lockedDoors.IsLocked);
         var portals = loopMemory?.Portals;
         var objectives = loopMemory?.Objectives;
+        session.QuestActorsNamed += snos =>
+        {
+            lockedDoors.ObserveNamed(snos);
+            objectives?.ObserveNamed(snos);
+        };
         using var npcTap = new NpcCuePlayer(mixer);
         StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
         var markerLog = new MapMarkerLog(store.Name, Console.WriteLine, everyKind: debug);
         session.MapMarkersRead += markerLog.OnMarkers;
         session.WorldChanged += (_, _, _) => markerLog.Reset();
         using var enemyCue = new EnemyCuePlayer(mixer);
-        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).ClassOf, store.Name, debug ? Console.WriteLine : null);
+        var carried = new CarryGoals(new ObjectiveClassifier(definitionOf, store.Name));
+        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).ClassOf, store.Name, debug ? Console.WriteLine : null,
+            actors => actors.Any(carried.IsHeld) ? [.. actors.Select(a => carried.IsBossToBind(a) ? a with { Invulnerable = false } : a)] : actors);
         _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         _ = new ExplorationPersistence(
@@ -291,16 +319,42 @@ internal static class Program
             : null;
         if (pad is not null) pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide
         QuestRouteBridge? routeBridge = null;
+        QuestPathBridge? pathBridge = null;
+        var bossEntrances = new TileActorReader(markerScenes, sno => store.Name(sno) == BossRoomDestination.EntranceTriggerName);
+        var bossRoom = new BossRoomDestination(session, scene => { lock (cascGate) return bossEntrances.In(scene); }, debug ? Console.WriteLine : null);
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
-                pad, config.ExplorationGuideInDungeons, language, portals is null ? null : portals.Destinations,
+                pad, config.ExplorationGuideInDungeons, language,
+                portals is null ? bossRoom.Destinations : () => [.. bossRoom.Destinations(), .. portals.Destinations()],
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
                 objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); },
-                () => routeBridge?.IsActive == true);
+                () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
             routeBridge = new QuestRouteBridge(session, routes, guidePing, speech, language, pad, store.Name, debug ? Console.WriteLine : null);
+        if (routeBridge is not null) session.QuestMovedOn += routeBridge.OnQuestMovedOn;
+        if (guidePing is not null && routesEnabled)
+        {
+            var paths = NewOverworldPaths(store, schema, cascGate);
+            pathBridge = new QuestPathBridge(
+                session, WorldClassifier.OpenWorldName,
+                markers =>
+                {
+                    IReadOnlyList<int>? owned = null;
+                    session.Query(r => owned = r.ReadOwnedQuests());
+                    IReadOnlyDictionary<int, uint>? FindPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests)
+                    {
+                        IReadOnlyDictionary<int, uint>? found = null;
+                        session.Query(r => found = r.FindQuestPhases(quests));
+                        return found;
+                    }
+                    return QuestMapPlaces(markers, owned, FindPhases, questHistory, store, questScripts, language, cascGate, debug ? Console.WriteLine : null);
+                },
+                paths.Find,
+                guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true);
+            session.MapMarkersRead += pathBridge.OnMapMarkers;
+        }
         xboxPad?.Start();
         sonyPad?.Start();
 
@@ -311,6 +365,30 @@ internal static class Program
             cueGate.Example);
         hotkeys.DigitPressed += demo.Play;
         hotkeys.Start();
+
+        // Shift+F1 on the world map: the activated waypoints, nearest first; Enter puts the mouse cursor on one.
+        using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
+        if (mapKeys is not null)
+        {
+            var catalog = new WaypointCatalog(store, schema);
+            IReadOnlyList<Waypoint> allWaypoints;
+            lock (cascGate) allWaypoints = catalog.All;
+            // The game's text bundle (60,000 tables) loads on the first name; load it now, not on the first Shift+F1.
+            if (allWaypoints.Count > 0)
+                _ = Task.Run(() => { lock (cascGate) catalog.Name(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
+            var waypointList = new WaypointListBridge(
+                allWaypoints, w => { lock (cascGate) return catalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
+                levelAreas => { IReadOnlyList<int>? read = null; session.Query(r => read = r.ReadActivatedWaypoints(levelAreas)); return read; },
+                () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
+                () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
+                GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null);
+            session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
+            session.PlayerMoved += waypointList.OnPlayerMoved;
+            session.MenusRead += waypointList.OnMenus;
+            waypointList.Start();
+            mapKeys.Start();
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map.");
+        }
 
         session.WorldChanged += (sno, name, isDungeon) =>
         {
@@ -344,7 +422,7 @@ internal static class Program
         tray.CheckUpdatesRequested += updates.CheckNow;
         tray.Start();
 
-        Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings.");
+        Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings, Ctrl+Alt+Shift+Q exits.");
         exit.Wait();
         var farewell = AppStrings.For(language.Current);
         if (!updated) speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true); // the updater said it already
@@ -407,6 +485,27 @@ internal static class Program
         return TypeSchema.Load(stream);
     }
 
+    // After a game patch the schema can go stale without a word: every offset would read garbage. The check reads ~100
+    // records (tens of ms) and logs which ones disagree, so a tester's log says whether definitions.json still fits.
+    private static void LogSchemaCheck(SnoStore store, TypeSchema schema, string? definitionsPath)
+    {
+        string source = definitionsPath ?? $"embedded, d4data {EmbeddedDefinitionsBuild() ?? "build unknown"}";
+        var result = SchemaCheck.Run(store, schema);
+        if (result.Passed)
+        {
+            Console.WriteLine($"Schema: definitions.json ({source}) fits game build {store.BuildVersion} ({result.Records} records checked).");
+            return;
+        }
+        Console.WriteLine($"Schema: definitions.json ({source}) does NOT fit game build {store.BuildVersion}, rooms, quests and objects "
+            + $"may read wrong: {string.Join("; ", result.Failures)} ({result.Records} records checked).");
+    }
+
+    private static string? EmbeddedDefinitionsBuild()
+    {
+        using var stream = typeof(Program).Assembly.GetManifestResourceStream("definitions-build.txt");
+        return stream is null ? null : new StreamReader(stream).ReadToEnd().Trim();
+    }
+
     private static Dictionary<string, float[]>? LoadLoopSounds()
     {
         try { return SpatialLoopPlayer.LoadSounds(); }
@@ -440,13 +539,15 @@ internal static class Program
         var sightings = debug
             ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;
+        if (debug) _ = new SoulSplitLog(session, store.Name, definitionOf, Console.WriteLine);
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         var loops = new ActorLoopBridge(
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
-            sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor);
+            sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,
+            selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique);
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(
@@ -501,6 +602,95 @@ internal static class Program
                     string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) +
                     (r.End is { } end ? $", end ({end.X:F1},{end.Y:F1})" : "") + $", {r.ActivationSnos.Count} activation actors.");
         return routes;
+    }
+
+    // The game's own quest markers (map kind 12: Symbol_Quest_Proxy for an area step such as "kill the fiend roaming here", live
+    // 2026-10-19; MarkerLocation by the siege towers of "Verwundete Seelen", where D-pad left found no third tower, live 2026-10-21),
+    // named after a quest read as in progress with an object near, else "quest marker"; and the map's markers that a
+    // quest read as in progress names at their spot (ActiveQuests.MarkerReach). The map also shows objects of quests the player
+    // hasn't taken ("Kuriose Kuriositäten", "Last der Sünde" near the Volcano, live 2026-10-19): those are left out, and so are a
+    // quest's objects of other steps than the one last read (QuestStep.Of). A quest the map names that isn't owned yet is looked
+    // for in progress at once (its {quest, phase} pair): owned quests are found only once their objects load around the player,
+    // and right after the app started D-pad left said "no quest place" beside "In Rathmas Fußstapfen" (live 2026-10-21). One not
+    // found that way counts as in progress at its phase remembered from earlier (QuestPhaseHistory, kept across runs): the module
+    // data holds one quest's pair at a time, and after a restart "Verwundete Seelen" was never found again (live 2026-10-21).
+    private static IReadOnlyList<QuestMapPlace> QuestMapPlaces(
+        IReadOnlyList<MarkedActor> markers, IReadOnlyList<int>? owned,
+        Func<IReadOnlyDictionary<int, IReadOnlySet<uint>>, IReadOnlyDictionary<int, uint>?> findPhases, QuestPhaseHistory questHistory,
+        SnoStore store, QuestScriptMarkerReader questScripts, LanguageSetting language, object cascGate, Action<string>? log)
+    {
+        string locale = SpeechLanguages.GameLocale(language.Current);
+        string NameOf(int quest) => store.Name(quest) is { } coreName ? store.Text(locale, "Quest_" + coreName, "Name") ?? coreName : quest.ToString();
+        var named = new List<(MarkedActor Marker, int Quest)>();
+        lock (cascGate)
+            foreach (var marker in markers.Where(m => !IsQuestSymbol(m)))
+                foreach (int quest in questScripts.QuestsNaming([(marker.ActorSno, new System.Numerics.Vector3(marker.X, marker.Y, marker.Z))], ActiveQuests.MarkerReach))
+                    named.Add((marker, quest));
+
+        var inProgress = new HashSet<int>(owned ?? []);
+        var unknown = named.Select(n => n.Quest).Where(q => !inProgress.Contains(q)).Distinct().ToList();
+        if (unknown.Count > 0)
+        {
+            Dictionary<int, IReadOnlySet<uint>> phaseUids;
+            lock (cascGate) phaseUids = unknown.ToDictionary(q => q, q => (IReadOnlySet<uint>)questScripts.PhaseObjects(q).Select(p => p.PhaseUid).ToHashSet());
+            var found = findPhases(phaseUids) ?? new Dictionary<int, uint>();
+            foreach (var (quest, phase) in found)
+            {
+                questHistory.Record(quest, phase);
+                inProgress.Add(quest);
+            }
+            var remembered = unknown.Where(q => !found.ContainsKey(q) && questHistory.Last(q) is not null).ToList();
+            inProgress.UnionWith(remembered);
+            log?.Invoke($"PATH quests the map names, not owned: {string.Join(", ", unknown)}; in progress: " +
+                (found.Count > 0 ? string.Join(", ", found.Select(f => $"{f.Key} at {f.Value}")) : "none") +
+                (remembered.Count > 0 ? "; remembered: " + string.Join(", ", remembered.Select(q => $"{q} at {questHistory.Last(q)}")) : ""));
+        }
+
+        var places = new List<QuestMapPlace>();
+        lock (cascGate)
+        {
+            foreach (var marker in markers.Where(IsQuestSymbol))
+            {
+                var at = new System.Numerics.Vector2(marker.X, marker.Y);
+                int? quest = owned is null ? null : questScripts.QuestNearest(at, QuestSymbolNamingUnits, inProgress);
+                places.Add(new QuestMapPlace(quest ?? 0, quest is { } q ? NameOf(q) : AppStrings.For(language.Current).QuestMarker, marker.ActorSno, at,
+                    GameMarker: true));
+            }
+            foreach (var (marker, quest) in named.Where(n => inProgress.Contains(n.Quest)))
+            {
+                var at = new System.Numerics.Vector2(marker.X, marker.Y);
+                var step = questHistory.Last(quest) is { } phase ? questScripts.PhaseObjects(quest).FirstOrDefault(p => p.PhaseUid == phase) : null;
+                var role = step is null ? StepPlace.Shown : QuestStep.Of(step, marker.ActorSno, at);
+                if (role != StepPlace.NotInStep) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at, Hidden: role == StepPlace.Hidden));
+            }
+        }
+        return places;
+
+        bool IsQuestSymbol(MarkedActor marker) => marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) is { } name && QuestSymbolActors.Contains(name);
+    }
+
+    // The game's generic quest map markers and their marker kind; quest objects this near name their quest.
+    private static readonly string[] QuestSymbolActors = ["Symbol_Quest_Proxy", "MarkerLocation"];
+    private const int QuestSymbolMarkerKind = 12;
+    private const float QuestSymbolNamingUnits = 60f;
+
+    // Paths over the open world's offline scene surfaces; every game-data read holds the CASC gate.
+    private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
+    {
+        var worlds = new WorldReader(store, schema);
+        var scenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false);
+        var chunks = new Dictionary<string, IReadOnlyList<SceneChunkInfo>>();
+        return new OverworldPaths(
+            worldName =>
+            {
+                lock (cascGate)
+                {
+                    if (chunks.TryGetValue(worldName, out var known)) return known;
+                    var world = SnoOrNull(store, worlds.Group, worldName);
+                    return chunks[worldName] = world is null ? [] : worlds.Read(world.Value).Chunks;
+                }
+            },
+            scene => { lock (cascGate) return scenes.SurfaceVoxels(scene); });
     }
 
     private static int? SnoOrNull(SnoStore store, int group, string name)

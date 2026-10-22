@@ -19,6 +19,18 @@ public class WorldLogWatcherTests
     }
 
     [Fact]
+    public void ReadLastWorldAtStartup_KeepsASpaceInTheWorldName()
+    {
+        string dir = MakeTempInstallDir();
+        File.WriteAllText(Path.Combine(dir, WorldLogWatcher.LogFileName),
+            "I 2026.10.18 15:45:18.046644 162671\t[Game] Client entered world | world: CSD_Skov_Philios_ River_Skovos_MorluDungeon | CWorldID: 524291\n");
+
+        using var watcher = new WorldLogWatcher(dir);
+
+        Assert.Equal(new WorldEntry("CSD_Skov_Philios_ River_Skovos_MorluDungeon", "524291"), watcher.ReadLastWorldAtStartup());
+    }
+
+    [Fact]
     public void ReadLastWorldAtStartup_ReturnsNullWhenTheLogDoesNotExistYet()
     {
         string dir = MakeTempInstallDir();
@@ -40,6 +52,25 @@ public class WorldLogWatcherTests
         watcher.WorldChanged += world => seen.Add(world.Name);
 
         File.AppendAllText(path, $"{Marker}DGN_Naha_SleeplessHollow\n");
+        watcher.PollOnce();
+
+        Assert.Equal(["DGN_Naha_SleeplessHollow"], seen);
+    }
+
+    [Fact]
+    public void PollOnce_AFailingListener_NeitherEscapesNorReplaysTheLinesNorStarvesTheOthers()
+    {
+        string dir = MakeTempInstallDir();
+        string path = Path.Combine(dir, WorldLogWatcher.LogFileName);
+        File.WriteAllText(path, "");
+
+        using var watcher = new WorldLogWatcher(dir);
+        var seen = new List<string>();
+        watcher.WorldChanged += _ => throw new IOException("Diablo IV.exe is locked by the update");
+        watcher.WorldChanged += world => seen.Add(world.Name);
+
+        File.AppendAllText(path, $"{Marker}DGN_Naha_SleeplessHollow\n");
+        watcher.PollOnce();
         watcher.PollOnce();
 
         Assert.Equal(["DGN_Naha_SleeplessHollow"], seen);

@@ -229,7 +229,9 @@ them as missing. Gizmos (`eType` 2): 22,725.
   (`S15_Triad_B_Worldstone`, 31/2638473): `S15_Arreat_Summit_Altar_A_Gizmo` 2647200 (the Ancients' altar, floor 01),
   the Ancients Korlic 2679638, Madawc 2679640 and Talic 2679642, Baal `S15_Triad_B_Boss_QST` 2671540,
   `S15_TriadB_QST_Soulshard` 2671217 and Tal Rasha 2671529. `DungeonObjectiveReader` falls back to that quest, so the
-  altar and the soulshard get objective loops (monsters never do).
+  altar and the soulshard get objective loops (monsters never do). Eight other seasonal worlds name it after the world
+  plus `_DPO` (`S15_Rift_HallsOfTheBlind_DPO` 2629465 and the other S15 rifts, `S15_Lair_Nakrul`, `S15_Playhouse`, the
+  S14 chambers; offline 2026-10-21); the reader tries both names.
 - **Still to confirm live:** the real floor-exit actor names (`--debug` logs `PORTAL seen` and `ACTOR seen`), and the
   distance at which the player appears from the portal they came through (the 15-unit "used" radius).
 
@@ -683,3 +685,39 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   quest found in progress stays followed while its {quest, phase} pair still reads (until it ends or the world changes).
   Not live-tested. Still open: the sockets loop only within the ~25 units the game streams; nothing leads to them from afar in
   the overworld.
+
+## 25. Rathma's soul split: the body left behind (offline, build 3.2.3, 2026-10-20)
+
+In the Rathma fight of "The Weight of a Blade" (QST_X2_Skov_Lycander_05, CSD_Skov_Lycander_RathmasArchive_02, boss
+`npcM_Rathma_boss` 2261914) the boss tears the player's spirit out, and it must get back to the body quickly; the body makes no
+sound (user, 2026-10-20). The actor data names the mechanic `SoulSplit`: `Rathma_Boss_SoulSplit_Location_Marker` 2502285 (eType 1,
+team 19), `Rathma_SoulSplit_resurection_invisibleActor` 2560454 (eType 3), `Rathma_SoulSplit_Trail` 2560422 (eType 3) and
+`vfx_Rathma_SoulSplit_*` effects.
+
+Live, the same day (`--debug`, one split, the player died in it): the Location_Markers are five fixed spots round the arena
+middle ((-65,-3) to (-71,2)), listed from the fight's start, so they are not the body. The resurrection actor (client-only) was
+listed only during the split: first 0.2 units from the player as it began (18:08:07, three seconds after Rathma's line
+`QST_X2_Skov_Lycander_05_331`), then it followed the player position read, which is the spirit's (gone at the death menu 7 units
+on, still 0.0 from the player). The body itself has no actor in the list. So the app loops the resurrection actor with the quest
+sound at the spot it was first seen (`SoulSplitBody`, `ObjectiveReason.SoulBody`).
+
+Second live run (18:16): the loop sounded far right and seemed not to move; the player read was over 20 units from the pinned
+spot 6 s into the split and 8.1 at the death menu, with no radar or tile line in between. Players' guides say every button speeds
+the spirit up during the split; a forum post calls the soul a disk that rejoins once under the player's feet. Under `--debug`,
+`SOULSPLIT` lines now log the player read and every soul-split actor twice a second while one other than the Location_Markers is
+listed, and once each actor near the player.
+
+Third live run (18:29-18:48, five splits, all ending in death): the player read stayed at the body. The resurrection actor
+appeared 6 s after the split began, 0.0-0.3 from the player, and at the death menu the player read was 0.7-0.9 from it in four
+of five splits. So the loop sat on the body, but the app hears from the body as well: the player, steering the spirit, heard it
+at their own spot whatever they did. The spirit's position is still unknown (the SOULSPLIT poll lines threw on the first poll and
+logged nothing; fixed). A candidate is `vfx_Rathma_SpiritSplit_burstAttractor_playerSpirit_parent` 2554784.
+
+Fourth live run (18:55, SOULSPLIT lines): that reading was wrong. The split goes: the player read jumps 14 units into
+`vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02` at (-70.9,1.8) and stays 4 s (the body); then it jumps
+to (-68.0,-2.1) and on to (-63.1,-7.2): the spirit, thrown out, and the player read follows it from then on. The resurrection actor
+and `vfx_Rathma_SpiritSplit_sphereCoaster` copies appear with the spirit and move with it; two `Rathma_SoulSplit_Trail` actors
+hover about 1 unit beside it. The beam stands on the body the whole split. So the earlier pinned loop sat where the spirit
+landed, 5.6 units from the body, and the player walked back to exactly that spot (ended at (-67.5,-1.7)). The loop now sounds at
+the beam (`SoulSplitBody`; with no beam listed, where the resurrection actor was first seen). Fifth live run: the loop led the
+player back to the body and the fight was won.

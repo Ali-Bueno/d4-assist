@@ -10,15 +10,17 @@ namespace D4Assist.Game;
 public sealed record QuestSearchArea(int WorldSno, IReadOnlyCollection<int> Scenes, IReadOnlyList<(int ActorSno, Vector3 Position)> Actors);
 
 /// <summary>What the followed quests' current phases name: markers (world space, or scene-local until the scene is placed),
-/// matched by spot, and actors named by SNO alone (any placed copy).</summary>
-public sealed record QuestNames(IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers)
+/// matched by spot, actors named by SNO alone (any placed copy), and blueprint markers, naming a kind until the blueprint is placed.</summary>
+public sealed record QuestNames(
+    IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<BlueprintMarker> KindMarkers)
 {
-    public static readonly QuestNames None = new([], new HashSet<int>(), []);
+    public static readonly QuestNames None = new([], new HashSet<int>(), [], []);
 
     public static QuestNames Of(IEnumerable<QuestPhaseObjects> phases) =>
-        new([.. phases.SelectMany(p => p.Markers)], phases.SelectMany(p => p.ActorSnos).ToHashSet(), [.. phases.SelectMany(p => p.SceneMarkers)]);
+        new([.. phases.SelectMany(p => p.Markers)], phases.SelectMany(p => p.ActorSnos).ToHashSet(), [.. phases.SelectMany(p => p.SceneMarkers)],
+            [.. phases.SelectMany(p => p.KindMarkers ?? [])]);
 
-    public int Count => Markers.Count + ActorSnos.Count + SceneMarkers.Count;
+    public int Count => Markers.Count + ActorSnos.Count + SceneMarkers.Count + KindMarkers.Count;
 }
 
 /// <summary>
@@ -29,10 +31,14 @@ public sealed record QuestNames(IReadOnlyList<PlacedMarker> Markers, IReadOnlySe
 /// <param name="phases">The objects each phase of a quest names (QuestScriptMarkerReader.PhaseObjects).</param>
 /// <param name="questsHere">The quests that name something in an area (QuestScriptMarkerReader); null follows tracked quests only.</param>
 /// <param name="clock">UTC now; null for the system clock.</param>
+/// <param name="worldSno">The world this session reads.</param>
+/// <param name="history">The last phase of each quest read in any world; null keeps this session's own.</param>
 public sealed class ActiveQuests(
     IMemoryReader memory, IReadOnlyList<MemoryRegion> moduleData, Func<int, IReadOnlyList<QuestPhaseObjects>> phases,
-    Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, Func<DateTime>? clock = null)
+    Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, Func<DateTime>? clock = null, int worldSno = 0, QuestPhaseHistory? history = null)
 {
+    private readonly QuestPhaseHistory _history = history ?? new();
+
     /// <summary>A quest's marker and the actor it placed share a spot (live: the Darkened Way gate, 0.0 apart).</summary>
     public const float MarkerReach = 2f;
 
@@ -40,6 +46,20 @@ public sealed class ActiveQuests(
     public static readonly TimeSpan PhaseSearchInterval = TimeSpan.FromSeconds(5);
 
     private int[] _followed = [];
+
+    /// <summary>The quests followed now: the tracked ones and those in progress here.</summary>
+    public IReadOnlyList<int> Followed => _followed;
+
+    /// <summary>The quests whose objects are the player's to use here: those followed now, and any found in progress here before,
+    /// while the step they are at (read here, else last read anywhere) is shown in this world or in none. The module data holds one
+    /// quest's pair at a time (live 2026-10-17, the Light's Watch: the side quest QST_Frac_PaleKnightsKin and the dungeon's own
+    /// quest took turns at one address), so a quest still running drops out of <see cref="Followed"/> while another one's step is
+    /// shown, and its third lectern stayed silent. Its journals found, the side quest stays tracked until handed in, and its
+    /// lecterns in a new Light's Watch drew the guide away from the guards (the same day).</summary>
+    public IReadOnlyList<int> Owned => _owned;
+
+    private readonly HashSet<int> _seenHere = [];
+    private int[] _owned = [];
     private List<FollowedQuest> _quests = [];
 
     /// <summary>How often a followed quest has moved on from a known phase; read from other threads.</summary>
@@ -56,8 +76,13 @@ public sealed class ActiveQuests(
         if (UpdatePhases(log: true)) _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
         if (tracked is null) return _names;
         var here = InProgressHere(tracked, area);
+        _seenHere.UnionWith(here.Keys);
         int[] followed = [.. tracked.Concat(here.Keys).Distinct().Order()];
-        if (followed.SequenceEqual(_followed)) return _names;
+        if (followed.SequenceEqual(_followed))
+        {
+            RefreshOwned();
+            return _names;
+        }
         _followed = followed;
         _quests = [.. followed.Select(q => _quests.FirstOrDefault(old => old.Sno == q && old.RequirePhase != tracked.Contains(q))
             ?? new FollowedQuest(q, phases(q))
@@ -65,10 +90,31 @@ public sealed class ActiveQuests(
                 RequirePhase = !tracked.Contains(q), PhaseAddress = here.TryGetValue(q, out long at) ? at : null,
             })];
         UpdatePhases(log: false);
+        RefreshOwned();
         _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
         Console.WriteLine($"Quest tracked: {List(tracked)}; in progress here: {List(here.Keys.Except(tracked))}; " +
             $"{_names.Count} object(s) named{PhaseText()}.");
         return _names;
+    }
+
+    // Logged whenever it changes, with the quests left out for a step shown elsewhere.
+    private void RefreshOwned()
+    {
+        var candidates = _seenHere.Union(_followed).Order().ToList();
+        int[] owned = [.. candidates.Where(StepIsHere)];
+        if (owned.SequenceEqual(_owned)) return;
+        _owned = owned;
+        var elsewhere = candidates.Except(owned).ToList();
+        Console.WriteLine($"Quest objects owned: {List(owned)}" +
+            (elsewhere.Count > 0 ? $"; step elsewhere: {string.Join(", ", elsewhere.Select(q => $"{q} at {_history.Last(q)}"))}" : "") + ".");
+    }
+
+    // The quest's step, read here or else last read anywhere, is shown in this world or in none; true while it was never read.
+    private bool StepIsHere(int quest)
+    {
+        if ((_quests.FirstOrDefault(q => q.Sno == quest)?.Phase ?? _history.Last(quest)) is not { } phase) return true;
+        var worlds = phases(quest).FirstOrDefault(p => p.PhaseUid == phase)?.Worlds;
+        return worlds is null || worlds.Contains(worldSno);
     }
 
     // A quest's phases (offline) and where its current phase is read (found in the module's data).
@@ -84,10 +130,14 @@ public sealed class ActiveQuests(
         public bool RequirePhase { get; init; }
         public DateTime NextSearch { get; set; } = DateTime.MinValue;
 
-        // The current phase. Before the phase is ever found, every phase (a later step can then sound early);
-        // once seen, a lost phase names nothing: the quest ended while it stays tracked (live 2026-09-30, ~50 s).
+        // The current phase. Before the phase is ever found, every phase's actors (a later step can then sound early), but no
+        // world-space marker: those of every phase span worlds, and the guide led to one in another world (live 2026-10-16:
+        // tracked quest 1931517 named Neyrelle's archive spots in the Light's Watch); once seen, a lost phase names nothing: the quest ended while it
+        // stays tracked (live 2026-09-30, ~50 s).
         public IEnumerable<QuestPhaseObjects> Current =>
-            Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : Phases;
+            Phase is { } current ? Phases.Where(p => p.PhaseUid == current) : PhaseSeen || RequirePhase ? [] : _anyPhase ??= [.. Phases.Select(p => p with { Markers = [] })];
+
+        private IReadOnlyList<QuestPhaseObjects>? _anyPhase;
     }
 
     // The quests named in the area, or handed over to by a followed quest, whose {quest, phase} pair the module data holds, plus
@@ -102,8 +152,25 @@ public sealed class ActiveQuests(
         var named = questsHere(area());
         var candidates = named.Union(SubQuests([.. tracked, .. named, .. running.Keys])).Where(q => !running.ContainsKey(q))
             .ToDictionary(q => q, q => (IReadOnlySet<uint>)phases(q).Select(p => p.PhaseUid).ToHashSet());
-        var found = candidates.Count == 0 ? new Dictionary<int, long>() : QuestPhaseLocator.FindAll(memory, moduleData, candidates);
-        return _inProgressHere = running.Concat(found).ToDictionary();
+        if (candidates.Count == 0) return _inProgressHere = running;
+        var found = QuestPhaseLocator.FindAllCandidates(memory, moduleData, candidates);
+        foreach (var (quest, pairs) in found) LogCandidates(quest, pairs);
+        return _inProgressHere = running.Concat(found.Select(kv => KeyValuePair.Create(kv.Key, QuestPhaseLocator.Pick(kv.Value))))
+            .ToDictionary();
+    }
+
+    // Which pairs a search found, whenever that changes: a quest holding its pair in several spots (or a stray {quest, 0}) shows
+    // which one the phase is read at (live 2026-10-16: the Lost Archives read phase 0 from the entrance on).
+    private readonly Dictionary<int, string> _loggedCandidates = [];
+
+    private void LogCandidates(int quest, IReadOnlyList<PhaseCandidate> pairs)
+    {
+        if (pairs.Count == 0) return;
+        long read = QuestPhaseLocator.Pick(pairs);
+        string text = string.Join(", ", pairs.Select(p => $"0x{p.Address:X}={p.Phase}{(p.Address == read ? " (read)" : "")}"));
+        if (_loggedCandidates.GetValueOrDefault(quest) == text) return;
+        _loggedCandidates[quest] = text;
+        Console.WriteLine($"Quest phase pairs: {quest}: {text}.");
     }
 
     // The quests some phase of these quests waits on, and theirs: while one runs the game shows its phase in place of the
@@ -131,10 +198,13 @@ public sealed class ActiveQuests(
             uint? phase = quest.PhaseAddress is { } at ? QuestPhaseLocator.Read(memory, at, quest.Sno, quest.Uids) : null;
             if (phase is null && Now >= quest.NextSearch)
             {
-                quest.PhaseAddress = QuestPhaseLocator.Find(memory, moduleData, quest.Sno, quest.Uids) is [var found, ..] ? found : null;
+                var pairs = QuestPhaseLocator.FindCandidates(memory, moduleData, quest.Sno, quest.Uids);
+                LogCandidates(quest.Sno, pairs);
+                quest.PhaseAddress = pairs.Count > 0 ? QuestPhaseLocator.Pick(pairs) : null;
                 quest.NextSearch = Now + PhaseSearchInterval;
                 phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
             }
+            if (phase is { } read) _history.Record(quest.Sno, read);
             if (phase == quest.Phase) continue;
             if (quest.Phase is not null) PhaseChanges++; // moved on from a known phase, not just found
             quest.Phase = phase;

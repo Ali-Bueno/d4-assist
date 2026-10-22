@@ -92,6 +92,23 @@ public class RoomRouteCacheTests
         Assert.Equal(expected, route.Direction);
     }
 
+    [Fact]
+    public void In_the_doorway_the_way_on_is_through_the_opening_not_back_to_its_inward_cells()
+    {
+        // The mindscape entrance tile's way into the next one (live 2026-10-21): a step short of the edge the nearest inward
+        // target lay behind the player, and the guide pointed back towards the exit portal.
+        var grid = new WalkGrid(1f, 0f, 0f, 32, 32, FullyWalkable(32, 32));
+        var opening = new RoomOpening(ExitSide.North, (0f, 16f), Unexplored: false, Width: 8f);
+        var room = new Room(new RoomKey(0, 0, true),
+            [new MapTile(new TileInput(1, "open", 0, 0, 32, 32, ExitMaskBits.North, 1, 1))], [opening], grid);
+
+        var trace = RoomRouteCache.Trace(room, (1.2f, 18f), opening);
+
+        Assert.False(trace.UsedFallback);
+        Assert.True(trace.Point.X < 0f, $"pointed at {trace.Point}");
+        Assert.Equal(18f, trace.Point.Y, 0.01f);
+    }
+
     private static bool[,] FullyWalkable(int rows, int cols)
     {
         var cells = new bool[rows, cols];

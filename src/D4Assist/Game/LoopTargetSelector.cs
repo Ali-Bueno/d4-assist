@@ -15,13 +15,15 @@ public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
 /// <param name="UsedWhenOpened">A door-type objective (a monolith, a blocker) is used once the game marks it operated or open; the
 /// state word that marks a used chest or clickable is not validated on these.</param>
 /// <param name="EnemyCue">A boss or unique to kill: the enemy cue (EnemyCueBridge) sounds it, so its loop stays silent and only tracks it.</param>
+/// <param name="SoundsOnceUsed">A gizmo the game itself sets off, silent until then: Inarius's chain stations, each released by his
+/// script (its state word set, the player far away), where the player then takes its chain (live 2026-10-21).</param>
 public sealed record LoopTarget(
     LoopKind Kind, string Sound, LoopProfile Profile, string Reason, SoundCue Cue, bool StopsWhenUsed = false, float QuietWithin = 0,
     bool Reusable = false, bool UsedWhenOpened = false, bool SilentWhileInvulnerable = false, bool EnemyCue = false,
-    bool SilentWhileFollowing = false)
+    bool SilentWhileFollowing = false, bool SoundsOnceUsed = false)
 {
     /// <summary>A gizmo the game can lock (quest-restricted, script-disabled): silent until it is allowed.</summary>
-    public bool SilentWhileUnusable => StopsWhenUsed || Reusable;
+    public bool SilentWhileUnusable => StopsWhenUsed || Reusable || SoundsOnceUsed;
 }
 
 /// <summary>Maps each placed actor to its loop (or none): safe zones, exit beacons (by SNO, or any portal in a dungeon), then the
@@ -60,6 +62,7 @@ public sealed class LoopTargetSelector
     // A boss or unique to kill: tracked for the guide, sounded by the enemy cue.
     private readonly LoopTarget _enemyKillTarget;
     private readonly CarryGoals? _carry;
+    private readonly SoulSplitBody? _soulBody;
     private readonly InteractableClassifier? _interactables;
     private readonly Func<int, bool>? _isPortal;
     private readonly Func<int, float?>? _safeZoneRadius;
@@ -80,6 +83,7 @@ public sealed class LoopTargetSelector
         _safeZoneRadius = safeZoneRadius;
         _objectives = objectives;
         _carry = objectives is null ? null : new CarryGoals(objectives);
+        _soulBody = objectives is null ? null : new SoulSplitBody(objectives);
         _dpoActors = dpoActors;
         _interactables = interactables;
         _beacon = new LoopTarget(LoopKind.ExitBeacon, QuestItemSound, LoopProfiles.Beacon, BeaconReason, SoundCue.Portal);
@@ -98,6 +102,7 @@ public sealed class LoopTargetSelector
         _worldDpoActors = _objectives is null ? new HashSet<int>() : _dpoActors(worldSno);
         _inDungeon = isDungeon;
         _carry?.Reset();
+        _soulBody?.Reset();
     }
 
     /// <summary>Null when the actor gets no loop.</summary>
@@ -138,8 +143,9 @@ public sealed class LoopTargetSelector
         var profile = reason == ObjectiveReason.CloneGate ? LoopProfiles.Beacon : LoopProfiles.Quest;
         // A freed prisoner walks beside the player (FollowerWatch); a prisoner gizmo stays where it was freed.
         return new LoopTarget(LoopKind.Objective, sound, profile, reason.ToString().ToLowerInvariant(), cue,
-            StopsWhenUsed: gizmo && !reusable, Reusable: gizmo && reusable, SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget,
-            SilentWhileFollowing: reason == ObjectiveReason.Prisoner && !gizmo);
+            StopsWhenUsed: gizmo && !reusable && reason != ObjectiveReason.Chargeable, Reusable: gizmo && reusable,
+            SilentWhileInvulnerable: reason == ObjectiveReason.KillTarget, SilentWhileFollowing: reason == ObjectiveReason.Prisoner && !gizmo,
+            SoundsOnceUsed: reason == ObjectiveReason.Chargeable);
     }
 
     private static (string Sound, SoundCue Cue) SoundOf(ObjectiveReason reason) => reason switch
@@ -165,11 +171,12 @@ public sealed class LoopTargetSelector
         };
 
     /// <summary>The actors with the quest steps the game's flags don't mark: delivering a carried item (CarryGoals) and a boss or
-    /// unique the followed quests' current phase names; called on every actor poll before <see cref="Select"/>.</summary>
+    /// unique the followed quests' current phase names, and the body a soul split left behind (SoulSplitBody); called on every
+    /// actor poll before <see cref="Select"/>.</summary>
     public IReadOnlyList<ActorState> WithQuestGoals(IReadOnlyList<ActorState> actors)
     {
         if (_objectives is not { } objectives) return actors;
-        actors = _carry!.Apply(actors, _worldDpoActors);
+        actors = _soulBody!.Apply(_carry!.Apply(actors, _worldDpoActors));
         return actors.Any(a => IsQuestFoe(a, objectives))
             ? [.. actors.Select(a => IsQuestFoe(a, objectives) ? a with { QuestStep = true } : a)]
             : actors;
@@ -177,6 +184,9 @@ public sealed class LoopTargetSelector
 
     /// <summary>For a receptacle, whether it takes the carryable the player holds now; null for any other actor (ObjectiveMemory).</summary>
     public bool? ReceptacleTakesHeld(int actorSno) => _carry?.TakesHeld(actorSno);
+
+    /// <summary>For a carryable, whether it waits while the player holds another one (CarryGoals.WaitsForHands); null for any other actor.</summary>
+    public bool? CarryableWaits(int actorSno) => _carry?.WaitsForHands(actorSno);
 
     // A dead monster's remains have no game record.
     private static bool IsQuestFoe(ActorState actor, ObjectiveClassifier objectives) =>

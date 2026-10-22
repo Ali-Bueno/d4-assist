@@ -53,13 +53,24 @@ public class OpeningFinderTests
     }
 
     [Fact]
-    public void Exit_bit_with_no_walkable_run_falls_back_to_the_edge_midpoint()
+    public void Exit_bit_with_no_walkable_run_on_a_mapped_tile_is_no_opening()
     {
+        // The Philios mindscape's boss room (live 2026-10-18): exit East, no floor on that edge; its midpoint guess led the guide
+        // to a wall instead of the room's middle.
         var input = new TileInput(2, "walled", 0, 0, 32, 32, ExitMaskBits.North, 1, 1);
         var (tile, map, members) = SingleTileRoom(input);
         var walkability = new FakeTileWalkability().Add(2, new WalkGrid(1f, 0f, 0f, 32, 32, new bool[32, 32]));
 
-        var opening = Assert.Single(OpeningFinder.Find(map, [tile], members, walkability));
+        Assert.Empty(OpeningFinder.Find(map, [tile], members, walkability));
+    }
+
+    [Fact]
+    public void Exit_bit_on_a_tile_without_a_walk_map_falls_back_to_the_edge_midpoint()
+    {
+        var input = new TileInput(2, "unmapped", 0, 0, 32, 32, ExitMaskBits.North, 1, 1);
+        var (tile, map, members) = SingleTileRoom(input);
+
+        var opening = Assert.Single(OpeningFinder.Find(map, [tile], members, new FakeTileWalkability()));
 
         Assert.True(opening.UsedFallback);
         Assert.Equal(ExitMaskBits.EdgeMidpoint(input, ExitSide.North), opening.Position);
@@ -153,9 +164,7 @@ public class OpeningFinderTests
         cells[0, 16] = true; // 1 unit wide: passes MinOpeningWidthUnits (0.76) but not MinOpeningCells (2)
         var walkability = new FakeTileWalkability().Add(7, new WalkGrid(1f, 0f, 0f, 32, 32, cells));
 
-        var opening = Assert.Single(OpeningFinder.Find(map, [tile], members, walkability));
-
-        Assert.True(opening.UsedFallback); // no surviving run -> falls back to the edge midpoint
+        Assert.Empty(OpeningFinder.Find(map, [tile], members, walkability)); // no surviving run -> no opening
     }
 
     [Fact]

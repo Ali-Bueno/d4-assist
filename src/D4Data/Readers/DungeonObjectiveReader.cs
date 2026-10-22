@@ -7,7 +7,7 @@ namespace D4Data.Readers;
 public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
 {
     private const string GlobalDefinition = "GlobalDefinition", QuestDefinition = "QuestDefinition", ActorDefinition = "ActorDefinition";
-    private const string ZoneProgressGlobal = "zone_progress";
+    private const string ZoneProgressGlobal = "zone_progress", DpoSuffix = "_DPO";
 
     private readonly DpoLayout _layout = DpoLayout.From(schema);
     private readonly Dictionary<int, IReadOnlySet<int>> _cache = [];
@@ -44,13 +44,18 @@ public sealed class DungeonObjectiveReader(SnoStore store, TypeSchema schema)
         return _questActors = actors;
     }
 
-    // Worlds without a DPO entry (seasonal ones such as S15_Triad_B_Worldstone) name their quest after the world
-    // (research/dungeon-objectives.md §7).
+    // Worlds without a DPO entry (seasonal ones such as S15_Triad_B_Worldstone) name their quest after the world, or after the
+    // world with "_DPO" (S15_Rift_HallsOfTheBlind_DPO and seven more seasonal worlds; research/dungeon-objectives.md §7).
     private int[] QuestNamedAfter(int worldSno, int questGroup)
     {
         if (store.Name(worldSno) is not { } name) return [];
-        try { return [store.Resolve(questGroup, name)]; }
-        catch (ArgumentException) { return []; }
+        return [.. new[] { name, name + DpoSuffix }.Select(n => Resolve(questGroup, n)).OfType<int>()];
+    }
+
+    private int? Resolve(int group, string name)
+    {
+        try { return store.Resolve(group, name); }
+        catch (ArgumentException) { return null; }
     }
 
     private Dictionary<int, int[]> WorldQuests()

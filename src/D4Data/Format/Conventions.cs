@@ -51,6 +51,7 @@ public static class Conventions
     public const int GizmoSwitch = 57;              // SwitchGizmoData
     public const int GizmoCarryable = 94;           // CarryableGizmoData
     public const int GizmoCarryableReceptacle = 95; // CarryableReceptacleGizmoData
+    public const int GizmoChargeable = 96;          // ChargeableGizmoData (by its actors): capture points, chargeable pillars, inarius_chainStation
     public const int GizmoQuestSwitch = 100;        // QuestSwitchGizmoData
     public const int GizmoQuestChest = 105;         // QuestChestGizmoData
 

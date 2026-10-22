@@ -37,6 +37,10 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private readonly int _openRetryIntervalMs;
     private readonly ReadHealth? _health;
     private readonly object _gate = new();
+    // Every event goes out under it, after _gate when both are taken: see Deliver.
+    private readonly object _deliver = new();
+    // Set while that poll runs: a timer tick that finds its last read still going skips, so one reader is never read twice at once.
+    private int _playerBusy, _tilesBusy, _actorsBusy;
 
     private Timer? _playerTimer;
     private Timer? _tileTimer;
@@ -44,7 +48,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private Timer? _openRetryTimer;
     private WorldKind? _pendingOpenKind;
     private string? _lastOpenFailure;
-    private IDungeonSessionReader? _session;
+    private SessionLease? _session;
     // The session and its quest phase count at the last actor read: a new session starts its own count.
     private (IDungeonSessionReader? Session, int Count) _questPhases;
     private int _currentWorldSno = -1;
@@ -57,6 +61,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     /// <summary>IsDungeon is true only for DRLG dungeons; a radar-only world reports false here (bridges stay silent) and true in <see cref="CurrentWorldRadarOnly"/>.</summary>
     public (string Name, bool IsDungeon)? CurrentWorld { get; private set; }
+
+    /// <summary>The current world's SNO; <see cref="NoWorldSno"/> before the first world and after the game closed.</summary>
+    public int CurrentWorldSno { get { lock (_gate) return _currentWorldSno; } }
 
     public bool CurrentWorldRadarOnly { get; private set; }
 
@@ -77,6 +84,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
 
     /// <summary>Every actor the game's map marks, after every actor read (IDungeonSessionReader.ReadMapMarkers).</summary>
     public event Action<IReadOnlyList<MarkedActor>>? MapMarkersRead;
+
+    /// <summary>The actor SNOs the active quests' current phases name outright, after every actor read (IDungeonSessionReader.ReadQuestActorSnos).</summary>
+    public event Action<IReadOnlySet<int>>? QuestActorsNamed;
 
     /// <summary>True while loading through <see cref="TransitWorldName"/> out of a read world; the bridges keep their
     /// state (no WorldChanged) until the next world shows whether it is the same instance.</summary>
@@ -121,7 +131,11 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         string worldName = entry.Name;
         (int WorldSno, WorldKind Kind) classified;
         try { classified = _classifier.Classify(worldName); }
-        catch (ArgumentException) { return; } // world name not in CoreTOC; ignore rather than crash the loop
+        catch (ArgumentException e) // world name not in CoreTOC; ignore rather than crash the loop
+        {
+            Console.WriteLine($"World: '{worldName}' not resolved, ignored: {e.Message}");
+            return;
+        }
 
         lock (_gate)
         {
@@ -180,7 +194,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     }
 
     /// <summary>Retries a failed open until it succeeds or the world changes. Public so tests can drive it deterministically.</summary>
-    public void RetryOpenOnce()
+    public void RetryOpenOnce() => Guarded("open retry", () =>
     {
         lock (_gate)
         {
@@ -188,15 +202,20 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             Console.WriteLine("Memory: reading the game now.");
             StartPollingLocked(kind);
         }
-    }
+    });
 
     private bool TryOpenSessionLocked()
     {
         string failure;
         try
         {
-            _session = _openSession(_currentWorldSno, _sceneSnos);
-            if (_session is not null) { _health?.Report(ReadCheck.Position, ok: true); return true; }
+            if (_openSession(_currentWorldSno, _sceneSnos) is { } reader)
+            {
+                _session = new SessionLease(reader);
+                _health?.Report(ReadCheck.Position, ok: true);
+                return true;
+            }
+            _session = null;
             failure = "no memory session";
         }
         catch (GameUnreadableException e) // access denied, no game module, player not placed yet (or its record moved)
@@ -206,6 +225,12 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             _health?.Report(ReadCheck.Position, ok: false, failure);
         }
         catch (InvalidOperationException e) { _session = null; failure = e.Message; } // not running
+        // The exe on disk can't be read while a game update or the launcher holds it, or it is half written: try again later.
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            _session = null;
+            failure = $"{e.GetType().Name}: {e.Message}";
+        }
 
         if (failure != _lastOpenFailure) Console.WriteLine($"Memory: cannot read the game yet, retrying: {failure}");
         _lastOpenFailure = failure;
@@ -246,7 +271,41 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         _playerTimer?.Dispose(); _playerTimer = null;
         _tileTimer?.Dispose(); _tileTimer = null;
         _actorTimer?.Dispose(); _actorTimer = null;
-        _session?.Dispose(); _session = null;
+        if (_session is { } lease)
+        {
+            _session = null;
+            lease.Retired = true;
+            if (lease.Users == 0) lease.Reader.Dispose(); // else the last poll still reading closes it (GiveBack)
+        }
+    }
+
+    // A session the polls borrow. A world change retires it at once, but its process handle closes only once no read is on
+    // its way: Windows reuses a closed handle's value, so a late read could reach another object.
+    private sealed class SessionLease(IDungeonSessionReader reader)
+    {
+        public IDungeonSessionReader Reader { get; } = reader;
+        public int Users; // under _gate
+        public volatile bool Retired;
+    }
+
+    private SessionLease? BorrowLocked()
+    {
+        if (_session is { } lease) lease.Users++;
+        return _session;
+    }
+
+    private void GiveBack(SessionLease lease)
+    {
+        lock (_gate) if (--lease.Users > 0 || !lease.Retired) return;
+        lease.Reader.Dispose(); // retired while this read was on its way: it was the last
+    }
+
+    // What a poll read goes out only while its session is still the current one. Every event takes _deliver, and a world change
+    // retires the session before it raises WorldChanged: a read that started in the old world either reaches the listeners
+    // before that WorldChanged or not at all.
+    private void Deliver(SessionLease lease, Action raise)
+    {
+        lock (_deliver) if (!lease.Retired) raise();
     }
 
     private void StopOpenRetryLocked()
@@ -255,31 +314,77 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         _pendingOpenKind = null;
     }
 
-    /// <summary>Runs one player-position read. Public so tests can drive it deterministically instead of waiting on the timer.</summary>
-    public void PollPlayerOnce()
+    /// <summary>Runs <paramref name="read"/> on the current session, on the caller's thread (a key press, not a poll); false
+    /// while no session is open.</summary>
+    public bool Query(Action<IDungeonSessionReader> read)
     {
-        IDungeonSessionReader? session;
-        lock (_gate) session = _session;
-        if (session is null) return;
+        SessionLease? lease;
+        lock (_gate) lease = BorrowLocked();
+        if (lease is null) return false;
+        try { read(lease.Reader); return true; }
+        finally { GiveBack(lease); }
+    }
 
-        var player = session.ReadPlayer();
-        if (player is null) { HandleSessionLost(session); return; } // process likely exited
-        if (player.IsWorldUnloaded) return;
-        Raise("player", PlayerMoved, h => h(player));
-        if (session.ReadConversation() is { } talk) Raise("conversation", ConversationRead, h => h(talk));
-        if (session.ReadMenus() is { } menus) Raise("menus", MenusRead, h => h(menus));
+    /// <summary>Runs one player-position read. Public so tests can drive it deterministically instead of waiting on the timer.</summary>
+    public void PollPlayerOnce() => Guarded("player", ref _playerBusy, ReadPlayerOnce);
+
+    private void ReadPlayerOnce()
+    {
+        SessionLease? lease;
+        lock (_gate) lease = BorrowLocked();
+        if (lease is null) return;
+        try
+        {
+            var session = lease.Reader;
+            var player = session.ReadPlayer();
+            if (player is null) { HandleSessionLost(lease); return; } // process likely exited
+            if (player.IsWorldUnloaded) return;
+            Deliver(lease, () => Raise("player", PlayerMoved, h => h(player)));
+            if (session.ReadConversation() is { } talk) Deliver(lease, () => Raise("conversation", ConversationRead, h => h(talk)));
+            if (session.ReadMenus() is { } menus) Deliver(lease, () => Raise("menus", MenusRead, h => h(menus)));
+        }
+        finally { GiveBack(lease); }
     }
 
     /// <summary>Runs one actor-pool read; an unavailable pool is skipped silently (the reader logs it once).</summary>
-    public void PollActorsOnce()
+    public void PollActorsOnce() => Guarded("actors", ref _actorsBusy, ReadActorsOnce);
+
+    private void ReadActorsOnce()
     {
-        IDungeonSessionReader? session;
-        lock (_gate) session = _session;
-        if (session?.ReadActors() is { } actors) Raise("actors", ActorsUpdated, h => h(actors));
-        if (session is not null && QuestMoved(session)) Raise("quest moved on", QuestMovedOn, h => h());
-        if (session?.ReadQuestPlaces() is { } places) Raise("quest places", QuestPlacesRead, h => h(places));
-        if (session?.ReadMapMarkers() is { } marks) Raise("map markers", MapMarkersRead, h => h(marks));
-        if (session?.ReadCinematic() is { } cinematic) Raise("cinematic", CinematicRead, h => h(cinematic));
+        SessionLease? lease;
+        lock (_gate) lease = BorrowLocked();
+        if (lease is null) return;
+        try
+        {
+            var session = lease.Reader;
+            if (session.ReadActors() is { } actors) Deliver(lease, () => Raise("actors", ActorsUpdated, h => h(actors)));
+            if (QuestMoved(session)) Deliver(lease, () => Raise("quest moved on", QuestMovedOn, h => h()));
+            if (session.ReadQuestPlaces() is { } places) Deliver(lease, () => Raise("quest places", QuestPlacesRead, h => h(places)));
+            if (session.ReadMapMarkers() is { } marks) Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
+            if (session.ReadQuestActorSnos() is { } named) Deliver(lease, () => Raise("quest actors", QuestActorsNamed, h => h(named)));
+            if (session.ReadCinematic() is { } cinematic) Deliver(lease, () => Raise("cinematic", CinematicRead, h => h(cinematic)));
+        }
+        finally { GiveBack(lease); }
+    }
+
+    private void Guarded(string poll, ref int busy, Action read)
+    {
+        if (Interlocked.Exchange(ref busy, 1) == 1) return; // the last tick's read still runs
+        try { Guarded(poll, read); }
+        finally { Volatile.Write(ref busy, 0); }
+    }
+
+    // An exception out of a timer callback ends the process. A read that throws (memory changing under it, a parse of
+    // unexpected data) is logged once per poll and the next tick tries again.
+    private void Guarded(string poll, Action read)
+    {
+        try { read(); }
+        catch (Exception e)
+        {
+            bool first;
+            lock (_reportedPollFailures) first = _reportedPollFailures.Add($"{poll} poll");
+            if (first) Console.Error.WriteLine($"The {poll} read failed; polling goes on. {e}");
+        }
     }
 
     private bool QuestMoved(IDungeonSessionReader session)
@@ -298,56 +403,80 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private void Raise<THandler>(string feed, THandler? handlers, Action<THandler> call) where THandler : Delegate
     {
         if (handlers is null) return;
-        foreach (var handler in handlers.GetInvocationList().Cast<THandler>())
-        {
-            try { call(handler); }
-            catch (Exception e)
+        lock (_deliver)
+            foreach (var handler in handlers.GetInvocationList().Cast<THandler>())
             {
-                bool first;
-                lock (_reportedPollFailures) first = _reportedPollFailures.Add(feed);
-                if (first) Console.Error.WriteLine($"A {feed} listener failed; the feed keeps running. {e}");
+                try { call(handler); }
+                catch (Exception e)
+                {
+                    bool first;
+                    lock (_reportedPollFailures) first = _reportedPollFailures.Add(feed);
+                    if (first) Console.Error.WriteLine($"A {feed} listener failed; the feed keeps running. {e}");
+                }
             }
-        }
     }
 
     /// <summary>Runs one tile-route read, triggering the one-time fallback scan if the route is unavailable.
     /// Public so tests can drive it deterministically instead of waiting on the timer.</summary>
-    public void PollTilesOnce()
+    public void PollTilesOnce() => Guarded("tiles", ref _tilesBusy, ReadTilesOnce);
+
+    private void ReadTilesOnce()
     {
-        IDungeonSessionReader? session;
+        SessionLease? lease;
         bool radarOnly;
-        lock (_gate) (session, radarOnly) = (CurrentWorldKind == WorldKind.Overworld ? null : _session, CurrentWorldRadarOnly);
-        if (session is null) return;
-        if (radarOnly) { RaiseStaticTiles(); return; } // static worlds keep their offline tiles
-
-        var tiles = session.ReadTilesViaRoute();
-        if (tiles is not null) { Raise("tiles", TilesUpdated, h => h(tiles)); return; }
-
         lock (_gate)
         {
-            if (_session != session || _fallbackScanTriggered) return;
-            _fallbackScanTriggered = true;
+            if (CurrentWorldKind == WorldKind.Overworld) return;
+            radarOnly = CurrentWorldRadarOnly;
+            lease = BorrowLocked();
         }
-        RunFullScanInBackground(session);
+        if (lease is null) return;
+        try
+        {
+            if (radarOnly) { Deliver(lease, RaiseStaticTiles); return; } // static worlds keep their offline tiles
+
+            var tiles = lease.Reader.ReadTilesViaRoute();
+            if (tiles is not null) { Deliver(lease, () => Raise("tiles", TilesUpdated, h => h(tiles))); return; }
+
+            lock (_gate)
+            {
+                if (_session != lease || _fallbackScanTriggered) return;
+                _fallbackScanTriggered = true;
+            }
+            RunFullScanInBackground();
+        }
+        finally { GiveBack(lease); }
     }
 
     /// <summary>Forces an extra full scan right now (task spec: "re-scan only on demand" after the automatic one).</summary>
     public void RescanTiles()
     {
-        IDungeonSessionReader? session;
-        lock (_gate) session = CurrentWorldKind is WorldKind.RadarOnly or WorldKind.Overworld ? null : _session;
-        if (session is not null) RunFullScanInBackground(session);
+        bool scans;
+        lock (_gate) scans = CurrentWorldKind is not (WorldKind.RadarOnly or WorldKind.Overworld);
+        if (scans) RunFullScanInBackground();
     }
 
-    private void RunFullScanInBackground(IDungeonSessionReader session) =>
+    // Scans with the current session, borrowed until the scan ends (it takes seconds, a world change can come meanwhile).
+    private void RunFullScanInBackground()
+    {
+        SessionLease? lease;
+        lock (_gate) lease = BorrowLocked();
+        if (lease is null) return;
         Task.Run(() =>
         {
-            var tiles = session.ReadTilesViaFullScan();
-            lock (_gate) { if (_session != session) return; }
-            Raise("tiles", TilesUpdated, h => h(tiles));
+            try
+            {
+                Guarded("full scan", () =>
+                {
+                    var tiles = lease.Reader.ReadTilesViaFullScan();
+                    Deliver(lease, () => Raise("tiles", TilesUpdated, h => h(tiles)));
+                });
+            }
+            finally { GiveBack(lease); }
         });
+    }
 
-    private void HandleSessionLost(IDungeonSessionReader expectedSession)
+    private void HandleSessionLost(SessionLease expectedSession)
     {
         lock (_gate)
         {

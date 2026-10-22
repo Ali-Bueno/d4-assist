@@ -36,4 +36,10 @@ internal static class ObjectiveMemoryTestKit
     /// <summary>One actor poll where the given objective actors loop and nothing else stands around.</summary>
     public static void Heard(this ObjectiveMemory memory, params ActorState[] looping) =>
         memory.Observe(new ObjectiveSighting(looping, [], looping));
+
+    /// <summary>Hears only <paramref name="looping"/> for as long as an objective missing from the actors takes to read done.</summary>
+    public static void Gone(this ObjectiveMemory memory, params ActorState[] looping)
+    {
+        for (int i = 0; i < ObjectiveMemory.MissingPollsForDone; i++) memory.Heard(looping);
+    }
 }

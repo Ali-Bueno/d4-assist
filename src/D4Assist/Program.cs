@@ -341,11 +341,19 @@ internal static class Program
         QuestPathBridge? pathBridge = null;
         var bossEntrances = new TileActorReader(markerScenes, sno => store.Name(sno) == BossRoomDestination.EntranceTriggerName);
         var bossRoom = new BossRoomDestination(session, scene => { lock (cascGate) return bossEntrances.In(scene); }, debug ? Console.WriteLine : null);
+        // A dungeon whose objective quest names no actor asks for a kill count: every monster (the seasonal Den of Evil).
+        var monsters = new RemainingMonstersDestination(session, name =>
+        {
+            int world = WorldSnoOrNone(store, schema, name);
+            lock (cascGate) return dpo.QuestSnos(world).Count > 0 && dpo.ActorSnos(world).Count == 0;
+        }, debug ? Console.WriteLine : null);
+        session.MapMarkersRead += monsters.OnMarkers;
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
                 pad, config.ExplorationGuideInDungeons, language,
-                portals is null ? bossRoom.Destinations : () => [.. bossRoom.Destinations(), .. portals.Destinations()],
+                portals is null ? () => [.. monsters.Destinations(), .. bossRoom.Destinations()]
+                    : () => [.. monsters.Destinations(), .. bossRoom.Destinations(), .. portals.Destinations()],
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
                 objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);

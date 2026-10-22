@@ -247,13 +247,23 @@ public sealed class ExplorationGuideBridge
         if (target.Kind == GuideTargetKind.Destination)
         {
             _announcedGoal = PortalGoal;
+            var strings = AppStrings.For(_language.Current);
+            // The monsters the map marks are one goal, said again as their count falls.
+            if (target.Id.StartsWith(RemainingMonstersDestination.IdPrefix, StringComparison.Ordinal))
+            {
+                int left = destinations.Count(d => d.Id.StartsWith(RemainingMonstersDestination.IdPrefix, StringComparison.Ordinal));
+                string monsters = $"{RemainingMonstersDestination.IdPrefix}:{left}";
+                if (monsters == _announcedDestination) return;
+                _announcedDestination = monsters;
+                _speech.Speak(string.Format(strings.GuideToMonstersFormat, left), interrupt: false);
+                return;
+            }
             // The boss room's entrance and middle are one goal: said once.
             bool boss = target.Id.StartsWith(BossRoomDestination.IdPrefix, StringComparison.Ordinal);
             string announced = boss ? BossRoomDestination.IdPrefix : target.Id;
             if (announced == _announcedDestination) return;
             _announcedDestination = announced;
             bool back = destinations.FirstOrDefault(d => d.Id == target.Id)?.Tier > 0;
-            var strings = AppStrings.For(_language.Current);
             _speech.Speak(boss ? strings.GuideToBossRoom : back ? strings.GuideToUsedPortal : strings.GuideToPortal, interrupt: false);
             return;
         }

@@ -58,5 +58,6 @@ public sealed partial record AppStrings
         QuestMarker: "Отметка задания",
         PlaceCountFormat: "{0} из {1}.",
         GuideExploreMode: "Проводник: исследование.",
-        GuideObjectivesMode: "Проводник: цели.");
+        GuideObjectivesMode: "Проводник: цели.",
+        GuideToMonstersFormat: "Всё исследовано. На карте осталось монстров: {0}, веду к ним.");
 }

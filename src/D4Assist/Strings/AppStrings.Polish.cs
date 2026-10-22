@@ -58,5 +58,6 @@ public sealed partial record AppStrings
         QuestMarker: "Znacznik zadania",
         PlaceCountFormat: "{0} z {1}.",
         GuideExploreMode: "Przewodnik: eksploracja.",
-        GuideObjectivesMode: "Przewodnik: cele.");
+        GuideObjectivesMode: "Przewodnik: cele.",
+        GuideToMonstersFormat: "Wszystko zbadane. Na mapie zostało potworów: {0}, prowadzę.");
 }

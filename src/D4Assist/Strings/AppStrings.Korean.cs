@@ -58,5 +58,6 @@ public sealed partial record AppStrings
         QuestMarker: "퀘스트 표시",
         PlaceCountFormat: "{1}개 중 {0}번째.",
         GuideExploreMode: "안내: 탐험.",
-        GuideObjectivesMode: "안내: 목표.");
+        GuideObjectivesMode: "안내: 목표.",
+        GuideToMonstersFormat: "모두 탐색했습니다. 지도에 몬스터 {0}마리가 남았습니다. 안내합니다.");
 }

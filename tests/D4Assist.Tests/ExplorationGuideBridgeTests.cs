@@ -51,6 +51,7 @@ public class ExplorationGuideBridgeTests
         public double Now;
         public List<string> Log = [];
         public List<GuideDestination> Objectives = [];
+        public List<GuideDestination> Destinations = [];
         public IReadOnlyList<GuideDestination>? AskedObjectives;
         public int Rearms;
         public bool RouteActive;
@@ -60,7 +61,7 @@ public class ExplorationGuideBridgeTests
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             _ = new ExplorationGuideBridge(
                 Feed, (_, _, _, objectives) => { AskedObjectives = objectives; return Step; }, Ping, Speech, () => BeaconActive, Log.Add, Pad,
-                guideInDungeons, objectives: () => Objectives, rearmObjectives: _ => Rearms++, routeActive: () => RouteActive);
+                guideInDungeons, destinations: () => Destinations, objectives: () => Objectives, rearmObjectives: _ => Rearms++, routeActive: () => RouteActive);
             Feed.RaiseWorld();
         }
 
@@ -514,6 +515,28 @@ public class ExplorationGuideBridgeTests
         }
 
         Assert.Equal([(D4Assist.Strings.AppStrings.Spanish.GuideToBossRoom, false)], rig.Speech.Spoken);
+    }
+
+    [Fact]
+    public void Marked_monsters_are_announced_with_their_count_again_as_it_falls()
+    {
+        // Live 2026-10-22, the seasonal Den of Evil: "kill every monster", all explored, the guide led to the exit.
+        var rig = new Rig(guideInDungeons: true);
+        rig.Feed.RaiseWorld("S15_Rift_DenOfEvil");
+        string Monster(int i) => $"{RemainingMonstersDestination.IdPrefix}:7:{i},0";
+        void LeadTo(int count, int target)
+        {
+            rig.Destinations = [.. Enumerable.Range(0, count).Select(i => new GuideDestination(Monster(i), (i * 8, 0), RemainingMonstersDestination.Tier))];
+            rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Destination, Monster(target), (target * 8, 0)), (-10, 10), 30);
+            rig.Feed.RaisePlayer();
+        }
+
+        LeadTo(3, 0);
+        LeadTo(3, 1); // another monster nearer, same count: no word
+        LeadTo(2, 1);
+
+        string format = D4Assist.Strings.AppStrings.Spanish.GuideToMonstersFormat;
+        Assert.Equal([(string.Format(format, 3), false), (string.Format(format, 2), false)], rig.Speech.Spoken);
     }
 
     [Fact]

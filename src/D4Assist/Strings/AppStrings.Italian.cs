@@ -58,5 +58,6 @@ public sealed partial record AppStrings
         QuestMarker: "Indicatore di missione",
         PlaceCountFormat: "{0} di {1}.",
         GuideExploreMode: "Guida: esplorazione.",
-        GuideObjectivesMode: "Guida: obiettivi.");
+        GuideObjectivesMode: "Guida: obiettivi.",
+        GuideToMonstersFormat: "Tutto esplorato. Ancora {0} mostri sulla mappa, ti ci porto.");
 }

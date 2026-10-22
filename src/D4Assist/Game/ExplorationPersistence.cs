@@ -23,6 +23,10 @@ public sealed class ExplorationPersistence
     // The save names another instance of the same world in the same game run: a death can move the player to one with the same
     // tiles (live 2026-10-22, "Die Leere": 3145731, then 3670019 beside the boss; the guide explored the whole dungeon again).
     private bool _otherInstance;
+    /// <summary>The tiles a save brought back, beyond the loaded window: what learns of tiles only as the game streams them
+    /// (BossRoomDestination) learns of these too (live 2026-10-22: restored far from the boss room, the guide led to the exit).</summary>
+    public event Action<IReadOnlyList<TileState>>? Restored;
+
     /// <summary>Loaded tiles that must agree with another instance's save before it is taken for this one.</summary>
     public const int SameLayoutTiles = 3;
 
@@ -86,6 +90,8 @@ public sealed class ExplorationPersistence
             return;
         }
         _navigation.RestoreExploration(new ExplorationState(saved.Tiles, [.. saved.Visited.Where(c => c.Length == 2).Select(c => (c[0], c[1]))]));
+        Restored?.Invoke([.. saved.Tiles.Select(t => new TileState(
+            t.SceneSno, t.Name, t.OriginX, t.OriginY, t.SizeX, t.SizeY, t.ExitMask, t.NodeId, t.GroupId, t.YawDegrees, t.AuthoredExitMask))]);
         _portals?.Restore(saved.Portals);
         _objectives?.Restore(saved.Objectives ?? []);
         _layers?.Restore(saved.Layers ?? []);

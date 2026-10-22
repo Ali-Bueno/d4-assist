@@ -269,7 +269,7 @@ internal static class Program
             actors => actors.Any(carried.IsHeld) ? [.. actors.Select(a => carried.IsBossToBind(a) ? a with { Invulnerable = false } : a)] : actors);
         _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
-        _ = new ExplorationPersistence(
+        var persistence = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine,
             objectives, sceneLayers);
         session.WorldChanged += (_, _, _) => sceneLayers.Reset();
@@ -345,6 +345,7 @@ internal static class Program
         QuestPathBridge? pathBridge = null;
         var bossEntrances = new TileActorReader(markerScenes, sno => store.Name(sno) == BossRoomDestination.EntranceTriggerName);
         var bossRoom = new BossRoomDestination(session, scene => { lock (cascGate) return bossEntrances.In(scene); }, debug ? Console.WriteLine : null);
+        persistence.Restored += bossRoom.OnRestored;
         // A dungeon whose objective quest names no actor asks for a kill count: every monster (the seasonal Den of Evil).
         var monsters = new RemainingMonstersDestination(session, name =>
         {

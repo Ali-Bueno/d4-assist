@@ -152,6 +152,29 @@ public class PortalTests
     }
 
     [Fact]
+    public void A_portal_an_entrance_tile_places_is_the_way_in_though_the_arrival_was_not_seen()
+    {
+        // Live 2026-10-22, "Die Leere": the app started beside the boss after a death and led to the entrance tile's portal as an
+        // unused exit, before the boss room.
+        var (feed, memory) = NewMemory(tilePortals: true);
+        feed.RaisePlayer(60, 60);
+
+        feed.RaiseTiles(HubTile with { Name = "Cave_Tomb_W_Entrance_01" });
+
+        Assert.Equal(1, Assert.Single(memory.Destinations()).Tier);
+    }
+
+    [Fact]
+    public void Restored_tiles_tell_the_boss_room_too()
+    {
+        var boss = new BossRoomDestination(new Feed(), _ => []);
+
+        boss.OnRestored([new TileState(5, "Cave_Tomb_FLEX_POI_CSD_Skov_Celestia_SpearDungeon_BossRoom", -64, -64, 96, 96, 6, 1, 1)]);
+
+        Assert.Equal((-16f, -16f), Assert.Single(boss.Destinations()).Position);
+    }
+
+    [Fact]
     public void Seeing_a_placed_portal_keeps_it_as_the_same_goal()
     {
         var (feed, memory) = NewMemory(tilePortals: true);

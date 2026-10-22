@@ -36,10 +36,22 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
             return [.. _layers.Select(l => new SavedLayer(l.Key, l.Value.Scene, l.Value.Wp.X, l.Value.Wp.Y, l.Value.Wp.Z, l.Value.Q.Z, l.Value.Q.W))];
     }
 
+    /// <summary>The save wins: the first quest read can come before it (live 2026-10-22: room B took room A's tile 0.13 s before the
+    /// save said it was room A's), so a layer that took a saved layer's tile lands again.</summary>
     public void Restore(IReadOnlyList<SavedLayer> saved)
     {
         lock (_gate)
-            foreach (var l in saved) _layers.TryAdd(l.Layer, (l.Scene, new Vector3(l.X, l.Y, l.Z), new Quaternion(0, 0, l.QZ, l.QW)));
+            foreach (var l in saved)
+            {
+                var wp = new Vector3(l.X, l.Y, l.Z);
+                foreach (int other in _layers.Where(o => o.Key != l.Layer && o.Value.Scene == l.Scene
+                    && Vector2.Distance(Flat(o.Value.Wp), Flat(wp)) <= SameTileUnits).Select(o => o.Key).ToList())
+                {
+                    _layers.Remove(other);
+                    log?.Invoke($"LAYER {other} of scene {l.Scene} unplaced: the saved layer {l.Layer} holds its tile");
+                }
+                _layers[l.Layer] = (l.Scene, wp, new Quaternion(0, 0, l.QZ, l.QW));
+            }
     }
 
     /// <param name="placements">Where each scene is placed: its tiles' origins and rotations.</param>
@@ -67,10 +79,16 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
         bool Free(Vector3 wp) => !taken.Any(w => Vector2.Distance(Flat(w), Flat(wp)) <= SameTileUnits);
         var free = tiles.Where(t => Free(t.Wp)).ToList();
         string how;
-        if (free.Count == 1) how = "its tile";
-        else if (free.Count == 0 && taken.Count > 0 && MapAnchored(m, marked).Where(Free).ToList() is [var origin])
+        // The map marks the step's own trigger where the game has it (live 2026-10-22: room B's at (-16,205) during phase 280).
+        if (MapAnchored([m.Marker], marked).Where(Free).ToList() is [var own])
         {
-            free = [(origin, Quaternion.Identity)];
+            free = [tiles.FirstOrDefault(t => Vector2.Distance(Flat(t.Wp), Flat(own)) <= SameTileUnits, (Wp: own, Q: Quaternion.Identity))];
+            how = "the map's marker of it";
+        }
+        else if (free.Count == 1) how = "its tile";
+        else if (free.Count == 0 && taken.Count > 0 && MapAnchored(m.Anchors ?? [], marked).Where(Free).ToList() is [var origin])
+        {
+            free = [(Wp: origin, Q: Quaternion.Identity)];
             how = "the map's marker of its actor";
         }
         else return null;
@@ -82,10 +100,10 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
     // The tile origins the map's markers of the layer's own actors imply, unturned as every DRLG tile seen so far; one per tile.
     // Only an origin on the tile grid: the same barrier wall stands in other layers too (the banishment room's, at another spot
     // in its tile), and its marker there implies an origin off the grid.
-    private static List<Vector3> MapAnchored(SceneMarker m, IReadOnlyList<(int Sno, Vector3 Position)> marked)
+    private static List<Vector3> MapAnchored(IReadOnlyList<PlacedMarker> anchors, IReadOnlyList<(int Sno, Vector3 Position)> marked)
     {
         var origins = new List<Vector3>();
-        foreach (var anchor in m.Anchors ?? [])
+        foreach (var anchor in anchors)
             foreach (var (sno, position) in marked)
                 if (sno == anchor.Sno && position - anchor.Position is var origin && OnGrid(origin.X) && OnGrid(origin.Y)
                     && !origins.Any(o => Vector2.Distance(Flat(o), Flat(origin)) <= SameTileUnits))

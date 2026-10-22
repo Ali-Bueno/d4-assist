@@ -35,6 +35,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> _placements = [];
     private readonly SceneLayerPlacement _layers;
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
+    private IReadOnlyList<PlacedMarker> _markedPlaces = [];
     private readonly BlueprintPlacement _blueprints = new();
     private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
     private IReadOnlySet<int> _questActorSnos = new HashSet<int>();
@@ -396,6 +397,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
                 .Concat(named.KindMarkers.Count == 0 ? [] : _blueprints.Place(named.KindMarkers,
                     [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))])).ToList();
             _questPlaces = places;
+            _markedPlaces = [.. places.Where(p => marked.Any(m => m.ActorSno == p.Sno
+                && Vector2.Distance(new(m.Position.X, m.Position.Y), new(p.Position.X, p.Position.Y)) <= ActiveQuests.MarkerReach))];
             _questActorSnos = named.ActorSnos;
             var mapped = MarkedGizmos(marked);
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
@@ -472,7 +475,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>
         _activeQuests is null ? null :
         [
-            .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z)),
+            .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z, Marked: _markedPlaces.Contains(m))),
             .. _questGizmosAhead.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, Ahead: true, g.Marked)),
         ];
 

@@ -192,6 +192,7 @@ public sealed class ObjectiveMemory
                     Log("named again", objective);
                     SetAsideIfWalked(objective);
                 }
+                objective.Marked = place.Marked;
                 named.Add(objective);
             }
             foreach (var objective in _places.Where(o => o.Pending && !named.Contains(o)))
@@ -305,8 +306,10 @@ public sealed class ObjectiveMemory
     private static bool Among(Objective objective, IReadOnlyList<ActorState> actors) =>
         actors.Any(a => a.ActorSno == objective.Sno && (a.Id == objective.ActorId || Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits));
 
-    // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to.
-    private bool Located(Objective objective) => _objectives.Contains(objective) && (!objective.PlacedOnly || objective.Marked);
+    // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to, unless the
+    // map marks its trigger there (live 2026-10-22: lock room B's, on a tile not loaded yet).
+    private bool Located(Objective objective) =>
+        _objectives.Contains(objective) ? !objective.PlacedOnly || objective.Marked : objective.Marked;
 
     private static bool Stands(Objective objective, IReadOnlyList<ActorState> actors) =>
         actors.Any(a => a.ActorSno == objective.Sno && Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits);

@@ -75,4 +75,32 @@ public class SceneLayerPlacementTests
         after.Reset();
         Assert.Equal(RoomA.Y + 13, Assert.Single(after.Place([In(LayerB)], Tiles(RoomA), [])).Position.Y);
     }
+
+    [Fact]
+    public void The_save_wins_over_a_layer_placed_before_it_came_in()
+    {
+        // Live 2026-10-22: the restarted app placed room B on room A's tile 0.13 s before the save named that tile room A's.
+        var before = new SceneLayerPlacement();
+        before.Place([In(LayerA)], Tiles(RoomA), []);
+        var after = new SceneLayerPlacement();
+        after.Place([In(LayerB)], Tiles(RoomA), []);
+
+        after.Restore(before.Export());
+
+        Assert.Empty(after.Place([In(LayerB)], Tiles(RoomA), []));
+        Assert.Equal(205f, Assert.Single(after.Place([In(LayerB)], Tiles(RoomA), Map((Barrier, -15.9f, 203)))).Position.Y, 0.01f);
+    }
+
+    [Fact]
+    public void The_maps_marker_of_the_steps_own_trigger_places_its_layer_even_beside_a_single_tile()
+    {
+        // Live 2026-10-22, phase 280 after a restart: only room A's tile loaded, the map marking room B's trigger at (-16,205) and the
+        // overworld's copy of the same trigger at (3027.7,-1019.6), off the grid.
+        var layers = new SceneLayerPlacement();
+
+        var b = Assert.Single(layers.Place([In(LayerB)], Tiles(RoomA), Map((Trigger, -16, 205), (Trigger, 3027.7f, -1019.6f))));
+
+        Assert.Equal((-16f, 205f), (b.Position.X, b.Position.Y));
+        Assert.Equal(-48f, Assert.Single(layers.Place([In(LayerA)], Tiles(RoomA), [])).Position.X);
+    }
 }

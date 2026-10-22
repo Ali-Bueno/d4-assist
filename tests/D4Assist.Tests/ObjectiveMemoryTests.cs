@@ -389,6 +389,19 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_quest_place_the_map_marks_is_located_so_exploring_heads_for_it()
+    {
+        // Live 2026-10-22, "Die Leere": the map marked lock room B's trigger at (-16,205), on a tile not loaded yet.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(-48, 365));
+
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -16, 205, Marked: true), new QuestPlace(TriggerSno, 0, 40)]);
+
+        Assert.True(Assert.Single(memory.Destinations(), d => d.Position == (-16, 205)).Located);
+        Assert.False(Assert.Single(memory.Destinations(), d => d.Position == (0, 40)).Located);
+    }
+
+    [Fact]
     public void Of_several_quest_places_one_stood_in_and_walked_on_from_gives_way_to_the_next()
     {
         // Live 2026-10-17 (CSD_Skov_Temis_SmugglersRun_02): one step named six triggers through the dungeon.

@@ -50,3 +50,8 @@ capture: `D4MemScan effects`.
 - The app (`TelegraphWarner`): warning effects by name (circle/cone/line/ring), projectiles `*wall*` as a wave (run on ahead
   of it), `*tornado*` as a mover (step aside when it drifts at the player), with `HAZARD` debug lines for every damaging effect
   and projectile near the player.
+- **The spirit bomb's warning is a mark that follows its target** (third run, 2026-10-23): `persistentWarning_spirits_*` kept
+  0.0 from the player while they ran (capture rows every 2 units) and burst where they then stood, ~4 s on; marks that rose
+  ~6 units off (on Tyrael, Lorath or the mercenary) burst far from the player. The player died 1.6 units from such a burst, a
+  wave wall rising beside them at the same moment. Stepping out can't shake it: the app says it follows ("Markiert: …") when the
+  circle under the player has moved with them by the next poll, and a way out only for one that stays put.

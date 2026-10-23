@@ -60,5 +60,6 @@ public sealed partial record AppStrings
         GuideExploreMode: "向导：探索。",
         GuideObjectivesMode: "向导：目标。",
         GuideToMonstersFormat: "全部探索完毕。地图上还有{0}个怪物，正在带你过去。",
-        DodgeFormat: "躲避：{0}");
+        DodgeFormat: "躲避：{0}",
+        MarkedWarning: "被标记：爆炸会跟着你");
 }

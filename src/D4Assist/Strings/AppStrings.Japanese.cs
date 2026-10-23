@@ -60,5 +60,6 @@ public sealed partial record AppStrings
         GuideExploreMode: "ガイド：探索。",
         GuideObjectivesMode: "ガイド：目標。",
         GuideToMonstersFormat: "すべて探索済み。マップにモンスターが残り{0}体、案内します。",
-        DodgeFormat: "回避：{0}");
+        DodgeFormat: "回避：{0}",
+        MarkedWarning: "マーク：爆発が追ってくる");
 }

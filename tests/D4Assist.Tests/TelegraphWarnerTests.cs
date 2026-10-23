@@ -69,6 +69,8 @@ public class TelegraphWarnerTests
         feed.RaiseActors(Guardian(), Effect(1, PropSno, 12, 12));
 
         feed.RaiseActors(Guardian(), Effect(1, PropSno, 12, 12), Effect(2, SwirlSno, 10, 10), Effect(3, SwirlSno, 10, 10), Effect(4, LightSno, 10, 10));
+        Assert.Empty(speech.Spoken); // right under the player: a poll to see whether it follows them
+        feed.RaiseActors(Guardian(), Effect(1, PropSno, 12, 12), Effect(2, SwirlSno, 10, 10), Effect(3, SwirlSno, 10, 10), Effect(4, LightSno, 10, 10));
 
         // The guardian stands left of the player (engine (+3,-3) from it is screen left): away from it is right.
         var expected = string.Format(AppStrings.English.DodgeFormat, NavigationPhrases.English.Direction(StickDirection.Right));
@@ -93,7 +95,7 @@ public class TelegraphWarnerTests
     public void Warnings_close_together_ring_each_but_speak_at_most_once_a_gap()
     {
         var (feed, speech, cues, setSeconds) = Create();
-        feed.RaiseActors(Guardian(), Effect(2, SwirlSno, 10, 10));
+        feed.RaiseActors(Guardian(), Effect(2, SwirlSno, 10, 8.5f));
         setSeconds(0.5);
         feed.RaiseActors(Guardian(), Effect(3, SwirlSno, 13.5f, 10)); // another spot, half a second later
         setSeconds(2);
@@ -144,5 +146,18 @@ public class TelegraphWarnerTests
         feed.RaiseActors(Guardian(), Projectile(300, TornadoSno, 8, 9.5f));
 
         Assert.Single(speech.Spoken);
+    }
+
+    [Fact]
+    public void A_mark_that_follows_the_player_says_so_instead_of_a_way_out()
+    {
+        // Live 2026-10-23: the guardian's spirit bomb mark kept 0.0 from the player as they ran, and burst where they stood.
+        var (feed, speech, cues, _) = Create();
+        feed.RaiseActors(Guardian(), Effect(2, SwirlSno, 10, 10));
+        feed.RaisePlayer(Player with { X = 12 });
+        feed.RaiseActors(Guardian(), Effect(2, SwirlSno, 12, 10));
+
+        Assert.Equal([(AppStrings.English.MarkedWarning, true)], speech.Spoken);
+        Assert.Single(cues);
     }
 }

@@ -60,5 +60,6 @@ public sealed partial record AppStrings
         GuideExploreMode: "Rehber: keşif.",
         GuideObjectivesMode: "Rehber: hedefler.",
         GuideToMonstersFormat: "Her yer keşfedildi. Haritada {0} canavar kaldı, seni götürüyorum.",
-        DodgeFormat: "Kaç: {0}");
+        DodgeFormat: "Kaç: {0}",
+        MarkedWarning: "İşaretlendin: patlama seni takip ediyor");
 }

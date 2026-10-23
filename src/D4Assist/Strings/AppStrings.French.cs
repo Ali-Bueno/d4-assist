@@ -60,5 +60,6 @@ public sealed partial record AppStrings
         GuideExploreMode: "Guide : exploration.",
         GuideObjectivesMode: "Guide : objectifs.",
         GuideToMonstersFormat: "Tout est exploré. Encore {0} monstres sur la carte, je vous y mène.",
-        DodgeFormat: "Esquive : {0}");
+        DodgeFormat: "Esquive : {0}",
+        MarkedWarning: "Marqué : l'explosion vous suit");
 }

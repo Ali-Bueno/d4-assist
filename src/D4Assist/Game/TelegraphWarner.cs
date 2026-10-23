@@ -107,7 +107,7 @@ public sealed class TelegraphWarner
         _isProjectile = isProjectile;
         var clock = Stopwatch.StartNew();
         _now = now ?? (() => clock.Elapsed);
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _moverWarned.Clear(); _moverLast.Clear(); _lastWave = null; _player = null; } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _moverWarned.Clear(); _moverLast.Clear(); _pendingMarks.Clear(); _lastWave = null; _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) _player = p; };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
     }
@@ -133,7 +133,18 @@ public sealed class TelegraphWarner
             if (_telegraphs.Of(effect.ActorSno) is not { } shape || Distance(effect, player) > WarnRangeUnits) continue;
             if (_recent.Any(r => MathF.Abs(r.X - effect.X) + MathF.Abs(r.Y - effect.Y) <= SameWarningUnits)) continue;
             _recent.Add((effect.X, effect.Y, now));
+            // A circle right under the player may be a mark that follows them (the guardian's spirit bomb, live 2026-10-23: it kept
+            // 0.0 from the player as they ran, and burst where they then stood): wait a poll to see whether it moves with them.
+            if (shape == TelegraphShape.Circle && Distance(effect, player) <= OnPlayerUnits) { _pendingMarks[effect.Id] = (effect.X, effect.Y); continue; }
             Warn(effect, shape, player, foe, now);
+        }
+        foreach (var (id, (x, y)) in _pendingMarks.ToList())
+        {
+            if (fresh.Any(f => f.Id == id)) continue; // just seen: weighed next poll
+            _pendingMarks.Remove(id);
+            if (effects.FirstOrDefault(e => e.Id == id) is not { } mark) continue; // gone already
+            if (MathF.Abs(mark.X - x) + MathF.Abs(mark.Y - y) >= MarkMovedUnits && Distance(mark, player) <= OnPlayerUnits) Marked(mark, now);
+            else Warn(mark, TelegraphShape.Circle, player, foe, now);
         }
         // Hazards on the move are weighed every poll: a tornado drifts onto the player, a wall sweeps toward them. A wall's
         // segments rise together: one warning for all of them.
@@ -169,6 +180,21 @@ public sealed class TelegraphWarner
 
     private readonly Dictionary<uint, TimeSpan> _moverWarned = [];
     private TimeSpan? _lastWave;
+
+    /// <summary>A circle within this of the player is checked for following them; one that moved this much along with them does.</summary>
+    public const float OnPlayerUnits = 1f, MarkMovedUnits = 0.5f;
+
+    private readonly Dictionary<uint, (float X, float Y)> _pendingMarks = [];
+
+    // A mark that follows the player: no way to step out of it, but they know the burst comes to them.
+    private void Marked(ActorState mark, TimeSpan now)
+    {
+        _log?.Invoke($"TELEGRAPH mark follows the player at ({mark.X:F1},{mark.Y:F1})");
+        _playCue(0);
+        if (_lastSpoken is { } last && now - last < SpeechGap) return;
+        _lastSpoken = now;
+        _speech.Speak(AppStrings.For(_language.Current).MarkedWarning, interrupt: true);
+    }
 
     private void Warn(ActorState effect, TelegraphShape shape, PlayerState player, ActorState foe, TimeSpan now)
     {

@@ -16,7 +16,8 @@ public sealed partial record AppStrings(
     string PathEnd, string PathNotFound, string NoQuestPlace, string PentagramGuide, string PentagramEnd,
     string QuestMarker, string PlaceCountFormat, string GuideExploreMode, string GuideObjectivesMode,
     string GuideToMonstersFormat,
-    string DodgeFormat)
+    string DodgeFormat,
+    string MarkedWarning)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -56,7 +57,8 @@ public sealed partial record AppStrings(
         "No hay objetivos de misión en el mapa.", "Guía del pentagrama.", "Fin del pentagrama.", "Marcador de misión",
         "{0} de {1}.", "Guía: exploración.", "Guía: objetivos.",
         "Todo explorado. Quedan {0} monstruos en el mapa, te llevo.",
-        "Esquiva: {0}");
+        "Esquiva: {0}",
+        "Marcado: la explosión te sigue");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -96,7 +98,8 @@ public sealed partial record AppStrings(
         "No quest goal on the map.", "Pentagram guide.", "End of the pentagram.", "Quest marker",
         "{0} of {1}.", "Guide: exploring.", "Guide: objectives.",
         "All explored. {0} monsters left on the map, leading there.",
-        "Dodge: {0}");
+        "Dodge: {0}",
+        "Marked: the burst follows you");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {

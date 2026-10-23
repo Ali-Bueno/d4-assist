@@ -60,5 +60,6 @@ public sealed partial record AppStrings
         GuideExploreMode: "Przewodnik: eksploracja.",
         GuideObjectivesMode: "Przewodnik: cele.",
         GuideToMonstersFormat: "Wszystko zbadane. Na mapie zostało potworów: {0}, prowadzę.",
-        DodgeFormat: "Unik: {0}");
+        DodgeFormat: "Unik: {0}",
+        MarkedWarning: "Naznaczony: wybuch podąża za tobą");
 }

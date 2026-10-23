@@ -129,6 +129,22 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   at different heights merge in that projection (bridges, ledges); S keeps the heights for a later 2.5D map.
 - Reference decoder (Python) and validation harness: scratchpad of 2026-09-30 (`cb/dec.py`, `cbval`), not kept.
 
+### 4.1c Traversals split the surfaces (offline, 2026-10-23, `Kehj_Hell_Sightless_Eye` 929413)
+
+- Static world (layout 1, grid 96, 40 chunks, none rotated; 27 scenes have no surface voxels). Its S surfaces
+  (§4.1b) split into islands wherever the walk uses a **traversal**: a jump, a duck-under, a slide. The game's
+  floor doesn't cross them, so `SurfacePathfinder` found no path across (H: every split of the quest's walk had one).
+- Each traversal is a group of scene markers in any layer: `Traversal_Controller`, two `Traversal_Gizmo_<Kind>` ends
+  (one for a slide) and a `MarkerLocation_TraversalExit` by each end (or the slide's foot). Jump ends 4.9–6.0 apart,
+  duck-under 2.0, slide 7.0 and 5 units down. Seen: `_Jump`, `_DuckUnder`, `_Slide`.
+- Pairing: two jumps on one ledge stood 4.5 apart (-518.4 and -522.8, -289.5), nearer than their own far ends, so
+  mutual-nearest pairing (`JumpLinkCollector`, DRLG tiles) would join the ledge to itself and miss both. Linking
+  every two ends (gizmos and exits) within 8 units joins exactly the islands; the extra links are steps on one floor.
+- Replay of "The Blind Eye" (593914) in phase order: without links 6 of 16 legs had no path, with links all but two:
+  the statue to the escape (the game teleports the player) and the campfire (a 36-unit gap: its cinematic moves the
+  player down).
+- Rising bridges (`SightlessEye_Rising_Bridge_01_Dyn`, door-like gizmos) did not split the surfaces of that walk.
+
 ### 4.2 Detail voxel grid layout (H, validated on 104 tiles)
 
 - Per cell: **64 × 64 columns × 72 levels, 0.5-unit voxels**. Each u64 is a 4×4×4 brick holding one nibble per

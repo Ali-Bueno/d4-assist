@@ -3,7 +3,7 @@ using System.Numerics;
 namespace D4Assist.Navigation;
 
 /// <summary>
-/// Shortest walk over the open world's surface voxels (scene m_cellBytes surfaces with their heights,
+/// Shortest walk over a static world's surface voxels (scene m_cellBytes surfaces with their heights,
 /// research/dungeon-data.md §4.1b), for a quest place the game's own navigation doesn't lead to. The surfaces form a
 /// 2.5D map: a column may hold floors at several heights, and a step joins two of them only when their heights differ by
 /// at most <see cref="MaxStepUnits"/>, so a cliff's top and foot, side by side seen from above, stay apart.
@@ -31,6 +31,9 @@ public static class SurfacePathfinder
     /// <summary>Spacing of the points the route returns.</summary>
     public const float PointSpacingUnits = 5f;
 
+    /// <summary>What using a traversal costs on top of its length, so an equal walk is preferred to stopping to use it.</summary>
+    public const float TraversalUnits = 2f;
+
     private static readonly (int Dx, int Dy, float Length)[] Moves =
     [
         (-1, 0, 1f), (1, 0, 1f), (0, -1, 1f), (0, 1, 1f),
@@ -44,10 +47,13 @@ public static class SurfacePathfinder
     /// <see cref="PointSpacingUnits"/> apart (the last one the target), or null when no walk joins them.</summary>
     /// <param name="surfaces">Surface voxels in world space (each voxel's low corner, Z its floor).</param>
     /// <param name="fromZ">The player's height, to pick the floor they stand on; null for the lowest.</param>
-    public static IReadOnlyList<Vector2>? Find(IEnumerable<Vector3> surfaces, Vector2 from, Vector2 to, float? fromZ = null)
+    /// <param name="links">Traversals joining floors across gaps; null for none.</param>
+    public static IReadOnlyList<Vector2>? Find(
+        IEnumerable<Vector3> surfaces, Vector2 from, Vector2 to, float? fromZ = null, IReadOnlyList<SurfaceLink>? links = null)
     {
         var map = SurfaceMap.Build(surfaces);
         if (map is null || map.Snap(from, fromZ) is not { } start) return null;
+        if (links is not null) map.AddLinks(links);
         var goals = map.NodesNear(to, TargetReachUnits);
         if (goals.Count == 0 && map.Snap(to, null) is { } nearTarget) goals.Add(nearTarget);
         if (goals.Count == 0) return null;
@@ -77,6 +83,7 @@ public static class SurfacePathfinder
         private readonly int _x0, _y0, _width, _height;
         private readonly int[] _first; // per column: index of its first floor in _floors; columns end where the next starts
         private readonly float[] _floors;
+        private readonly Dictionary<int, List<(int Node, float Units)>> _links = [];
 
         private SurfaceMap(int x0, int y0, int width, int height, int[] first, float[] floors) =>
             (_x0, _y0, _width, _height, _first, _floors) = (x0, y0, width, height, first, floors);
@@ -150,6 +157,26 @@ public static class SurfacePathfinder
                 if (best is not null) return best;
             }
             return null;
+        }
+
+        /// <summary>Joins the floors under each link's ends; a link with an end off the map is left out.</summary>
+        public void AddLinks(IReadOnlyList<SurfaceLink> links)
+        {
+            foreach (var link in links)
+            {
+                var from = new Vector2(link.From.X, link.From.Y);
+                var to = new Vector2(link.To.X, link.To.Y);
+                if (Snap(from, link.From.Z) is not { } a || Snap(to, link.To.Z) is not { } b || a == b) continue;
+                float units = Vector2.Distance(from, to) + TraversalUnits;
+                Link(a, b, units);
+                if (!link.OneWay) Link(b, a, units);
+            }
+        }
+
+        private void Link(int from, int to, float units)
+        {
+            if (!_links.TryGetValue(from, out var targets)) _links[from] = targets = [];
+            targets.Add((to, units));
         }
 
         public HashSet<int> NodesNear(Vector2 p, float radius)
@@ -249,6 +276,15 @@ public static class SurfacePathfinder
                     cost[next] = here + step;
                     previous[next] = current.Node;
                     open.Enqueue((next, x, y), here + step + Remaining(x, y, target));
+                }
+                if (!_links.TryGetValue(current.Node, out var linked)) continue;
+                foreach (var (next, units) in linked)
+                {
+                    if (closed.Contains(next) || (cost.TryGetValue(next, out float known) && known <= here + units)) continue;
+                    cost[next] = here + units;
+                    previous[next] = current.Node;
+                    var (x, y) = CellOf(next);
+                    open.Enqueue((next, x, y), here + units + Remaining(x, y, target));
                 }
             }
             return null;

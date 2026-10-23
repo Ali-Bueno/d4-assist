@@ -90,4 +90,37 @@ public class SurfacePathfinderTests
 
         Assert.Null(SurfacePathfinder.Find(ground, new(50, 50), new(5, 5)));
     }
+
+    // Two ledges 5 units apart across a gap (x 15..20), as a Sightless Eye jump.
+    private static List<Vector3> Ledges() => [.. Floor(0, 15, 0, 20, (_, _) => -4), .. Floor(20, 40, 0, 20, (_, _) => -4)];
+
+    [Fact]
+    public void A_traversal_joins_ledges_the_walk_cannot()
+    {
+        var jump = new SurfaceLink(new(14, 10, -4), new(20.5f, 10, -4));
+
+        Assert.Null(SurfacePathfinder.Find(Ledges(), new(5, 10), new(35, 10), fromZ: -4));
+        var path = SurfacePathfinder.Find(Ledges(), new(5, 10), new(35, 10), fromZ: -4, links: [jump]);
+
+        Assert.NotNull(path);
+        Assert.Equal(new Vector2(35, 10), path[^1]);
+        Assert.InRange(Length(new(5, 10), path), 29f, 34f);
+    }
+
+    [Fact]
+    public void A_one_way_traversal_is_not_taken_back()
+    {
+        var slide = new SurfaceLink(new(14, 10, -4), new(20.5f, 10, -4), OneWay: true);
+
+        Assert.NotNull(SurfacePathfinder.Find(Ledges(), new(5, 10), new(35, 10), fromZ: -4, links: [slide]));
+        Assert.Null(SurfacePathfinder.Find(Ledges(), new(35, 10), new(5, 10), fromZ: -4, links: [slide]));
+    }
+
+    [Fact]
+    public void A_traversal_with_an_end_off_the_floor_is_left_out()
+    {
+        var lost = new SurfaceLink(new(14, 10, -4), new(28, 60, -4));
+
+        Assert.Null(SurfacePathfinder.Find(Ledges(), new(5, 10), new(35, 10), fromZ: -4, links: [lost]));
+    }
 }

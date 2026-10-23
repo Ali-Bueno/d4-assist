@@ -12,6 +12,7 @@ namespace D4Assist.Tests;
 public class QuestPathTests
 {
     private const string World = "Sanctuary_Eastern_Continent";
+    private const string StoryArea = "Kehj_Hell_Sightless_Eye";
     private const int Warlock = 2449612, Fruits = 2399999, Sphere = 42298, Corpse = 1870562, Shrine = 1093480;
     private static readonly Vector2 KedBardu = new(-886f, -990f);
     private static readonly Vector2 LostPlains = new(-963.8f, -1024.9f); // the warlock quest's marked step, 85 units off
@@ -52,7 +53,7 @@ public class QuestPathTests
         public Rig(string world = World)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
-            Bridge = new QuestPathBridge(Feed, World, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
+            Bridge = new QuestPathBridge(Feed, w => w is World or StoryArea, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
                 Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock);
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
@@ -188,6 +189,40 @@ public class QuestPathTests
         Assert.Equal(English.NoQuestPlace, rig.Speech.Texts.Last());
         Assert.Empty(rig.Searches);
         Assert.False(rig.Pings());
+    }
+
+    [Fact]
+    public void In_a_story_area_it_leads_too()
+    {
+        var rig = new Rig(StoryArea);
+        rig.Move(KedBardu);
+        Assert.True(rig.Bridge.TakesPad);
+
+        rig.Pad.Press();
+
+        Assert.Equal("Quest goal: Disciples of the Forbidden, 85 meters. 1 of 2.", rig.Speech.Texts.Last());
+        Assert.Equal((StoryArea, new Vector3(KedBardu, 0), LostPlains), Assert.Single(rig.Searches));
+        Assert.True(rig.Pings());
+    }
+
+    // Kehj_Hell_Sightless_Eye's escape: two jumps on one ledge 4.5 apart (-518.4 and -522.8), each to its own far end, then a slide.
+    [Fact]
+    public void Traversal_ends_pair_with_every_end_in_reach_and_a_slide_goes_down_only()
+    {
+        var links = OverworldPaths.Links(
+        [
+            (new(-514.2f, -292.8f, -5), false), (new(-518.4f, -290.4f, -5), false),
+            (new(-522.8f, -289.5f, -5), false), (new(-528.8f, -289.5f, -5), false),
+            (new(-545.7f, -292.6f, -5), true), (new(-552.6f, -291.6f, -10), false),
+        ]);
+
+        bool Joined(float x1, float x2) => links.Any(l => (l.From.X, l.To.X) == (x1, x2) || (l.From.X, l.To.X) == (x2, x1));
+        Assert.True(Joined(-514.2f, -518.4f));
+        Assert.True(Joined(-522.8f, -528.8f));
+        Assert.False(Joined(-528.8f, -545.7f)); // 16.9 apart
+        var slide = Assert.Single(links, l => l.From.X == -545.7f || l.To.X == -545.7f);
+        Assert.Equal((-545.7f, -552.6f, true), (slide.From.X, slide.To.X, slide.OneWay));
+        Assert.All(links.Where(l => l != slide), l => Assert.False(l.OneWay));
     }
 
     [Fact]

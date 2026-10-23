@@ -42,7 +42,7 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   list. In the open world (`Sanctuary_Eastern_Continent`: towns, roads) that is all: no tiles, radar or announcements
   (`WorldKind.Overworld`); the game's own navigation assist covers it (user, 2026-09-30). Every other non-DRLG world is
   a story area (the Darkened Way, Tristram, the hells, the Mercenary den) and gets the radar too (`WorldKind.RadarOnly`,
-  see `RadarOnlyWorlds`). Beacons, objective sounds and the quest routes run in both.
+  see `RadarOnlyWorlds`). Beacons, objective sounds, the quest routes and D-pad left's quest places run in both.
 - Leads through known campaign routes with the guide ping, e.g. shelter to shelter in the desert sandstorm quest with
   Meshif and on to the palace steps (`Game/QuestRouteBridge`, see Quest routes).
 
@@ -432,16 +432,19 @@ pentagrama." (live 2026-10-19: worked). It is walked in parts (`Sections` 5, 7, 
 
 ### Quest places over a found path
 
-`Game/QuestPathBridge` leads, in the open world, to a quest place the game's map marks, for when the game's own
+`Game/QuestPathBridge` leads, in the open world and in the story areas (`WorldKind.RadarOnly`, which have no exploration
+guide; tester 2026-10-22 in the Sightless Eye), to a quest place the game's map marks, for when the game's own
 navigation assist doesn't lead there (live 2026-10-19: "Jünger des Verbotenen" until the quest was untracked and tracked
 again). A quest place is a map marker (`GameSession.MapMarkersRead`) whose actor a quest's scripts name at that spot
 (`QuestScriptMarkerReader.QuestsNaming`, 2 units), named by the quest's title in the game's language, or the game's own quest marker `Symbol_Quest_Proxy` or `MarkerLocation` (map kind 12; a `MarkerLocation` marked the last siege tower of "Verwundete Seelen", live 2026-10-21), which it sets on area steps ("kill the fiend roaming here", a pentagram, a dungeon entrance; live 2026-10-19): it is offered first and named after a quest read as in progress (`ReadOwnedQuests`) with an object within 60 units, else "Marcador de misión" (the nearest quest of all named the fiend's spot after a side quest). Quest objects are offered only for quests read as in progress: the map also shows objects of quests not taken. A quest the map names counts as in progress when its {quest, phase} pair is found, or else at the phase last read, kept across runs in `d4assist-quests.json` next to the exe (`QuestPhaseHistory`, a phase not read for 30 days is dropped): the module data holds one quest's pair at a time, and after an app restart "Verwundete Seelen" was never found again, its pair taken by a nearby collectible quest (live 2026-10-21). Places within 8 units are skipped (standing at one, it was reached at once and the next press started over with it). It follows a real
-path: `Game/OverworldPaths` reads the surfaces of the open-world chunks around the walk (`SceneReader.SurfaceVoxels`, the
+path: `Game/OverworldPaths` reads the surfaces of the world's chunks around the walk (`SceneReader.SurfaceVoxels`, the
 scenes' compressed `m_cellBytes` with their heights) and `D4Assist.Navigation/SurfacePathfinder` searches them as a 2.5D
 map: a step joins two floors only when their heights differ by at most 1 unit, so a cliff's top and foot stay apart; a step
-near an edge costs more.
+near an edge costs more. Traversals join the floors they split: every two traversal ends the chunks place
+(`Traversal_Gizmo_*`, `MarkerLocation_TraversalExit`, any marker layer) within 8 units are a link, a slide one way down
+(`SurfaceLink`, [dungeon-data](../../research/dungeon-data.md) §4.1c).
 
-- **D-pad left** in the open world leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
+- **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
   desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
 - The ping aims 8 units ahead of the player's spot on the path (`PathFollower`), so a path point passed aside never
@@ -456,8 +459,8 @@ near an edge costs more.
 
 - **D-pad left** (any XInput controller, or a DualSense / DualShock 4 over USB or Bluetooth) — toggles the exploration guide for the current kind of world (Undercity and
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
-  it mutes and unmutes a leading quest route the same way, leads in the open world to the quest places the map marks
-  (see Quest places over a found path), and otherwise says "La guía solo funciona en mazmorras." (a
+  it mutes and unmutes a leading quest route the same way, leads in the open world and the story areas to the quest
+  places the map marks (see Quest places over a found path), and otherwise says "La guía solo funciona en mazmorras." (a
   silent press read as a pad the app can't hear, tester 2026-10-16). Ignored while a game menu is open
   (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`);
   every press past that gate logs `Guide toggle pressed.`. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the

@@ -337,8 +337,9 @@ internal static class Program
         if (guidePing is not null && routesEnabled)
         {
             var paths = NewOverworldPaths(store, schema, cascGate);
+            // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
-                session, WorldClassifier.OpenWorldName,
+                session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
                 markers =>
                 {
                     IReadOnlyList<int>? owned = null;
@@ -674,11 +675,20 @@ internal static class Program
     private const int QuestSymbolMarkerKind = 12;
     private const float QuestSymbolNamingUnits = 60f;
 
-    // Paths over the open world's offline scene surfaces; every game-data read holds the CASC gate.
+    // A traversal's gizmos (Traversal_Gizmo_Jump, _DuckUnder, _Slide...) and the spots it lands at (research/dungeon-data.md §4.1c).
+    private const string TraversalGizmoPrefix = "Traversal_Gizmo_";
+    private const string TraversalSlideName = "Traversal_Gizmo_Slide";
+    private const string TraversalExitName = "MarkerLocation_TraversalExit";
+
+    // Paths over the offline scene surfaces of the open world and the story areas; every game-data read holds the CASC gate.
     private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
     {
         var worlds = new WorldReader(store, schema);
         var scenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false);
+        // Traversals sit in any marker layer ("Game", "Traversals"), as the jumps of JumpLinkCollector.
+        var traversals = new TileActorReader(
+            new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false),
+            sno => store.Name(sno) is { } name && (name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) || name == TraversalExitName));
         var chunks = new Dictionary<string, IReadOnlyList<SceneChunkInfo>>();
         return new OverworldPaths(
             worldName =>
@@ -690,7 +700,12 @@ internal static class Program
                     return chunks[worldName] = world is null ? [] : worlds.Read(world.Value).Chunks;
                 }
             },
-            scene => { lock (cascGate) return scenes.SurfaceVoxels(scene); });
+            scene => { lock (cascGate) return scenes.SurfaceVoxels(scene); },
+            scene =>
+            {
+                lock (cascGate)
+                    return [.. traversals.In(scene).Select(t => new TraversalPoint(t.Local, store.Name(t.ActorSno) == TraversalSlideName))];
+            });
     }
 
     private static int? SnoOrNull(SnoStore store, int group, string name)

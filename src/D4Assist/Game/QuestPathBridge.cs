@@ -34,7 +34,8 @@ public static class QuestStep
 /// <summary>
 /// Leads with the guide ping along a computed path (OverworldPaths) to a quest place the game's map marks, in the open
 /// world, for when the game's own navigation assist doesn't lead (live 2026-10-19: "Jünger des Verbotenen" until the quest
-/// was untracked and tracked again). D-pad left there leads to the nearest marked quest place and speaks its quest and
+/// was untracked and tracked again), and in the story areas, which have no exploration guide (tester 2026-10-22, the Sightless
+/// Eye). D-pad left there leads to the nearest marked quest place and speaks its quest and
 /// distance; each further press moves on to the next nearest, and a press after the last switches the guide off. It leads
 /// along the path (PathFollower), finds a new path when the player strays, and ends at the place, on a world change, or
 /// when the player gets far away (a teleport).
@@ -69,7 +70,7 @@ public sealed class QuestPathBridge
     /// nearest, reached at once, and the next press started over with it (live 2026-10-19).</summary>
     public const float HereUnits = 8f;
 
-    private readonly string _worldName;
+    private readonly Func<string, bool> _leadsIn;
     private readonly Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> _questPlaces;
     private readonly Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> _findPath;
     private readonly GuidePingPlayer _ping;
@@ -82,6 +83,7 @@ public sealed class QuestPathBridge
     // Feed events arrive on different poll threads, the path on a worker.
     private readonly object _gate = new();
     private string? _world;
+    private bool _leads;
     private IReadOnlyList<MarkedActor> _markers = [];
     private QuestMapPlace? _active;
     private Vector3? _player;
@@ -91,10 +93,10 @@ public sealed class QuestPathBridge
     private TimeSpan _lastPath;
     private TimeSpan _lastAimLog;
 
-    /// <summary>True in the open world, where D-pad left leads to quest places: the exploration guide then leaves the press to it.</summary>
-    public bool TakesPad { get { lock (_gate) return _world == _worldName; } }
+    /// <summary>True where D-pad left leads to quest places: the exploration guide then leaves the press to it.</summary>
+    public bool TakesPad { get { lock (_gate) return _leads; } }
 
-    /// <param name="worldName">The world it leads in (the open world, WorldClassifier.OpenWorldName).</param>
+    /// <param name="leadsIn">True for a world it leads in, by name (the open world and the story areas).</param>
     /// <param name="questPlaces">The quest places among the map's markers, named in the current language.</param>
     /// <param name="findPath">Path points from the player to a place in a world (OverworldPaths.Find); null for none.</param>
     /// <param name="pad">D-pad left: the next quest place, then off; null for none.</param>
@@ -103,13 +105,13 @@ public sealed class QuestPathBridge
     /// <param name="clock">Time since start; null for a stopwatch.</param>
     /// <param name="routeActive">True while a quest route leads (QuestRouteBridge.IsActive): D-pad left then mutes that route only.</param>
     public QuestPathBridge(
-        IDungeonFeed feed, string worldName, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
+        IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
         LanguageSetting? language = null, IGuideTogglePad? pad = null, Action<Action>? runInBackground = null,
         Action<string>? log = null, Func<TimeSpan>? clock = null, Func<bool>? routeActive = null)
     {
         _routeActive = routeActive ?? (() => false);
-        _worldName = worldName;
+        _leadsIn = leadsIn;
         _questPlaces = questPlaces;
         _findPath = findPath;
         _ping = ping;
@@ -139,6 +141,7 @@ public sealed class QuestPathBridge
         _player = null;
         _markers = [];
         _world = worldName;
+        _leads = _leadsIn(worldName);
     }
 
     private void OnPlayer(Vector3 player)
@@ -151,7 +154,7 @@ public sealed class QuestPathBridge
     {
         lock (_gate)
         {
-            if (_world != _worldName || (_active is null && _routeActive())) return;
+            if (!_leads || (_active is null && _routeActive())) return;
             var strings = AppStrings.For(_language.Current);
             if (_player is not { } player) { _speech.Speak(strings.NoQuestPlace, interrupt: true); return; }
             var here = new Vector2(player.X, player.Y);

@@ -152,7 +152,9 @@ In every kind of dungeon you get everything: normal ones, campaign, expansion,
 Nightmare, the Undercity and the Pit. In fixed story areas like Tristram or
 the hells you get the radar and the sounds, but no room announcements. In the
 open world just the nearby sounds, because the game's navigation assist
-already does a good job there.
+already does a good job there. In both, left on the D-pad leads you to the
+places your quest marks on the map, along a path the app finds (over jumps and
+slides too).
 
 
 Settings and shortcuts
@@ -168,8 +170,10 @@ you can learn them: exit, open floor, wall, door, unexplored exit, quest
 sound, guide ping and arrival.
 
 Left on the D-pad turns the guide on and off in dungeons (Xbox controllers,
-and PlayStation's DualSense or DualShock 4); elsewhere it tells you the guide
-only works in dungeons. In the desert sandstorm quest it
+and PlayStation's DualSense or DualShock 4). Outside dungeons it leads to the
+nearest place your quest marks on the map and says the quest and how far;
+press it again for the next place, and after the last one it turns off. In the
+desert sandstorm quest it
 mutes and unmutes the ping that leads you from shelter to shelter and on to
 Meshif on the palace steps. While a game menu
 is open the D-pad does nothing, because there it belongs to the game. On the

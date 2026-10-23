@@ -116,6 +116,21 @@ public class LockedDoorTests
         Assert.Empty(doors.Update([], Away));
     }
 
+    // The Sightless Eye's mural during its cinematic: a locked copy and a usable one on one spot, poll after poll (live 2026-10-22).
+    [Fact]
+    public void Two_copies_on_one_spot_count_as_the_usable_one_without_flipping()
+    {
+        var log = new List<string>();
+        var doors = new LockedDoors(new DoorObstacles(new InteractableClassifier(Info, NameOf), Info), NameOf, log.Add);
+        doors.Update([KeyLocked], At(20, 20.5f));
+        log.Clear();
+
+        for (int poll = 0; poll < 3; poll++)
+            Assert.Empty(doors.Update([KeyLocked with { Id = 8 }, Door], At(20, 20.5f)));
+
+        Assert.StartsWith("DOOR unlocked: DRLG_Blocker_Protodun_Keep_DGN_Frac_DerelictLodge", Assert.Single(log));
+    }
+
     [Fact]
     public void A_closed_door_the_player_never_came_to_stays_passable() =>
         Assert.Empty(Doors().Update([Door], At(25, 20.5f)));

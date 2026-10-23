@@ -40,9 +40,11 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
         lock (_gate)
         {
             var listed = new HashSet<(int X, int Y)>();
-            foreach (var footprint in doors.Closed(actors, player.Z))
+            // Two copies on one spot, one usable (a cinematic's, live 2026-10-22: the Sightless Eye's mural): the usable one counts.
+            foreach (var copies in doors.Closed(actors, player.Z).GroupBy(f => Key(f.Door)))
             {
-                var key = Key(footprint.Door);
+                var footprint = copies.FirstOrDefault(f => !f.Door.Unusable) ?? copies.First();
+                var key = copies.Key;
                 listed.Add(key);
                 if (!_doors.TryGetValue(key, out var door)) _doors[key] = door = new Door(footprint.Door.ActorSno, footprint);
                 door.Footprint = footprint;

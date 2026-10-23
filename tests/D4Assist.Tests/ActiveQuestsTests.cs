@@ -54,6 +54,30 @@ public class ActiveQuestsTests
     }
 
     [Fact]
+    public void A_phase_waiting_on_a_quest_whose_pair_is_never_found_names_that_quests_places_as_steps()
+    {
+        // Live 2026-10-23, "Der versiegelte Flügel": DQV_Skov_Skartara_06_TalRasha held no pair in the module data.
+        var quests = Create(new ModuleReader((WrackAndRuin, FindTheEyesPhase)));
+
+        var named = quests.Update(tracked: [], AreaWith(VillagerSno));
+
+        var step = Assert.Single(named.Steps!);
+        Assert.Equal([RightSocket], step.Markers);
+        Assert.Empty(step.ActorSnos);
+    }
+
+    [Fact]
+    public void A_phase_waiting_on_a_quest_whose_pair_is_found_names_no_steps()
+    {
+        var quests = Create(new ModuleReader((WrackAndRuin, FindTheEyesPhase), (RightEyeQuest, ReturnTheEyePhase)));
+
+        var named = quests.Update(tracked: [], AreaWith(VillagerSno));
+
+        Assert.Empty(named.Steps!);
+        Assert.Equal([RightSocket], named.Markers);
+    }
+
+    [Fact]
     public void AnUntrackedQuestInProgressHereNamesItsCurrentPhase()
     {
         var quests = Create(new ModuleReader((FieldsOfRuin, PlacePhase)));

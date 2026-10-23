@@ -38,6 +38,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private IReadOnlyList<PlacedMarker> _markedPlaces = [];
     private readonly BlueprintPlacement _blueprints = new();
     private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
+    // The places of a sub-quest whose phase can't be read, by step (QuestNames.Steps, 1 first).
+    private IReadOnlyList<(PlacedMarker Marker, int Step)> _stepPlaces = [];
     private IReadOnlySet<int> _questActorSnos = new HashSet<int>();
     private readonly Func<int, IReadOnlyList<TileActor>>? _tileGizmos;
     private readonly MapMarkerTracker? _mapMarkers;
@@ -393,10 +395,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
             var marked = _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) ?? [];
-            var places = named.Markers.Concat(InWorld(named.SceneMarkers, marked))
-                .Concat(named.KindMarkers.Count == 0 ? [] : _blueprints.Place(named.KindMarkers,
-                    [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))])).ToList();
+            List<PlacedMarker> Placed(QuestNames n) => [.. n.Markers.Concat(InWorld(n.SceneMarkers, marked))
+                .Concat(n.KindMarkers.Count == 0 ? [] : _blueprints.Place(n.KindMarkers,
+                    [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))]))];
+            var places = Placed(named);
             _questPlaces = places;
+            _stepPlaces = [.. (named.Steps ?? []).SelectMany((step, i) => Placed(step).Select(m => (m, i + 1)))];
             _markedPlaces = [.. places.Where(p => marked.Any(m => m.ActorSno == p.Sno
                 && Vector2.Distance(new(m.Position.X, m.Position.Y), new(p.Position.X, p.Position.Y)) <= ActiveQuests.MarkerReach))];
             _questActorSnos = named.ActorSnos;
@@ -476,6 +480,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _activeQuests is null ? null :
         [
             .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z, Marked: _markedPlaces.Contains(m))),
+            .. _stepPlaces.Select(s => new QuestPlace(s.Marker.Sno, s.Marker.Position.X, s.Marker.Position.Y, s.Marker.Position.Z, Step: s.Step)),
             .. _questGizmosAhead.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, Ahead: true, g.Marked)),
         ];
 

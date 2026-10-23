@@ -75,6 +75,8 @@ public sealed class ObjectiveMemory
         public bool Marked { get; set; }
         /// <summary>Actor polls in a row it was missing from the actors read.</summary>
         public int MissingPolls { get; set; }
+        /// <summary>A sub-quest step whose phase can't be read (QuestPlace.Step); 0 for none.</summary>
+        public int Step { get; init; }
     }
 
     private readonly Func<int, string?> _nameOf;
@@ -145,7 +147,7 @@ public sealed class ObjectiveMemory
         lock (_gate)
             return [.. _escorts.Select(a => new GuideDestination(
                     $"{EscortKind}:{a.Id}", (a.X, a.Y), QuestTier, a.Z, _escortRadius(a.ActorSno)!.Value * EscortHoldFactor, Located: true)),
-                .. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
+                .. _places.Where(Leads).Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
                 .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position)
                     && _carryableWaits(x.Objective.Sno) != true)
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
@@ -181,7 +183,7 @@ public sealed class ObjectiveMemory
                 if (objective is null)
                 {
                     objective = new Objective(place.ActorSno, NameOf(place.ActorSno), (place.X, place.Y), Reach(place.ActorSno), QuestPlaceKind)
-                        { Quest = true, Z = place.Z };
+                        { Quest = true, Z = place.Z, Step = place.Step };
                     _places.Add(objective);
                     Log("seen (quest place)", objective);
                     SetAsideIfWalked(objective);
@@ -343,7 +345,8 @@ public sealed class ObjectiveMemory
     {
         _player = here;
         _trail.Add(((int)MathF.Floor(here.X), (int)MathF.Floor(here.Y)));
-        foreach (var objective in _objectives.Concat(_places).Where(o => o.Pending && !o.Reached))
+        int? step = CurrentStep();
+        foreach (var objective in _objectives.Concat(_places).Where(o => o.Pending && !o.Reached && (o.Step == 0 || o.Step == step)))
         {
             float distance = Distance(objective.Position, here);
             if (distance <= objective.Radius)
@@ -364,6 +367,12 @@ public sealed class ObjectiveMemory
             }
         }
     }
+
+    // Of a sub-quest walked in order, the first step with a place left: the game takes its triggers only then. While one is left,
+    // the places the waiting phase names itself wait too (Tal Rasha's seal stood behind its own steps).
+    private int? CurrentStep() => _places.Where(o => o.Step > 0 && o.Pending && !o.Reached).Select(o => (int?)o.Step).Min();
+
+    private bool Leads(Objective place) => CurrentStep() is not { } step || place.Step == step;
 
     // Walking this far sets it aside. A trigger: just out of it, as the game fired it on entering. Live 2026-10-01 (the
     // Necropolis, phase 154) the trigger was a hidden callback and the shown step a region farther on; holding the guide on it

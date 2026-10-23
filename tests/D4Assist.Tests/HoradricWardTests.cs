@@ -6,7 +6,8 @@ namespace D4Assist.Tests;
 // Kulle's vessel; then Barrier_Jared, the player used Tal Rasha's and died.
 public class HoradricWardTests
 {
-    private const int GuardianSno = 2301098, Zoltun = 2377345, Jared = 2377401, Kulle = 2480807, Cain = 2481230, Rasha = 2481232;
+    private const int GuardianSno = 2301098, Zoltun = 2377345, Jared = 2377401, Kulle = 2480807, Cain = 2481230, Rasha = 2481232,
+        BaseSno = 2346349;
 
     private static readonly Dictionary<int, string> Names = new()
     {
@@ -16,6 +17,7 @@ public class HoradricWardTests
         [Kulle] = "QST_Skov_Skartara_WardBreakerShrine_Kulle",
         [Cain] = "QST_Skov_Skartara_WardBreakerShrine_Cain",
         [Rasha] = "QST_Skov_Skartara_WardBreakerShrine_Rasha",
+        [BaseSno] = "QST_Horadric_Guardian_Boss_Base",
     };
 
     private static ActorState Guardian(params int[] buffs) => new(1, GuardianSno, 16, 16, 0, Hostile: true, Buffs: buffs);
@@ -95,5 +97,32 @@ public class HoradricWardTests
 
         Assert.Equal(Vessels, actors);
         Assert.Empty(ward.Destinations());
+    }
+
+    [Fact]
+    public void From_the_guardian_turning_hostile_every_vessel_and_its_chamber_objects_are_silent()
+    {
+        // Live 2026-10-23: all four vessels looped from the fight's start until the first barrier.
+        var ward = Ward();
+        var chamber = new ActorState(50, BaseSno, 16, 16, 0);
+
+        var idle = ward.Apply([Guardian() with { Hostile = false }, chamber, .. Vessels]);
+        Assert.All(idle.Where(a => a.ActorSno != GuardianSno), a => Assert.False(a.QuestLocked)); // before the fight: the quest's
+
+        var fight = ward.Apply([Guardian(), chamber, .. Vessels]);
+        Assert.All(fight.Where(a => a.ActorSno != GuardianSno), a => Assert.True(a.QuestLocked));
+        Assert.False(fight.Single(a => a.ActorSno == GuardianSno).QuestLocked);
+    }
+
+    [Fact]
+    public void Using_the_named_vessel_is_reported_once()
+    {
+        var used = new List<string>();
+        var ward = new HoradricWard(sno => Names.GetValueOrDefault(sno), used: used.Add);
+        ward.Apply([Guardian(Zoltun), .. Vessels]);
+        ward.Apply([Guardian(Zoltun), Vessel(Kulle, 26.7f, 5.3f, on: true), Vessels[1], Vessels[2]]);
+        ward.Apply([Guardian(Zoltun), Vessel(Kulle, 26.7f, 5.3f, on: true), Vessels[1], Vessels[2]]);
+
+        Assert.Equal(["QST_Skov_Skartara_WardBreakerShrine_Kulle"], used);
     }
 }

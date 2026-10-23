@@ -61,5 +61,6 @@ public sealed partial record AppStrings
         GuideObjectivesMode: "Guide : objectifs.",
         GuideToMonstersFormat: "Tout est exploré. Encore {0} monstres sur la carte, je vous y mène.",
         DodgeFormat: "Esquive : {0}",
-        MarkedWarning: "Marqué : l'explosion vous suit");
+        MarkedWarning: "Marqué : l'explosion vous suit",
+        VesselUsedFormat: "{0} activé. Maintenant, entre dans la barrière.");
 }

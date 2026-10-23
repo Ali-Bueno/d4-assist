@@ -61,5 +61,6 @@ public sealed partial record AppStrings
         GuideObjectivesMode: "Guida: obiettivi.",
         GuideToMonstersFormat: "Tutto esplorato. Ancora {0} mostri sulla mappa, ti ci porto.",
         DodgeFormat: "Schiva: {0}",
-        MarkedWarning: "Marcato: l'esplosione ti segue");
+        MarkedWarning: "Marcato: l'esplosione ti segue",
+        VesselUsedFormat: "{0} attivato. Ora entra nella barriera.");
 }

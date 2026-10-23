@@ -61,5 +61,6 @@ public sealed partial record AppStrings
         GuideObjectivesMode: "Przewodnik: cele.",
         GuideToMonstersFormat: "Wszystko zbadane. Na mapie zostało potworów: {0}, prowadzę.",
         DodgeFormat: "Unik: {0}",
-        MarkedWarning: "Naznaczony: wybuch podąża za tobą");
+        MarkedWarning: "Naznaczony: wybuch podąża za tobą",
+        VesselUsedFormat: "{0} aktywowane. Teraz wejdź w barierę.");
 }

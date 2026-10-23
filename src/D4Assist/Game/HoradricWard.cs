@@ -12,8 +12,14 @@ namespace D4Assist.Game;
 /// <param name="nameOf">An SNO's name: the effects and the vessels are told by name.</param>
 /// <param name="announce">Called with the vessel actor's name whenever a barrier names it (the app speaks the game's own name for
 /// it, "Gefäß des Cain"); null for none.</param>
-public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log = null, Action<string>? announce = null)
+/// <param name="used">Called with the vessel actor's name once the player has used it (the app says it, and that the barrier is
+/// next); null for none.</param>
+public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log = null, Action<string>? announce = null, Action<string>? used = null)
 {
+    // The guardian itself, hostile from its fight's start (its definition says team 1, ActorState.Hostile reads the live team),
+    // and the chamber's other objects of it (QST_Horadric_Guardian_Boss_Base, _trigger, _spirit_trigger, _boss_SP).
+    private const string GuardianName = "QST_Horadric_Guardian_boss", GuardianObjectPrefix = "QST_Horadric_Guardian_Boss";
+
     private const string BarrierPrefix = "Horadric_Guardian_harmless_Barrier_";
     private const string VesselPrefix = "QST_Skov_Skartara_WardBreakerShrine_";
 
@@ -39,7 +45,11 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
     {
         lock (_gate)
         {
-            var guardian = actors.FirstOrDefault(a => Symbol(a) is not null) ?? (_guardian is { } id ? actors.FirstOrDefault(a => a.Id == id) : null);
+            // The fight starts as the guardian turns hostile, before its first barrier: every vessel sounding then was noise (live
+            // 2026-10-23: all four looped until the first barrier).
+            var guardian = actors.FirstOrDefault(a => Symbol(a) is not null)
+                ?? (_guardian is { } id ? actors.FirstOrDefault(a => a.Id == id) : null)
+                ?? actors.FirstOrDefault(a => a.Hostile && nameOf(a.ActorSno) == GuardianName);
             if (guardian is null)
             {
                 if (_guardian is not null) Log("guardian gone");
@@ -51,7 +61,7 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
             _guardian = guardian.Id;
             _guardianAt = (guardian.X, guardian.Y);
             Observe(Symbol(guardian), actors);
-            return [.. actors.Select(a => Vessel(a) is not { } vessel ? a
+            return [.. actors.Select(a => Vessel(a) is not { } vessel ? IsGuardianObject(a) ? a with { QuestLocked = true, QuestStep = false } : a
                 : vessel == _vessel && !_used ? a with { QuestStep = true, QuestLocked = false }
                 : a with { QuestLocked = true, QuestStep = false })];
         }
@@ -99,6 +109,7 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
         if (_used || state == _vesselStateAtStart) return;
         _used = true;
         Log($"{vessel} vessel used: on into the barrier");
+        used?.Invoke(VesselPrefix + vessel);
     }
 
     private void Clear()
@@ -119,6 +130,10 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
                 return vessel;
         return null;
     }
+
+    // The guardian's own objects in its chamber (not the guardian, which the enemy cue sounds): silent in its fight.
+    private bool IsGuardianObject(ActorState actor) =>
+        nameOf(actor.ActorSno) is { } name && name.StartsWith(GuardianObjectPrefix, StringComparison.OrdinalIgnoreCase) && name != GuardianName;
 
     private string? Vessel(ActorState actor) =>
         nameOf(actor.ActorSno) is { } name && name.StartsWith(VesselPrefix, StringComparison.Ordinal) ? name[VesselPrefix.Length..] : null;

@@ -61,5 +61,6 @@ public sealed partial record AppStrings
         GuideObjectivesMode: "Führung: Ziele.",
         GuideToMonstersFormat: "Alles erforscht. Noch {0} Monster auf der Karte, ich führe dich hin.",
         DodgeFormat: "Ausweichen: {0}",
-        MarkedWarning: "Markiert: die Explosion folgt dir");
+        MarkedWarning: "Markiert: die Explosion folgt dir",
+        VesselUsedFormat: "{0} aktiviert. Jetzt in den Schild.");
 }

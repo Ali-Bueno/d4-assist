@@ -478,16 +478,23 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
-    public void The_steps_of_a_sub_quest_whose_phase_cant_be_read_lead_one_at_a_time_before_the_phases_own_places()
+    public void The_steps_of_a_sub_quest_whose_phase_cant_be_read_lead_one_at_a_time()
     {
         // Live 2026-10-23, "Der versiegelte Flügel": Tal Rasha's seal (the waiting phase's own place) stood behind its triggers.
         var (feed, memory) = NewMemory();
         QuestPlace[] places =
         [
-            new(TriggerSno, 0, 0), // the seal
+            new(TriggerSno, 0, 0), // the seal, by the last step's trigger
             new(TriggerSno, 30, 0, Step: 1), new(TriggerSno, 0, 30, Step: 1),
             new(TriggerSno, 60, 0, Step: 2),
+            new(TriggerSno, 5, 5, Step: 3),
+            new(TriggerSno, -100, 0), // the Holdout tunnel's trigger, the waiting phase's own
         ];
+        feed.RaisePlayer(At(-40, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal([(-100f, 0f), (0f, 30f), (30f, 0f)], memory.Destinations().Select(d => d.Position).Order());
+
+        feed.RaisePlayer(At(-100, 0));
         feed.RaisePlayer(At(-40, 0));
         memory.ObservePlaces(places);
         Assert.Equal([(0f, 30f), (30f, 0f)], memory.Destinations().Select(d => d.Position).Order());
@@ -502,7 +509,7 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(60, 0));
         feed.RaisePlayer(At(-40, 0));
         memory.ObservePlaces(places);
-        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+        Assert.Equal([(0f, 0f), (5f, 5f)], memory.Destinations().Select(d => d.Position).Order());
     }
 
     [Fact]

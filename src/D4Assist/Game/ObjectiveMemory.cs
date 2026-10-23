@@ -368,11 +368,20 @@ public sealed class ObjectiveMemory
         }
     }
 
-    // Of a sub-quest walked in order, the first step with a place left: the game takes its triggers only then. While one is left,
-    // the places the waiting phase names itself wait too (Tal Rasha's seal stood behind its own steps).
+    // Of a sub-quest walked in order, the first step with a place left: the game takes its triggers only then. A place the waiting
+    // phase names itself leads too (live 2026-10-23: the Holdout tunnel's trigger, past a door, came before the seal's steps), unless
+    // it lies by a later step's place: Tal Rasha's seal and the trigger beside it stood behind a locked door until then.
     private int? CurrentStep() => _places.Where(o => o.Step > 0 && o.Pending && !o.Reached).Select(o => (int?)o.Step).Min();
 
-    private bool Leads(Objective place) => CurrentStep() is not { } step || place.Step == step;
+    /// <summary>A place of the waiting phase this close to a later step's place waits for that step.</summary>
+    public const float LaterStepUnits = 10f;
+
+    private bool Leads(Objective place)
+    {
+        if (CurrentStep() is not { } step) return true;
+        if (place.Step > 0) return place.Step == step;
+        return !_places.Any(o => o.Step > step && o.Pending && !o.Reached && Distance(o.Position, place.Position) <= LaterStepUnits);
+    }
 
     // Walking this far sets it aside. A trigger: just out of it, as the game fired it on entering. Live 2026-10-01 (the
     // Necropolis, phase 154) the trigger was a hidden callback and the shown step a region farther on; holding the guide on it

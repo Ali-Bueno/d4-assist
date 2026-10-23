@@ -12,8 +12,8 @@ using D4MemScan.Scan;
 namespace D4MemScan.Commands;
 
 /// <summary>
-/// `effects`: logs, every few tens of milliseconds, the client-only actors (effects, no ACD) appearing and leaving around the
-/// player, and the effects every boss shows on its ACD (Buff_Visual_Effect parameters, effect groups such as
+/// `effects`: logs, every few tens of milliseconds, the client-only actors (effects, no ACD) and the projectiles appearing and
+/// leaving around the player, and the effects every boss shows on its ACD (Buff_Visual_Effect parameters, effect groups such as
 /// Horadric_Guardian_360_Sweep_Warning) as they come and go: what warns of a boss's attack, where, and how long before it lands
 /// (research/boss-telegraphs.md).
 /// </summary>
@@ -24,6 +24,8 @@ internal static partial class EffectsCommand
     private const uint NoAcdId = 0xFFFFFFFF;
     private const uint MaxAttributeId = 0x1000;
     private const string BuffVisualEffect = "Buff_Visual_Effect";
+    // Projectiles (eType 10) have an ACD: the guardian's wave wall and tornadoes are such (Horadric_Guardian_wall_demonic).
+    private const int ProjectileType = 10;
 
     public static int Run(string[] args)
     {
@@ -85,11 +87,16 @@ internal static partial class EffectsCommand
                 }
 
                 var seen = new HashSet<uint>();
-                foreach (var a in actors.Where(a => a.IsPlaced && a.AcdId == NoAcdId && Vector3.Distance(a.Position, here) <= range))
+                foreach (var a in actors.Where(a => a.IsPlaced && (a.AcdId == NoAcdId || defs.Read(a.ActorSno)?.EType == ProjectileType) && Vector3.Distance(a.Position, here) <= range))
                 {
                     if (match is not null && !(store.Name(a.ActorSno) is { } n && match.IsMatch(n))) continue;
                     seen.Add(a.Id);
-                    if (present.ContainsKey(a.Id)) continue;
+                    if (present.TryGetValue(a.Id, out var known))
+                    {
+                        // A projectile's path: a row each time it has moved 2 units since the last one.
+                        if (Vector3.Distance(known.Actor.Position, a.Position) >= 2) { present[a.Id] = (known.Since, a); Write(Row("~", a)); }
+                        continue;
+                    }
                     present[a.Id] = (now, a);
                     if (!first) Write(Row("+", a));
                 }

@@ -21,6 +21,8 @@ public sealed partial class TelegraphClassifier(Func<int, string?> nameOf)
 
     public TelegraphShape? Of(int actorSno) => _shapes.GetOrAdd(actorSno, sno => Classify(nameOf(sno)));
 
+    public string? NameOf(int actorSno) => nameOf(actorSno);
+
     public static TelegraphShape? Classify(string? name)
     {
         if (name is null || !WarningName().IsMatch(name) || NotAnAttack().IsMatch(name)) return null;
@@ -68,6 +70,7 @@ public sealed class TelegraphWarner
     private readonly Action<double> _playCue;
     private readonly Func<float, float, bool>? _blocked;
     private readonly Action<string>? _log;
+    private readonly Func<int, bool>? _isProjectile;
     private readonly Func<TimeSpan> _now;
     private readonly object _gate = new();
     private readonly HashSet<uint> _seen = [];
@@ -78,12 +81,14 @@ public sealed class TelegraphWarner
     /// <param name="enemyClass">An actor's enemy class, null for none (EnemyClassifier.Of): a boss or elite near makes a fight.</param>
     /// <param name="playCue">Plays the warning cue at a pan (-1 left .. 1 right).</param>
     /// <param name="blocked">True for a world point a step can't cross (the radar's walls and closed doors); null for none.</param>
+    /// <param name="isProjectile">True for a projectile's actor SNO (eType 10), logged in debug with the damaging effects.</param>
     public TelegraphWarner(
         IDungeonFeed feed, TelegraphClassifier telegraphs, Func<ActorState, EnemyClass?> enemyClass, ISpeechSink speech,
         LanguageSetting language, Action<double> playCue, Func<float, float, bool>? blocked = null, Action<string>? log = null,
-        Func<TimeSpan>? now = null)
+        Func<TimeSpan>? now = null, Func<int, bool>? isProjectile = null)
     {
         (_telegraphs, _enemyClass, _speech, _language, _playCue, _blocked, _log) = (telegraphs, enemyClass, speech, language, playCue, blocked, log);
+        _isProjectile = isProjectile;
         var clock = Stopwatch.StartNew();
         _now = now ?? (() => clock.Elapsed);
         feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _player = null; } };
@@ -103,6 +108,7 @@ public sealed class TelegraphWarner
         if (foe is null) return; // no fight: an effect named "warning" is someone else's business
         var now = _now();
         _recent.RemoveAll(r => now - r.At > SameWarningWindow);
+        if (_log is not null) LogHazards(actors, player);
         foreach (var effect in fresh)
         {
             if (_telegraphs.Of(effect.ActorSno) is not { } shape || Distance(effect, player) > WarnRangeUnits) continue;
@@ -125,6 +131,25 @@ public sealed class TelegraphWarner
         string way = NavigationPhrases.For(_language.Current).Direction(direction);
         _speech.Speak(string.Format(AppStrings.For(_language.Current).DodgeFormat, way), interrupt: true);
     }
+
+    // Debug: every damaging effect and projectile new near the player, warned of or not, to learn what a warning missed (a death's
+    // last lines name what hit). Projectiles (the guardian's wave wall, tornadoes, chakram) carry an ACD: they are not client effects.
+    private void LogHazards(IReadOnlyList<ActorState> actors, PlayerState player)
+    {
+        foreach (var a in actors)
+        {
+            if (Distance(a, player) > WarnRangeUnits || !_hazardsSeen.Add(a.Id)) continue;
+            string? name = _telegraphs.NameOf(a.ActorSno);
+            bool projectile = _isProjectile?.Invoke(a.ActorSno) == true;
+            if (!projectile && !(a.ClientOnly && name?.Contains("damaging", StringComparison.OrdinalIgnoreCase) == true)) continue;
+            var (right, up) = ScreenDirections.ToScreen(a.X - player.X, a.Y - player.Y);
+            _log!($"HAZARD {(projectile ? "projectile" : "effect")} {name ?? a.ActorSno.ToString()} at ({a.X:F1},{a.Y:F1}) yaw={a.Yaw * 180 / MathF.PI:F0} " +
+                  $"distance={Distance(a, player):F1} {ScreenDirections.Bin(a.X - player.X, a.Y - player.Y)}");
+        }
+        _hazardsSeen.IntersectWith(actors.Select(a => a.Id));
+    }
+
+    private readonly HashSet<uint> _hazardsSeen = [];
 
     private static float Distance(ActorState a, PlayerState p) => MathF.Sqrt((a.X - p.X) * (a.X - p.X) + (a.Y - p.Y) * (a.Y - p.Y));
 }

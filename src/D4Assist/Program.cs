@@ -285,7 +285,7 @@ internal static class Program
         _ = new TelegraphWarner(session, new TelegraphClassifier(store.Name), enemyClasses.Of, speech, language,
             pan => { if (telegraphGain > 0) mixer.Play(telegraphCue, telegraphGain * RadarCuePlayer.LoudnessBoost, pan, priority: TelegraphPriority); },
             (x, y) => radarWorld.Cell((int)MathF.Floor(x), (int)MathF.Floor(y)) is RadarCell.Blocked or RadarCell.Door,
-            debug ? Console.WriteLine : null);
+            debug ? Console.WriteLine : null, isProjectile: sno => definitionOf(sno)?.EType == ProjectileActorType);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         var persistence = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine,
@@ -739,6 +739,9 @@ internal static class Program
     // Paths over the offline scene surfaces of the open world and the story areas; every game-data read holds the CASC gate.
     // Above every radar cue (RadarCueKindExtensions.Priority): a warning is never the voice stolen.
     private const int TelegraphPriority = 100;
+
+    // ActorDefinition.eType of a projectile (the Horadric guardian's wave wall, tornadoes, chakram).
+    private const int ProjectileActorType = 10;
 
     private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
     {

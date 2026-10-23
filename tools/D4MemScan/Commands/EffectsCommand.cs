@@ -17,7 +17,7 @@ namespace D4MemScan.Commands;
 /// Horadric_Guardian_360_Sweep_Warning) as they come and go: what warns of a boss's attack, where, and how long before it lands
 /// (research/boss-telegraphs.md).
 /// </summary>
-internal static class EffectsCommand
+internal static partial class EffectsCommand
 {
     private const float DefaultRangeUnits = 60f;
     private const int DefaultIntervalMs = 50;
@@ -62,6 +62,7 @@ internal static class EffectsCommand
 
             var present = new Dictionary<uint, (long Since, RActorRecord Actor)>();
             var bossBuffs = new Dictionary<uint, HashSet<int>>();
+            var bossAttributes = new Dictionary<uint, Dictionary<string, string>>();
             var clock = Stopwatch.StartNew();
             bool first = true;
             Vector3 here = player.Position;
@@ -109,6 +110,16 @@ internal static class EffectsCommand
                     foreach (int removed in before.Except(buffs))
                         Write($"{now};boss-{store.Name(removed) ?? removed.ToString()};{boss.ActorSno};{store.Name(boss.ActorSno)};;;;;;;;;");
                     bossBuffs[boss.Id] = buffs;
+                    // Every other attribute that changes: which one names the power being cast, or its timing.
+                    var attributes = AcdWatch.Attributes(process, names, acd)
+                        .Where(kv => !NoisyAttribute().IsMatch(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+                    if (bossAttributes.TryGetValue(boss.Id, out var old))
+                    {
+                        foreach (var (key, value) in attributes)
+                            if (!old.TryGetValue(key, out var was) || was != value) Write($"{now};attr {key}={was ?? "-"}->{value};{boss.ActorSno};{store.Name(boss.ActorSno)};;;;;;;;;");
+                        foreach (var key in old.Keys.Where(k => !attributes.ContainsKey(k))) Write($"{now};attr {key} gone;{boss.ActorSno};{store.Name(boss.ActorSno)};;;;;;;;;");
+                    }
+                    bossAttributes[boss.Id] = attributes;
                 }
                 first = false;
                 Thread.Sleep(intervalMs);
@@ -126,5 +137,9 @@ internal static class EffectsCommand
         return (diff % 360 + 540) % 360 - 180;
     }
 
-    private static float Yaw(Quaternion q) => MathF.Atan2(2 * (q.W * q.Z + q.X * q.Y), 1 - 2 * (q.Y * q.Y + q.Z * q.Z));
+    // Timers, damage bookkeeping and the effects already logged above.
+    [GeneratedRegex("^(Last_|DOT_|Hitpoints|Buff_Visual_Effect|Combat_Bloodiness|Damage|Stagger)")]
+    private static partial Regex NoisyAttribute();
+
+        private static float Yaw(Quaternion q) => MathF.Atan2(2 * (q.W * q.Z + q.X * q.Y), 1 - 2 * (q.Y * q.Y + q.Z * q.Z));
 }

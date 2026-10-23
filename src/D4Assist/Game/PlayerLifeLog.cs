@@ -34,8 +34,9 @@ public sealed class PlayerLifeLog(Action<string> log)
             if (_logged is not null && MathF.Abs(change) < life.Max * StepFraction && (life.Current > 0 || _logged == 0)) return;
             _logged = life.Current;
             string where = _player is { } p ? string.Create(CultureInfo.InvariantCulture, $" at ({p.X:0.0},{p.Y:0.0})") : "";
-            string delta = change == 0 ? "" : string.Create(CultureInfo.InvariantCulture, $" {change:+0;-0}");
-            log(string.Create(CultureInfo.InvariantCulture, $"LIFE {life.Current:0}/{life.Max:0} ({life.Fraction:P0}){delta}{where}"));
+            // The game keeps life small (live 2026-10-24: a full life of 2): told in hundredths of the full life.
+            string delta = change == 0 ? "" : string.Create(CultureInfo.InvariantCulture, $" {100 * change / life.Max:+0;-0}");
+            log(string.Create(CultureInfo.InvariantCulture, $"LIFE {100 * life.Fraction:0}%{delta}{where}"));
         }
     }
 }

@@ -57,6 +57,26 @@ public class DodgePlannerTests
     }
 
     [Fact]
+    public void A_wave_risen_on_the_player_is_left_behind_it()
+    {
+        // Live 2026-10-24: the wall rose at y=23 sweeping toward -Y with the player at (14.5,24.2), and killed them from 96 %.
+        float yaw = -MathF.PI / 2;
+        Assert.Equal(StickDirection.DownRight, DodgePlanner.Plan(TelegraphShape.Wave, (14, 23), yaw, (14.5f, 24.2f)));
+        Assert.Equal(StickDirection.DownRight, DodgePlanner.Plan(TelegraphShape.Wave, (14, 23), yaw, (14.5f, 22f)));
+        Assert.Null(DodgePlanner.Plan(TelegraphShape.Wave, (14, 23), yaw, (14.5f, 26f))); // well behind it
+    }
+
+    [Fact]
+    public void On_the_wall_wind_up_off_its_lines_outward()
+    {
+        // The guardian at (16,16); its walls rise 7.5 units off along the room's axes.
+        Assert.Equal(StickDirection.DownRight, DodgePlanner.PlanWallRise((16, 16), (14.5f, 24.2f)));
+        Assert.Equal(StickDirection.Up, DodgePlanner.PlanWallRise((16, 16), (9, 9))); // on two lines: out to the corner
+        Assert.Null(DodgePlanner.PlanWallRise((16, 16), (16, 18))); // near the guardian
+        Assert.Null(DodgePlanner.PlanWallRise((16, 16), (16, 28))); // behind the line
+    }
+
+    [Fact]
     public void A_mover_coming_on_is_left_sideways()
     {
         // A tornado at (0,0) drifting toward +X (screen down-left), the player 4 units ahead and a little to its +Y side.

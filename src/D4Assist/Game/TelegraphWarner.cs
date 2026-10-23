@@ -39,6 +39,13 @@ public sealed partial class TelegraphClassifier(Func<int, string?> nameOf)
 
     public string? NameOf(int actorSno) => nameOf(actorSno);
 
+    private readonly ConcurrentDictionary<int, bool> _wallWindups = new();
+
+    /// <summary>The guardian's wind-up before its wave wall: fxKit_damaging_burstAttractor_demonic_* gathers on it 1.5-2 s before
+    /// every wall (live 2026-10-23/24: eight of eight walls, and no wall without it).</summary>
+    public bool IsWallWindup(int actorSno) =>
+        _wallWindups.GetOrAdd(actorSno, sno => nameOf(sno)?.Contains("burstAttractor_demonic", StringComparison.OrdinalIgnoreCase) == true);
+
     public static TelegraphShape? Classify(string? name)
     {
         if (name is null || !WarningName().IsMatch(name) || NotAnAttack().IsMatch(name)) return null;
@@ -107,7 +114,7 @@ public sealed class TelegraphWarner
         _isProjectile = isProjectile;
         var clock = Stopwatch.StartNew();
         _now = now ?? (() => clock.Elapsed);
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _moverWarned.Clear(); _moverLast.Clear(); _pendingMarks.Clear(); _lastWave = null; _player = null; } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _moverWarned.Clear(); _moverLast.Clear(); _pendingMarks.Clear(); _lastWave = null; _lastWindup = null; _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) _player = p; };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
     }
@@ -128,6 +135,15 @@ public sealed class TelegraphWarner
         var now = _now();
         _recent.RemoveAll(r => now - r.At > SameWarningWindow);
         if (_log is not null) LogHazards(actors, player);
+        // A wall's wind-up: its twenty-odd effects gather together, one warning for all of them.
+        if (fresh.FirstOrDefault(e => _telegraphs.IsWallWindup(e.ActorSno)) is { } gathering
+            && (_lastWindup is not { } windup || now - windup >= MoverRewarn))
+        {
+            _lastWindup = now;
+            // It gathers on the guardian, which another foe may stand nearer the player than.
+            var caster = actors.Where(a => !a.ClientOnly && _enemyClass(a) is not null).MinBy(a => Distance(a, gathering)) ?? foe;
+            WarnWallRise(player, caster, now);
+        }
         foreach (var effect in fresh)
         {
             if (_telegraphs.Of(effect.ActorSno) is not { } shape || Distance(effect, player) > WarnRangeUnits) continue;
@@ -194,6 +210,21 @@ public sealed class TelegraphWarner
 
     private readonly Dictionary<uint, (float X, float Y)> _pendingMarks = [];
 
+    private TimeSpan? _lastWindup;
+
+    // The wall rises on a line square to the room around the guardian; one may rise where the player stands.
+    private void WarnWallRise(PlayerState player, ActorState foe, TimeSpan now)
+    {
+        var dodge = DodgePlanner.PlanWallRise((foe.X, foe.Y), (player.X, player.Y), _blocked);
+        _log?.Invoke($"TELEGRAPH wall wind-up, player {player.X - foe.X:F1},{player.Y - foe.Y:F1} off the guardian dodge={dodge?.ToString() ?? "clear"}");
+        if (dodge is not { } direction) return;
+        _playCue(0);
+        if (_lastSpoken is { } last && now - last < SpeechGap) return;
+        _lastSpoken = now;
+        string way = NavigationPhrases.For(_language.Current).Direction(direction);
+        _speech.Speak(string.Format(AppStrings.For(_language.Current).DodgeFormat, way), interrupt: true);
+    }
+
     // A mark that follows the player: no way to step out of it, but they know the burst comes to them.
     private void Marked(ActorState mark, TimeSpan now)
     {
@@ -236,6 +267,8 @@ public sealed class TelegraphWarner
     }
 
     private readonly HashSet<uint> _hazardsSeen = [];
+
+    private static float Distance(ActorState a, ActorState b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
     private static float Distance(ActorState a, PlayerState p) => MathF.Sqrt((a.X - p.X) * (a.X - p.X) + (a.Y - p.Y) * (a.Y - p.Y));
 }

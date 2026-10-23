@@ -10,7 +10,7 @@ namespace D4Assist.Tests;
 // (fxKit_damaging_persistentWarning_spirits_swirl_fxMesh x3, _volumeParent, _lightParent), 3-4 s before the burst.
 public class TelegraphWarnerTests
 {
-    private const int GuardianSno = 1, SwirlSno = 2, LightSno = 3, PropSno = 4, PlayerWarningSno = 5, WallSno = 6, TornadoSno = 7;
+    private const int GuardianSno = 1, SwirlSno = 2, LightSno = 3, PropSno = 4, PlayerWarningSno = 5, WallSno = 6, TornadoSno = 7, WindupSno = 8;
 
     private static readonly Dictionary<int, string> Names = new()
     {
@@ -21,6 +21,7 @@ public class TelegraphWarnerTests
         [PlayerWarningSno] = "Warlock_DemonicGaze_warning",
         [WallSno] = "Horadric_Guardian_wall_demonic",
         [TornadoSno] = "Horadric_Guardian_Tornado_projectile_invisible",
+        [WindupSno] = "fxKit_damaging_burstAttractor_demonic_parent",
     };
 
     private sealed class FakeSpeech : ISpeechSink
@@ -173,5 +174,30 @@ public class TelegraphWarnerTests
         feed.RaiseActors([Guardian(), .. Enumerable.Range(0, 5).Select(i => Projectile((uint)(400 + i), WallSno, 6, 6 + 2 * i, 2))]); // the same wall again
 
         Assert.Equal(2, speech.Spoken.Count);
+    }
+
+    [Fact]
+    public void The_wall_wind_up_moves_a_player_off_the_lines_it_rises_on_once()
+    {
+        // Live 2026-10-24: twenty burstAttractor_demonic effects gathered on the guardian at (16,16) 1.5 s before the wall rose
+        // on the player.
+        var (feed, speech, _, setSeconds) = Create();
+        feed.RaisePlayer(Player with { X = 14.5f, Y = 24.2f });
+        feed.RaiseActors([Guardian(16, 16), .. Enumerable.Range(0, 20).Select(i => Effect((uint)(500 + i), WindupSno, 16, 16 + 0.1f * i))]);
+        setSeconds(0.5);
+        feed.RaiseActors([Guardian(16, 16), .. Enumerable.Range(0, 20).Select(i => Effect((uint)(600 + i), WindupSno, 16, 16))]);
+
+        var expected = string.Format(AppStrings.English.DodgeFormat, NavigationPhrases.English.Direction(StickDirection.DownRight));
+        Assert.Equal([(expected, true)], speech.Spoken);
+    }
+
+    [Fact]
+    public void The_wall_wind_up_says_nothing_off_its_lines()
+    {
+        var (feed, speech, _, _) = Create();
+        feed.RaisePlayer(Player with { X = 16, Y = 18 });
+        feed.RaiseActors(Guardian(16, 16), Effect(500, WindupSno, 16, 16));
+
+        Assert.Empty(speech.Spoken);
     }
 }

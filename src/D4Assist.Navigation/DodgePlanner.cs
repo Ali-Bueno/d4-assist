@@ -22,6 +22,15 @@ public static class DodgePlanner
     /// across the room) moved 12 units in 5 s at ~2.2 units/s (live 2026-10-23). It can't be passed, only outrun.</summary>
     public const float WaveReachUnits = 14f;
 
+    /// <summary>A wall that rises within this of the player, either side of its line, hits at once: step back behind it, the way
+    /// it came from (live 2026-10-23/24: two deaths from full life, each with the wall rising 1-1.6 units from the player).</summary>
+    public const float WaveOnLineUnits = 2.5f;
+
+    /// <summary>The Horadric guardian's walls rise on the lines this far from it along the room's axes, square to them (live
+    /// 2026-10-23/24, eight walls: first seen 6.2-7.6 units off, x = 6.2-6.7 sweeping +X, y = 8.6-9.0 sweeping +Y, y = 22.5-23.7
+    /// sweeping -Y), 1.5-2 s after its wind-up; standing within the band either side of a line is standing where one may rise.</summary>
+    public const float WallRiseUnits = 7.5f, WallRiseBandUnits = 2.5f;
+
     /// <summary>A mover (the guardian's tornadoes, ~2 units/s) is dodged when it comes within this, ahead of it.</summary>
     public const float MoverHalfWidthUnits = 3f, MoverReachUnits = 8f;
 
@@ -56,9 +65,11 @@ public static class DodgePlanner
             {
                 // Ahead of the wall and within its sweep: run on ahead of it, out of its reach.
                 double ax = Math.Cos(yaw), ay = Math.Sin(yaw), along = dx * ax + dy * ay;
-                if (along < -1 || along > WaveReachUnits) return null;
-                want = (ax, ay);
-                clear = WaveReachUnits - along + MarginUnits;
+                if (along < -WaveOnLineUnits || along > WaveReachUnits) return null;
+                // Risen on the player: no outrunning it, step back behind it.
+                (want, clear) = along < WaveOnLineUnits
+                    ? ((-ax, -ay), WaveOnLineUnits + along + MarginUnits)
+                    : ((ax, ay), WaveReachUnits - along + MarginUnits);
                 break;
             }
             case TelegraphShape.Mover:
@@ -90,6 +101,18 @@ public static class DodgePlanner
                 break;
         }
         return Best(want, player, clear, blocked);
+    }
+
+    /// <summary>On the guardian's wind-up, the way off the lines its wall may rise on (WallRiseUnits): outward, away from the
+    /// guardian, behind the line, as a wall sweeps away from where it rose; null when the player stands off every line.</summary>
+    public static StickDirection? PlanWallRise((float X, float Y) boss, (float X, float Y) player, Func<float, float, bool>? blocked = null)
+    {
+        double dx = player.X - boss.X, dy = player.Y - boss.Y;
+        double offX = Math.Abs(Math.Abs(dx) - WallRiseUnits), offY = Math.Abs(Math.Abs(dy) - WallRiseUnits);
+        double wantX = offX < WallRiseBandUnits ? Math.Sign(dx) : 0, wantY = offY < WallRiseBandUnits ? Math.Sign(dy) : 0;
+        if (wantX == 0 && wantY == 0) return null;
+        double clear = WallRiseBandUnits - Math.Min(wantX != 0 ? offX : double.MaxValue, wantY != 0 ? offY : double.MaxValue) + MarginUnits;
+        return Best((wantX, wantY), player, clear, blocked);
     }
 
     // The direction nearest the wanted one whose path stays open for the distance to clear.

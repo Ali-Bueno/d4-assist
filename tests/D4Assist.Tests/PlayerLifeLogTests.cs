@@ -15,7 +15,7 @@ public class PlayerLifeLogTests
         log.OnLife(new PlayerLife(995, 1000)); // regeneration noise: under a hundredth
         log.OnLife(new PlayerLife(700, 1000));
 
-        Assert.Equal(["LIFE 1000/1000 (100 %) at (17.6,22.9)", "LIFE 700/1000 (70 %) -300 at (17.6,22.9)"], lines);
+        Assert.Equal(["LIFE 100% at (17.6,22.9)", "LIFE 70% -30 at (17.6,22.9)"], lines);
     }
 
     [Fact]
@@ -28,6 +28,6 @@ public class PlayerLifeLogTests
         log.OnLife(new PlayerLife(0, 1000));
         log.OnLife(new PlayerLife(0, 1000));
 
-        Assert.Equal(["LIFE 20/1000 (2 %)", "LIFE 0/1000 (0 %) -20"], lines);
+        Assert.Equal(["LIFE 2%", "LIFE 0% -2"], lines);
     }
 }

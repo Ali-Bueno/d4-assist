@@ -55,3 +55,15 @@ capture: `D4MemScan effects`.
   ~6 units off (on Tyrael, Lorath or the mercenary) burst far from the player. The player died 1.6 units from such a burst, a
   wave wall rising beside them at the same moment. Stepping out can't shake it: the app says it follows ("Markiert: …") when the
   circle under the player has moved with them by the next poll, and a way out only for one that stays put.
+
+## Wall wind-up and rise lines (live 2026-10-23/24, five fights, LIFE log)
+
+- `fxKit_damaging_burstAttractor_demonic_parent` (~20 client effects) gathers on the guardian 1.5-2 s before **every** wave wall
+  (8 of 8; no wall without it). One wind-up can bring two walls at right angles.
+- Walls rise 7.5 units off the guardian (16,16) along the room's axes, square to them, and sweep away from the near edge:
+  first seen x = 6.2-6.7 (yaw 3, +X), y = 8.6-9.0 (yaw 90, +Y), y = 22.5-23.7 (yaw -88, -Y).
+- A wall rising on the player kills from near-full life at once (2026-10-24 23:59:38: 96 % -> 0 in 0.3 s, wall 1.2-1.6 away;
+  same shape in the 23:45:57 death). Behind a wall is safe: it sweeps away.
+- Player life: ACD `Hitpoints_Cur` / `Hitpoints_Max_Total` on the player's ACD (full life reads ~2).
+- Implemented (1158296): wind-up -> `DodgePlanner.PlanWallRise` (band 2.5 either side of a line, step outward); a wall risen
+  within 2.5 of the player -> step back behind it.

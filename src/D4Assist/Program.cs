@@ -287,6 +287,14 @@ internal static class Program
             pan => { if (telegraphGain > 0) mixer.Play(telegraphCue, telegraphGain * RadarCuePlayer.LoudnessBoost, pan, priority: TelegraphPriority); },
             (x, y) => radarWorld.Cell((int)MathF.Floor(x), (int)MathF.Floor(y)) is RadarCell.Blocked or RadarCell.Door,
             debug ? Console.WriteLine : null, isProjectile: sno => definitionOf(sno)?.EType == ProjectileActorType);
+        // Every special or area attack, from its telegraph on: a loop where it is, moving with it.
+        if (loopSounds is not null && loopSounds.ContainsKey(HazardLoopBridge.HazardSound))
+        {
+            var hazardLoops = new SpatialLoopPlayer(mixer, loopSounds) { MaxVoices = HazardLoopBridge.MaxLoops };
+            _ = new HazardLoopBridge(session, new TelegraphClassifier(store.Name), enemyClasses.Of,
+                sno => definitionOf(sno)?.EType == ProjectileActorType, hazardLoops.Update, () => liveSound.Current.Level(SoundCue.Telegraph),
+                debug ? Console.WriteLine : null);
+        }
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         var persistence = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine,
@@ -565,7 +573,7 @@ internal static class Program
 
     private static Dictionary<string, float[]>? LoadLoopSounds()
     {
-        try { return SpatialLoopPlayer.LoadSounds(); }
+        try { return SpatialLoopPlayer.LoadSounds(Path.Combine(AppContext.BaseDirectory, "Sounds"), Console.WriteLine); }
         catch (InvalidDataException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
     }
 
@@ -592,7 +600,7 @@ internal static class Program
             safeZones.InsideRadius);
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name), start.IsDungeon); // app started mid-dungeon
 
-        var player = new SpatialLoopPlayer(mixer, sounds);
+        var player = new SpatialLoopPlayer(mixer, sounds) { MaxVoices = AudioMixer.MaxLoopVoices - HazardLoopBridge.MaxLoops };
         var sightings = debug
             ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;

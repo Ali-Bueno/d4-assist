@@ -13,8 +13,9 @@ public sealed class AudioMixer
     public const int MaxVoices = 8; // headroom over D2R's 4 simultaneous directions
 
     /// <summary>Separate budget for looping sources, so loops and radar cues never steal from each other.
-    /// D2R's ground-item mix holds 8 loop voices (d2r-access src/ground_items.h:44).</summary>
-    public const int MaxLoopVoices = 8;
+    /// D2R's ground-item mix holds 8 loop voices (d2r-access src/ground_items.h:44); four more for the attack loops
+    /// (HazardLoopBridge.MaxLoops), so a fight never silences the objects' loops.</summary>
+    public const int MaxLoopVoices = 12;
 
     /// <summary>Separate budget for guide pings (one plays at a time; the spare covers a ping still ringing
     /// when the next starts), so radar cues can neither steal nor starve them.</summary>

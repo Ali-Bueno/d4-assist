@@ -14,7 +14,8 @@ internal static class Program
         "       D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]\n" +
         "       D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>]\n" +
         "       D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]\n" +
-        "       D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]\n" +
+        "       D4MemScan effects --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--interval-ms <ms>] [--match <name-regex>] [--out <file.csv>]
+       D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]\n" +
         "       D4MemScan pose-snapshot --scenes <report.json> --defs <definitions.json> [--install <dir>] [--out <file.json>]\n" +
         "       D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.json>]\n" +
         "       D4MemScan pose-context --in <file.json> [--out <file.focus.json>]\n" +
@@ -36,6 +37,7 @@ internal static class Program
                 "scene-route" => SceneRouteCommand.Run(rest),
                 "player" => PlayerCommand.Run(rest),
                 "actors" => ActorsCommand.Run(rest),
+                "effects" => EffectsCommand.Run(rest),
                 "acd" => AcdCommand.Run(rest),
                 "layout" => LayoutCommand.Run(rest),
                 "pose-snapshot" => PoseSnapshotCommand.Run(rest),

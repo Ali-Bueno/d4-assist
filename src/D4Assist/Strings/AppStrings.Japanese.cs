@@ -59,5 +59,6 @@ public sealed partial record AppStrings
         PlaceCountFormat: "{1}件中{0}件目。",
         GuideExploreMode: "ガイド：探索。",
         GuideObjectivesMode: "ガイド：目標。",
-        GuideToMonstersFormat: "すべて探索済み。マップにモンスターが残り{0}体、案内します。");
+        GuideToMonstersFormat: "すべて探索済み。マップにモンスターが残り{0}体、案内します。",
+        DodgeFormat: "回避：{0}");
 }

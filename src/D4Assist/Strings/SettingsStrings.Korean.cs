@@ -47,6 +47,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "퀘스트와 포털",
             [SoundGroup.Guide] = "안내",
             [SoundGroup.Characters] = "캐릭터",
+            [SoundGroup.Danger] = "위험",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -78,6 +79,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "대화할 캐릭터",
             [SoundCue.Boss] = "보스",
             [SoundCue.Elite] = "정예 및 고유 몬스터",
+            [SoundCue.Telegraph] = "보스 공격 경고",
         },
 
         GeneralTab = "일반",

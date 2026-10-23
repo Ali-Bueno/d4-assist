@@ -59,5 +59,6 @@ public sealed partial record AppStrings
         PlaceCountFormat: "{0} von {1}.",
         GuideExploreMode: "Führung: Erkunden.",
         GuideObjectivesMode: "Führung: Ziele.",
-        GuideToMonstersFormat: "Alles erforscht. Noch {0} Monster auf der Karte, ich führe dich hin.");
+        GuideToMonstersFormat: "Alles erforscht. Noch {0} Monster auf der Karte, ich führe dich hin.",
+        DodgeFormat: "Ausweichen: {0}");
 }

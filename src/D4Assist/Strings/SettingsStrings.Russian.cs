@@ -47,6 +47,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Задание и порталы",
             [SoundGroup.Guide] = "Проводник",
             [SoundGroup.Characters] = "Персонажи",
+            [SoundGroup.Danger] = "Опасность",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -78,6 +79,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Персонажи для разговора",
             [SoundCue.Boss] = "Боссы",
             [SoundCue.Elite] = "Элита и уникальные",
+            [SoundCue.Telegraph] = "Предупреждение об атаках боссов",
         },
 
         GeneralTab = "Общие",

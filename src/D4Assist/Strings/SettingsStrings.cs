@@ -120,6 +120,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Misión y portales",
             [SoundGroup.Guide] = "Guía",
             [SoundGroup.Characters] = "Personajes",
+            [SoundGroup.Danger] = "Peligro",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -151,6 +152,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Personajes con los que hablar",
             [SoundCue.Boss] = "Jefes",
             [SoundCue.Elite] = "Élites y únicos",
+            [SoundCue.Telegraph] = "Aviso de ataques de jefe",
         },
 
         GeneralTab = "General",
@@ -226,6 +228,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Quest and portals",
             [SoundGroup.Guide] = "Guide",
             [SoundGroup.Characters] = "Characters",
+            [SoundGroup.Danger] = "Danger",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -257,6 +260,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Characters to talk to",
             [SoundCue.Boss] = "Bosses",
             [SoundCue.Elite] = "Elites and uniques",
+            [SoundCue.Telegraph] = "Boss attack warnings",
         },
 
         GeneralTab = "General",

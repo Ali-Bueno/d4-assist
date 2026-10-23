@@ -59,5 +59,6 @@ public sealed partial record AppStrings
         PlaceCountFormat: "{1} içinden {0}.",
         GuideExploreMode: "Rehber: keşif.",
         GuideObjectivesMode: "Rehber: hedefler.",
-        GuideToMonstersFormat: "Her yer keşfedildi. Haritada {0} canavar kaldı, seni götürüyorum.");
+        GuideToMonstersFormat: "Her yer keşfedildi. Haritada {0} canavar kaldı, seni götürüyorum.",
+        DodgeFormat: "Kaç: {0}");
 }

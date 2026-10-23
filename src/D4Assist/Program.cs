@@ -275,9 +275,17 @@ internal static class Program
         session.WorldChanged += (_, _, _) => markerLog.Reset();
         using var enemyCue = new EnemyCuePlayer(mixer);
         var carried = new CarryGoals(new ObjectiveClassifier(definitionOf, store.Name));
-        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).Of, store.Name, debug ? Console.WriteLine : null,
+        var enemyClasses = new EnemyClassifier(definitionOf);
+        double telegraphGain = 1;
+        _ = new EnemyCueBridge(session, enemyCue, enemyClasses.Of, store.Name, debug ? Console.WriteLine : null,
             actors => actors.Any(carried.IsHeld) ? [.. actors.Select(a => carried.IsBossToBind(a) ? a with { Invulnerable = false } : a)] : actors);
         _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
+        // A boss or elite attack about to land where the player stands: a sharp cue toward it and the way to step out.
+        var telegraphCue = TelegraphCueSynth.Synthesize();
+        _ = new TelegraphWarner(session, new TelegraphClassifier(store.Name), enemyClasses.Of, speech, language,
+            pan => { if (telegraphGain > 0) mixer.Play(telegraphCue, telegraphGain * RadarCuePlayer.LoudnessBoost, pan, priority: TelegraphPriority); },
+            (x, y) => radarWorld.Cell((int)MathF.Floor(x), (int)MathF.Floor(y)) is RadarCell.Blocked or RadarCell.Door,
+            debug ? Console.WriteLine : null);
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
         var persistence = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine,
@@ -324,6 +332,7 @@ internal static class Program
                 var (volume, rate) = mix.Level(cue);
                 enemyCue.SetLevel(kind, volume, rate);
             }
+            telegraphGain = mix.Level(SoundCue.Telegraph).Gain;
             if (guidePing is null) return;
             (guidePing.Volume, guidePing.Rate) = mix.Level(SoundCue.GuidePing);
             guidePing.ArrivalVolume = mix.Level(SoundCue.GuideArrival).Gain;
@@ -728,6 +737,9 @@ internal static class Program
     private const string TraversalExitName = "MarkerLocation_TraversalExit";
 
     // Paths over the offline scene surfaces of the open world and the story areas; every game-data read holds the CASC gate.
+    // Above every radar cue (RadarCueKindExtensions.Priority): a warning is never the voice stolen.
+    private const int TelegraphPriority = 100;
+
     private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
     {
         var worlds = new WorldReader(store, schema);

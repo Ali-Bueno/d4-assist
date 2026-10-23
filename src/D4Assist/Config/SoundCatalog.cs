@@ -13,7 +13,8 @@ public static class SoundCatalog
         <= SoundCue.HealingWell => SoundGroup.Objects,
         <= SoundCue.WardBreaker => SoundGroup.Quest,
         <= SoundCue.GuideArrival => SoundGroup.Guide,
-        _ => SoundGroup.Characters,
+        <= SoundCue.Elite => SoundGroup.Characters,
+        _ => SoundGroup.Danger, // one-shot warnings: no speed
     };
 
     /// <summary>The group's cues in settings-window order.</summary>

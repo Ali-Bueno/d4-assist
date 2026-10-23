@@ -59,5 +59,6 @@ public sealed partial record AppStrings
         PlaceCountFormat: "第{0}个，共{1}个。",
         GuideExploreMode: "向导：探索。",
         GuideObjectivesMode: "向导：目标。",
-        GuideToMonstersFormat: "全部探索完毕。地图上还有{0}个怪物，正在带你过去。");
+        GuideToMonstersFormat: "全部探索完毕。地图上还有{0}个怪物，正在带你过去。",
+        DodgeFormat: "躲避：{0}");
 }

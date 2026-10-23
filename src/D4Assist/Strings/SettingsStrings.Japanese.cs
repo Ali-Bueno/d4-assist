@@ -47,6 +47,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "クエストとポータル",
             [SoundGroup.Guide] = "ガイド",
             [SoundGroup.Characters] = "キャラクター",
+            [SoundGroup.Danger] = "危険",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -78,6 +79,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "話しかけるキャラクター",
             [SoundCue.Boss] = "ボス",
             [SoundCue.Elite] = "エリートとユニーク",
+            [SoundCue.Telegraph] = "ボスの攻撃の警告",
         },
 
         GeneralTab = "全般",

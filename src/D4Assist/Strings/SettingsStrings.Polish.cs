@@ -46,6 +46,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Zadanie i portale",
             [SoundGroup.Guide] = "Przewodnik",
             [SoundGroup.Characters] = "Postacie",
+            [SoundGroup.Danger] = "Zagrożenie",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -77,6 +78,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Postacie do rozmowy",
             [SoundCue.Boss] = "Bossowie",
             [SoundCue.Elite] = "Elity i unikaty",
+            [SoundCue.Telegraph] = "Ostrzeżenie przed atakami bossów",
         },
         GeneralTab = "Ogólne",
         GeneralBox = "Opcje (zastosowane po ponownym uruchomieniu asystenta)",

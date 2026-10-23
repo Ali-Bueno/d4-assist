@@ -46,6 +46,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Görev ve portallar",
             [SoundGroup.Guide] = "Rehber",
             [SoundGroup.Characters] = "Karakterler",
+            [SoundGroup.Danger] = "Tehlike",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -77,6 +78,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Konuşulacak karakterler",
             [SoundCue.Boss] = "Patronlar",
             [SoundCue.Elite] = "Elitler ve benzersizler",
+            [SoundCue.Telegraph] = "Boss saldırısı uyarısı",
         },
         GeneralTab = "Genel",
         GeneralBox = "Seçenekler (yardımcı yeniden başlatıldığında geçerli olur)",

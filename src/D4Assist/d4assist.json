@@ -45,6 +45,11 @@
         "Enabled": true,
         "Volume": 100,
         "Speed": 100
+      },
+      "Danger": {
+        "Enabled": true,
+        "Volume": 100,
+        "Speed": 100
       }
     },
     "Cues": {

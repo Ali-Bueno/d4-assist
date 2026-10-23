@@ -59,5 +59,6 @@ public sealed partial record AppStrings
         PlaceCountFormat: "{0} z {1}.",
         GuideExploreMode: "Przewodnik: eksploracja.",
         GuideObjectivesMode: "Przewodnik: cele.",
-        GuideToMonstersFormat: "Wszystko zbadane. Na mapie zostało potworów: {0}, prowadzę.");
+        GuideToMonstersFormat: "Wszystko zbadane. Na mapie zostało potworów: {0}, prowadzę.",
+        DodgeFormat: "Unik: {0}");
 }

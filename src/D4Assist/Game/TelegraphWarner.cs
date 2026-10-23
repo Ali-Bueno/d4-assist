@@ -151,13 +151,13 @@ public sealed class TelegraphWarner
         foreach (var (mover, shape) in movers)
         {
             if (Distance(mover, player) > WarnRangeUnits || _moverWarned.ContainsKey(mover.Id)) continue;
-            if (shape == TelegraphShape.Wave && _lastWave is { } wave && now - wave < MoverRewarn) continue;
+            if (shape == TelegraphShape.Wave && _lastWave is { } wave && now - wave.At < MoverRewarn && SameWay(wave.Yaw, mover.Yaw)) continue;
             // A wall faces the way it sweeps; a tornado drifts its own way, read from where it was a poll ago.
             if (Heading(mover, shape!.Value) is not { } heading) continue;
             var moving = mover with { Yaw = heading };
             if (DodgePlanner.Plan(shape.Value, (moving.X, moving.Y), heading, (player.X, player.Y), (foe.X, foe.Y)) is null) continue;
             _moverWarned[mover.Id] = now;
-            if (shape == TelegraphShape.Wave) _lastWave = now;
+            if (shape == TelegraphShape.Wave) _lastWave = (now, mover.Yaw);
             Warn(moving, shape.Value, player, foe, now);
         }
         foreach (var (mover, _) in movers) _moverLast[mover.Id] = (mover.X, mover.Y);
@@ -175,11 +175,19 @@ public sealed class TelegraphWarner
 
     private readonly Dictionary<uint, (float X, float Y)> _moverLast = [];
 
-    /// <summary>A wave warned of is not warned of again for this long (its segments, its sweep).</summary>
+    /// <summary>A wave warned of is not warned of again for this long (its segments, its sweep), unless one sweeps another way.</summary>
     public static readonly TimeSpan MoverRewarn = TimeSpan.FromSeconds(4);
 
     private readonly Dictionary<uint, TimeSpan> _moverWarned = [];
-    private TimeSpan? _lastWave;
+    // The last wall warned of: its segments share its yaw. Another wall sweeps another way (live 2026-10-23: a second wall 2.5 s
+    // after the first, at right angles, went unsaid and killed the player).
+    private (TimeSpan At, float Yaw)? _lastWave;
+
+    private static bool SameWay(float a, float b)
+    {
+        float d = MathF.Abs(a - b) % (2 * MathF.PI);
+        return MathF.Min(d, 2 * MathF.PI - d) < MathF.PI / 6;
+    }
 
     /// <summary>A circle within this of the player is checked for following them; one that moved this much along with them does.</summary>
     public const float OnPlayerUnits = 1f, MarkMovedUnits = 0.5f;

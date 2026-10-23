@@ -160,4 +160,18 @@ public class TelegraphWarnerTests
         Assert.Equal([(AppStrings.English.MarkedWarning, true)], speech.Spoken);
         Assert.Single(cues);
     }
+
+    [Fact]
+    public void A_second_wall_sweeping_another_way_is_warned_of_too()
+    {
+        // Live 2026-10-23: a wall toward -Y, then 2.5 s later one toward +X; the second went unsaid and killed the player.
+        var (feed, speech, _, setSeconds) = Create();
+        feed.RaiseActors([Guardian(), .. Enumerable.Range(0, 5).Select(i => Projectile((uint)(200 + i), WallSno, 6 + 2 * i, 14, -88))]);
+        setSeconds(2.5);
+        feed.RaiseActors([Guardian(), .. Enumerable.Range(0, 5).Select(i => Projectile((uint)(300 + i), WallSno, 6, 6 + 2 * i, 3))]);
+        setSeconds(3);
+        feed.RaiseActors([Guardian(), .. Enumerable.Range(0, 5).Select(i => Projectile((uint)(400 + i), WallSno, 6, 6 + 2 * i, 2))]); // the same wall again
+
+        Assert.Equal(2, speech.Spoken.Count);
+    }
 }

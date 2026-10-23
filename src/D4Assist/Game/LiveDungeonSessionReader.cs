@@ -495,6 +495,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlyList<int>? ReadOwnedQuests() => _activeQuests?.Owned;
 
+    public bool QuestStepElsewhere => _activeQuests?.StepElsewhere ?? false;
+
     public IReadOnlyDictionary<int, uint>? FindQuestPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests) =>
         _activeQuests is null ? null : QuestPhaseLocator.FindAllCandidates(_process, _moduleData, quests)
             .Select(found => (Quest: found.Key, found.Value.First(c => c.Address == QuestPhaseLocator.Pick(found.Value)).Phase))

@@ -102,6 +102,18 @@ public sealed class PortalMemory
                 .Select(p => new GuideDestination($"objective:{p.Id}", p.Position, ObjectiveMemory.DungeonTier))];
     }
 
+    /// <summary>The portals the player came or went through, as quest steps: the quest goes on in another world, and the way there
+    /// is the way back (ActiveQuests.StepElsewhere).</summary>
+    public IReadOnlyList<GuideDestination> WayOutDestinations()
+    {
+        lock (_gate)
+            return [.. _portals.Where(p => p.Used && !p.Absent)
+                .Select(p => new GuideDestination($"way-out:{p.Id}", p.Position, ObjectiveMemory.QuestTier, Radius: WayOutReachUnits))];
+    }
+
+    /// <summary>Within this of the way-out portal the guide holds: its own loop takes over.</summary>
+    public const float WayOutReachUnits = 3f;
+
     /// <summary>Lets the objective portals the player already stood at lead again (the guide was just switched on).</summary>
     public void Rearm()
     {

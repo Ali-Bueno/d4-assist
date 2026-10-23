@@ -230,6 +230,35 @@ public class ActiveQuestsTests
     }
 
     [Fact]
+    public void A_quest_whose_step_moves_on_to_another_world_names_nothing_here_and_leads_out()
+    {
+        // Live 2026-10-23: Tal Rasha's seal taken, the next step in the Horadric Vault's hall; its blueprint marker was placed in
+        // the wing, and the guide held the player at the seal.
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((SideQuest, FindPhase));
+        var quests = SideQuestSession(memory, LightsWatch, new QuestPhaseHistory(), () => now);
+        quests.Update(tracked: [SideQuest], AreaWith(LecternSno));
+        Assert.False(quests.StepElsewhere);
+
+        memory.Hold(SideQuest, ReturnPhase);
+        now += TimeSpan.FromSeconds(10);
+        var named = quests.Update(tracked: [SideQuest], AreaWith(LecternSno));
+
+        Assert.Empty(named.Markers);
+        Assert.True(quests.StepElsewhere);
+    }
+
+    [Fact]
+    public void A_quest_tracked_from_another_world_never_leads_out()
+    {
+        var quests = SideQuestSession(new ModuleReader((SideQuest, ReturnPhase)), LightsWatch, new QuestPhaseHistory());
+
+        quests.Update(tracked: [SideQuest], AreaWith(LecternSno));
+
+        Assert.False(quests.StepElsewhere);
+    }
+
+    [Fact]
     public void A_tracked_quest_never_read_keeps_its_objects()
     {
         var quests = SideQuestSession(new ModuleReader(), LightsWatch, new QuestPhaseHistory());

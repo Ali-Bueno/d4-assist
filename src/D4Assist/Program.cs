@@ -359,7 +359,12 @@ internal static class Program
                 pad, config.ExplorationGuideInDungeons, language,
                 portals is null ? () => [.. monsters.Destinations(), .. bossRoom.Destinations()]
                     : () => [.. monsters.Destinations(), .. bossRoom.Destinations(), .. portals.Destinations()],
-                objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
+                objectives is null ? null : () =>
+                {
+                    bool elsewhere = false;
+                    session.Query(r => elsewhere = r.QuestStepElsewhere);
+                    return [.. objectives.Destinations(), .. portals!.ObjectiveDestinations(), .. elsewhere ? portals.WayOutDestinations() : []];
+                },
                 objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];

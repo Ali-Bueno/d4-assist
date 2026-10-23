@@ -15,7 +15,7 @@ public static class ActorFilter
         [AcdFlagReader.GizmoOperated, AcdFlagReader.FollowerQuest, AcdFlagReader.GizmoQuestRestricted, AcdFlagReader.GizmoDisabledByScript,
          AcdFlagReader.MinimapActive, AcdFlagReader.TrackedQuest, AcdFlagReader.OverrideTrackedQuest, AcdFlagReader.GizmoState,
          AcdFlagReader.NpcHasInteractOptions, AcdFlagReader.ConversationIcon, AcdFlagReader.ConversationIconQuest,
-         AcdFlagReader.Invulnerable];
+         AcdFlagReader.Invulnerable, AcdFlagReader.TeamId];
 
     /// <param name="flags">The actor's set ACD flags and their values (AcdFlagReader.Values); null when unavailable or not read for it.</param>
     /// <param name="namedByQuest">How the active quests' scripts name an actor (QuestScriptMarkerReader); null for none.</param>
@@ -73,7 +73,7 @@ public static class ActorFilter
             GizmoStateSet: Has(AcdFlagReader.GizmoState),
             Talkable: Has(AcdFlagReader.NpcHasInteractOptions) || conversation,
             NamedByQuest: naming == QuestNaming.It,
-            Invulnerable: Has(AcdFlagReader.Invulnerable));
+            Invulnerable: Has(AcdFlagReader.Invulnerable), Hostile: flags?.TryGetValue(AcdFlagReader.TeamId, out uint team) == true && team == D4Data.Format.Conventions.HostileTeam);
     }
 
     /// <summary>Locks the objects that belong to a quest not the player's (QuestOwnerIndex): the game lets nobody without that quest

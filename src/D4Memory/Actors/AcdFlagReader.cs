@@ -46,6 +46,10 @@ public sealed class AcdFlagReader
     /// <summary>A unit no damage hurts (live 2026-10-04: the Echo of Diablo while its clone gates stand).</summary>
     public const string Invulnerable = "Invulnerable";
 
+    /// <summary>The actor's team: 19 for hostile monsters (live 2026-10-23: Tal Rasha's seal 19; the Horadric guardian's definition
+    /// says 1, a neutral that turns hostile for its fight).</summary>
+    public const string TeamId = "TeamID";
+
     /// <summary>On the player during a real-time (in-engine) cinematic, 0 again when it ends (live 2026-09-30: 1 during the
     /// Inarius door scene, 0 after it; the player's other scene-time flags also turn on in NPC menus and teleports).</summary>
     public const string RtcPlaying = "RTC Playing";

@@ -236,7 +236,7 @@ internal static class Program
         var lockedDoors = new LockedDoors(doors ?? new DoorObstacles(interactables, definitionOf), store.Name, Console.WriteLine);
         var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
-            radarWorld.SetBarriers, navigation.SetBlockedCells);
+            radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates);
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
@@ -360,7 +360,7 @@ internal static class Program
                 portals is null ? () => [.. monsters.Destinations(), .. bossRoom.Destinations()]
                     : () => [.. monsters.Destinations(), .. bossRoom.Destinations(), .. portals.Destinations()],
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
-                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); },
+                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)

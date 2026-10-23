@@ -20,6 +20,7 @@ public sealed partial class NavigationPhrases
         ToUnexplored = "К неисследованной зоне.",
         QuestObjectiveBelow = "Цель находится ниже.",
         QuestObjectiveAbove = "Цель находится выше.",
+        ShutForNow = "Проход пока закрыт, он откроется позже.",
         Directions = Map("вверх", "вверх вправо", "вправо", "вниз вправо", "вниз", "вниз влево", "влево", "вверх влево"),
         CompassDirections = Map("север", "северо-восток", "восток", "юго-восток", "юг", "юго-запад", "запад", "северо-запад"),
         Labels = new() { [RoomKind.Junction] = "Перекрёсток.", [RoomKind.BigRoom] = "Большая комната.", [RoomKind.Corridor] = "Коридор." },

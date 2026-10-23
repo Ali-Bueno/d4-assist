@@ -93,6 +93,37 @@ public sealed class ExplorationGuide
     private IReadOnlyList<JumpLink> _jumps = [];
     private int _jumpsVersion, _cachedJumps = -1;
 
+    /// <summary>The doors the game keeps shut for now, among the blocked cells: an objective cut off only by one of them leads to
+    /// that door. Compared by id; a door gone from the list (opened) forgets that the player walked away from it.</summary>
+    public void SetGates(IReadOnlyList<GuideGate> gates)
+    {
+        if (gates.Select(g => g.Id).SequenceEqual(_gates.Select(g => g.Id))) return;
+        _gates = gates;
+        _spentGates.IntersectWith(gates.Select(g => g.Id));
+        _atGates.IntersectWith(gates.Select(g => g.Id));
+        _gatesVersion++;
+    }
+
+    private IReadOnlyList<GuideGate> _gates = [];
+    private int _gatesVersion, _cachedGates = -1;
+    // Gates the player stood at, and those they then walked away from still shut: a key door waits for its key found elsewhere.
+    private readonly HashSet<string> _atGates = [];
+    private readonly HashSet<string> _spentGates = [];
+
+    /// <summary>Lets the shut doors the player walked away from lead again (the guide was just switched on by a lost player).</summary>
+    public void RearmGates()
+    {
+        if (_spentGates.Count == 0) return;
+        _spentGates.Clear();
+        _gatesVersion++;
+    }
+
+    /// <summary>Within this of a shut door's spot the player waits at it: its footprint's cells reach about this far from the spot.</summary>
+    public const float GateReachUnits = 6f;
+
+    /// <summary>Walking this far from a shut door the player stood at gives up on it: a fight before it still keeps them closer.</summary>
+    public const float GateLeaveUnits = 30f;
+
     /// <summary>Forget the current target, every dead exit and the barriers. Call on dungeon change.</summary>
     public void Reset()
     {
@@ -106,6 +137,10 @@ public sealed class ExplorationGuide
         _blocked = BlockedCells.None;
         _jumps = [];
         _jumpsVersion++;
+        _gates = [];
+        _atGates.Clear();
+        _spentGates.Clear();
+        _gatesVersion++;
         _beforeOpening = null;
         _behindTiles = [];
         _behindFrontiers = [];
@@ -135,6 +170,7 @@ public sealed class ExplorationGuide
         }
         MarkSeenNeighbours(graph, tile, player);
         SpendReachedFrontiers(graph, player);
+        SpendLeftGates(player);
         if (exitMissing && _rechecking) MarkRechecked(graph, player);
         destinations ??= [];
         objectives ??= [];
@@ -144,7 +180,7 @@ public sealed class ExplorationGuide
 
         var here = (player.X, player.Y);
         if (_cached is not null && _cachedVersion == _map.Version && _cachedBlocked == _blockedVersion && _cachedSpent == _spentFrontiers.Count &&
-            _cachedRecheck == _recheckVersion && _cachedExitMissing == exitMissing && _cachedDestinations == destinationKey && _cachedJumps == _jumpsVersion &&
+            _cachedRecheck == _recheckVersion && _cachedExitMissing == exitMissing && _cachedDestinations == destinationKey && _cachedJumps == _jumpsVersion && _cachedGates == _gatesVersion &&
             TileRoutes.Distance(here, _cachedPlayer) <= RoomRouteCache.RecomputeThresholdUnits)
             return _cached;
 
@@ -157,6 +193,7 @@ public sealed class ExplorationGuide
         _cachedExitMissing = exitMissing;
         _cachedDestinations = destinationKey;
         _cachedJumps = _jumpsVersion;
+        _cachedGates = _gatesVersion;
         return _cached;
     }
 
@@ -188,7 +225,8 @@ public sealed class ExplorationGuide
         var waiting = objectiveCandidates.Count > 0 ? [] : Waiting(graph, routes, objectives);
         if (waiting.Count > 0)
             exploring = [.. exploring.Select(c => c with { Cost = c.Cost + waiting.Min(w => TileRoutes.Distance(c.Target.Position, w.Position)) })];
-        var candidates = objectiveCandidates.Count > 0 ? objectiveCandidates : exploring;
+        var gate = waiting.Count > 0 ? GateCandidate(tile, here, routes, waiting) : null;
+        var candidates = objectiveCandidates.Count > 0 ? objectiveCandidates : gate is not null ? [gate] : exploring;
         _rechecking = false;
         if (candidates.Count == 0 && exitMissing)
         {
@@ -213,7 +251,8 @@ public sealed class ExplorationGuide
         if (chosen.FrontierHop is { } exit) hops.Add(new RouteHop(exit.Opening, null, chosen.Cost));
         var status = _rechecking ? GuideStatus.Rechecking : GuideStatus.Guiding;
         var waypoint = Waypoint(hops, chosen, player, out var remaining, out var jumpAt);
-        var toward = waiting.Count > 0 && exploring.Contains(chosen) ? waiting.MinBy(w => TileRoutes.Distance(chosen.Target.Position, w.Position)) : null;
+        var toward = waiting.Count > 0 && (exploring.Contains(chosen) || chosen == gate)
+            ? waiting.MinBy(w => TileRoutes.Distance(chosen.Target.Position, w.Position)) : null;
         return new GuideStep(status, chosen.Target, waypoint, remaining, Arrivals, _rechecking ? _round : 0, toward, jumpAt);
     }
 
@@ -226,6 +265,46 @@ public sealed class ExplorationGuide
         var routes = TileRoutes.From(start, (player.X, player.Y));
         _behindTiles = [.. routes.Reached.Select(n => TileGraph.Key(n.Tile))];
         _behindFrontiers = [.. routes.Reached.SelectMany(n => n.Hops.Where(h => h.To is null).Select(h => FrontierId(n, h.Opening)))];
+    }
+
+    // An objective cut off only by a door the game keeps shut: lead to that door and wait there, rather than explore elsewhere
+    // (live 2026-10-23, the Tunnels of Hefaetrust: invisible doors shut the way on until the fight before them ends; the guide
+    // led 400 units back to the start's corners instead).
+    private Candidate? GateCandidate(MapTile tile, (float X, float Y) here, TileRoutes routes, List<GuideDestination> waiting)
+    {
+        Candidate? best = null;
+        foreach (var gate in _gates.Where(g => !_spentGates.Contains(g.Id)))
+        {
+            var open = TileGraph.Build(_map, _walkability, new BlockedCells(_blocked.Cells.Except(gate.Cells)));
+            if (open.NodeAt(tile, here) is not { } start) continue;
+            var through = TileRoutes.From(start, here);
+            if (!waiting.Any(w => _map.TileAt(w.Position.X, w.Position.Y) is { } t && open.NodeAt(t, w.Position) is { } n && through.Reaches(n)))
+                continue;
+            // The door stands on a tile's edge: its near side is a reached node on a tile it touches.
+            var near = routes.Reached.Where(n => Touches(n.Tile, gate.Position))
+                .Select(n => (Node: n, Cost: routes.LengthTo(n) + TileRoutes.Distance(routes.EntryPoint(n), gate.Position)))
+                .OrderBy(n => n.Cost).FirstOrDefault();
+            if (near.Node is null || (best is not null && best.Cost <= near.Cost)) continue;
+            best = new Candidate(new GuideTarget(GuideTargetKind.Gate, $"gate:{gate.Id}", gate.Position), near.Cost, near.Node, null, GateReachUnits);
+        }
+        return best;
+    }
+
+    private void SpendLeftGates(PlayerInput player)
+    {
+        foreach (var gate in _gates)
+        {
+            float distance = TileRoutes.Distance((player.X, player.Y), gate.Position);
+            if (distance <= GateReachUnits) _atGates.Add(gate.Id);
+            else if (distance > GateLeaveUnits && _atGates.Remove(gate.Id) && _spentGates.Add(gate.Id)) _gatesVersion++;
+        }
+    }
+
+    private static bool Touches(MapTile tile, (float X, float Y) p)
+    {
+        const float edge = GateReachUnits + 2f; // a door may stand a few units inside the tile past the one the player comes from
+        var input = tile.Input;
+        return p.X >= input.OriginX - edge && p.X <= input.OriginX + input.SizeX + edge && p.Y >= input.OriginY - edge && p.Y <= input.OriginY + input.SizeY + edge;
     }
 
     private List<Candidate> PastOpeningFirst(List<Candidate> exploring)
@@ -254,7 +333,7 @@ public sealed class ExplorationGuide
     {
         GuideTargetKind.ExitCandidate => false, // counted when passed, see MarkRechecked
         GuideTargetKind.Destination => _reachedDestinations.Contains(target.Target.Id),
-        GuideTargetKind.Objective => TileRoutes.Distance(player, target.Target.Position) <= MathF.Max(target.Reach, DestinationArrivalUnits),
+        GuideTargetKind.Objective or GuideTargetKind.Gate => TileRoutes.Distance(player, target.Target.Position) <= MathF.Max(target.Reach, DestinationArrivalUnits),
         _ => target.FrontierHop is null ? _map.IsVisited(target.Node.Tile) : _spentFrontiers.Contains(target.Target.Id),
     };
 
@@ -354,7 +433,7 @@ public sealed class ExplorationGuide
         float total = chosen.Cost;
         remaining = total;
         jumpAt = null;
-        bool point = chosen.FrontierHop is null && chosen.Target.Kind is GuideTargetKind.Objective or GuideTargetKind.Destination;
+        bool point = chosen.FrontierHop is null && chosen.Target.Kind is GuideTargetKind.Objective or GuideTargetKind.Destination or GuideTargetKind.Gate;
         if (hops.Count == 0 && !point) return chosen.Target.Position; // the target is in the player's tile
         var room = RoomModel.TryGetRoom(_map, player.X, player.Y, out var found, _walkability, _blocked) ? found : null;
         var roomTiles = room?.Tiles.Select(TileGraph.Key).ToHashSet() ?? [];

@@ -20,6 +20,7 @@ public sealed partial class NavigationPhrases
         ToUnexplored = "Zu unerforschtem Gebiet.",
         QuestObjectiveBelow = "Das Ziel liegt weiter unten.",
         QuestObjectiveAbove = "Das Ziel liegt weiter oben.",
+        ShutForNow = "Der Weg ist noch versperrt, er öffnet sich später.",
         Directions = Map("oben", "oben rechts", "rechts", "unten rechts", "unten", "unten links", "links", "oben links"),
         CompassDirections = Map("Nord", "Nordost", "Ost", "Südost", "Süd", "Südwest", "West", "Nordwest"),
         Labels = new() { [RoomKind.Junction] = "Kreuzung.", [RoomKind.BigRoom] = "Großer Raum.", [RoomKind.Corridor] = "Gang." },

@@ -201,7 +201,7 @@ public sealed class ExplorationGuideBridge
         // An unused portal already seen is the floor exit: lead back to it instead of re-checking dead ends.
         bool exitMissing = _switch.IsEndgame && !destinations.Any(d => d.Tier == 0);
         var step = _step(_player, exitMissing, destinations, objectives);
-        if (_beaconActive() && step.Target?.Kind != GuideTargetKind.Objective)
+        if (_beaconActive() && step.Target?.Kind is not (GuideTargetKind.Objective or GuideTargetKind.Gate))
         {
             _arrivals = Math.Max(_arrivals, step.Arrivals);
             Mute();
@@ -220,7 +220,7 @@ public sealed class ExplorationGuideBridge
                 if (HoldsForFight(step)) { _ping.Silence(); break; }
                 LogTargetChange(step);
                 AnnounceGoal(step, destinations, objectives);
-                if (HoldsAtObjective(step, objectives)) { _ping.Silence(); break; }
+                if (HoldsAtObjective(step, objectives) || HoldsAtGate(step)) { _ping.Silence(); break; }
                 var (right, up) = ScreenDirections.ToScreen(step.Waypoint.X - _player.X, step.Waypoint.Y - _player.Y);
                 _ping.Aim(right, up, step.RemainingLength);
                 break;
@@ -272,7 +272,7 @@ public sealed class ExplorationGuideBridge
         string? goal = target.Kind switch
         {
             GuideTargetKind.Objective => GoalOf(objectives.FirstOrDefault(o => o.Id == target.Id)),
-            GuideTargetKind.UnvisitedTile or GuideTargetKind.Frontier => step.Toward is { } toward ? GoalOf(toward) : ExploreGoal,
+            GuideTargetKind.UnvisitedTile or GuideTargetKind.Frontier or GuideTargetKind.Gate => step.Toward is { } toward ? GoalOf(toward) : ExploreGoal,
             _ => null,
         };
         if (goal is null || goal == _announcedGoal) return;
@@ -347,6 +347,33 @@ public sealed class ExplorationGuideBridge
         _heldAt = null;
         return false;
     }
+
+    // A door the game keeps shut stands between the player and the objective: at it, one arrival chime, then silence until it
+    // opens (its fight ends, its script runs) and the guide leads on through it.
+    private bool HoldsAtGate(GuideStep step)
+    {
+        if (step.Target is not { Kind: GuideTargetKind.Gate } target)
+        {
+            _heldAtGate = null;
+            return false;
+        }
+        var player = _player!;
+        float flat = MathF.Sqrt(MathF.Pow(target.Position.X - player.X, 2) + MathF.Pow(target.Position.Y - player.Y, 2));
+        float reach = _heldAtGate == target.Id ? ExplorationGuide.GateReachUnits * 1.5f : ExplorationGuide.GateReachUnits;
+        if (flat > reach)
+        {
+            _heldAtGate = null;
+            return false;
+        }
+        if (_heldAtGate == target.Id) return true;
+        _heldAtGate = target.Id;
+        _ping.PlayArrived();
+        _speech.Speak(NavigationPhrases.For(_language.Current).ShutForNow, interrupt: false);
+        _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE holding at {target.Id}: shut by the game");
+        return true;
+    }
+
+    private string? _heldAtGate;
 
     private void LogTargetChange(GuideStep step)
     {

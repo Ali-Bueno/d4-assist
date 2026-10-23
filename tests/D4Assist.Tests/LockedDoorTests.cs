@@ -45,6 +45,21 @@ public class LockedDoorTests
     }
 
     [Fact]
+    public void Only_a_door_the_game_keeps_shut_is_a_gate_for_the_guide()
+    {
+        var doors = Doors();
+        doors.Update([KeyLocked], At(20, 20.5f));
+        var gate = Assert.Single(doors.Gates());
+        Assert.Equal((10.5f, 20.5f), gate.Position);
+        Assert.Equal(Footprint(), gate.Cells);
+
+        var tried = Doors();
+        tried.Update([Door], AtTheDoor);
+        tried.Update([], Away);
+        Assert.Empty(tried.Gates()); // shut by no one but itself: the player walked away from it
+    }
+
+    [Fact]
     public void A_locked_door_out_of_the_clients_range_stays_a_wall()
     {
         var doors = Doors();

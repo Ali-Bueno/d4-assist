@@ -64,6 +64,18 @@ public sealed class NavigationBridge
         lock (_gate) _engine.Guide.SetBlockedCells(cells);
     }
 
+    /// <summary>The doors the game keeps shut, for the guide; an equal list is a no-op (ExplorationGuide.SetGates).</summary>
+    public void SetGates(IReadOnlyList<GuideGate> gates)
+    {
+        lock (_gate) _engine.Guide.SetGates(gates);
+    }
+
+    /// <summary>Lets the shut doors the player walked away from lead again (ExplorationGuide.RearmGates).</summary>
+    public void RearmGates()
+    {
+        lock (_gate) _engine.Guide.RearmGates();
+    }
+
     /// <summary>The jump links of the loaded tiles, for the guide's routes; an equal list is a no-op (ExplorationGuide.SetJumpLinks).</summary>
     public void SetJumpLinks(IReadOnlyList<JumpLink> jumps)
     {

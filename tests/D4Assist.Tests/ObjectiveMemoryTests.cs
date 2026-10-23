@@ -454,6 +454,30 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_quest_place_reached_in_this_phase_leads_again_only_once_nothing_else_is_left()
+    {
+        // Live 2026-10-23, the Kulle wing: the phase named the anvil and a trigger far west; a lorebook read on the way re-armed
+        // the anvil and the guide sent the player back onto it. In the Tunnels of Hefaetrust a toggle did the same to four triggers.
+        var (feed, memory) = NewMemory();
+        QuestPlace[] places = [new(TriggerSno, 0, 0), new(TriggerSno, Far, 0)];
+        feed.RaisePlayer(At(-20, 0));
+        memory.ObservePlaces(places);
+        feed.RaisePlayer(At(0, 1)); // on the anvil
+        feed.RaisePlayer(At(30, 0)); // on west
+        memory.ObservePlaces(places);
+        memory.Heard(Lever(30, 10));
+        memory.Gone(); // the lorebook read
+        memory.ObservePlaces(places);
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Rearm(); // the guide switched on
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Rearm(walkedThrough: true); // all explored
+        Assert.Equal(2, memory.Destinations().Count);
+    }
+
+    [Fact]
     public void A_trigger_place_carries_its_own_radius_and_height()
     {
         var feed = new FakeFeed();

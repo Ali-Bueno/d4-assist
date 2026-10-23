@@ -290,7 +290,9 @@ public sealed class ObjectiveMemory
                 objective.AtIt = false;
                 Log("done", objective);
             }
-            if (done.Count > 0) RearmReached(MaxTimesLeft);
+            // A carryable taken lets the place its step waits on lead again (the Weeping Cairns' ward stone, back to Yorin); any other
+            // objective done leaves quest places reached in this phase reached.
+            if (done.Count > 0) RearmReached(MaxTimesLeft, places: done.Any(o => _carryableWaits(o.Sno) is not null));
         }
     }
 
@@ -315,19 +317,22 @@ public sealed class ObjectiveMemory
         actors.Any(a => a.ActorSno == objective.Sno && Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits);
 
     /// <summary>Lets the objectives the player walked away from lead again (the guide was just switched on by a lost player).</summary>
-    /// <param name="walkedThrough">Triggers the player walked through too: nothing is left to explore (ExplorationGuideBridge).</param>
+    /// <param name="walkedThrough">Triggers the player walked through and quest places reached in this phase too: nothing is left to explore (ExplorationGuideBridge).</param>
     public void Rearm(bool walkedThrough = false)
     {
-        lock (_gate) RearmReached(int.MaxValue, walkedThrough);
+        lock (_gate) RearmReached(int.MaxValue, walkedThrough, places: walkedThrough);
     }
 
     // Another objective done may have unlocked one set aside; one left undone MaxTimesLeft times waits for the guide's toggle
     // (live 2026-10-16: the Light's Watch lectern drew the guide back four times, and the second guard was never found). A
     // trigger walked through waits for nothing left to explore: in the Necropolis each tumor broken led back to the chamber's
-    // triggers, and switching the guide on led back through the gate just opened (tester, 2026-10-27).
-    private void RearmReached(int belowTimesLeft, bool walkedThrough = false)
+    // triggers, and switching the guide on led back through the gate just opened (tester, 2026-10-27). So does
+    // a quest place reached while its phase lasts: a phase may name several triggers, only the last moving it on (live 2026-10-23:
+    // the Tunnels of Hefaetrust's dialog triggers led in circles after a toggle, and in the Kulle wing a lorebook read sent the
+    // player back onto the anvil already stood on).
+    private void RearmReached(int belowTimesLeft, bool walkedThrough = false, bool places = true)
     {
-        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft && (walkedThrough || !o.WalkedThrough)))
+        foreach (var objective in (places ? _places.Concat(_objectives) : _objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft && (walkedThrough || !o.WalkedThrough)))
         {
             objective.Reached = false;
             Log("re-armed", objective);

@@ -200,8 +200,14 @@ internal static class Program
                 sceneLayers),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
-        // The Horadric guardian's barriers: only the vessel a barrier names sounds, and the guide leads to it.
-        var ward = new HoradricWard(store.Name, Console.WriteLine);
+        // The Horadric guardian's barriers: only the vessel a barrier names sounds, the guide leads to it, and its name is spoken
+        // as the game shows it ("Gefäß des Cain").
+        var ward = new HoradricWard(store.Name, Console.WriteLine, vessel =>
+        {
+            string? shown;
+            lock (cascGate) shown = store.Text(SpeechLanguages.GameLocale(language.Current), "Actor_" + vessel, "Name");
+            speech.Speak(shown ?? vessel, interrupt: true);
+        });
         session.ActorRewrite = ward.Apply;
         session.WorldChanged += (_, _, _) => ward.Reset();
 

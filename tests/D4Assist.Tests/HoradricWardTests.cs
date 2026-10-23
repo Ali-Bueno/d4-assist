@@ -72,6 +72,20 @@ public class HoradricWardTests
     }
 
     [Fact]
+    public void Each_barrier_announces_its_vessel_once()
+    {
+        var said = new List<string>();
+        var ward = new HoradricWard(sno => Names.GetValueOrDefault(sno), announce: said.Add);
+
+        ward.Apply([Guardian(Zoltun), .. Vessels]);
+        ward.Apply([Guardian(Zoltun), .. Vessels]);
+        ward.Apply([Guardian(), .. Vessels]);
+        ward.Apply([Guardian(Jared), .. Vessels]);
+
+        Assert.Equal(["QST_Skov_Skartara_WardBreakerShrine_Kulle", "QST_Skov_Skartara_WardBreakerShrine_Cain"], said);
+    }
+
+    [Fact]
     public void The_guardian_gone_ends_the_fight()
     {
         var ward = Ward();

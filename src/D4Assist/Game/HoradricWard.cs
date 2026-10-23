@@ -10,7 +10,9 @@ namespace D4Assist.Game;
 /// 271: Kulle); the later ones the guardian picks itself (live 2026-10-23: Zoltun, then Jared, the player used Tal Rasha's and died).
 /// </summary>
 /// <param name="nameOf">An SNO's name: the effects and the vessels are told by name.</param>
-public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log = null)
+/// <param name="announce">Called with the vessel actor's name whenever a barrier names it (the app speaks the game's own name for
+/// it, "Gefäß des Cain"); null for none.</param>
+public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log = null, Action<string>? announce = null)
 {
     private const string BarrierPrefix = "Horadric_Guardian_harmless_Barrier_";
     private const string VesselPrefix = "QST_Skov_Skartara_WardBreakerShrine_";
@@ -86,6 +88,7 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
             Clear();
             _vessel = vessel;
             Log(vessel is null ? "barrier down" : $"barrier names the {vessel} vessel");
+            if (vessel is not null) announce?.Invoke(VesselPrefix + vessel);
         }
         if (vessel is null) return;
         if (actors.FirstOrDefault(a => Vessel(a) == vessel) is not { } actor) return;

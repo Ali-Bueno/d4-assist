@@ -54,7 +54,8 @@ public class HoradricWardTests
         Assert.Equal((16f, 16f), barrier.Position);
 
         actors = ward.Apply([Guardian(), Vessel(Kulle, 26.7f, 5.3f, on: true), Vessels[1], Vessels[2]]);
-        Assert.Empty(ward.Destinations());
+        var guardian = Assert.Single(ward.Destinations()); // between barriers: the guardian, not the chamber's door
+        Assert.Equal(("ward-guardian", (16f, 16f)), (guardian.Id, guardian.Position));
         Assert.All(actors.Where(a => a.ActorSno != GuardianSno), a => Assert.True(a.QuestLocked)); // the fight goes on: all silent
     }
 

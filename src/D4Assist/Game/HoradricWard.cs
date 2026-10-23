@@ -55,6 +55,7 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
                 if (_guardian is not null) Log("guardian gone");
                 Clear();
                 _guardian = null;
+                _guardianAt = null;
                 return actors;
             }
             if (_guardian != guardian.Id) Log($"guardian {nameOf(guardian.ActorSno) ?? guardian.ActorSno.ToString()} in the fight");
@@ -67,12 +68,16 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
         }
     }
 
-    /// <summary>Where the guide leads while a barrier stands: its vessel until used, then the guardian, inside the barrier.</summary>
+    /// <summary>Where the guide leads in the fight: while a barrier stands, its vessel until used, then the guardian, inside the
+    /// barrier; between barriers, the guardian (live 2026-10-23: with no barrier the guide led to the chamber's locked door).</summary>
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
         {
-            if (_vessel is null) return [];
+            if (_vessel is null)
+                return _guardian is not null && _guardianAt is { } at
+                    ? [new GuideDestination("ward-guardian", at, ObjectiveMemory.QuestTier, Radius: BarrierReachUnits, Located: true)]
+                    : [];
             if (!_used && _vesselAt is { } vessel)
                 return [new GuideDestination($"ward-vessel:{_vessel}", vessel, ObjectiveMemory.QuestTier, Radius: VesselReachUnits, Located: true)];
             return _used && _guardianAt is { } guardian
@@ -88,6 +93,7 @@ public sealed class HoradricWard(Func<int, string?> nameOf, Action<string>? log 
         {
             Clear();
             _guardian = null;
+            _guardianAt = null;
         }
     }
 

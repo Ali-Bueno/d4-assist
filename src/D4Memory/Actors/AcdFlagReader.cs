@@ -50,6 +50,10 @@ public sealed class AcdFlagReader
     /// says 1, a neutral that turns hostile for its fight).</summary>
     public const string TeamId = "TeamID";
 
+    /// <summary>An effect shown on the actor, by its parameter (live 2026-10-23: the Horadric guardian carries
+    /// Horadric_Guardian_harmless_Barrier_Zoltun while its barrier names Zoltun Kulle's vessel).</summary>
+    public const string BuffVisualEffect = "Buff_Visual_Effect";
+
     /// <summary>On the player during a real-time (in-engine) cinematic, 0 again when it ends (live 2026-09-30: 1 during the
     /// Inarius door scene, 0 after it; the player's other scene-time flags also turn on in NPC menus and teleports).</summary>
     public const string RtcPlaying = "RTC Playing";
@@ -83,6 +87,15 @@ public sealed class AcdFlagReader
 
     /// <summary>The flags set (nonzero) on the actor behind <paramref name="acdId"/> (an RActor's +0x0C); empty when its ACD is gone.</summary>
     public IReadOnlySet<string> Read(uint acdId) => Values(acdId).Keys.ToHashSet();
+
+    /// <summary>The parameters of every set (nonzero) instance of <paramref name="name"/> on the actor behind <paramref name="acdId"/>.</summary>
+    public IReadOnlyList<int> Parameters(uint acdId, string name)
+    {
+        if (!_acds.TryGet(acdId, out var acd)) return [];
+        return [.. AcdAttributeReader.Read(_reader, acd.AttributesAddress)
+            .Where(a => a.RawValue != 0 && a.Parameter != AcdAttribute.NoParameter && _flags.TryGetValue(a.AttributeId, out var n) && n == name)
+            .Select(a => a.Parameter)];
+    }
 
     /// <summary>The raw values of the flags set (nonzero) on the actor behind <paramref name="acdId"/>; empty when its ACD is gone.</summary>
     public IReadOnlyDictionary<string, uint> Values(uint acdId)

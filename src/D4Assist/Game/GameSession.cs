@@ -105,6 +105,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <param name="playerPollIntervalMs">Timer.Infinite disables the automatic timer entirely — tests then
     /// drive polling deterministically via PollPlayerOnce/PollTilesOnce instead of a background tick.</param>
     /// <param name="health">Told whether each open finds the player, and when a new world starts; null checks nothing.</param>
+    /// <summary>Rewrites each actor poll before it is raised (HoradricWard: only the vessel the barrier names sounds); null for none.</summary>
+    public Func<IReadOnlyList<ActorState>, IReadOnlyList<ActorState>>? ActorRewrite { get; set; }
+
     public GameSession(
         IWorldNameSource feed, IWorldClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?> openSession, IReadOnlySet<int> sceneSnos,
@@ -357,7 +360,11 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         try
         {
             var session = lease.Reader;
-            if (session.ReadActors() is { } actors) Deliver(lease, () => Raise("actors", ActorsUpdated, h => h(actors)));
+            if (session.ReadActors() is { } read)
+            {
+                var actors = ActorRewrite?.Invoke(read) ?? read;
+                Deliver(lease, () => Raise("actors", ActorsUpdated, h => h(actors)));
+            }
             if (QuestMoved(session)) Deliver(lease, () => Raise("quest moved on", QuestMovedOn, h => h()));
             if (session.ReadQuestPlaces() is { } places) Deliver(lease, () => Raise("quest places", QuestPlacesRead, h => h(places)));
             if (session.ReadMapMarkers() is { } marks) Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));

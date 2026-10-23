@@ -431,6 +431,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (values.TryGetValue(AcdFlagReader.ConversationIconQuest, out uint quest) && _offersLogged.Add((r.ActorSno, quest)))
             Console.WriteLine($"Quest conversation: actor {r.ActorSno} offers quest {quest}" +
                 $"{(_activeQuests?.Owned.Contains((int)quest) == true ? " (followed)" : "")}.");
+        if (values.ContainsKey(AcdFlagReader.BuffVisualEffect))
+        {
+            // One key per effect it shows, followed by the effect's SNO (ActorFilter.BuffFlagPrefix).
+            var withBuffs = values.ToDictionary();
+            foreach (int buff in flags.Parameters(r.AcdId, AcdFlagReader.BuffVisualEffect)) withBuffs[ActorFilter.BuffFlagPrefix + buff] = 1;
+            values = withBuffs;
+        }
         return values;
     }
 

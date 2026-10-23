@@ -200,6 +200,10 @@ internal static class Program
                 sceneLayers),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
+        // The Horadric guardian's barriers: only the vessel a barrier names sounds, and the guide leads to it.
+        var ward = new HoradricWard(store.Name, Console.WriteLine);
+        session.ActorRewrite = ward.Apply;
+        session.WorldChanged += (_, _, _) => ward.Reset();
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
         var exitScenes = LoadExitCandidateScenes(store, schema, cascGate);
@@ -363,7 +367,8 @@ internal static class Program
                 {
                     bool elsewhere = false;
                     session.Query(r => elsewhere = r.QuestStepElsewhere);
-                    return [.. objectives.Destinations(), .. portals!.ObjectiveDestinations(), .. elsewhere ? portals.WayOutDestinations() : []];
+                    return [.. ward.Destinations(), .. objectives.Destinations(), .. portals!.ObjectiveDestinations(),
+                        .. elsewhere ? portals.WayOutDestinations() : []];
                 },
                 objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);

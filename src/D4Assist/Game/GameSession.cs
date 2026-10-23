@@ -101,6 +101,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>Whether an in-engine cinematic plays, read at the actor-poll rate after the actors (it needs the player's ACD).</summary>
     public event Action<bool>? CinematicRead;
 
+    /// <summary>The player's life, read with the actors.</summary>
+    public event Action<PlayerLife>? LifeRead;
+
     /// <param name="staticTiles">Offline tiles of a radar-only (static-grid) world, raised once on entry; null means none.</param>
     /// <param name="playerPollIntervalMs">Timer.Infinite disables the automatic timer entirely — tests then
     /// drive polling deterministically via PollPlayerOnce/PollTilesOnce instead of a background tick.</param>
@@ -370,6 +373,7 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             if (session.ReadMapMarkers() is { } marks) Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
             if (session.ReadQuestActorSnos() is { } named) Deliver(lease, () => Raise("quest actors", QuestActorsNamed, h => h(named)));
             if (session.ReadCinematic() is { } cinematic) Deliver(lease, () => Raise("cinematic", CinematicRead, h => h(cinematic)));
+            if (session.ReadLife() is { } life) Deliver(lease, () => Raise("life", LifeRead, h => h(life)));
         }
         finally { GiveBack(lease); }
     }

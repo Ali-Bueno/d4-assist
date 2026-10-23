@@ -58,6 +58,9 @@ public sealed class AcdFlagReader
     /// Inarius door scene, 0 after it; the player's other scene-time flags also turn on in NPC menus and teleports).</summary>
     public const string RtcPlaying = "RTC Playing";
 
+    /// <summary>A unit's life now and its full life (the names are in the build's table; not yet read live).</summary>
+    public const string HitpointsCur = "Hitpoints_Cur", HitpointsMaxTotal = "Hitpoints_Max_Total";
+
     // The live descriptor table held 1366 attributes, ids up to 0x571.
     private const uint MaxAttributeId = 0x1000;
 
@@ -95,6 +98,18 @@ public sealed class AcdFlagReader
         return [.. AcdAttributeReader.Read(_reader, acd.AttributesAddress)
             .Where(a => a.RawValue != 0 && a.Parameter != AcdAttribute.NoParameter && _flags.TryGetValue(a.AttributeId, out var n) && n == name)
             .Select(a => a.Parameter)];
+    }
+
+    /// <summary>The numbers of the named attributes set (nonzero) on the actor behind <paramref name="acdId"/>, floats and integers
+    /// alike; empty when its ACD is gone.</summary>
+    public IReadOnlyDictionary<string, float> Numbers(uint acdId)
+    {
+        var numbers = new Dictionary<string, float>();
+        if (!_acds.TryGet(acdId, out var acd)) return numbers;
+        foreach (var a in AcdAttributeReader.Read(_reader, acd.AttributesAddress))
+            if (a.RawValue != 0 && _flags.TryGetValue(a.AttributeId, out var name))
+                numbers[name] = a.Kind == AcdAttribute.IntegerKind ? (int)a.RawValue : BitConverter.UInt32BitsToSingle(a.RawValue);
+        return numbers;
     }
 
     /// <summary>The raw values of the flags set (nonzero) on the actor behind <paramref name="acdId"/>; empty when its ACD is gone.</summary>

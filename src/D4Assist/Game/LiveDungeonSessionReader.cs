@@ -57,8 +57,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly SteadyInvulnerability _invulnerability = new();
     private readonly HashSet<(int ActorSno, uint Quest)> _offersLogged = [];
 
-    // The actors' flags, plus the player's cinematic flag.
-    private static readonly string[] AcdNames = [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying];
+    // The actors' flags, plus the player's cinematic flag and life.
+    private static readonly string[] AcdNames =
+        [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying, AcdFlagReader.HitpointsCur, AcdFlagReader.HitpointsMaxTotal];
 
     // With the switch log, its attributes too, when the game's table has them.
     private static readonly string[] DiagnosticAcdNames = [.. AcdNames, .. SwitchStateLog.Attributes.Except(AcdNames)];
@@ -344,6 +345,17 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _flags is { } flags && _playerAcdId is { } acd && flags.Known.Contains(AcdFlagReader.RtcPlaying)
             ? flags.Values(acd).ContainsKey(AcdFlagReader.RtcPlaying)
             : null;
+
+    // The player's life (ACD Hitpoints_Cur of Hitpoints_Max_Total); the ACD id comes from the last actor read. A dead player's
+    // Hitpoints_Cur is 0, so unset: life 0.
+    public PlayerLife? ReadLife()
+    {
+        if (_flags is not { } flags || _playerAcdId is not { } acd || !flags.Known.Contains(AcdFlagReader.HitpointsMaxTotal)) return null;
+        var numbers = flags.Numbers(acd);
+        return numbers.TryGetValue(AcdFlagReader.HitpointsMaxTotal, out float max) && max > 0
+            ? new PlayerLife(numbers.GetValueOrDefault(AcdFlagReader.HitpointsCur), max)
+            : null;
+    }
 
     // The player's own record: the closest one with the player's actor SNO (another player of the same class can be near).
     private RActorRecord? PlayerRecord(IReadOnlyList<RActorRecord> records, PlayerState? p) =>

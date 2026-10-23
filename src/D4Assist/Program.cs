@@ -597,6 +597,12 @@ internal static class Program
             ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;
         if (debug) _ = new SoulSplitLog(session, store.Name, definitionOf, Console.WriteLine);
+        if (debug)
+        {
+            var life = new PlayerLifeLog(Console.WriteLine);
+            session.PlayerMoved += life.OnPlayer;
+            session.LifeRead += life.OnLife;
+        }
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         var loops = new ActorLoopBridge(

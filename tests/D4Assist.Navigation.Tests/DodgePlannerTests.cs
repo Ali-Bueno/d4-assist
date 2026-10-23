@@ -45,4 +45,22 @@ public class DodgePlannerTests
     [Fact]
     public void Into_a_rings_middle() =>
         Assert.Equal(StickDirection.Up, DodgePlanner.Plan(TelegraphShape.Ring, (0, 0), 0, (4, 4)));
+
+    [Fact]
+    public void Ahead_of_a_wave_run_on_ahead_out_of_its_sweep()
+    {
+        // Live 2026-10-23: the guardian's wall rose at y=24 and swept toward -Y (yaw -88 degrees), 12 units in 5 s.
+        float yaw = -MathF.PI / 2;
+        Assert.Equal(StickDirection.UpLeft, DodgePlanner.Plan(TelegraphShape.Wave, (16, 24), yaw, (18, 20)));
+        Assert.Null(DodgePlanner.Plan(TelegraphShape.Wave, (16, 24), yaw, (18, 27))); // behind it
+        Assert.Null(DodgePlanner.Plan(TelegraphShape.Wave, (16, 24), yaw, (18, 5))); // beyond its reach
+    }
+
+    [Fact]
+    public void A_mover_coming_on_is_left_sideways()
+    {
+        // A tornado at (0,0) drifting toward +X (screen down-left), the player 4 units ahead and a little to its +Y side.
+        Assert.Equal(StickDirection.DownRight, DodgePlanner.Plan(TelegraphShape.Mover, (0, 0), 0, (4, 1)));
+        Assert.Null(DodgePlanner.Plan(TelegraphShape.Mover, (0, 0), 0, (20, 0))); // far ahead yet
+    }
 }

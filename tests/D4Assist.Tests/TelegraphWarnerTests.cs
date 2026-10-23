@@ -10,7 +10,7 @@ namespace D4Assist.Tests;
 // (fxKit_damaging_persistentWarning_spirits_swirl_fxMesh x3, _volumeParent, _lightParent), 3-4 s before the burst.
 public class TelegraphWarnerTests
 {
-    private const int GuardianSno = 1, SwirlSno = 2, LightSno = 3, PropSno = 4, PlayerWarningSno = 5;
+    private const int GuardianSno = 1, SwirlSno = 2, LightSno = 3, PropSno = 4, PlayerWarningSno = 5, WallSno = 6, TornadoSno = 7;
 
     private static readonly Dictionary<int, string> Names = new()
     {
@@ -19,6 +19,8 @@ public class TelegraphWarnerTests
         [LightSno] = "fxKit_damaging_persistentWarning_spirits_lightParent",
         [PropSno] = "MageHalls_Prop_Scroll_01_Dyn",
         [PlayerWarningSno] = "Warlock_DemonicGaze_warning",
+        [WallSno] = "Horadric_Guardian_wall_demonic",
+        [TornadoSno] = "Horadric_Guardian_Tornado_projectile_invisible",
     };
 
     private sealed class FakeSpeech : ISpeechSink
@@ -43,7 +45,7 @@ public class TelegraphWarnerTests
         var now = TimeSpan.Zero;
         _ = new TelegraphWarner(feed, new TelegraphClassifier(sno => Names.GetValueOrDefault(sno)),
             a => a.ActorSno == GuardianSno ? EnemyClass.Boss : null, speech, new LanguageSetting(SpeechLanguage.English), cues.Add, blocked,
-            now: () => now);
+            now: () => now, isProjectile: sno => sno is WallSno or TornadoSno);
         feed.RaisePlayer(Player);
         return (feed, speech, cues, s => now = TimeSpan.FromSeconds(s));
     }
@@ -109,5 +111,38 @@ public class TelegraphWarnerTests
         feed.RaiseActors(Guardian(), Effect(2, SwirlSno, 10, 10));
 
         Assert.Empty(speech.Spoken);
+    }
+
+    private static ActorState Projectile(uint id, int sno, float x, float y, float yawDegrees = 0) =>
+        new(id, sno, x, y, 0, Yaw: yawDegrees * MathF.PI / 180);
+
+    [Fact]
+    public void A_wave_wall_sweeping_toward_the_player_says_run_on_ahead_once_for_all_its_segments()
+    {
+        // Live 2026-10-23: 13 segments rose together across the room at y=24 and swept toward -Y (yaw -88).
+        var (feed, speech, cues, setSeconds) = Create();
+        ActorState[] wall = [.. Enumerable.Range(0, 13).Select(i => Projectile((uint)(200 + i), WallSno, 3.5f + 2 * i, 24, -88))];
+        feed.RaiseActors([Guardian(), .. wall]);
+        setSeconds(0.5);
+        feed.RaiseActors([Guardian(), .. wall.Select(w => w with { Y = 23 })]);
+
+        // Running toward -Y from (10,10) is screen up-left.
+        var expected = string.Format(AppStrings.English.DodgeFormat, NavigationPhrases.English.Direction(StickDirection.UpLeft));
+        Assert.Equal([(expected, true)], speech.Spoken);
+        Assert.Single(cues);
+    }
+
+    [Fact]
+    public void A_tornado_is_weighed_once_its_drift_is_known_and_then_only_once()
+    {
+        var (feed, speech, _, setSeconds) = Create();
+        feed.RaiseActors(Guardian(), Projectile(300, TornadoSno, 6, 9.5f)); // first seen: no heading yet
+        Assert.Empty(speech.Spoken);
+        setSeconds(0.5);
+        feed.RaiseActors(Guardian(), Projectile(300, TornadoSno, 7, 9.5f)); // drifting toward +X, at the player
+        setSeconds(1);
+        feed.RaiseActors(Guardian(), Projectile(300, TornadoSno, 8, 9.5f));
+
+        Assert.Single(speech.Spoken);
     }
 }

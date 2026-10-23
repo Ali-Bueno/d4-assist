@@ -1,7 +1,8 @@
 namespace D4Assist.Navigation;
 
-/// <summary>The ground a warning marks: a circle around its spot, a cone or a line out along its facing, or a ring.</summary>
-public enum TelegraphShape { Circle, Cone, Line, Ring }
+/// <summary>The ground a warning marks: a circle around its spot, a cone or a line out along its facing, or a ring; or a hazard
+/// on the move: a wave (a wall sweeping the room along its facing) or a mover (a tornado drifting along its facing).</summary>
+public enum TelegraphShape { Circle, Cone, Line, Ring, Wave, Mover }
 
 /// <summary>
 /// Which way to step out of a boss attack's warning, as a sighted player reads the marked ground (research/boss-telegraphs.md):
@@ -16,6 +17,13 @@ public static class DodgePlanner
 
     /// <summary>How wide a line or cone is taken to be on each side of its axis, and how far ahead it reaches.</summary>
     public const float LineHalfWidthUnits = 3f, LineReachUnits = 25f;
+
+    /// <summary>How far a wave sweeps from where it rose: the Horadric guardian's wall (Horadric_Guardian_wall_demonic, 13 segments
+    /// across the room) moved 12 units in 5 s at ~2.2 units/s (live 2026-10-23). It can't be passed, only outrun.</summary>
+    public const float WaveReachUnits = 14f;
+
+    /// <summary>A mover (the guardian's tornadoes, ~2 units/s) is dodged when it comes within this, ahead of it.</summary>
+    public const float MoverHalfWidthUnits = 3f, MoverReachUnits = 8f;
 
     /// <summary>Extra ground to clear beyond the marked edge.</summary>
     public const float MarginUnits = 1.5f;
@@ -44,6 +52,24 @@ public static class DodgePlanner
                 want = (-dx, -dy);
                 clear = distance;
                 break;
+            case TelegraphShape.Wave:
+            {
+                // Ahead of the wall and within its sweep: run on ahead of it, out of its reach.
+                double ax = Math.Cos(yaw), ay = Math.Sin(yaw), along = dx * ax + dy * ay;
+                if (along < -1 || along > WaveReachUnits) return null;
+                want = (ax, ay);
+                clear = WaveReachUnits - along + MarginUnits;
+                break;
+            }
+            case TelegraphShape.Mover:
+            {
+                double ax = Math.Cos(yaw), ay = Math.Sin(yaw), along = dx * ax + dy * ay, side = -dx * ay + dy * ax;
+                if (along < -MoverHalfWidthUnits || along > MoverReachUnits || Math.Abs(side) > MoverHalfWidthUnits) return null;
+                double sign = side >= 0 ? 1 : -1;
+                want = (-ay * sign, ax * sign);
+                clear = MoverHalfWidthUnits - Math.Abs(side) + MarginUnits;
+                break;
+            }
             case TelegraphShape.Cone or TelegraphShape.Line:
             {
                 double ax = Math.Cos(yaw), ay = Math.Sin(yaw);

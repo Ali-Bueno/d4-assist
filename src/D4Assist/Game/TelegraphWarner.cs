@@ -19,7 +19,23 @@ public sealed partial class TelegraphClassifier(Func<int, string?> nameOf)
 {
     private readonly ConcurrentDictionary<int, TelegraphShape?> _shapes = new();
 
+    private readonly ConcurrentDictionary<int, TelegraphShape?> _projectiles = new();
+
     public TelegraphShape? Of(int actorSno) => _shapes.GetOrAdd(actorSno, sno => Classify(nameOf(sno)));
+
+    /// <summary>A projectile's hazard (eType 10, it has an ACD): the guardian's wave wall and tornadoes (live 2026-10-23).</summary>
+    public TelegraphShape? OfProjectile(int actorSno) => _projectiles.GetOrAdd(actorSno, sno => ClassifyProjectile(nameOf(sno)));
+
+    public static TelegraphShape? ClassifyProjectile(string? name)
+    {
+        if (name is null || NotAnAttack().IsMatch(name)) return null;
+        if (name.Contains("wall", StringComparison.OrdinalIgnoreCase)) return TelegraphShape.Wave;
+        if (Mover().IsMatch(name)) return TelegraphShape.Mover;
+        return null;
+    }
+
+    [GeneratedRegex("tornado|vortex|whirlwind", RegexOptions.IgnoreCase)]
+    private static partial Regex Mover();
 
     public string? NameOf(int actorSno) => nameOf(actorSno);
 
@@ -38,7 +54,7 @@ public sealed partial class TelegraphClassifier(Func<int, string?> nameOf)
 
     // The player classes' and allies' own effects (Warlock_DemonicGaze_warning, rogue_deathTrap_warning_cloneTrail), the signs of
     // rare spawns and towns, quest staging.
-    [GeneratedRegex("^(Warlock|Rogue|Sorc|Necro|Barb|Druid|Duid|Paladin|Spiritborn|npc|merc|PvP|emote|ui_)|_Sign$|Town|Mirage|RitualFx",
+    [GeneratedRegex("^(Warlock|Rogue|Sorc|Necro|Barb|Druid|Duid|Paladin|Spiritborn|npc|merc|PvP|emote|ui_|war_)|_Sign$|Town|Mirage|RitualFx",
         RegexOptions.IgnoreCase)]
     private static partial Regex NotAnAttack();
 }
@@ -91,7 +107,7 @@ public sealed class TelegraphWarner
         _isProjectile = isProjectile;
         var clock = Stopwatch.StartNew();
         _now = now ?? (() => clock.Elapsed);
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _player = null; } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _seen.Clear(); _recent.Clear(); _moverWarned.Clear(); _moverLast.Clear(); _lastWave = null; _player = null; } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) _player = p; };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
     }
@@ -102,6 +118,9 @@ public sealed class TelegraphWarner
         var fresh = effects.Where(a => !_seen.Contains(a.Id)).ToList();
         _seen.IntersectWith(effects.Select(a => a.Id));
         _seen.UnionWith(fresh.Select(a => a.Id));
+        var movers = actors.Where(a => !a.ClientOnly && _isProjectile?.Invoke(a.ActorSno) == true)
+            .Select(a => (Actor: a, Shape: _telegraphs.OfProjectile(a.ActorSno))).Where(m => m.Shape is not null).ToList();
+        foreach (var id in _moverWarned.Keys.Except(movers.Select(m => m.Actor.Id)).ToList()) _moverWarned.Remove(id);
         if (_player is not { } player) return;
         var foe = actors.Where(a => !a.ClientOnly && _enemyClass(a) is not null && Distance(a, player) <= FightRangeUnits)
             .OrderBy(a => Distance(a, player)).FirstOrDefault();
@@ -116,7 +135,40 @@ public sealed class TelegraphWarner
             _recent.Add((effect.X, effect.Y, now));
             Warn(effect, shape, player, foe, now);
         }
+        // Hazards on the move are weighed every poll: a tornado drifts onto the player, a wall sweeps toward them. A wall's
+        // segments rise together: one warning for all of them.
+        foreach (var (mover, shape) in movers)
+        {
+            if (Distance(mover, player) > WarnRangeUnits || _moverWarned.ContainsKey(mover.Id)) continue;
+            if (shape == TelegraphShape.Wave && _lastWave is { } wave && now - wave < MoverRewarn) continue;
+            // A wall faces the way it sweeps; a tornado drifts its own way, read from where it was a poll ago.
+            if (Heading(mover, shape!.Value) is not { } heading) continue;
+            var moving = mover with { Yaw = heading };
+            if (DodgePlanner.Plan(shape.Value, (moving.X, moving.Y), heading, (player.X, player.Y), (foe.X, foe.Y)) is null) continue;
+            _moverWarned[mover.Id] = now;
+            if (shape == TelegraphShape.Wave) _lastWave = now;
+            Warn(moving, shape.Value, player, foe, now);
+        }
+        foreach (var (mover, _) in movers) _moverLast[mover.Id] = (mover.X, mover.Y);
+        foreach (var id in _moverLast.Keys.Except(movers.Select(m => m.Actor.Id)).ToList()) _moverLast.Remove(id);
     }
+
+    // Under half a unit between polls is no heading yet.
+    private float? Heading(ActorState mover, TelegraphShape shape)
+    {
+        if (shape != TelegraphShape.Mover) return mover.Yaw;
+        if (!_moverLast.TryGetValue(mover.Id, out var last)) return null;
+        float dx = mover.X - last.X, dy = mover.Y - last.Y;
+        return dx * dx + dy * dy >= 0.25f ? MathF.Atan2(dy, dx) : null;
+    }
+
+    private readonly Dictionary<uint, (float X, float Y)> _moverLast = [];
+
+    /// <summary>A wave warned of is not warned of again for this long (its segments, its sweep).</summary>
+    public static readonly TimeSpan MoverRewarn = TimeSpan.FromSeconds(4);
+
+    private readonly Dictionary<uint, TimeSpan> _moverWarned = [];
+    private TimeSpan? _lastWave;
 
     private void Warn(ActorState effect, TelegraphShape shape, PlayerState player, ActorState foe, TimeSpan now)
     {

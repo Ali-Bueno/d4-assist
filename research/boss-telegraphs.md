@@ -29,3 +29,24 @@ capture: `D4MemScan effects`.
 - Known: the Horadric guardian's barrier is an effect group on its ACD (`Buff_Visual_Effect[<effect group>]`, §11 of
   dungeon-objectives.md). Open: do the warning groups show the same way, and with what lead time; which ACD attribute (if
   any) names the power being cast; do client effect actors (eType 3) for floor warnings reach the actor list.
+
+## Live, the Horadric guardian (2026-10-23, `D4MemScan effects`, 50 ms)
+
+- **No warning on the boss's ACD:** its `Buff_Visual_Effect` carried only the barrier symbols (and other players' effects).
+- **Spirit bomb:** `Horadric_Guardian_burstAttractor_spirits_parent` at the boss, 0.2 s later
+  `fxKit_damaging_persistentWarning_spirits_*` (swirl ×3, volumeParent, lightParent: one warning) **on the player's spot**,
+  lasting 3–4 s; `fxKit_damaging_burstCylindrical_spirits_*` bursts after. Bursts hit the player standing within ~1 unit; one
+  6.5 units off missed. Client effects (no ACD), positions and yaw read fine at 50 ms.
+- **Effect sizes:** the warning actors' bounds are unit meshes (`wcylBounds` radius 0.1–0.7); the game scales them, so no size
+  comes from the data. The app takes a circle as 6 units.
+- **Projectiles (eType 10) have an ACD**, so a client-effects-only view misses them:
+  - `Horadric_Guardian_wall_demonic`: **the wave wall**, 13 segments ~2 units apart rising together across the room (x 3.5–28 at
+    y 24, with `Horadric_Guardian_persistentWall_demonic_wallMeshAlt` client meshes), facing and sweeping along their yaw (−88°)
+    at ~2.2 units/s for 5 s, ~12 units. No gap: outrun it along its sweep.
+  - `Horadric_Guardian_Tornado_projectile_invisible`: ~4 at a time, drifting ~2 units/s for 5–9 s; their yaw is **not** their
+    heading (read it from the motion).
+  - `QST_horadric_Guardian_boss_projectile`: the chakram, 10–15 units/s out and back (yaw flips 180°).
+  - `fxKit_damaging_projectileLobbed_spirits`: six lobbed spirit orbs in a hexagon.
+- The app (`TelegraphWarner`): warning effects by name (circle/cone/line/ring), projectiles `*wall*` as a wave (run on ahead
+  of it), `*tornado*` as a mover (step aside when it drifts at the player), with `HAZARD` debug lines for every damaging effect
+  and projectile near the player.

@@ -105,4 +105,36 @@ public class SceneLayerPlacementTests
         Assert.Equal((-16f, 205f), (b.Position.X, b.Position.Y));
         Assert.Equal(-48f, Assert.Single(layers.Place([In(LayerA)], Tiles(RoomA), [])).Position.X);
     }
+
+    // Live 2026-10-24, Skartara's mindscape 4: the step's six Hatred Spires are markers of the holdout tunnel on its tile at (0,-32),
+    // but the spires stood (19.9,-30.5) off, all six.
+    private const int Tunnel = 2, Spire = 2495603;
+    private static readonly (float X, float Y)[] SpireMarks = [(13, 14), (36, 13), (25, -6), (8, -8), (-9, 8), (37, -15)];
+    private static readonly SceneMarker[] Spires = [.. SpireMarks.Select(m => new SceneMarker(Tunnel, new PlacedMarker(1, Spire, new(m.X, m.Y, 0))))];
+    private static Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> TunnelTile => new() { [Tunnel] = [(new(0, -32, 0), Quaternion.Identity)] };
+
+    [Fact]
+    public void A_scenes_markers_move_to_where_two_of_their_actors_stand_one_shift_off_and_stay_there()
+    {
+        var layers = new SceneLayerPlacement();
+        var seen = Map((Spire, 32.7f, -48.1f), (Spire, 10.9f, -54.9f), (Spire, 999, 999));
+
+        var moved = layers.Place(Spires, TunnelTile, [], seen);
+        var later = layers.Place(Spires, TunnelTile, [], []);
+
+        Assert.Equal(6, moved.Count);
+        Assert.Contains(moved, p => Vector2.Distance(new(p.Position.X, p.Position.Y), new(27.5f, -70.8f)) < 1);
+        Assert.Equal(moved.Select(p => p.Position), later.Select(p => p.Position));
+    }
+
+    [Fact]
+    public void A_scenes_markers_stay_on_the_tile_while_their_actors_stand_there_or_only_one_stands_off()
+    {
+        var layers = new SceneLayerPlacement();
+        var one = layers.Place(Spires, TunnelTile, [], Map((Spire, 32.7f, -48.1f)));
+        var onTile = layers.Place(Spires, TunnelTile, [], Map((Spire, 13, -18), (Spire, 36, -19), (Spire, 32.7f, -48.1f), (Spire, 10.9f, -54.9f)));
+
+        Assert.Contains(one, p => (p.Position.X, p.Position.Y) == (13f, -18f));
+        Assert.Contains(onTile, p => (p.Position.X, p.Position.Y) == (13f, -18f));
+    }
 }

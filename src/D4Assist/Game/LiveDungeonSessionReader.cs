@@ -407,7 +407,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
             var marked = _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) ?? [];
-            List<PlacedMarker> Placed(QuestNames n) => [.. n.Markers.Concat(InWorld(n.SceneMarkers, marked))
+            List<PlacedMarker> Placed(QuestNames n) => [.. n.Markers.Concat(InWorld(n.SceneMarkers, marked, records))
                 .Concat(n.KindMarkers.Count == 0 ? [] : _blueprints.Place(n.KindMarkers,
                     [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))]))];
             var places = Placed(named);
@@ -455,12 +455,13 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     // A scene-local marker lands where its scene is placed: world = wp + rotate(q, local) (research/client-memory.md §5), on the
     // tile that carries its layer (SceneLayerPlacement).
-    private IEnumerable<PlacedMarker> InWorld(IReadOnlyList<SceneMarker> markers, IReadOnlyList<MapMarker> marked)
+    private IEnumerable<PlacedMarker> InWorld(IReadOnlyList<SceneMarker> markers, IReadOnlyList<MapMarker> marked, IReadOnlyList<RActorRecord> records)
     {
         if (markers.Count == 0) return [];
         Dictionary<int, List<(Vector3 Wp, Quaternion Q)>> placed;
         lock (_placements) placed = _placements.ToDictionary(kv => kv.Key, kv => kv.Value.ToList());
-        return [.. _layers.Place(markers, placed, [.. marked.Select(m => (m.ActorSno, m.Position))])];
+        var map = marked.Select(m => (m.ActorSno, m.Position)).ToList();
+        return [.. _layers.Place(markers, placed, map, [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. map])];
     }
 
     // What the active quests' current phases name (research/client-memory.md §4); the player's record holds the tracked quests.

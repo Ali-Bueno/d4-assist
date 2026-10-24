@@ -21,6 +21,9 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
     private const float SameTileUnits = 2f;
 
     private readonly Dictionary<int, (int Scene, Vector3 Wp, Quaternion Q)> _layers = [];
+    // A scene's markers the game stands somewhere else, by the shift its actors there agree on; kept per tile once read, as the
+    // actors that showed it die or stream out.
+    private readonly Dictionary<(int Scene, int Layer, Vector2 Tile), Vector3> _shifts = [];
     // Session reads and the exploration save run on different threads.
     private readonly object _gate = new();
     // This world's loaded tiles, for the map's markers: the map lists other worlds' too (live 2026-10-22: the open world's copy of
@@ -31,7 +34,11 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
     /// <summary>A new world: its tiles are new.</summary>
     public void Reset()
     {
-        lock (_gate) _layers.Clear();
+        lock (_gate)
+        {
+            _layers.Clear();
+            _shifts.Clear();
+        }
     }
 
     public IReadOnlyList<SavedLayer> Export()
@@ -60,20 +67,55 @@ public sealed class SceneLayerPlacement(Action<string>? log = null)
 
     /// <param name="placements">Where each scene is placed: its tiles' origins and rotations.</param>
     /// <param name="marked">The actors the game's map marks, wherever they are.</param>
+    /// <param name="seen">The actors standing in the world now (and those the map marks), for markers the game stands elsewhere.</param>
     public IReadOnlyList<PlacedMarker> Place(
         IReadOnlyList<SceneMarker> markers, IReadOnlyDictionary<int, List<(Vector3 Wp, Quaternion Q)>> placements,
-        IReadOnlyList<(int Sno, Vector3 Position)> marked)
+        IReadOnlyList<(int Sno, Vector3 Position)> marked, IReadOnlyList<(int Sno, Vector3 Position)>? seen = null)
     {
-        var placed = new List<PlacedMarker>();
+        var groups = new Dictionary<(int Scene, int Layer, Vector2 Tile), List<PlacedMarker>>();
         _tiles = [.. placements.Values.SelectMany(p => p.Select(t => Flat(t.Wp)))];
         lock (_gate)
+        {
             foreach (var m in markers)
             {
                 var tiles = placements.TryGetValue(m.SceneSno, out var at) ? at : [];
                 (Vector3 Wp, Quaternion Q)? tile = m.Layer is { } layer ? LayerTile(layer, m, tiles, marked) : tiles.Count == 1 ? tiles[0] : null;
-                if (tile is { } t) placed.Add(m.Marker with { Position = t.Wp + Vector3.Transform(m.Marker.Position, t.Q) });
+                if (tile is not { } t) continue;
+                var key = (m.SceneSno, m.Layer ?? 0, Flat(t.Wp));
+                if (!groups.TryGetValue(key, out var group)) groups[key] = group = [];
+                group.Add(m.Marker with { Position = t.Wp + Vector3.Transform(m.Marker.Position, t.Q) });
             }
-        return placed;
+            foreach (var (key, group) in groups)
+                if (Shift(key, group, seen ?? []) is { } shift)
+                    for (int i = 0; i < group.Count; i++) group[i] = group[i] with { Position = group[i].Position + shift };
+        }
+        return [.. groups.Values.SelectMany(g => g)];
+    }
+
+    // Two of a scene's markers or more with their actors all standing one shift off: the game placed them there, not on the tile
+    // (live 2026-10-24, Skartara's mindscape 4, CSD_Skov_Lycander_Mindscape_04: the six Hatred Spires of the step after phase 441
+    // are markers of the holdout tunnel Sightless_Mephisto_EW_POI_HoldoutTunnel_01 on its tile at (0,-32), but the spires stood
+    // (19.9,-30.5) off, all six; the guide led to an empty ledge at (7.6,-40.3) for minutes).
+    private const float ShiftMatchUnits = 1.5f, MaxShiftUnits = 96f;
+    private const int ShiftAgreement = 2;
+
+    private Vector3? Shift((int Scene, int Layer, Vector2 Tile) key, List<PlacedMarker> group, IReadOnlyList<(int Sno, Vector3 Position)> seen)
+    {
+        if (_shifts.TryGetValue(key, out var known)) return known;
+        if (group.Count < ShiftAgreement) return null;
+        int Agree(Vector3 shift) => group.Count(p => seen.Any(a => a.Sno == p.Sno
+            && Vector2.Distance(Flat(a.Position), Flat(p.Position + shift)) <= ShiftMatchUnits));
+        Vector3? best = null;
+        int most = Agree(Vector3.Zero);
+        foreach (var p in group)
+            foreach (var (sno, position) in seen)
+                if (sno == p.Sno && position - p.Position is var shift && Flat(shift).Length() is > ShiftMatchUnits and <= MaxShiftUnits
+                    && Agree(shift) is var count && count >= ShiftAgreement && count > most)
+                    (best, most) = (shift, count);
+        if (best is not { } found) return null;
+        _shifts[key] = found;
+        log?.Invoke($"SCENE {key.Scene} markers moved by ({found.X:F1},{found.Y:F1}): {most} of {group.Count} actors stand there");
+        return found;
     }
 
     private (Vector3 Wp, Quaternion Q)? LayerTile(

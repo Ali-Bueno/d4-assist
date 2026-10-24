@@ -727,4 +727,27 @@ public class ObjectiveMemoryTests
         memory.Rearm();
         Assert.Equal((0f, 30f), Assert.Single(memory.Destinations()).Position);
     }
+
+    [Fact]
+    public void A_killed_monster_whose_remains_stand_on_its_spot_is_done_and_so_is_the_quest_place_there()
+    {
+        // Skartara's mindscape 4 (live 2026-10-24): a destroyed Hatred Spire left a client-side copy on its spot; the guide held there.
+        const int SpireSno = 2495603;
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(1, 1));
+        var places = new List<QuestPlace> { new(SpireSno, 10.5f, 0.5f), new(SpireSno, 60, 0) };
+        memory.ObservePlaces(places);
+        var spire = new ActorState(5, SpireSno, 10, 0, 0, QuestStep: true);
+        memory.Observe(new ObjectiveSighting([spire], [], [spire]));
+
+        var remains = new ActorState(6, SpireSno, 10, 0, 0, ClientOnly: true);
+        for (int poll = 0; poll < ObjectiveMemory.MissingPollsForDone; poll++)
+        {
+            memory.Observe(new ObjectiveSighting([], [], [remains]));
+            memory.ObservePlaces(places);
+        }
+
+        var lead = Assert.Single(memory.Destinations());
+        Assert.Equal((60f, 0f), lead.Position);
+    }
 }

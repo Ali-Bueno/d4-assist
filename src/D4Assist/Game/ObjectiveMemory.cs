@@ -59,6 +59,10 @@ public sealed class ObjectiveMemory
         public string Id { get; } = $"{kind}:{sno}:{MathF.Round(position.X)},{MathF.Round(position.Y)}";
         public (float X, float Y) Position { get; set; } = position;
         public uint ActorId { get; set; }
+        /// <summary>The actor heard has no game record (a client-side prop); null until heard.</summary>
+        public bool? ClientOnly { get; set; }
+        /// <summary>A quest place whose actor there was heard and is done (a monster killed): it stays done while the phase names it.</summary>
+        public bool ActorDone { get; set; }
         public bool Quest { get; set; }
         public bool Pending { get; set; } = true;
         /// <summary>The player stands within its radius.</summary>
@@ -188,7 +192,7 @@ public sealed class ObjectiveMemory
                     Log("seen (quest place)", objective);
                     SetAsideIfWalked(objective);
                 }
-                else if (!objective.Pending)
+                else if (!objective.Pending && !objective.ActorDone)
                 {
                     objective.Pending = true;
                     Log("named again", objective);
@@ -197,8 +201,10 @@ public sealed class ObjectiveMemory
                 objective.Marked = place.Marked;
                 named.Add(objective);
             }
-            foreach (var objective in _places.Where(o => o.Pending && !named.Contains(o)))
+            foreach (var objective in _places.Where(o => !named.Contains(o)))
             {
+                objective.ActorDone = false;
+                if (!objective.Pending) continue;
                 objective.Pending = false;
                 Log("done (phase moved on)", objective);
             }
@@ -269,6 +275,7 @@ public sealed class ObjectiveMemory
             {
                 var objective = Find(actor) ?? Add(actor);
                 objective.ActorId = actor.Id;
+                objective.ClientOnly = actor.ClientOnly;
                 objective.Position = (actor.X, actor.Y);
                 objective.Z = actor.Z;
                 objective.Quest = actor.QuestStep;
@@ -291,6 +298,13 @@ public sealed class ObjectiveMemory
                 objective.Pending = false;
                 objective.AtIt = false;
                 Log("done", objective);
+                foreach (var place in _places.Where(p => p.Pending && p.Sno == objective.Sno && Distance(p.Position, objective.Position) <= PlaceOfActorUnits))
+                {
+                    place.Pending = false;
+                    place.AtIt = false;
+                    place.ActorDone = true;
+                    Log("done (its actor is done)", place);
+                }
             }
             // A carryable taken lets the place its step waits on lead again (the Weeping Cairns' ward stone, back to Yorin); any other
             // objective done leaves quest places reached in this phase reached.
@@ -306,9 +320,16 @@ public sealed class ObjectiveMemory
         : !objective.PlacedOnly ? Among(objective, seen.Silent) || objective.MissingPolls >= MissingPollsForDone
         : Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
 
-    // Its own actor (a boss moves), or one of its kind on its spot (a gizmo re-created under a new id).
+    // A quest place this close to an objective heard is that objective's spot: the place is a marker, the actor stands about there
+    // (ActiveQuests.MarkerReach).
+    private const float PlaceOfActorUnits = ActiveQuests.MarkerReach;
+
+    // Its own actor (a boss moves), or one of its kind on its spot (a gizmo re-created under a new id); one with a game record when
+    // the one heard had one: a killed Hatred Spire leaves a client-side copy standing on its spot, and the spire never read done
+    // (live 2026-10-24, Skartara's mindscape 4: the guide held at a destroyed spire and led back to another).
     private static bool Among(Objective objective, IReadOnlyList<ActorState> actors) =>
-        actors.Any(a => a.ActorSno == objective.Sno && (a.Id == objective.ActorId || Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits));
+        actors.Any(a => a.ActorSno == objective.Sno && (objective.ClientOnly is not { } clientOnly || a.ClientOnly == clientOnly)
+            && (a.Id == objective.ActorId || Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits));
 
     // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to, unless the
     // map marks its trigger there (live 2026-10-22: lock room B's, on a tile not loaded yet).

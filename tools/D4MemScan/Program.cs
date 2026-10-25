@@ -22,7 +22,8 @@ internal static class Program
         "       D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]\n" +
         "       D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]\n" +
         "       D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]\n" +
-        "       D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--scan] [--min N] [--watch <seconds>]";
+        "       D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--scan] [--min N] [--watch <seconds>]\n" +
+        "       D4MemScan markers --defs <definitions.json> [--install <dir>] [--locale deDE] [--match <regex>] [--watch <seconds>]";
 
     private static int Main(string[] args)
     {
@@ -49,6 +50,7 @@ internal static class Program
                 "quest" => QuestCommand.Run(rest),
                 "gizmos" => GizmosCommand.Run(rest),
                 "waypoints" => WaypointsCommand.Run(rest),
+                "markers" => MarkersCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

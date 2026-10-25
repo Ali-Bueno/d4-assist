@@ -43,6 +43,7 @@ D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [
 D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]
 D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]
 D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--live] [--scan [--min N] [--saved] [--watch <seconds>]]
+D4MemScan markers --defs <definitions.json> [--install <dir>] [--locale deDE] [--match <regex>] [--watch <seconds>]
 ```
 
 `--install` defaults to `D:\games\battlenet\Diablo IV`. `--out`/default output paths land under `%TEMP%`, never
@@ -151,6 +152,8 @@ the repo.
     `--scan` finds runs of waypoint LevelArea SNOs anywhere in memory (`--saved`: only those that fill a
     `PlayerSavedData.arWaypointsActivated`, with seconds played; `--watch S`: print each run that changes), the way the
     player slots were found ([client-memory](../../research/client-memory.md) §4).
+15. **`markers`** — the live map-marker list (`MapMarkerReader`): kind, actor, SNO, spot, LevelArea and its region
+    (`ZoneCatalog`). `--match` filters by actor name; `--watch S` prints markers that appear (`+`) or go (`-`).
 
 Every live command finds the build's addresses itself (`Offsets.cs` → `BuildOffsetsDiscovery`) and prints them, e.g.
 `Module 0x7FF7B55F0000: game object at RVA 0x3670918, attribute names at RVA 0x36CF540.`

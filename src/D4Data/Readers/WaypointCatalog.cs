@@ -15,7 +15,7 @@ public sealed record Waypoint(int LevelAreaSno, string LevelAreaName, int WorldS
 /// </summary>
 public sealed class WaypointCatalog(SnoStore store, TypeSchema schema)
 {
-    private const string GlobalDefinition = "GlobalDefinition", GlobalMarkers = "global_markers", Subzone = "SubzoneDefinition";
+    private const string GlobalDefinition = "GlobalDefinition", GlobalMarkers = "global_markers";
     private const string WaypointData = "GlobalWaypointData", MarkerActor = "GlobalMarkerActor", MarkerWaypointData = "GlobalMarkerActorWaypointData";
     // A polymorphic element's type hash sits after its 8-byte header (DT_POLYMORPHIC: dwType at +8, research/dungeon-data.md).
     private const int TypeHashField = 8;
@@ -29,36 +29,11 @@ public sealed class WaypointCatalog(SnoStore store, TypeSchema schema)
     public string Name(Waypoint waypoint, string locale) =>
         store.Text(locale, $"LevelArea_{waypoint.LevelAreaName}", "Name") ?? waypoint.LevelAreaName;
 
-    /// <summary>
-    /// The region the waypoint lies in, in <paramref name="locale"/> (deDE: Frac_Kyovashad → "Zersplitterte Gipfel"): the Zone
-    /// of the first Subzone whose arLevelAreas lists its LevelArea (SubzoneDefinition.snoZoneParent), named by the StringList
-    /// <c>Zone_&lt;name&gt;</c>, label <c>Name</c>. Null when no subzone lists it or the zone has no name text.
-    /// </summary>
-    public string? Zone(Waypoint waypoint, string locale) =>
-        Zones().GetValueOrDefault(waypoint.LevelAreaSno) is > 0 and var zone && store.Name(zone) is { } name
-            ? store.Text(locale, $"Zone_{name}", "Name")
-            : null;
+    private readonly ZoneCatalog _zones = new(store, schema);
 
-    private Dictionary<int, int>? _zones;
-
-    // Every subzone is read once, keeping only those that list a waypoint's LevelArea (~2000 subzones in build 3.2.3).
-    private Dictionary<int, int> Zones()
-    {
-        if (_zones is not null) return _zones;
-        var levelAreas = All.Select(w => w.LevelAreaSno).ToHashSet();
-        var zones = new Dictionary<int, int>();
-        int group = schema.SnoGroup(Subzone);
-        int areasField = schema.Offset(Subzone, "arLevelAreas"), parentField = schema.Offset(Subzone, "snoZoneParent");
-        foreach (var (id, _) in store.AllEntries(group))
-        {
-            if (store.Meta(group, id) is not { } subzone) continue;
-            int parent = subzone.I32(parentField);
-            if (parent <= 0) continue;
-            foreach (int element in subzone.Array(areasField, sizeof(int)))
-                if (subzone.I32(element) is var area && levelAreas.Contains(area)) zones.TryAdd(area, parent);
-        }
-        return _zones = zones;
-    }
+    /// <summary>The region the waypoint lies in, in <paramref name="locale"/> (ZoneCatalog: deDE Frac_Kyovashad → "Zersplitterte
+    /// Gipfel"); null when none is known.</summary>
+    public string? Zone(Waypoint waypoint, string locale) => _zones.Name(waypoint.LevelAreaSno, locale);
 
     private List<Waypoint> Read()
     {

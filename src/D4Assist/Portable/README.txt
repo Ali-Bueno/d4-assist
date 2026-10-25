@@ -201,6 +201,8 @@ the list, and Escape closes it. Shift+F1 belongs to the program only while the
 map is open, and the arrows, Enter and Escape only while the list is. If the
 waypoint lies outside the map view, zoom out and choose it again. The program
 only moves the cursor; it never clicks.
+Everything the list says also appears on your braille display, if your
+screen reader has one connected.
 
 
 Known issues

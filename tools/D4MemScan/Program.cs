@@ -24,7 +24,8 @@ internal static class Program
         "       D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]\n" +
         "       D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--scan] [--min N] [--watch <seconds>]\n" +
         "       D4MemScan markers --defs <definitions.json> [--install <dir>] [--locale deDE] [--match <regex>] [--watch <seconds>]\n" +
-        "       D4MemScan sno-scan --snos <file: one 'id name' per line> [--show N]";
+        "       D4MemScan sno-scan --snos <file: one 'id name' per line> [--show N]\n" +
+        "       D4MemScan words --address <hex>[,<hex>...] [--install <dir>] [--before B] [--after A]";
 
     private static int Main(string[] args)
     {
@@ -53,6 +54,7 @@ internal static class Program
                 "waypoints" => WaypointsCommand.Run(rest),
                 "markers" => MarkersCommand.Run(rest),
                 "sno-scan" => SnoScanCommand.Run(rest),
+                "words" => WordsCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

@@ -437,15 +437,17 @@ internal static class Program
         using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
         if (mapKeys is not null)
         {
-            // The game's text bundle (60,000 tables) loads on the first name; load it now, not on the first Shift+F1.
+            // The game's text bundle (60,000 tables) loads on the first name, the regions on the first one asked (every subzone read):
+            // both now, not on the first Shift+F1.
             if (allWaypoints.Count > 0)
-                _ = Task.Run(() => { lock (cascGate) waypointCatalog.Name(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
+                _ = Task.Run(() => { lock (cascGate) waypointCatalog.Zone(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
             var waypointList = new WaypointListBridge(
                 allWaypoints, w => { lock (cascGate) return waypointCatalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
                 readActivatedWaypoints,
                 () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
                 () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
-                GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null);
+                GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null,
+                w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MenusRead += waypointList.OnMenus;

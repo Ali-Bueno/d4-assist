@@ -2,8 +2,9 @@ using D4Assist.Navigation;
 
 namespace D4Assist.Game;
 
-/// <summary>One activated waypoint as the list speaks it: its name, its spot, and how far and where it lies from the player.</summary>
-public sealed record WaypointEntry(string Name, double X, double Y, double Distance, StickDirection Direction);
+/// <summary>One activated waypoint as the list speaks it: its name, its region (null when unknown), its spot, and how far and where
+/// it lies from the player.</summary>
+public sealed record WaypointEntry(string Name, string? Region, double X, double Y, double Distance, StickDirection Direction);
 
 /// <summary>
 /// The list of activated waypoints opened on the world map (Shift+F1): nearest first, moved through with up and down, which
@@ -27,9 +28,10 @@ public sealed class WaypointList
     public WaypointEntry? Current => IsOpen ? _entries[Index] : null;
 
     /// <summary>The waypoints as entries, nearest to the player first.</summary>
-    public static IReadOnlyList<WaypointEntry> Build(IEnumerable<(string Name, double X, double Y)> waypoints, double playerX, double playerY) =>
+    public static IReadOnlyList<WaypointEntry> Build(
+        IEnumerable<(string Name, string? Region, double X, double Y)> waypoints, double playerX, double playerY) =>
         [.. waypoints
-            .Select(w => new WaypointEntry(w.Name, w.X, w.Y, Math.Sqrt(Math.Pow(w.X - playerX, 2) + Math.Pow(w.Y - playerY, 2)),
+            .Select(w => new WaypointEntry(w.Name, w.Region, w.X, w.Y, Math.Sqrt(Math.Pow(w.X - playerX, 2) + Math.Pow(w.Y - playerY, 2)),
                 ScreenDirections.Bin(w.X - playerX, w.Y - playerY)))
             .OrderBy(e => e.Distance).ThenBy(e => e.Name, StringComparer.CurrentCulture)];
 

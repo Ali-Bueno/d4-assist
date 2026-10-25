@@ -6,8 +6,8 @@ namespace D4Assist.Tests;
 public class WaypointListTests
 {
     // Player in Gea Kul (681.6, -410.3); waypoints from the catalog (research/client-memory.md §4).
-    private static readonly (string Name, double X, double Y)[] Waypoints =
-        [("Zarbinzet", -236, 386), ("Gea Kul", 680, -418), ("Basar von Kurast", 1038, 152)];
+    private static readonly (string Name, string? Region, double X, double Y)[] Waypoints =
+        [("Zarbinzet", "Hawezar", -236, 386), ("Gea Kul", "Kehjistan", 680, -418), ("Basar von Kurast", "Nahantu", 1038, 152)];
 
     [Fact]
     public void Entries_are_nearest_first_with_distance_and_direction()

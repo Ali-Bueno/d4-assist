@@ -15,6 +15,8 @@ namespace D4Assist.Game;
 /// </summary>
 /// <param name="waypoints">Every waypoint of the game (WaypointCatalog.All).</param>
 /// <param name="nameOf">A waypoint's name in the current language.</param>
+/// <param name="regionOf">The region a waypoint lies in, in the current language (WaypointCatalog.Zone), spoken after its name
+/// (user request 2026-10-25: "Nevesk, Zersplitterte Gipfel"); null for none.</param>
 /// <param name="readActivated">The activated waypoints' LevelArea SNOs (the session's ReadActivatedWaypoints); null when unreadable.</param>
 /// <param name="readMapView">The map's center and zoom; null when unreadable.</param>
 /// <param name="currentWorld">The world the player is in (GameSession.CurrentWorldSno): asked on each Shift+F1, since the app can
@@ -22,7 +24,7 @@ namespace D4Assist.Game;
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
-    IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null)
+    IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null, Func<Waypoint, string?>? regionOf = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
@@ -89,7 +91,7 @@ public sealed class WaypointListBridge(
             int world = currentWorld();
             var here = waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
             var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
-            _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
+            _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
             log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
             keys.SetListKeys(_list.IsOpen);
             speech.Speak(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
@@ -188,6 +190,8 @@ public sealed class WaypointListBridge(
     {
         var entry = _list.Current!;
         string direction = NavigationPhrases.For(language.Current).Direction(entry.Direction, directionStyle);
-        return string.Format(Text.EntryFormat, entry.Name, Math.Round(entry.Distance), direction, _list.Index + 1, _list.Count);
+        // A hub that is its own region (Die Torhalle) says its name once.
+        string label = entry.Region is { } region && region != entry.Name ? $"{entry.Name}, {region}" : entry.Name;
+        return string.Format(Text.EntryFormat, label, Math.Round(entry.Distance), direction, _list.Index + 1, _list.Count);
     }
 }

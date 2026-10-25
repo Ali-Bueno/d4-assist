@@ -57,6 +57,22 @@ public class WaypointListBridgeTests
         Assert.EndsWith("2 of 2.", speech.Last);
     }
 
+    [Fact]
+    public void An_entry_says_its_region_after_its_name_but_never_its_name_twice()
+    {
+        var regions = new Dictionary<int, string> { [GeaKul] = "Kehjistan", [Zarbinzet] = "Hawe_Zarbinzet" };
+        var (bridge, keys, speech, _) = Create([Zarbinzet, GeaKul, Bazaar], regionOf: w => regions.GetValueOrDefault(w.LevelAreaSno));
+
+        keys.Open();
+        Assert.StartsWith("Waypoints by distance: 3. Kehj_Gea_Kul, Kehjistan, 8 meters", speech.Last);
+        keys.Down();
+        Assert.StartsWith("Naha_Kurast_Bazaar, ", speech.Last); // no region known
+        Assert.DoesNotContain("Nahantu", speech.Last);
+        keys.Down();
+        Assert.StartsWith("Hawe_Zarbinzet, ", speech.Last);
+        Assert.DoesNotContain("Hawe_Zarbinzet, Hawe_Zarbinzet", speech.Last);
+    }
+
     // Live 2026-10-18: the app started in the open world, entered before the bridge listened; the list said "none in this world".
     [Fact]
     public void The_list_asks_for_the_world_the_player_is_in_now()
@@ -169,14 +185,14 @@ public class WaypointListBridgeTests
     }
 
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
-        int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null)
+        int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
         var mouse = new FakeMouse();
         var bridge = new WaypointListBridge(
             Catalog, w => w.LevelAreaName, _ => activated, () => view ?? FarOut, () => world, speech, new LanguageSetting(SpeechLanguage.English),
-            DirectionStyle.Screen, keys, mouse, foreground ?? (() => true));
+            DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);

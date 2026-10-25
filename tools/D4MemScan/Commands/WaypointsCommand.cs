@@ -8,7 +8,7 @@ using D4Memory.Scan;
 namespace D4MemScan.Commands;
 
 /// <summary>
-/// `waypoints`: every waypoint of the game (offline, WaypointCatalog) with its name in --locale (default deDE). With --scan,
+/// `waypoints`: every waypoint of the game (offline, WaypointCatalog) with its name and region in --locale (default deDE). With --scan,
 /// finds in the live game's memory each run of at least --min (default 2) consecutive u32 words that are all waypoint
 /// LevelArea SNOs: candidates for PlayerSavedData.arWaypointsActivated. --watch S then prints each candidate that changes
 /// for S seconds: activate a new waypoint while it runs.
@@ -25,7 +25,7 @@ internal static class WaypointsCommand
             var catalog = new WaypointCatalog(store, schema);
             var names = catalog.All.GroupBy(w => w.LevelAreaSno).ToDictionary(g => g.Key, g => catalog.Name(g.First(), locale));
             foreach (var w in catalog.All)
-                Console.WriteLine($"{w.LevelAreaSno,8} {names[w.LevelAreaSno],-28} {w.LevelAreaName,-40} {store.Name(w.WorldSno)} ({w.Position.X:F0},{w.Position.Y:F0})");
+                Console.WriteLine($"{w.LevelAreaSno,8} {names[w.LevelAreaSno],-28} {catalog.Zone(w, locale) ?? "-",-24} {w.LevelAreaName,-40} {store.Name(w.WorldSno)} ({w.Position.X:F0},{w.Position.Y:F0})");
             Console.WriteLine($"{catalog.All.Count} waypoint(s).");
             if (reader.Has("--live")) Live(names, Path.Combine(install, GameData.MainModuleFileName));
             if (!reader.Has("--scan")) return 0;

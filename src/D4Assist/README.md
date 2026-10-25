@@ -495,7 +495,8 @@ near an edge costs more. Traversals join the floors they split: every two traver
 - **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
   the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
   it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),
-  nearest first. Up/down speak `name, N meters, direction. i of n`; Enter moves the mouse to the waypoint's pixel
+  nearest first. Up/down speak `name, region, N meters, direction. i of n` (the region: `WaypointCatalog.Zone`, the Zone of the
+  subzone listing the waypoint's LevelArea, e.g. "Nevesk, Zersplitterte Gipfel"; user request 2026-10-25); Enter moves the mouse to the waypoint's pixel
   (`MapViewReader` center and zoom, `MapProjection`) with `SendInput` (`Input/GameMouse`, the app's only input to the
   game, never a click) and closes the list; Escape closes it. A waypoint off the view that zooming out would show says
   "zoom out"; one farther than the map shows even all the way out (zoom 3046: ~1400 units above and below the center,

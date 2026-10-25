@@ -195,8 +195,8 @@ D-pad and the program's keys do nothing and are left to the other programs;
 only Ctrl+Alt+Shift+C (settings) and Ctrl+Alt+Shift+Q (exit) work.
 
 Waypoint list. With the world map open, Shift+F1 lists the waypoints you have
-activated in this world, nearest first. Up and down read them (name, distance
-and direction), Enter puts the mouse cursor on the chosen waypoint and closes
+activated in this world, nearest first. Up and down read them (name, region,
+distance and direction), Enter puts the mouse cursor on the chosen waypoint and closes
 the list, and Escape closes it. Shift+F1 belongs to the program only while the
 map is open, and the arrows, Enter and Escape only while the list is. If the
 waypoint lies outside the map view, zoom out and choose it again. The program

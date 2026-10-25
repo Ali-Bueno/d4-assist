@@ -87,7 +87,7 @@ public class WaypointListBridgeTests
     [Fact]
     public void Shift_F2_lists_the_helltide_objects_the_map_marks_nearest_first()
     {
-        var (bridge, keys, speech, mouse) = Create([GeaKul], helltidePlace: Helltide);
+        var (bridge, keys, speech, mouse) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1100f), helltidePlace: Helltide);
         bridge.OnMapMarkers([
             new MarkedActor(Cultist, 690, -410, 0, 1, 10),
             new MarkedActor(Gift, 700, -410, 0, 1, 11),
@@ -104,6 +104,21 @@ public class WaypointListBridgeTests
         keys.Enter();
         Assert.NotNull(mouse.Moved);
         Assert.False(keys.ListKeys);
+    }
+
+    // Live 2026-10-25: at zoom 1934 and 3046 the cursor on a gift's spot got no announcement; at 1100 it did.
+    [Fact]
+    public void Zoomed_far_out_a_helltide_object_asks_to_zoom_in_and_leaves_the_cursor()
+    {
+        var (bridge, keys, speech, mouse) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1934f), helltidePlace: Helltide);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Null(mouse.Moved);
+        Assert.StartsWith("Zoom in further and choose Tortured Gift of Mysteries again", speech.Last);
+        Assert.True(keys.ListKeys); // the list stays open for the next try
     }
 
     [Fact]

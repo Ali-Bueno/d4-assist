@@ -205,10 +205,13 @@ Everything the list says also appears on your braille display, if your
 screen reader has one connected.
 
 Helltide list. With the world map open, Shift+F2 lists the helltide's objects
-(tortured gifts, the accursed ritual, Hell's prize) nearest first, with their
+(tortured gifts, the accursed ritual, fallen altars, demonic spires, the
+doomsayer) nearest first, with their
 area, distance and direction. It works like the waypoint list: up and down,
 Enter for the cursor, Escape to close. The game shows these objects only while
 you are out in the helltide's area, not in a town; otherwise the list says so.
+Zoomed all the way out the map does not show them as icons: if the list asks
+you to zoom in, zoom in a step or two and press Enter again.
 
 
 Known issues

@@ -507,10 +507,12 @@ near an edge costs more. Traversals join the floors they split: every two traver
   `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
 - **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list): the helltide
-  objects the map marks (`HelltideObjects`: gizmos named Helltide, the accursed ritual), nearest first, as
+  objects the map marks (`HelltideObjects`: tortured gifts and other gizmos named Helltide, the accursed ritual, the fallen
+  altars and demonic spires, the doomsayer; not Hell's prize, which led nowhere), nearest first, as
   `name, level area, N meters, direction`, opened with the helltide's area (`ZoneCatalog`: territory and region, "Auen von
   Fethis, Hawezar"). Up/down, Enter (cursor) and Escape work as in the waypoint list. The map marks them only while the
-  player is out in the helltide's area, so an empty list says so. `--debug` logs `HELLTIDE n object(s) among m map markers`.
+  player is out in the helltide's area, so an empty list says so. Zoomed out past 1500 the map shows them as no icon the
+  cursor can point at (live: said at zoom 1100, not at 1934 or 3046), so Enter then asks to zoom in instead. `--debug` logs `HELLTIDE n object(s) among m map markers`.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

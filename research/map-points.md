@@ -53,7 +53,15 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   ~450 units apart), `S4_PROTOTYPE_SummonLocPin` 1833920 ("Verfluchtes Ritual"), `Warplan_Helltide_HellsPrize_PreTorment`
   2582811 ("Preis der Hölle"), and the season's `S14_Rupture_SMP_*`; the helltide's monsters (`cultist_*_helltide`) as kind 10.
   In Zarbinzet (a town of the same region) and Temis none of them: the map marks them only out in the helltide's area.
-  `HelltideObjects`, Shift+F2 (`WaypointListBridge.OpenHelltide`).
+  `HelltideObjects`, Shift+F2 (`WaypointListBridge.OpenHelltide`). The helltide's events are kind 10 (marked as monsters):
+  `SMP_Helltide_FallenAltar_Structure` 1926635 ("[ms]Gefallener Altar", a grammar tag before the Name),
+  `SMP_Helltide_Structure_DemonicSpire` 1826983 ("Spitze der Verderbnis"); the doomsayer `NPC_QST_S04_Hawe_Doomsayer_Base`
+  1818818 kind 8. Hell's prize led the user nowhere and is left out.
+- **Projection checked on the gifts (H, screenshot at zoom 1100, 1920×1080):** all nine gifts, drawn as small white dots in the
+  helltide's red area, lay within 1–2 px of `MapProjection.ToClient`. The game said a gift under the cursor at zoom 1100, not
+  at 1934 or 3046 (the two farthest steps): there the dots are no hover target.
+- **The map shows the world boss's countdown** at its top left ("Weltboss: 17 Min. 9 Sek."); the HUD shows the helltide's
+  ("Höllenflut: 5:57").
 - **Area names (H):** `SubzoneDefinition.snoTerritory` names the helltide's area: `Territory_Hawe_Wetland` "Auen von Fethis",
   its level areas "Lichtschwund", "Das Schlingmoor", "Ebenen des Verfalls", "Verseuchter Deich" (`ZoneCatalog`).
 - **The active helltide zone is not a world state (M).** A live table of 16-byte nodes {snoWorldState, nValue, next} holds

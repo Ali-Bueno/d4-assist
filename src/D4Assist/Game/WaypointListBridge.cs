@@ -38,7 +38,11 @@ public sealed class WaypointListBridge(
     private readonly IReadOnlySet<int> _levelAreas = waypoints.Select(w => w.LevelAreaSno).ToHashSet();
     private PlayerState? _player;
     private IReadOnlyList<MarkedActor> _markers = [];
-    private bool _mapOpen, _openKey;
+    private bool _mapOpen, _openKey, _helltide;
+
+    // Zoomed farther out than this the map shows the helltide's objects as no icon the cursor can point at (live 2026-10-25:
+    // gifts said at zoom 1100, not at 1934 or 3046; the steps between are 1100 and 1934).
+    private const float HelltideMaxZoom = 1500f;
 
     /// <summary>Hooks the keys; call once.</summary>
     public void Start()
@@ -107,6 +111,7 @@ public sealed class WaypointListBridge(
             var here = waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
             var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
             _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
+            _helltide = false;
             log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
             keys.SetListKeys(_list.IsOpen);
             speech.Output(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
@@ -124,6 +129,7 @@ public sealed class WaypointListBridge(
                 .ToList();
             var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
             _list.Open(WaypointList.Build(places.Select(h => (h.Place!.Name, h.Place.Region, (double)h.Marker.X, (double)h.Marker.Y)), fromX, fromY));
+            _helltide = true;
             // The area most of them lie in names the helltide; one with no known area still lists.
             string? area = places.Select(h => h.Place!.Area).OfType<string>().GroupBy(a => a).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
             log?.Invoke($"HELLTIDE {_list.Count} object(s) among {_markers.Count} map markers, area {area ?? "unknown"}");
@@ -154,10 +160,17 @@ public sealed class WaypointListBridge(
                 speech.Output(Text.MapUnreadable, interrupt: true);
                 return;
             }
+            if (_helltide && view.Zoom > HelltideMaxZoom)
+            {
+                log?.Invoke($"WAYPOINT {entry.Name}: zoom {view.Zoom:F0} too far out for the helltide's icons");
+                speech.Output(string.Format(HelltideStrings.For(language.Current).ZoomInFormat, entry.Name), interrupt: true);
+                return;
+            }
+            float farthestZoom = _helltide ? HelltideMaxZoom : MapProjection.MaxZoom;
             if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height) is not { } pixel)
             {
                 log?.Invoke($"WAYPOINT {entry.Name} off the map view (center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0})");
-                if (MapProjection.ToClient(view with { Zoom = Math.Max(view.Zoom, MapProjection.MaxZoom) }, entry.X, entry.Y, size.Width, size.Height) is not null)
+                if (MapProjection.ToClient(view with { Zoom = Math.Max(view.Zoom, farthestZoom) }, entry.X, entry.Y, size.Width, size.Height) is not null)
                 {
                     speech.Output(string.Format(Text.ZoomOutFormat, entry.Name), interrupt: true);
                     return;
@@ -175,7 +188,7 @@ public sealed class WaypointListBridge(
                 return;
             }
             bool moved = mouse.MoveTo(pixel.X, pixel.Y);
-            log?.Invoke($"WAYPOINT jump {entry.Name} -> ({pixel.X},{pixel.Y}) in {size.Width}x{size.Height}, center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0}{(moved ? "" : ": not moved")}");
+            log?.Invoke($"WAYPOINT jump {entry.Name} at ({entry.X:F0},{entry.Y:F0}) -> ({pixel.X},{pixel.Y}) in {size.Width}x{size.Height}, center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0}{(moved ? "" : ": not moved")}");
             if (!moved)
             {
                 speech.Output(Text.MapUnreadable, interrupt: true);

@@ -684,12 +684,16 @@ internal static class Program
     // A map marker as an object of the helltide list (HelltideObjects): its UI name ("Gequältes Geschenk der Geheimnisse"; the
     // Name label adds the cinder cost on a second line), its level area's name and the helltide's area, the territory and region
     // ("Auen von Fethis, Hawezar").
+    private static string? StripGrammarTag(string? text) =>
+        text is ['[', ..] && text.IndexOf(']') is > 0 and var end ? text[(end + 1)..] : text;
+
     private static HelltidePlace? HelltidePlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale)
     {
         string? actor = store.Name(marker.ActorSno);
         if (!HelltideObjects.Is(marker.Kind, actor)) return null;
-        string name = store.Text(locale, "Actor_" + actor, "UIName")
-            ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0] ?? actor!;
+        // A monster's Name carries a grammar tag ("[ms]Gefallener Altar").
+        string name = StripGrammarTag(store.Text(locale, "Actor_" + actor, "UIName")
+            ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0]) ?? actor!;
         string? region = store.Name(marker.LevelAreaSno) is { } area ? store.Text(locale, "LevelArea_" + area, "Name") : null;
         string[] parts = [.. new[] { zones.TerritoryName(marker.LevelAreaSno, locale), zones.Name(marker.LevelAreaSno, locale) }.OfType<string>()];
         return new HelltidePlace(name, region, parts.Length > 0 ? string.Join(", ", parts) : null);

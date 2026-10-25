@@ -506,6 +506,11 @@ near an edge costs more. Traversals join the floors they split: every two traver
   (`ISpeechSink.Output`: PRISM's speech + braille; user request 2026-10-25). `Input/MapListKeys` registers Shift+F1 only while
   `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
+- **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list): the helltide
+  objects the map marks (`HelltideObjects`: gizmos named Helltide, the accursed ritual), nearest first, as
+  `name, level area, N meters, direction`, opened with the helltide's area (`ZoneCatalog`: territory and region, "Auen von
+  Fethis, Hawezar"). Up/down, Enter (cursor) and Escape work as in the waypoint list. The map marks them only while the
+  player is out in the helltide's area, so an empty list says so. `--debug` logs `HELLTIDE n object(s) among m map markers`.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

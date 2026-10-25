@@ -74,6 +74,50 @@ public class WaypointListBridgeTests
         Assert.DoesNotContain("Hawe_Zarbinzet, Hawe_Zarbinzet", speech.Last);
     }
 
+    // Live 2026-10-25, the helltide in Hawezar: tortured gifts across the area, the accursed ritual; the player near the bazaar.
+    private const int Gift = 1858869, Ritual = 1833920, Cultist = 1186208;
+
+    private static HelltidePlace? Helltide(MarkedActor m) => m.ActorSno switch
+    {
+        Gift => new("Tortured Gift of Mysteries", "Lichtschwund", "Auen von Fethis, Hawezar"),
+        Ritual => new("Accursed Ritual", "Das Schlingmoor", "Auen von Fethis, Hawezar"),
+        _ => null,
+    };
+
+    [Fact]
+    public void Shift_F2_lists_the_helltide_objects_the_map_marks_nearest_first()
+    {
+        var (bridge, keys, speech, mouse) = Create([GeaKul], helltidePlace: Helltide);
+        bridge.OnMapMarkers([
+            new MarkedActor(Cultist, 690, -410, 0, 1, 10),
+            new MarkedActor(Gift, 700, -410, 0, 1, 11),
+            new MarkedActor(Ritual, 681.64f, -440, 0, 1, 11),
+            new MarkedActor(Gift, 700.2f, -410.1f, 0, 1, 11), // the same gift twice
+        ]);
+
+        keys.OpenHelltide();
+
+        Assert.StartsWith("Helltide in Auen von Fethis, Hawezar: 2 objects by distance. Tortured Gift of Mysteries, Lichtschwund, 18 meters", speech.Last);
+        Assert.True(speech.Brailled);
+        keys.Down();
+        Assert.StartsWith("Accursed Ritual, Das Schlingmoor, 30 meters", speech.Last);
+        keys.Enter();
+        Assert.NotNull(mouse.Moved);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Without_helltide_objects_on_the_map_Shift_F2_says_they_show_only_in_the_area()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide);
+        bridge.OnMapMarkers([new MarkedActor(Cultist, 690, -410, 0, 1, 10)]);
+
+        keys.OpenHelltide();
+
+        Assert.False(keys.ListKeys);
+        Assert.StartsWith("No helltide objects on the map.", speech.Last);
+    }
+
     // Live 2026-10-18: the app started in the open world, entered before the bridge listened; the list said "none in this world".
     [Fact]
     public void The_list_asks_for_the_world_the_player_is_in_now()
@@ -186,14 +230,15 @@ public class WaypointListBridgeTests
     }
 
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
-        int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null)
+        int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
+        Func<MarkedActor, HelltidePlace?>? helltidePlace = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
         var mouse = new FakeMouse();
         var bridge = new WaypointListBridge(
             Catalog, w => w.LevelAreaName, _ => activated, () => view ?? FarOut, () => world, speech, new LanguageSetting(SpeechLanguage.English),
-            DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf);
+            DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf, helltidePlace: helltidePlace);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
@@ -206,6 +251,7 @@ public class WaypointListBridgeTests
         public void SetOpenKey(bool active) => OpenKey = active;
         public void SetListKeys(bool active) => ListKeys = active;
         public event Action? OpenPressed;
+        public event Action? OpenHelltidePressed;
         public event Action? UpPressed;
         public event Action? DownPressed;
         public event Action? EnterPressed;
@@ -213,6 +259,7 @@ public class WaypointListBridgeTests
 
         // A key reaches the app only while it is registered, as with RegisterHotKey.
         public void Open() { if (OpenKey) OpenPressed?.Invoke(); }
+        public void OpenHelltide() { if (OpenKey) OpenHelltidePressed?.Invoke(); }
         public void Up() { if (ListKeys) UpPressed?.Invoke(); }
         public void Down() { if (ListKeys) DownPressed?.Invoke(); }
         public void Enter() { if (ListKeys) EnterPressed?.Invoke(); }

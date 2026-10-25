@@ -49,4 +49,19 @@ public class WaypointCatalogRealDataTests
         Assert.Equal("Zersplitterte Gipfel", catalog.Zone(catalog.All.First(w => w.LevelAreaSno == Nevesk), "deDE"));
         Assert.All(catalog.All, w => Assert.NotNull(catalog.Zone(w, "deDE")));
     }
+
+    // Live 2026-10-25: the helltide's gifts in level area Hawe_WetlandNorth lie in territory "Auen von Fethis", Hawezar.
+    [Fact]
+    public void A_level_areas_territory_is_its_subzones_territory_name()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        if (store.Text("deDE", "LevelArea_Skov_Temis", "Name") is null) return; // the install has no German text
+        var schema = TypeSchema.Load(definitions);
+        var zones = new ZoneCatalog(store, schema);
+        int wetlandNorth = store.Resolve(schema.SnoGroup("LevelAreaDefinition"), "Hawe_WetlandNorth");
+
+        Assert.Equal("Auen von Fethis", zones.TerritoryName(wetlandNorth, "deDE"));
+        Assert.Equal("Hawezar", zones.Name(wetlandNorth, "deDE"));
+    }
 }

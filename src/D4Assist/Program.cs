@@ -437,6 +437,7 @@ internal static class Program
         using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
         if (mapKeys is not null)
         {
+            var zones = new ZoneCatalog(store, schema);
             // The game's text bundle (60,000 tables) loads on the first name, the regions on the first one asked (every subzone read):
             // both now, not on the first Shift+F1.
             if (allWaypoints.Count > 0)
@@ -447,13 +448,15 @@ internal static class Program
                 () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
                 () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
                 GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null,
-                w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); });
+                w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); },
+                m => { lock (cascGate) return HelltidePlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current)); });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
+            session.MapMarkersRead += waypointList.OnMapMarkers;
             session.MenusRead += waypointList.OnMenus;
             waypointList.Start();
             mapKeys.Start();
-            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map.");
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the helltide.");
         }
 
         session.WorldChanged += (sno, name, isDungeon) =>
@@ -676,6 +679,20 @@ internal static class Program
                     string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) +
                     (r.End is { } end ? $", end ({end.X:F1},{end.Y:F1})" : "") + $", {r.ActivationSnos.Count} activation actors.");
         return routes;
+    }
+
+    // A map marker as an object of the helltide list (HelltideObjects): its UI name ("Gequältes Geschenk der Geheimnisse"; the
+    // Name label adds the cinder cost on a second line), its level area's name and the helltide's area, the territory and region
+    // ("Auen von Fethis, Hawezar").
+    private static HelltidePlace? HelltidePlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale)
+    {
+        string? actor = store.Name(marker.ActorSno);
+        if (!HelltideObjects.Is(marker.Kind, actor)) return null;
+        string name = store.Text(locale, "Actor_" + actor, "UIName")
+            ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0] ?? actor!;
+        string? region = store.Name(marker.LevelAreaSno) is { } area ? store.Text(locale, "LevelArea_" + area, "Name") : null;
+        string[] parts = [.. new[] { zones.TerritoryName(marker.LevelAreaSno, locale), zones.Name(marker.LevelAreaSno, locale) }.OfType<string>()];
+        return new HelltidePlace(name, region, parts.Length > 0 ? string.Join(", ", parts) : null);
     }
 
     // The game's own quest markers (map kind 12: Symbol_Quest_Proxy for an area step such as "kill the fiend roaming here", live

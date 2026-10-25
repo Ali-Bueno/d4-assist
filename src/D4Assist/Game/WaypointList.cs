@@ -66,3 +66,7 @@ public sealed class WaypointList
         return true;
     }
 }
+
+/// <summary>A helltide object of the map's helltide list: its name, the level area it lies in and the helltide's area
+/// ("Auen von Fethis, Hawezar"), in the current language; the last two null when unknown.</summary>
+public sealed record HelltidePlace(string Name, string? Region, string? Area);

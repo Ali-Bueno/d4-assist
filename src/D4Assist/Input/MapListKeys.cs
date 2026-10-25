@@ -2,16 +2,18 @@ using System.Runtime.InteropServices;
 
 namespace D4Assist.Input;
 
-/// <summary>The keys of the waypoint list: Shift+F1 opens it while the map shows, the arrows, Enter and Escape work it.</summary>
+/// <summary>The keys of the map's lists: Shift+F1 opens the waypoint list and Shift+F2 the helltide list while the map shows,
+/// the arrows, Enter and Escape work the open list.</summary>
 public interface IMapListKeys
 {
-    /// <summary>Takes Shift+F1 from the game while true; the game keeps it otherwise.</summary>
+    /// <summary>Takes Shift+F1 and Shift+F2 from the game while true; the game keeps them otherwise.</summary>
     void SetOpenKey(bool active);
 
     /// <summary>Takes up, down, Enter and Escape from the game while true (only while the list is open).</summary>
     void SetListKeys(bool active);
 
     event Action? OpenPressed;
+    event Action? OpenHelltidePressed;
     event Action? UpPressed;
     event Action? DownPressed;
     event Action? EnterPressed;
@@ -20,16 +22,16 @@ public interface IMapListKeys
 
 /// <summary>
 /// <see cref="IMapListKeys"/> with Win32 RegisterHotKey on a private message-loop thread (as <see cref="GlobalHotkeys"/>).
-/// A registered key goes to this app alone, so each is registered only while it means something here: Shift+F1 while the
-/// map is open, the list keys while the list is.
+/// A registered key goes to this app alone, so each is registered only while it means something here: Shift+F1 and Shift+F2
+/// while the map is open, the list keys while a list is.
 /// </summary>
 public sealed class MapListKeys : IMapListKeys, IDisposable
 {
-    // winuser.h: MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; VK_F1, VK_UP, VK_DOWN, VK_RETURN, VK_ESCAPE.
+    // winuser.h: MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; VK_F1, VK_F2, VK_UP, VK_DOWN, VK_RETURN, VK_ESCAPE.
     private const uint ModShift = 0x4, ModNoRepeat = 0x4000;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetOpenKey = 0x8001, WmSetListKeys = 0x8002;
-    private const uint VkF1 = 0x70, VkUp = 0x26, VkDown = 0x28, VkReturn = 0x0D, VkEscape = 0x1B;
-    private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204;
+    private const uint VkF1 = 0x70, VkF2 = 0x71, VkUp = 0x26, VkDown = 0x28, VkReturn = 0x0D, VkEscape = 0x1B;
+    private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204, OpenHelltideId = 205;
 
     private static readonly (int Id, uint Key)[] ListKeys = [(UpId, VkUp), (DownId, VkDown), (EnterId, VkReturn), (EscapeId, VkEscape)];
 
@@ -41,6 +43,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
     public MapListKeys(Action<string>? log = null) => _log = log;
 
     public event Action? OpenPressed;
+    public event Action? OpenHelltidePressed;
     public event Action? UpPressed;
     public event Action? DownPressed;
     public event Action? EnterPressed;
@@ -75,8 +78,16 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
             {
                 case WmSetOpenKey when (message.WParam != 0) != openKey:
                     openKey = message.WParam != 0;
-                    if (openKey) Register(OpenId, ModShift | ModNoRepeat, VkF1, "Shift+F1");
-                    else UnregisterHotKey(IntPtr.Zero, OpenId);
+                    if (openKey)
+                    {
+                        Register(OpenId, ModShift | ModNoRepeat, VkF1, "Shift+F1");
+                        Register(OpenHelltideId, ModShift | ModNoRepeat, VkF2, "Shift+F2");
+                    }
+                    else
+                    {
+                        UnregisterHotKey(IntPtr.Zero, OpenId);
+                        UnregisterHotKey(IntPtr.Zero, OpenHelltideId);
+                    }
                     break;
                 case WmSetListKeys when (message.WParam != 0) != listKeys:
                     listKeys = message.WParam != 0;
@@ -90,6 +101,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
             }
         }
         UnregisterHotKey(IntPtr.Zero, OpenId);
+        UnregisterHotKey(IntPtr.Zero, OpenHelltideId);
         foreach (var (id, _) in ListKeys) UnregisterHotKey(IntPtr.Zero, id);
     }
 
@@ -103,6 +115,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
         var handler = id switch
         {
             OpenId => OpenPressed,
+            OpenHelltideId => OpenHelltidePressed,
             UpId => UpPressed,
             DownId => DownPressed,
             EnterId => EnterPressed,

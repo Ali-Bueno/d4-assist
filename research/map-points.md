@@ -45,7 +45,28 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   (2338479632 is always a cellar). Whether "has an objective quest" means nightmare-capable is unverified (archetype gbids
   not decoded).
 
-## 4. Open questions
+## 4. Live events: helltide, world boss, legion (live, build 3.2.3, 2026-10-25)
+
+- **Helltide objects are map markers (H).** In the helltide (Hawezar, `Hawe_Wetland`, player at (-513,533)) the client's
+  map-marker list (dungeon-objectives.md §19) held, as kind 11: nine `Helltide_RewardChest_Random` 1858869 ("Gequältes
+  Geschenk der Geheimnisse", UIName; Name adds the cinder cost) over the whole territory (`Hawe_WetlandNorth/South/Center`,
+  ~450 units apart), `S4_PROTOTYPE_SummonLocPin` 1833920 ("Verfluchtes Ritual"), `Warplan_Helltide_HellsPrize_PreTorment`
+  2582811 ("Preis der Hölle"), and the season's `S14_Rupture_SMP_*`; the helltide's monsters (`cultist_*_helltide`) as kind 10.
+  In Zarbinzet (a town of the same region) and Temis none of them: the map marks them only out in the helltide's area.
+  `HelltideObjects`, Shift+F2 (`WaypointListBridge.OpenHelltide`).
+- **Area names (H):** `SubzoneDefinition.snoTerritory` names the helltide's area: `Territory_Hawe_Wetland` "Auen von Fethis",
+  its level areas "Lichtschwund", "Das Schlingmoor", "Ebenen des Verfalls", "Verseuchter Deich" (`ZoneCatalog`).
+- **The active helltide zone is not a world state (M).** A live table of 16-byte nodes {snoWorldState, nValue, next} holds
+  ~540 world states (`D4MemScan sno-scan` + `words`). Every territory's `Bounty_Helltide_*` states dropped 1 → 0 at the
+  helltide's end (14:55) and were set again at 15:00, for all regions at once: the bounty rotation, not the active zone.
+  Other live values there: `SME_S08_BelialTide` counting 5..1 every 5 minutes, `LocalEvent_OverlandBoss_<region>`,
+  `S07_WhisperRotation_<region>`, `RS_<region>`. Not found: the helltide's zone from afar.
+- **Server messages in the definitions:** `WorldStateUpdateData {snoWorldState, nValue}`, `WorldEventStartingMessage
+  {snoQuest, bIsWorldEvent, snoWorld, snoSubzone, snoReward, wpLocation}`, `WorldEventWarmupWarningMessage {snoSubzone}`.
+  World bosses are quests `WE_WorldBoss_<name>` (Ashava 366701). Not pursued: the game's own world-boss announcement names
+  several places (user, 2026-10-25).
+
+## 5. Open questions
 
 - Which of these the live map actually shows, and how it marks locked waypoints (unlocked ones: `PlayerSavedData.
   arWaypointsActivated`, 64 level-area SNOs, not located in memory yet).

@@ -13,6 +13,9 @@ namespace D4Assist.Game;
 /// the list, Escape closes it. Everything it says also goes to the braille display (ISpeechSink.Output, user request
 /// 2026-10-25). Only waypoints the player's saved data lists as activated are ever offered; when that list is unreadable the
 /// list says so instead of guessing.
+/// Shift+F2 opens the same list over the helltide's objects the map marks (user request 2026-10-25): tortured gifts, the accursed
+/// ritual, Hell's prize. The map marks them only while the player is in the helltide's area outside a town (live 2026-10-25,
+/// Hawezar), so an empty list says so.
 /// </summary>
 /// <param name="waypoints">Every waypoint of the game (WaypointCatalog.All).</param>
 /// <param name="nameOf">A waypoint's name in the current language.</param>
@@ -22,21 +25,26 @@ namespace D4Assist.Game;
 /// <param name="readMapView">The map's center and zoom; null when unreadable.</param>
 /// <param name="currentWorld">The world the player is in (GameSession.CurrentWorldSno): asked on each Shift+F1, since the app can
 /// start in a world entered before this bridge listened (live 2026-10-18: "0 in world -1").</param>
+/// <param name="helltidePlace">A map marker as a helltide object of the list (name, level area, the helltide's area), null for any
+/// other marker; null for no helltide list.</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
-    IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null, Func<Waypoint, string?>? regionOf = null)
+    IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null, Func<Waypoint, string?>? regionOf = null,
+    Func<MarkedActor, HelltidePlace?>? helltidePlace = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
     private readonly IReadOnlySet<int> _levelAreas = waypoints.Select(w => w.LevelAreaSno).ToHashSet();
     private PlayerState? _player;
+    private IReadOnlyList<MarkedActor> _markers = [];
     private bool _mapOpen, _openKey;
 
     /// <summary>Hooks the keys; call once.</summary>
     public void Start()
     {
         keys.OpenPressed += Open;
+        if (helltidePlace is not null) keys.OpenHelltidePressed += OpenHelltide;
         keys.UpPressed += () => Move(_list.Previous);
         keys.DownPressed += () => Move(_list.Next);
         keys.EnterPressed += Choose;
@@ -56,6 +64,12 @@ public sealed class WaypointListBridge(
     public void OnPlayerMoved(PlayerState player)
     {
         lock (_gate) _player = player;
+    }
+
+    /// <summary>Every actor the game's map marks (GameSession.MapMarkersRead): the helltide list's source.</summary>
+    public void OnMapMarkers(IReadOnlyList<MarkedActor> markers)
+    {
+        lock (_gate) _markers = markers;
     }
 
     /// <summary>Gives Shift+F1 to this app while the map shows and the game has the focus; the map closing, or the game leaving the
@@ -96,6 +110,26 @@ public sealed class WaypointListBridge(
             log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
             keys.SetListKeys(_list.IsOpen);
             speech.Output(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
+        }
+    }
+
+    private void OpenHelltide()
+    {
+        lock (_gate)
+        {
+            if (!_mapOpen || helltidePlace is null) return;
+            var places = _markers.Select(m => (Marker: m, Place: helltidePlace(m)))
+                .Where(p => p.Place is not null)
+                .DistinctBy(p => (p.Marker.ActorSno, MathF.Round(p.Marker.X), MathF.Round(p.Marker.Y)))
+                .ToList();
+            var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
+            _list.Open(WaypointList.Build(places.Select(h => (h.Place!.Name, h.Place.Region, (double)h.Marker.X, (double)h.Marker.Y)), fromX, fromY));
+            // The area most of them lie in names the helltide; one with no known area still lists.
+            string? area = places.Select(h => h.Place!.Area).OfType<string>().GroupBy(a => a).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+            log?.Invoke($"HELLTIDE {_list.Count} object(s) among {_markers.Count} map markers, area {area ?? "unknown"}");
+            keys.SetListKeys(_list.IsOpen);
+            var text = HelltideStrings.For(language.Current);
+            speech.Output(_list.IsOpen ? $"{string.Format(text.OpenedFormat, area ?? "?", _list.Count)} {EntryText()}" : text.NoneOnMap, interrupt: true);
         }
     }
 

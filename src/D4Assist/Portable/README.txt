@@ -204,6 +204,12 @@ only moves the cursor; it never clicks.
 Everything the list says also appears on your braille display, if your
 screen reader has one connected.
 
+Helltide list. With the world map open, Shift+F2 lists the helltide's objects
+(tortured gifts, the accursed ritual, Hell's prize) nearest first, with their
+area, distance and direction. It works like the waypoint list: up and down,
+Enter for the cursor, Escape to close. The game shows these objects only while
+you are out in the helltide's area, not in a town; otherwise the list says so.
+
 
 Known issues
 

@@ -28,7 +28,8 @@ internal static class MarkersCommand
             using var process = ProcessReader.OpenDiabloIv();
             var (offsets, module) = Offsets.DiscoverAny(process, Path.Combine(install, GameData.MainModuleFileName));
             if (offsets is null) { Console.WriteLine("Game object not found."); return 1; }
-            if (MapMarkerReader.Locate(process, module.Base, offsets.GameObjectPointerRva) is not { } head) { Console.WriteLine("Marker list not found."); return 1; }
+            if (MapMarkerReader.Locate(process, module.Base, offsets.GameObjectPointerRva) is not { } found) { Console.WriteLine("Marker list not found."); return 1; }
+            long head = found;
             if (MapMarkerReader.TryRead(process, head) is not { } markers) { Console.WriteLine("Marker list unreadable."); return 1; }
 
             foreach (var m in markers.Where(Kept).OrderBy(m => m.Kind).ThenBy(m => store.Name(m.ActorSno))) Console.WriteLine(Describe(m));
@@ -40,7 +41,16 @@ internal static class MarkersCommand
             while (DateTime.Now < until)
             {
                 Thread.Sleep(1000);
-                if (MapMarkerReader.TryRead(process, head) is not { } now) { Console.WriteLine($"{DateTime.Now:HH:mm:ss} list gone"); return 1; }
+                if (MapMarkerReader.TryRead(process, head) is not { } now)
+                {
+                    // The client rebuilds the list on a world or area change (live 2026-10-25, walking out of Zarbinzet): find it again.
+                    if (MapMarkerReader.Locate(process, module.Base, offsets.GameObjectPointerRva) is { } moved && MapMarkerReader.TryRead(process, moved) is { } list)
+                    {
+                        Console.WriteLine($"{DateTime.Now:HH:mm:ss} list moved to 0x{moved:X}");
+                        (head, now) = (moved, list);
+                    }
+                    else { Console.WriteLine($"{DateTime.Now:HH:mm:ss} list gone, looking again"); continue; }
+                }
                 var current = now.Where(Kept).ToHashSet();
                 foreach (var m in current.Except(seen)) Console.WriteLine($"{DateTime.Now:HH:mm:ss} + {Describe(m)}");
                 foreach (var m in seen.Except(current)) Console.WriteLine($"{DateTime.Now:HH:mm:ss} - {Describe(m)}");

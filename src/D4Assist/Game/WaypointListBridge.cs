@@ -10,8 +10,9 @@ namespace D4Assist.Game;
 /// <summary>
 /// The waypoint list on the world map: Shift+F1 (only while the map shows and the game has the focus) lists the activated
 /// waypoints of this world, nearest first; up and down read them, Enter puts the mouse cursor on the chosen one and closes
-/// the list, Escape closes it. Only waypoints the player's saved data lists as activated are ever offered; when that list is
-/// unreadable the list says so instead of guessing.
+/// the list, Escape closes it. Everything it says also goes to the braille display (ISpeechSink.Output, user request
+/// 2026-10-25). Only waypoints the player's saved data lists as activated are ever offered; when that list is unreadable the
+/// list says so instead of guessing.
 /// </summary>
 /// <param name="waypoints">Every waypoint of the game (WaypointCatalog.All).</param>
 /// <param name="nameOf">A waypoint's name in the current language.</param>
@@ -85,7 +86,7 @@ public sealed class WaypointListBridge(
             {
                 log?.Invoke("WAYPOINTS activated list unreadable");
                 CloseLocked(spoken: false);
-                speech.Speak(Text.Unreadable, interrupt: true);
+                speech.Output(Text.Unreadable, interrupt: true);
                 return;
             }
             int world = currentWorld();
@@ -94,7 +95,7 @@ public sealed class WaypointListBridge(
             _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
             log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
             keys.SetListKeys(_list.IsOpen);
-            speech.Speak(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
+            speech.Output(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
         }
     }
 
@@ -105,7 +106,7 @@ public sealed class WaypointListBridge(
         {
             if (!_list.IsOpen) return;
             step();
-            speech.Speak(EntryText(), interrupt: true);
+            speech.Output(EntryText(), interrupt: true);
         }
     }
 
@@ -116,7 +117,7 @@ public sealed class WaypointListBridge(
             if (_list.Current is not { } entry) return;
             if (readMapView() is not { } view || mouse.ClientSize() is not { } size)
             {
-                speech.Speak(Text.MapUnreadable, interrupt: true);
+                speech.Output(Text.MapUnreadable, interrupt: true);
                 return;
             }
             if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height) is not { } pixel)
@@ -124,18 +125,18 @@ public sealed class WaypointListBridge(
                 log?.Invoke($"WAYPOINT {entry.Name} off the map view (center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0})");
                 if (MapProjection.ToClient(view with { Zoom = Math.Max(view.Zoom, MapProjection.MaxZoom) }, entry.X, entry.Y, size.Width, size.Height) is not null)
                 {
-                    speech.Speak(string.Format(Text.ZoomOutFormat, entry.Name), interrupt: true);
+                    speech.Output(string.Format(Text.ZoomOutFormat, entry.Name), interrupt: true);
                     return;
                 }
                 if (Hop(entry, view, size) is { } hop && mouse.MoveTo(hop.Pixel.X, hop.Pixel.Y))
                 {
                     log?.Invoke($"WAYPOINT hop {hop.Entry.Name} -> ({hop.Pixel.X},{hop.Pixel.Y}) on the way to {entry.Name}");
                     CloseLocked(spoken: false);
-                    speech.Speak(string.Format(Text.HopFormat, entry.Name, hop.Entry.Name), interrupt: true);
+                    speech.Output(string.Format(Text.HopFormat, entry.Name, hop.Entry.Name), interrupt: true);
                     return;
                 }
                 var direction = ScreenDirections.Bin(entry.X - view.CenterX, entry.Y - view.CenterY);
-                speech.Speak(string.Format(Text.OffMapFormat, entry.Name, NavigationPhrases.For(language.Current).Direction(direction, directionStyle)),
+                speech.Output(string.Format(Text.OffMapFormat, entry.Name, NavigationPhrases.For(language.Current).Direction(direction, directionStyle)),
                     interrupt: true);
                 return;
             }
@@ -143,11 +144,11 @@ public sealed class WaypointListBridge(
             log?.Invoke($"WAYPOINT jump {entry.Name} -> ({pixel.X},{pixel.Y}) in {size.Width}x{size.Height}, center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0}{(moved ? "" : ": not moved")}");
             if (!moved)
             {
-                speech.Speak(Text.MapUnreadable, interrupt: true);
+                speech.Output(Text.MapUnreadable, interrupt: true);
                 return;
             }
             CloseLocked(spoken: false);
-            speech.Speak(string.Format(Text.CursorFormat, entry.Name), interrupt: true);
+            speech.Output(string.Format(Text.CursorFormat, entry.Name), interrupt: true);
         }
     }
 
@@ -183,7 +184,7 @@ public sealed class WaypointListBridge(
         if (!_list.IsOpen) return;
         _list.Close();
         keys.SetListKeys(false);
-        if (spoken) speech.Speak(Text.Closed, interrupt: true);
+        if (spoken) speech.Output(Text.Closed, interrupt: true);
     }
 
     private string EntryText()

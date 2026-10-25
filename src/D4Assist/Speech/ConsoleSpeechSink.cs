@@ -7,5 +7,7 @@ public sealed class ConsoleSpeechSink : ISpeechSink
 
     public void Speak(string text, bool interrupt) => Console.WriteLine($"[speech{(interrupt ? "!" : "")}] {text}");
 
+    public void Output(string text, bool interrupt) => Console.WriteLine($"[speech+braille{(interrupt ? "!" : "")}] {text}");
+
     public void Dispose() { }
 }

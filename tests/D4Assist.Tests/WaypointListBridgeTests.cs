@@ -52,6 +52,7 @@ public class WaypointListBridgeTests
 
         Assert.True(keys.ListKeys);
         Assert.StartsWith("Waypoints by distance: 2. Kehj_Gea_Kul, 8 meters", speech.Last);
+        Assert.True(speech.Brailled); // the list also goes to the braille display
         keys.Down();
         Assert.StartsWith("Hawe_Zarbinzet, ", speech.Last);
         Assert.EndsWith("2 of 2.", speech.Last);
@@ -221,8 +222,10 @@ public class WaypointListBridgeTests
     private sealed class FakeSpeech : ISpeechSink
     {
         public string? Last;
+        public bool Brailled;
         public string BackendName => "test";
-        public void Speak(string text, bool interrupt) => Last = text;
+        public void Speak(string text, bool interrupt) => (Last, Brailled) = (text, false);
+        public void Output(string text, bool interrupt) => (Last, Brailled) = (text, true);
         public void Dispose() { }
     }
 

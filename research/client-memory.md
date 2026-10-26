@@ -531,6 +531,9 @@ restart while mounted (the player's RActor is still listed) and in a dungeon.
   copies, but the local slot held other data right after its 36th entry (0x34CF077B…). So read entries in order while
   each is a catalog LevelArea, at most 64.
 - Found with `D4MemScan waypoints --scan --saved` (runs of waypoint LevelAreas, 20 s heap scan) and pointer scans back to G.
+- **Waypoints not activated yet (2026-10-26, not live-tested):** `Game/WaypointBeacons` loops at this world's catalog
+  waypoints within the beacon reach (60) whose LevelArea is missing from this list, re-read every 2 s while one is near.
+  The catalog position is the global marker's; whether it matches the `Waypoint_Temp` actor is unchecked.
 
 ### World map view (live 2026-10-18, Gea Kul, 1920×1080 windowed)
 

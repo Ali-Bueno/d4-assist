@@ -148,6 +148,11 @@ on every player update, loops the quest-item sound (embedded in `D4Assist.Audio`
 actor pool is unavailable the app logs it once and the beacons stay silent. `--debug` logs a `BEACON` line when
 a target appears or disappears (`LOOP started/stopped`).
 
+Waypoints the player hasn't activated loop the game's "waypoint discovered" sound (`waypoint.wav`, `Game/WaypointBeacons`, settings cue `Waypoint`, in every world with
+waypoints): at their spots in the game data (`D4Data.Readers.WaypointCatalog`), not at streamed actors, within the beacon reach;
+each falls silent once the activated list (`ActivatedWaypointsReader`, re-read every 2 s while one is near) holds it.
+`--debug` logs `WAYPOINT loop started/stopped`.
+
 `Game/PortalMemory` keeps every portal seen in the dungeon instance (also across warps inside it) and marks the ones the
 player appeared or vanished within 15 units of as used: they lead back, the others lead on. A portal is also known as soon as
 the tile that places it loads (`Game/ScenePortalReader`, the tile's "Game"/"Shared" marker layers; not in the Pit or the
@@ -186,7 +191,8 @@ Quest gizmos (ACD `Gizmo_Is_Quest_Restricted`, research/client-memory.md §4): o
 (`MinimapActive`), or one an active quest's current phase names (resolved offline by `D4Data.Readers.QuestScriptMarkerReader`:
 a marker at its spot, or its actor SNO for a gizmo a dungeon tile places), is the quest's current step and gets the quest loop whatever it is
 (`ActorState.QuestStep`, reason `quest`). So does an NPC showing a conversation icon whose kind the current phase names (the
-one to talk to; it keeps its loop while it moves). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
+one to talk to; it keeps its loop while it moves), or whose `Conversation_Icon_Quest` is a followed quest (`ActiveQuests.Owned`;
+the log names each NPC's offered quest once: `Quest conversation: actor … offers quest …`, research/dungeon-objectives.md §26). Any other quest gizmo, or one with `Gizmo_Disabled_By_Script`, isn't usable yet
 (`ActorState.Unusable`) and stays silent. Active quests (`ActiveQuests`): the player's tracked quest (`ManuallyTrackedQuestSNO`)
 plus the quests in progress here, those with markers in this world or its scenes, or on an actor loaded around the player (an
 overworld side quest marks its objects in a subzone layer set), the world's objective quest, and any quest a phase of a
@@ -326,8 +332,9 @@ the nearest NPCs within 15 units, on every player poll: the two nearest by defau
 D2R taps one, user request 2026-10-02). Each repeats on its own rhythm, faster as the NPC gets closer: 450 ms at the edge,
 150 ms at contact. It is panned by screen side and pitched lower when the NPC is below the player.
 - **Which NPCs:** `Game/NpcClassifier` takes the fIsNPC monsters off the hostile team, including quest followers and
-  escorts. It leaves out hired mercenaries, cinematic stand-ins and prisoners, which have their own loop
-  ([dungeon-objectives](../../research/dungeon-objectives.md) §9).
+  escorts. It leaves out hired mercenaries (family `NPC_Mercenary` on the player's team; the Den's Raheir, on the neutral
+  team, taps), cinematic stand-ins and prisoners, which have their own loop
+  ([dungeon-objectives](../../research/dungeon-objectives.md) §9, §26).
 - **Followers go quiet:** a quest companion following the player carries the ACD attribute `Follower_Quest`
   (`ActorState.QuestFollower`, research/client-memory.md §4) and never taps (user, 2026-09-30). `--debug` logs
   `NPC follows the player, silent`.

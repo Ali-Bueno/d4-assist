@@ -71,7 +71,12 @@ The other WAVs are D2R's loops converted by its own recipe (`d2r-access/cmake/Gr
 - `scroll.wav`: the same filter at `volume=24dB`.
 - `chest.wav`, `wooden-door.wav`, `metal-door.wav`, `stone-door.wav`: no filter.
 
-Sources: `loot/{corpse,scroll,chest}.ogg` and `exploration/{wooden,metal,stone} door.ogg`. The `Container` profile
+Sources: `loot/{corpse,scroll,chest}.ogg` and `exploration/{wooden,metal,stone} door.ogg`.
+
+`Sounds/waypoint.wav` (waypoints not activated yet) is the game's own `Play_OBJ_Waypoint_Discovered_Media` variant
+`268866807.ogg` (mono, the user's D4 sound extraction), trimmed to its strike and decay, peak −1 dBFS (−19 LUFS):
+`ffmpeg -i 268866807.ogg -map_metadata -1 -vn -af "atrim=0:1.7,afade=t=out:st=1.5:d=0.2,volume=3.1dB" -ac 1 -ar 48000 -c:a pcm_s16le -fflags +bitexact -flags:a +bitexact waypoint.wav`.
+The waypoint's `Activated_Loop` is a steady hum the game itself plays at activated waypoints, so it would not tell them apart. The `Container` profile
 (doors, chests, readables) is D2R's `AudibleRadius` 30 subtiles with a squared fade (`ground_items.cpp:39`).
 `LoopSource.Priority` decides who gets the loop budget first. `AudioMixer.Paused` silences everything: it drops
 one-shot cues and holds loops, and is used during cutscenes.

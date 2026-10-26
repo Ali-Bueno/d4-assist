@@ -3,9 +3,10 @@ using D4Assist.Config;
 
 namespace D4Assist.Game;
 
-/// <summary>What a looped actor is, in voice priority order: a boss fight's safe zone first, then D2R's (exits, quest, doors,
-/// containers). The exit beacon leads the player and mutes the exploration guide, the others do not.</summary>
-public enum LoopKind { SafeZone, ExitBeacon, Objective, Door, Container }
+/// <summary>What a looped actor or spot is, in voice priority order: a boss fight's safe zone first, then D2R's (exits, quest,
+/// doors, containers) with the waypoints not activated yet after the quest. The exit beacon leads the player and mutes the
+/// exploration guide, the others do not.</summary>
+public enum LoopKind { SafeZone, ExitBeacon, Objective, Waypoint, Door, Container }
 
 /// <summary>The loop an actor gets: sound, distance profile, the reason logged and the settings cue that levels it.</summary>
 /// <param name="StopsWhenUsed">A used gizmo falls silent; beacons (the Undercity pad activates on approach) and NPCs never do.</param>
@@ -45,6 +46,9 @@ public sealed class LoopTargetSelector
 
     /// <summary>Sound id of the Horadric Guardian's vessels: the quest loop until the user picks one of its own (2026-10-01).</summary>
     public const string WardBreakerSound = QuestItemSound;
+
+    /// <summary>Sound id of the waypoints not activated yet: the game's own "waypoint discovered" sound (user, 2026-10-26).</summary>
+    public const string WaypointSound = "waypoint";
 
     /// <summary>Sound id of the boss-fight safe zones (the user's own sound, 2026-10-01).</summary>
     public const string SafeZoneSound = "barrier";

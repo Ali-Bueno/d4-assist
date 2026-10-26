@@ -235,9 +235,17 @@ internal static class Program
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
+        var waypointCatalog = new WaypointCatalog(store, schema);
+        IReadOnlyList<Waypoint> allWaypoints;
+        lock (cascGate) allWaypoints = waypointCatalog.All;
+        Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivatedWaypoints =
+            levelAreas => { IReadOnlyList<int>? read = null; session.Query(r => read = r.ReadActivatedWaypoints(levelAreas)); return read; };
+        var waypointBeacons = new WaypointBeacons(allWaypoints, readActivatedWaypoints, () => session.CurrentWorldSno, debug ? Console.WriteLine : null);
+
         var loopMemory = loopSounds is null ? null : StartLoops(
             session, mixer, loopSounds, config, store, schema, cascGate, debug, definitionOf, interactables, dpo, portalRule,
-            scene => { lock (cascGate) return tilePortals.In(scene); }, cue => liveSound.Current.Level(cue), lockedDoors.IsLocked);
+            scene => { lock (cascGate) return tilePortals.In(scene); }, cue => liveSound.Current.Level(cue), lockedDoors.IsLocked,
+            waypointBeacons.Spots);
         var portals = loopMemory?.Portals;
         var objectives = loopMemory?.Objectives;
         session.QuestActorsNamed += snos =>
@@ -371,15 +379,12 @@ internal static class Program
         using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
         if (mapKeys is not null)
         {
-            var catalog = new WaypointCatalog(store, schema);
-            IReadOnlyList<Waypoint> allWaypoints;
-            lock (cascGate) allWaypoints = catalog.All;
             // The game's text bundle (60,000 tables) loads on the first name; load it now, not on the first Shift+F1.
             if (allWaypoints.Count > 0)
-                _ = Task.Run(() => { lock (cascGate) catalog.Name(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
+                _ = Task.Run(() => { lock (cascGate) waypointCatalog.Name(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
             var waypointList = new WaypointListBridge(
-                allWaypoints, w => { lock (cascGate) return catalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
-                levelAreas => { IReadOnlyList<int>? read = null; session.Query(r => read = r.ReadActivatedWaypoints(levelAreas)); return read; },
+                allWaypoints, w => { lock (cascGate) return waypointCatalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
+                readActivatedWaypoints,
                 () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
                 () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
                 GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null);
@@ -521,7 +526,7 @@ internal static class Program
         GameSession session, AudioMixer mixer, Dictionary<string, float[]> sounds, AppConfig config, SnoStore store, TypeSchema schema,
         object cascGate, bool debug, Func<int, ActorDefinitionInfo?> definitionOf, InteractableClassifier interactables,
         DungeonObjectiveReader dpo, PortalClassifier portalRule, Func<int, IReadOnlyList<TileActor>> tilePortals, Func<SoundCue, CueLevel> levelOf,
-        Func<int, (float X, float Y), bool> lockedDoor)
+        Func<int, (float X, float Y), bool> lockedDoor, Func<PlayerState, IReadOnlyList<LoopSpot>> spots)
     {
         int actorGroup = schema.SnoGroup(ActorDefinitionType);
         var beaconSnos = BeaconTargets.Resolve(
@@ -544,7 +549,8 @@ internal static class Program
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         var loops = new ActorLoopBridge(
-            session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf);
+            session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf,
+            spots: spots);
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
             sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,

@@ -721,3 +721,26 @@ hover about 1 unit beside it. The beam stands on the body the whole split. So th
 landed, 5.6 units from the body, and the player walked back to exactly that spot (ended at (-67.5,-1.7)). The loop now sounds at
 the beam (`SoulSplitBody`; with no beam listed, where the resurrection actor was first seen). Fifth live run: the loop led the
 player back to the body and the fight was won.
+
+## 26. "Speak with Raheir in the Den": a quest NPC the phase doesn't name (offline + tester log, 2026-10-23)
+
+Tester log (0.1.17, not `--debug`): quest `1478570` (Nahantu, "The Hand Remembers the Blade") at phase uid 140 in the Den
+(`Mercenary_Hideout`, 1472231), "0 object(s) named", no quest loop and no NPC tap at Raheir.
+
+- **Phase 140 names nobody (H, `D4MemScan quest --sno 1478570 --callbacks`):** two shown callbacks with no `arSnonameTokens`:
+  event 32 with `ScriptEventParamActorGroup` gbid 0xF1A1D7BE (snoWorld `QST_Merc_Hideout`; the gbid sits only in an unreferenced
+  record of marker set `ZigIn_Kurast_FLEX_POI_BossRoom (QST_Merc_X1_Hideout_BossRoom)`), and event 49 = enter world
+  `Mercenary_Hideout`. The talk phases of this quest (43, 94, 125) are event 11 with `ScriptEventParamConversation` plus a
+  marker handle, which `QuestScriptMarkerReader` already resolves.
+- **The Den's Raheir (H):** `NPC_QST_Raheir_MissingArm_NonCombat` 1677533, placed in `MERC_Hideout (QST_Naha_Campaign_Unlock)`
+  and named by `QST_Naha_MercHideout` 1901393 (phases 3, 13, 14), not by 1478570. fIsNPC, team 0, family `NPC_Mercenary`.
+  Every hired or reinforcement mercenary of that family (`Mercenary_*`, `ACD_*Mercenary*`, `*_Reinforcement`) is on team 2;
+  Raheir MissingArm is the only one on team 0. The other Den NPCs (bounty hunter, Fayira, vendors, Aldkin, Subo) are family `NPC`.
+- **Fix (not live-tested):** the NPC tap leaves a mercenary out only on the player's team (`Conventions.FriendlyTeam`), and an
+  NPC whose `Conversation_Icon_Quest` value is a followed quest is the quest step whatever its phase names (577793 on the
+  Bloodied Wolf is a quest SNO). The log now says `Quest conversation: actor <sno> offers quest <sno> (followed)` once per pair.
+  **Open:** which quest the Den's Raheir offers; if it is 1901393 and the app doesn't find that quest in progress, the quest loop
+  stays off (the tap still sounds).
+- **Census (M):** 6533 of 8266 shown callbacks name no actor. 1466 carry a conversation filter, ~1286 of them with a marker handle;
+  speaker → actor by name is weak (speakers are `NPC_QST_Raheir`, actors `NPC_QST_Raheir_*`). 165 shown callbacks are
+  `ev32 ActorGroup+Player`; 84 of their 182 gbids resolve through `MarkerReader.ActorGroupMarkers`.

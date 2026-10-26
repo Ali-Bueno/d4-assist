@@ -80,6 +80,7 @@ the palace steps.
   have to carry and where they go, quest chests, stuff your quest asks you to use or break, the person your quest asks you
   to talk to, and the monsters the dungeon asks you to kill. Tracked or not: any quest you have in progress counts.
 - Portals, including the Undercity's warp pads, have their own sound so you can find the way out.
+- Waypoints you haven't activated yet play the game's own "waypoint discovered" sound when you get near, until you activate them.
 - Doors, chests, bodies you can search, books and notes, spots to look at and healing wells have their own sounds too. Prisoners play
   the corpse sound, and go quiet once a freed prisoner walks along with you.
 - Characters you can talk to get a little wooden tap, the two nearest at once (the settings let you pick 1 to 4).

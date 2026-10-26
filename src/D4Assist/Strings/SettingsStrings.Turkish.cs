@@ -64,6 +64,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "Bakılacak yerler",
             [SoundCue.HealingWell] = "Şifa kuyuları",
             [SoundCue.Portal] = "Portallar",
+            [SoundCue.Waypoint] = "Etkinleştirilmemiş geçiş noktaları",
             [SoundCue.QuestObjective] = "Görev hedefleri",
             [SoundCue.Prisoner] = "Esirler",
             [SoundCue.Enticement] = "Yeraltı Şehri ruh mangalları",

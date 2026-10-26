@@ -9,6 +9,8 @@ namespace D4MemScan.Commands;
 
 /// <summary>
 /// `quest --sno N`: a quest's phases (dwUID, in order) and the objects each phase's scripts name (offline).
+/// `--callbacks` also prints each phase's callbacks and their script parameters (QuestCallbacks); `--group G` the markers of an actor
+/// group; `--actors R` the actors matching R with team, NPC flag and family; `--world-actors R` the actors placed in marker sets matching R.
 /// `--watch S` also finds, in the live game's memory, every u32 phase UID of that quest within ±0x100 bytes of the quest
 /// SNO, then prints each one that changes for S seconds: advance the quest while it runs to find the current phase.
 /// </summary>
@@ -32,11 +34,47 @@ internal static class QuestCommand
                         .Concat(actors.Select(a => $"{store.Name(a)} (any)"))
                         .Concat((subQuests ?? new HashSet<int>()).Select(q => $"waits on quest {q} {store.Name(q)}"))
                         .Concat((worlds ?? new HashSet<int>()).Select(w => $"shown in {store.Name(w)}"))));
+            if (reader.Has("--callbacks")) QuestCallbacks.Print(store, schema, sno);
+            if (reader.Get("--group") is { } gbid) PrintGroup(store, schema, uint.Parse(gbid));
+            if (reader.Get("--actors") is { } pattern) PrintActors(store, schema, pattern);
+            if (reader.Get("--world-actors") is { } world) PrintWorldActors(store, schema, world);
             var uids = phases.Select(p => p.PhaseUid).ToHashSet();
             if (reader.Has("--find")) Find(sno, uids, Path.Combine(install, GameData.MainModuleFileName));
             if (reader.Get("--watch") is { } watch) Watch(sno, uids, int.Parse(watch));
         }
         return 0;
+    }
+
+    // `--group G`: every marker of an actor group (GBID, as a callback's ScriptEventParamActorGroup names it), by marker set.
+    private static void PrintGroup(D4Data.Casc.SnoStore store, D4Data.Schema.TypeSchema schema, uint gbid)
+    {
+        var markers = new MarkerReader(store, schema);
+        foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
+            foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
+                if (groups.Contains(gbid))
+                    Console.WriteLine($"group {gbid}: {store.Name(marker.Sno)} ({marker.Sno}) at ({marker.Position.X:F0},{marker.Position.Y:F0}) in {name}");
+    }
+
+    // `--actors R`: the actors whose name matches R with their kind, team, NPC flag and monster family (what NpcClassifier reads).
+    private static void PrintActors(D4Data.Casc.SnoStore store, D4Data.Schema.TypeSchema schema, string pattern)
+    {
+        var regex = new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var definitions = new ActorDefinitionReader(store, schema);
+        foreach (var (id, name) in store.AllEntries(schema.SnoGroup("ActorDefinition")).Where(e => regex.IsMatch(e.Name)))
+            if (definitions.Read(id) is { } d)
+                Console.WriteLine($"actor {name} ({id}): type {d.EType} npc {d.IsNpc} team {d.DefaultTeam} family {store.Name(d.MonsterFamilySno)}");
+    }
+
+    // `--world-actors R`: the NPC and monster actors placed in the marker sets whose name matches R, with the PrintActors facts.
+    private static void PrintWorldActors(D4Data.Casc.SnoStore store, D4Data.Schema.TypeSchema schema, string world)
+    {
+        var markers = new MarkerReader(store, schema);
+        var definitions = new ActorDefinitionReader(store, schema);
+        int actorGroup = schema.SnoGroup("ActorDefinition");
+        foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")).Where(e => System.Text.RegularExpressions.Regex.IsMatch(e.Name, world, System.Text.RegularExpressions.RegexOptions.IgnoreCase)))
+            foreach (var actor in markers.TopLevel(set).Values.Where(m => m.Group == actorGroup).GroupBy(m => m.Sno))
+                if (definitions.Read(actor.Key) is { } d)
+                    Console.WriteLine($"placed {store.Name(actor.Key)} ({actor.Key}) x{actor.Count()} in {name}: npc {d.IsNpc} team {d.DefaultTeam} family {store.Name(d.MonsterFamilySno)}");
     }
 
     // The pairs the app reads (D4Memory.Actors.QuestPhaseLocator), in each module view's data.

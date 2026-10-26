@@ -8,7 +8,7 @@ namespace D4Assist.Tests;
 public class NpcTests
 {
     private const int Monster = Conventions.ActorTypeMonster, Friendly = 2, Neutral = 0;
-    private const int MonkSno = 1, FollowerSno = 2, HostileVaniSno = 3, MercenarySno = 4, CinematicSno = 5, FallenSno = 6;
+    private const int MonkSno = 1, FollowerSno = 2, HostileVaniSno = 3, MercenarySno = 4, CinematicSno = 5, FallenSno = 6, DenRaheirSno = 7;
     private const int NpcFamily = 100, MercenaryFamily = 101;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -19,6 +19,7 @@ public class NpcTests
         [MercenarySno] = ("Mercenary_BountyHunter", Npc(Friendly, MercenaryFamily)),
         [CinematicSno] = ("IGC_lorath", Npc(Neutral, NpcFamily)),
         [FallenSno] = ("fallen_shaman", new(Monster, -1, DefaultTeam: Conventions.HostileTeam)),
+        [DenRaheirSno] = ("NPC_QST_Raheir_MissingArm_NonCombat", Npc(Neutral, MercenaryFamily)),
     };
 
     private static readonly Dictionary<int, string> Families = new() { [NpcFamily] = "NPC", [MercenaryFamily] = "NPC_Mercenary" };
@@ -34,6 +35,7 @@ public class NpcTests
     [InlineData(FollowerSno, true)] // quest followers lead the way (user, 2026-09-30)
     [InlineData(HostileVaniSno, false)]
     [InlineData(MercenarySno, false)]
+    [InlineData(DenRaheirSno, true)] // a mercenary off the player's team, to talk to (tester, 2026-10-23)
     [InlineData(CinematicSno, false)]
     [InlineData(FallenSno, false)]
     [InlineData(999, false)] // unreadable

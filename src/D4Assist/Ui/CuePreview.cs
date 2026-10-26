@@ -78,6 +78,7 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
         SoundCue.Readable or SoundCue.PointOfInterest => (InteractableClassifier.ScrollSound, LoopProfiles.Container),
         SoundCue.HealingWell => (InteractableClassifier.HealingWellSound, LoopProfiles.Container),
         SoundCue.Portal => (LoopTargetSelector.QuestItemSound, LoopProfiles.Beacon),
+        SoundCue.Waypoint => (LoopTargetSelector.WaypointSound, LoopProfiles.Beacon),
         SoundCue.Prisoner => (InteractableClassifier.CorpseSound, LoopProfiles.Quest),
         SoundCue.Enticement => (LoopTargetSelector.EnticementSound, LoopProfiles.Quest),
         SoundCue.SafeZone => (LoopTargetSelector.SafeZoneSound, LoopProfiles.Beacon),

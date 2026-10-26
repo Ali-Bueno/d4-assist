@@ -11,7 +11,7 @@ public enum SoundCue
     RadarExit, RadarOpen, RadarWall, RadarDoor,
     RadarFront, RadarRight, RadarBack, RadarLeft,
     Door, Chest, Corpse, Readable, PointOfInterest, HealingWell,
-    Portal, QuestObjective, Prisoner, Enticement, SafeZone, StolenSkill, AkaratLight, WardBreaker,
+    Portal, Waypoint, QuestObjective, Prisoner, Enticement, SafeZone, StolenSkill, AkaratLight, WardBreaker,
     GuidePing, GuideArrival,
     Npc, Boss, Elite,
 }

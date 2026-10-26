@@ -36,7 +36,7 @@ D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--in
 D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]
 D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]
 D4MemScan conversations --defs <definitions.json> [--install <dir>] [--watch <seconds>]
-D4MemScan quest --defs <definitions.json> --sno <quest> [--install <dir>] [--find] [--watch <seconds>]
+D4MemScan quest --defs <definitions.json> --sno <quest> [--install <dir>] [--callbacks] [--group <gbid>] [--actors <regex>] [--world-actors <regex>] [--find] [--watch <seconds>]
 D4MemScan gizmos --defs <definitions.json> (--type <eActorGizmoType> | --match <name-regex> [--type N]) [--install <dir>]
 D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]
 D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>] [--words <hex,hex>]
@@ -138,7 +138,7 @@ the repo.
     (`D4Memory.Ui.ConversationDiscovery`) every 2 s until both are found, then prints their contents on each change. Talk
     to an NPC while it runs: each part is only found while live.
 
-12. **`quest --sno N`** — the quest's phases (`dwUID`, array order) and the objects each phase names (offline). `--find`
+12. **`quest --sno N`** — the quest's phases (`dwUID`, array order) and the objects each phase names (offline); `--callbacks` adds each callback's event, indicator, tokens and script parameters; `--group`, `--actors` and `--world-actors` look up an actor group's markers, actors by name (team, NPC flag, family) and the actors a marker set places. `--find`
     prints the {quest SNO, phase} pair the app reads in the module data; `--watch S` watches every phase UID within
     ±0x100 of the quest SNO anywhere in memory for S seconds, to see where the phase lives when the quest advances.
 

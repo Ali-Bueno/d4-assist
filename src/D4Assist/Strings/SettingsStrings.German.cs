@@ -64,6 +64,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "Sehenswerte Stellen",
             [SoundCue.HealingWell] = "Heilbrunnen",
             [SoundCue.Portal] = "Portale",
+            [SoundCue.Waypoint] = "Nicht aktivierte Wegpunkte",
             [SoundCue.QuestObjective] = "Questziele",
             [SoundCue.Prisoner] = "Gefangene",
             [SoundCue.Enticement] = "Geisterbecken der Unterstadt",

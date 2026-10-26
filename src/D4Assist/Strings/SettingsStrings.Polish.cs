@@ -64,6 +64,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "Miejsca do obejrzenia",
             [SoundCue.HealingWell] = "Studnie leczenia",
             [SoundCue.Portal] = "Portale",
+            [SoundCue.Waypoint] = "Nieaktywowane punkty podróży",
             [SoundCue.QuestObjective] = "Cele zadań",
             [SoundCue.Prisoner] = "Więźniowie",
             [SoundCue.Enticement] = "Duchowe kadzielnice w Podmieściu",

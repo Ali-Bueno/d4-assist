@@ -65,6 +65,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "可查看的地点",
             [SoundCue.HealingWell] = "治疗之井",
             [SoundCue.Portal] = "传送门",
+            [SoundCue.Waypoint] = "未激活的传送点",
             [SoundCue.QuestObjective] = "任务目标",
             [SoundCue.Prisoner] = "囚犯",
             [SoundCue.Enticement] = "地下都市的灵魂火盆",

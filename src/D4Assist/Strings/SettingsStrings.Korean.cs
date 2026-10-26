@@ -65,6 +65,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "살펴볼 곳",
             [SoundCue.HealingWell] = "치유의 샘",
             [SoundCue.Portal] = "포털",
+            [SoundCue.Waypoint] = "활성화하지 않은 웨이포인트",
             [SoundCue.QuestObjective] = "퀘스트 목표",
             [SoundCue.Prisoner] = "포로",
             [SoundCue.Enticement] = "지하 도시의 영혼 화로",

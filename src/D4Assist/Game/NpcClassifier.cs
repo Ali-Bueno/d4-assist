@@ -5,8 +5,8 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Friendly NPCs for the NPC tap: fIsNPC monsters off the hostile team (research/dungeon-objectives.md §9), quest
-/// followers and escorts included (user, 2026-09-30). Hired mercenaries, which always walk beside the player, and
-/// cinematic stand-ins are left out.
+/// followers and escorts included (user, 2026-09-30). Hired mercenaries, which always walk beside the player on its team, and
+/// cinematic stand-ins are left out; a mercenary standing on the neutral team (Raheir in the Den) is one to talk to.
 /// </summary>
 /// <param name="definition">ActorDefinition classification of a SNO; null when unreadable.</param>
 /// <param name="nameOf">CoreTOC name of a SNO.</param>
@@ -22,7 +22,7 @@ public sealed class NpcClassifier(Func<int, ActorDefinitionInfo?> definition, Fu
         if (_cache.TryGetValue(actorSno, out var cached)) return cached;
         return _cache[actorSno] = definition(actorSno) is { EType: Conventions.ActorTypeMonster, IsNpc: true } info
             && info.DefaultTeam != Conventions.HostileTeam
-            && nameOf(info.MonsterFamilySno) != MercenaryFamily
+            && !(info.DefaultTeam == Conventions.FriendlyTeam && nameOf(info.MonsterFamilySno) == MercenaryFamily)
             && nameOf(actorSno)?.StartsWith(CinematicPrefix, StringComparison.OrdinalIgnoreCase) != true;
     }
 }

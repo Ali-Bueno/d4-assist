@@ -30,6 +30,7 @@ public static class Conventions
     public const int ActorTypeMonster = 1;
     public const int ActorTypePlayer = 7;           // only the player-class actors (<class>M / <class>F)
     public const int HostileTeam = 19;              // ActorDefinition.eDefaultTeam of hostile monsters, incl. hostile NPC stand-ins
+    public const int FriendlyTeam = 2;              // the player's side: hired mercenaries, followers (research/dungeon-objectives.md §9)
 
     // ActorMonsterData.eOverriddenMonsterRarity: build 3.2.2 holds only -1 (5,991 ordinary monsters), 2 (969 uniques) and 4
     // (552 bosses and minibosses). research/dungeon-objectives.md §16.

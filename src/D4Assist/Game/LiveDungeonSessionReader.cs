@@ -50,6 +50,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly SwitchStateLog? _switches;
     private readonly Func<int, int?>? _questOwner;
     private readonly SteadyInvulnerability _invulnerability = new();
+    private readonly HashSet<(int ActorSno, uint Quest)> _offersLogged = [];
 
     // The actors' flags, plus the player's cinematic flag.
     private static readonly string[] AcdNames = [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying];
@@ -389,9 +390,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             var mapped = MarkedGizmos(marked);
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
                 .. mapped.Where(g => named.ActorSnos.Contains(g.Sno)).Select(g => (g.Sno, g.Position, true))];
-            var actors = _invulnerability.Apply(ActorFilter.Placed(records, r => r.AcdId != RActorRecord.NoAcd && _readsFlags(r.ActorSno) ? flags.Read(r.AcdId) : null,
+            var actors = _invulnerability.Apply(ActorFilter.Placed(records, r => FlagsOf(r, flags),
                 r => Naming(r, named, places), r => mapped.Any(g => g.Sno == r.ActorSno &&
-                    Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach)));
+                    Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach),
+                _activeQuests?.Owned));
             return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Owned);
         }
 
@@ -402,6 +404,17 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             Console.WriteLine("Actor pool unavailable; beacons wait for it.");
         }
         return null;
+    }
+
+    // Which quest an NPC's conversation icon belongs to, once per NPC and quest: the step to talk to it when that quest is followed.
+    private IReadOnlyDictionary<string, uint>? FlagsOf(RActorRecord r, AcdFlagReader flags)
+    {
+        if (r.AcdId == RActorRecord.NoAcd || !_readsFlags(r.ActorSno)) return null;
+        var values = flags.Values(r.AcdId);
+        if (values.TryGetValue(AcdFlagReader.ConversationIconQuest, out uint quest) && _offersLogged.Add((r.ActorSno, quest)))
+            Console.WriteLine($"Quest conversation: actor {r.ActorSno} offers quest {quest}" +
+                $"{(_activeQuests?.Owned.Contains((int)quest) == true ? " (followed)" : "")}.");
+        return values;
     }
 
     // A scene-local marker lands where its scene is placed: world = wp + rotate(q, local) (research/client-memory.md §5). A

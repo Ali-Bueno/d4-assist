@@ -80,14 +80,14 @@ public class BeaconTests
     {
         const string quest = D4Memory.Actors.AcdFlagReader.GizmoQuestRestricted, minimap = D4Memory.Actors.AcdFlagReader.MinimapActive;
         var records = Enumerable.Range(1, 6).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
-        var flags = new Dictionary<uint, IReadOnlySet<string>>
+        var flags = new Dictionary<uint, IReadOnlyDictionary<string, uint>>
         {
-            [1] = new HashSet<string> { quest },                                               // the locked quest gate
-            [2] = new HashSet<string> { quest, minimap },                                      // the demon body to use
-            [3] = new HashSet<string> { D4Memory.Actors.AcdFlagReader.GizmoDisabledByScript },
-            [4] = new HashSet<string> { minimap },                                             // an elevator
-            [5] = new HashSet<string> { quest },                                               // the gate, once the quest names it
-            [6] = new HashSet<string> { quest },                                               // the same gate placed elsewhere
+            [1] = Flags(quest),                                               // the locked quest gate
+            [2] = Flags(quest, minimap),                                      // the demon body to use
+            [3] = Flags(D4Memory.Actors.AcdFlagReader.GizmoDisabledByScript),
+            [4] = Flags(minimap),                                             // an elevator
+            [5] = Flags(quest),                                               // the gate, once the quest names it
+            [6] = Flags(quest),                                               // the same gate placed elsewhere
         };
         var naming = new Dictionary<uint, QuestNaming> { [5] = QuestNaming.It, [6] = QuestNaming.ItsKind };
 
@@ -102,8 +102,8 @@ public class BeaconTests
     {
         // The warlock lair's binding altar keeps its lock flag as it opens; only the map marking it shows it (live 2026-10-19).
         var records = Enumerable.Range(1, 3).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
-        IReadOnlySet<string> quest = new HashSet<string> { AcdFlagReader.GizmoQuestRestricted };
-        IReadOnlySet<string> none = new HashSet<string>();
+        var quest = Flags(AcdFlagReader.GizmoQuestRestricted);
+        var none = Flags();
 
         var actors = ActorFilter.Placed(records, r => r.Id == 3 ? none : quest, markedOnMap: r => r.Id != 1);
 
@@ -115,14 +115,14 @@ public class BeaconTests
     public void ActorFilter_AnNpcAQuestNamesIsTheQuestStepWhileItShowsAConversationIcon()
     {
         var records = Enumerable.Range(1, 6).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
-        var flags = new Dictionary<uint, IReadOnlySet<string>>
+        var flags = new Dictionary<uint, IReadOnlyDictionary<string, uint>>
         {
-            [1] = new HashSet<string> { AcdFlagReader.ConversationIcon },                        // the NPC at its marker
-            [2] = new HashSet<string> { AcdFlagReader.ConversationIconQuest },                   // walked off its marker
-            [3] = new HashSet<string> { AcdFlagReader.NpcHasInteractOptions },                   // a vendor the quest names
-            [4] = new HashSet<string> { AcdFlagReader.ConversationIcon, AcdFlagReader.FollowerQuest }, // a companion
-            [5] = new HashSet<string> { AcdFlagReader.ConversationIcon },                        // a quest giver no quest names
-            [6] = new HashSet<string> { AcdFlagReader.ConversationIcon },                        // named by its SNO alone
+            [1] = Flags(AcdFlagReader.ConversationIcon),                        // the NPC at its marker
+            [2] = Flags(AcdFlagReader.ConversationIconQuest),                   // walked off its marker
+            [3] = Flags(AcdFlagReader.NpcHasInteractOptions),                   // a vendor the quest names
+            [4] = Flags(AcdFlagReader.ConversationIcon, AcdFlagReader.FollowerQuest), // a companion
+            [5] = Flags(AcdFlagReader.ConversationIcon),                        // a quest giver no quest names
+            [6] = Flags(AcdFlagReader.ConversationIcon),                        // named by its SNO alone
         };
         var naming = new Dictionary<uint, QuestNaming>
             { [1] = QuestNaming.It, [2] = QuestNaming.ItsKind, [3] = QuestNaming.It, [4] = QuestNaming.It, [6] = QuestNaming.It };
@@ -131,6 +131,25 @@ public class BeaconTests
 
         Assert.Equal([true, true, false, false, false, true], actors.Select(a => a.QuestStep));
         Assert.All(actors, a => Assert.False(a.Unusable));
+    }
+
+    [Fact]
+    public void ActorFilter_AnNpcWhoseConversationIconIsAFollowedQuestsIsTheQuestStep()
+    {
+        // "Speak with Raheir in the Den": quest 1478570's phase 140 names nobody (tester, 2026-10-23).
+        const uint followed = 1478570, other = 577793;
+        var records = Enumerable.Range(1, 4).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
+        var flags = new Dictionary<uint, IReadOnlyDictionary<string, uint>>
+        {
+            [1] = new Dictionary<string, uint> { [AcdFlagReader.ConversationIconQuest] = followed },
+            [2] = new Dictionary<string, uint> { [AcdFlagReader.ConversationIconQuest] = other },
+            [3] = new Dictionary<string, uint> { [AcdFlagReader.ConversationIconQuest] = followed, [AcdFlagReader.FollowerQuest] = followed },
+            [4] = Flags(AcdFlagReader.ConversationIcon),
+        };
+
+        var actors = ActorFilter.Placed(records, r => flags[r.Id], followedQuests: [(int)followed]);
+
+        Assert.Equal([true, false, false, false], actors.Select(a => a.QuestStep));
     }
 
     [Fact]
@@ -166,7 +185,7 @@ public class BeaconTests
     public void ActorFilter_TheGizmoStateFlagMarksTheStateSet()
     {
         var records = new[] { Record(1, Vector3.One, placement: 0), Record(2, Vector3.One, placement: 0) };
-        IReadOnlySet<string> open = new HashSet<string> { AcdFlagReader.GizmoState };
+        var open = Flags(AcdFlagReader.GizmoState);
 
         Assert.Equal([true, false], ActorFilter.Placed(records, r => r.Id == 1 ? open : null).Select(a => a.GizmoStateSet));
     }
@@ -175,12 +194,12 @@ public class BeaconTests
     public void ActorFilter_AnNpcWithInteractOptionsOrAConversationIconIsTalkable()
     {
         var records = Enumerable.Range(1, 4).Select(id => Record((uint)id, Vector3.One, placement: 0)).ToArray();
-        var flags = new Dictionary<uint, IReadOnlySet<string>>
+        var flags = new Dictionary<uint, IReadOnlyDictionary<string, uint>>
         {
-            [1] = new HashSet<string> { AcdFlagReader.NpcHasInteractOptions },
-            [2] = new HashSet<string> { AcdFlagReader.ConversationIcon },
-            [3] = new HashSet<string> { AcdFlagReader.ConversationIconQuest },
-            [4] = new HashSet<string>(), // a hell spirit: Conversation_Icon 0 is not set
+            [1] = Flags(AcdFlagReader.NpcHasInteractOptions),
+            [2] = Flags(AcdFlagReader.ConversationIcon),
+            [3] = Flags(AcdFlagReader.ConversationIconQuest),
+            [4] = Flags(), // a hell spirit: Conversation_Icon 0 is not set
         };
 
         Assert.Equal([true, true, true, false], ActorFilter.Placed(records, r => flags[r.Id]).Select(a => a.Talkable));
@@ -256,6 +275,9 @@ public class BeaconTests
 
     private static RActorRecord Record(uint id, Vector3 position, int placement) =>
         new(SlotAddress: 0, id, AcdId: 0, ActorSno: PadSno, position, Quaternion.Identity, WorldId: 0, SceneId: 0, placement);
+
+    // ACD flags set to 1, as AcdFlagReader.Values reports them.
+    private static IReadOnlyDictionary<string, uint> Flags(params string[] names) => names.ToDictionary(name => name, _ => 1u);
 
     private sealed class ActorReader : IDungeonSessionReader
     {

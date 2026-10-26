@@ -64,6 +64,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "Points à observer",
             [SoundCue.HealingWell] = "Puits de soins",
             [SoundCue.Portal] = "Portails",
+            [SoundCue.Waypoint] = "Points de passage non activés",
             [SoundCue.QuestObjective] = "Objectifs de quête",
             [SoundCue.Prisoner] = "Prisonniers",
             [SoundCue.Enticement] = "Brasiers spirituels des Souterrains",

@@ -65,6 +65,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "Места для осмотра",
             [SoundCue.HealingWell] = "Целебные колодцы",
             [SoundCue.Portal] = "Порталы",
+            [SoundCue.Waypoint] = "Неактивированные путевые точки",
             [SoundCue.QuestObjective] = "Цели заданий",
             [SoundCue.Prisoner] = "Пленники",
             [SoundCue.Enticement] = "Духовные жаровни Подгорода",

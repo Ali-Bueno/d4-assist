@@ -65,6 +65,7 @@ public sealed partial record SettingsStrings
             [SoundCue.PointOfInterest] = "見る場所",
             [SoundCue.HealingWell] = "癒しの井戸",
             [SoundCue.Portal] = "ポータル",
+            [SoundCue.Waypoint] = "未開放のウェイポイント",
             [SoundCue.QuestObjective] = "クエストの目的",
             [SoundCue.Prisoner] = "囚人",
             [SoundCue.Enticement] = "アンダーシティの霊の火鉢",

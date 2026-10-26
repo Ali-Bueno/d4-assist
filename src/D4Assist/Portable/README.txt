@@ -109,6 +109,8 @@ closer:
   Tracked or not: any quest you have in progress counts.
 - Portals, including the Undercity's warp pads, have their own sound so you
   can find the way out.
+- Waypoints you haven't activated yet play the game's own "waypoint
+  discovered" sound when you get near, until you activate them.
 - Doors, chests, bodies you can search, books and notes, spots to look at and
   healing wells have their own sounds too. Prisoners play the corpse sound,
   and go quiet once a freed prisoner walks along with you.
@@ -178,6 +180,9 @@ mutes and unmutes the ping that leads you from shelter to shelter and on to
 Meshif on the palace steps. While a game menu
 is open the D-pad does nothing, because there it belongs to the game. On the
 keyboard, Ctrl+Alt+Shift+G does the same as left on the D-pad, also in menus.
+While Diablo IV isn't the window in front (you play something else), the
+D-pad and the program's keys do nothing and are left to the other programs;
+only Ctrl+Alt+Shift+C (settings) and Ctrl+Alt+Shift+Q (exit) work.
 
 Waypoint list. With the world map open, Shift+F1 lists the waypoints you have
 activated in this world, nearest first. Up and down read them (name, distance

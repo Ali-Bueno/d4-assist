@@ -1,22 +1,30 @@
 using System.Runtime.InteropServices;
+using D4Assist.Game;
 
 namespace D4Assist.Input;
 
 /// <summary>
-/// System-wide Ctrl+Alt+Shift hotkeys (Win32 RegisterHotKey) served by a private message-loop thread: the digits play the
-/// sound examples, G toggles the guide like D-pad left. Windows delivers them to this app only; the game never sees them.
+/// Ctrl+Alt+Shift hotkeys (Win32 RegisterHotKey) served by a private message-loop thread: the digits play the sound examples,
+/// G toggles the guide like D-pad left. A registered key goes to this app alone, so they are registered only while the game
+/// window is in front (user, 2026-10-26: only the settings and exit keys work everywhere); the game never sees them.
 /// </summary>
 public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
 {
-    // winuser.h: MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT; virtual keys '1' and 'G'.
+    // winuser.h: MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; virtual keys '1' and 'G'.
     private const uint ModAlt = 0x1, ModControl = 0x2, ModShift = 0x4, ModNoRepeat = 0x4000;
-    private const uint WmHotkey = 0x0312, WmQuit = 0x0012;
+    private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetActive = 0x8001;
     private const uint FirstDigitKey = 0x31, GuideKey = 0x47;
     private const int GuideHotkeyId = 100; // past the digit ids 1-9
 
+    // Checked at the player-poll rate, like the cue pause while the game is in the background.
+    private const int ActivePollMs = GameSession.DefaultPlayerPollIntervalMs;
+
     private readonly int _digitCount;
+    private readonly Func<bool> _active;
     private readonly ManualResetEventSlim _started = new();
+    private readonly HashSet<int> _takenLogged = [];
     private Thread? _thread;
+    private Timer? _poll;
     private uint _threadId;
 
     /// <summary>Raised on the hotkey thread with the digit pressed (1-based).</summary>
@@ -28,7 +36,8 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
     event Action? IGuideTogglePad.DpadLeftPressed { add => GuideKeyPressed += value; remove => GuideKeyPressed -= value; }
 
     /// <param name="digitCount">Registers Ctrl+Alt+Shift+1 up to this digit (at most 9).</param>
-    public GlobalHotkeys(int digitCount) => _digitCount = Math.Clamp(digitCount, 1, 9);
+    /// <param name="active">True while the keys belong to this app: the game window is in front (GameWindowFocus.IsGameForeground).</param>
+    public GlobalHotkeys(int digitCount, Func<bool> active) => (_digitCount, _active) = (Math.Clamp(digitCount, 1, 9), active);
 
     public void Start()
     {
@@ -36,38 +45,59 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
         _thread = new Thread(Loop) { IsBackground = true, Name = "GlobalHotkeys" };
         _thread.Start();
         _started.Wait();
+        _poll = new Timer(_ => PostThreadMessage(_threadId, WmSetActive, _active() ? 1 : 0, IntPtr.Zero), null, 0, ActivePollMs);
     }
 
     private void Loop()
     {
         _threadId = GetCurrentThreadId();
-        var registered = new List<int>();
-        for (int digit = 1; digit <= _digitCount; digit++)
-        {
-            if (RegisterHotKey(IntPtr.Zero, digit, ModControl | ModAlt | ModShift | ModNoRepeat, FirstDigitKey + (uint)digit - 1))
-                registered.Add(digit);
-            else
-                Console.Error.WriteLine($"Ctrl+Alt+Shift+{digit} is already taken by another program; that sound example is unavailable.");
-        }
-        if (RegisterHotKey(IntPtr.Zero, GuideHotkeyId, ModControl | ModAlt | ModShift | ModNoRepeat, GuideKey))
-            registered.Add(GuideHotkeyId);
-        else
-            Console.Error.WriteLine("Ctrl+Alt+Shift+G is already taken by another program; toggle the guide with D-pad left.");
+        PeekMessage(out _, IntPtr.Zero, 0, 0, 0); // creates the thread's message queue before anyone posts to it
         _started.Set();
-
+        bool active = false;
         while (GetMessage(out var message, IntPtr.Zero, 0, 0) > 0)
         {
-            if (message.Message != WmHotkey) continue;
-            if ((int)message.WParam == GuideHotkeyId) GuideKeyPressed?.Invoke();
-            else DigitPressed?.Invoke((int)message.WParam);
+            switch (message.Message)
+            {
+                case WmSetActive when (message.WParam != 0) != active:
+                    active = message.WParam != 0;
+                    if (active) RegisterAll();
+                    else UnregisterAll();
+                    break;
+                case WmHotkey when (int)message.WParam == GuideHotkeyId:
+                    GuideKeyPressed?.Invoke();
+                    break;
+                case WmHotkey:
+                    DigitPressed?.Invoke((int)message.WParam);
+                    break;
+            }
         }
+        UnregisterAll();
+    }
 
-        foreach (var id in registered) UnregisterHotKey(IntPtr.Zero, id);
+    private void RegisterAll()
+    {
+        for (int digit = 1; digit <= _digitCount; digit++)
+            Register(digit, FirstDigitKey + (uint)digit - 1, $"Ctrl+Alt+Shift+{digit} is already taken by another program; that sound example is unavailable.");
+        Register(GuideHotkeyId, GuideKey, "Ctrl+Alt+Shift+G is already taken by another program; toggle the guide with D-pad left.");
+    }
+
+    // Registered again each time the game comes to the front: a key another program holds is reported once.
+    private void Register(int id, uint key, string taken)
+    {
+        if (!RegisterHotKey(IntPtr.Zero, id, ModControl | ModAlt | ModShift | ModNoRepeat, key) && _takenLogged.Add(id))
+            Console.Error.WriteLine(taken);
+    }
+
+    private void UnregisterAll()
+    {
+        for (int digit = 1; digit <= _digitCount; digit++) UnregisterHotKey(IntPtr.Zero, digit);
+        UnregisterHotKey(IntPtr.Zero, GuideHotkeyId);
     }
 
     public void Dispose()
     {
-        if (_threadId != 0) PostThreadMessage(_threadId, WmQuit, IntPtr.Zero, IntPtr.Zero);
+        _poll?.Dispose();
+        if (_threadId != 0) PostThreadMessage(_threadId, WmQuit, 0, IntPtr.Zero);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -75,7 +105,7 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
     {
         public IntPtr Window;
         public uint Message;
-        public IntPtr WParam;
+        public nint WParam;
         public IntPtr LParam;
         public uint Time;
         public int PointX, PointY;
@@ -91,8 +121,11 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
     [DllImport("user32.dll")]
     private static extern int GetMessage(out NativeMessage message, IntPtr window, uint filterMin, uint filterMax);
 
+    [DllImport("user32.dll")]
+    private static extern bool PeekMessage(out NativeMessage message, IntPtr window, uint filterMin, uint filterMax, uint remove);
+
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool PostThreadMessage(uint threadId, uint message, IntPtr wParam, IntPtr lParam);
+    private static extern bool PostThreadMessage(uint threadId, uint message, nint wParam, IntPtr lParam);
 
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();

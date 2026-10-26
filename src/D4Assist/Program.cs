@@ -317,12 +317,17 @@ internal static class Program
         // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
         using var xboxPad = guidePing is not null ? new XInputPad(Console.WriteLine) : null;
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
-        // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below).
-        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount);
+        // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below). Only while the
+        // game is in front: the settings and exit keys (TrayApp) are the only ones that work everywhere.
+        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount, GameWindowFocus.IsGameForeground);
         // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
+        // The pad is read whatever window has the focus: in another game, or with Diablo IV closed, its D-pad isn't ours.
         var pad = xboxPad is not null && sonyPad is not null
             ? new CombinedPad([
-                new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null),
+                new GatedPad(
+                    new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => !GameWindowFocus.IsGameForeground(),
+                        debug ? () => Console.WriteLine("GUIDE toggle ignored: game not in the foreground") : null),
+                    () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null),
                 hotkeys])
             : null;
         if (pad is not null) pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide

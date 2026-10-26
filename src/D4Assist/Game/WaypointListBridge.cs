@@ -55,7 +55,8 @@ public sealed class WaypointListBridge(
         lock (_gate) _player = player;
     }
 
-    /// <summary>Gives Shift+F1 to this app while the map shows and the game has the focus; the map closing closes the list.</summary>
+    /// <summary>Gives Shift+F1 to this app while the map shows and the game has the focus; the map closing, or the game leaving the
+    /// front, closes the list and so frees its keys.</summary>
     public void OnMenus(IReadOnlyList<string> open)
     {
         lock (_gate)
@@ -67,7 +68,7 @@ public sealed class WaypointListBridge(
                 _openKey = openKey;
                 keys.SetOpenKey(openKey);
             }
-            if (!_mapOpen) CloseLocked(spoken: false);
+            if (!openKey) CloseLocked(spoken: false);
         }
     }
 

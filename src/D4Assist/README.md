@@ -469,17 +469,19 @@ near an edge costs more. Traversals join the floors they split: every two traver
   it mutes and unmutes a leading quest route the same way, leads in the open world and the story areas to the quest
   places the map marks (see Quest places over a found path), and otherwise says "La guía solo funciona en mazmorras." (a
   silent press read as a pad the app can't hear, tester 2026-10-16). Ignored while a game menu is open
-  (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`);
+  (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`),
+  and while Diablo IV isn't the foreground window (another game, or the game closed: the pad is read globally);
   every press past that gate logs `Guide toggle pressed.`. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
   D2R mod's `input_direction.cpp`; logs `Pad: XInput loaded from …` and `Pad: XInput slot N connected|disconnected`); the game still receives every press. PlayStation pads never reach XInput, so
   `Input/SonyHidPad` reads their HID input reports (shared, read-only handle; rescans every 3 s for pads plugged in
   later; logs `Pad: … connected` or why it can't open one) and `Input/CombinedPad` drops a second copy of the same
   press within 200 ms (Steam Input / DS4Windows also expose the pad as a virtual Xbox pad). Not saved to `d4assist.json`.
-- **Ctrl+Alt+Shift+1..8** (keyboard, anywhere) — sound examples, e.g. for a video without a fight's noise (user request
+- **Ctrl+Alt+Shift+1..8** (keyboard, while the game is in front) — sound examples, e.g. for a video without a fight's noise (user request
   2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per
   direction up/right/down/left), 6 the quest loop twice, 7 the guide ping three times, 8 the arrival chime. One example
-  at a time. `Input/GlobalHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`.
-- **Ctrl+Alt+Shift+G** (keyboard, anywhere) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
+  at a time. `Input/GlobalHotkeys` (Win32 `RegisterHotKey`), `SoundDemo`. The digits and G are registered only while the game
+  window is in front (checked every 250 ms) and freed for other programs otherwise (user, 2026-10-26: only C and Q work everywhere).
+- **Ctrl+Alt+Shift+G** (keyboard, while the game is in front) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
 - **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
   the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
@@ -491,7 +493,7 @@ near an edge costs more. Traversals join the floors they split: every two traver
   live 2026-10-19, Farobru from Temis and Ichorfall) puts the cursor on a stopover instead: the activated waypoint in
   view nearest to it, preferring one from which it is in view (`WAYPOINT hop …`), and says to choose it again after the
   trip; with no stopover it says which way to move the map. `Input/MapListKeys` registers Shift+F1 only while
-  `screen_Map` is open and the game has the focus, the list keys only while the list is open. `--debug` logs
+  `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.

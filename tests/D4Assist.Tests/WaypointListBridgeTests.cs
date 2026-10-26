@@ -153,14 +153,30 @@ public class WaypointListBridgeTests
         Assert.False(keys.ListKeys);
     }
 
-    private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(int[]? activated, MapView? view = null, int world = OpenWorld)
+    [Fact]
+    public void The_game_leaving_the_front_closes_the_list_and_frees_its_keys()
+    {
+        bool front = true;
+        var (bridge, keys, _, _) = Create([GeaKul], foreground: () => front);
+        keys.Open();
+        Assert.True(keys.ListKeys);
+
+        front = false;
+        bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
+
+        Assert.False(keys.ListKeys);
+        Assert.False(keys.OpenKey);
+    }
+
+    private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
+        int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
         var mouse = new FakeMouse();
         var bridge = new WaypointListBridge(
             Catalog, w => w.LevelAreaName, _ => activated, () => view ?? FarOut, () => world, speech, new LanguageSetting(SpeechLanguage.English),
-            DirectionStyle.Screen, keys, mouse, () => true);
+            DirectionStyle.Screen, keys, mouse, foreground ?? (() => true));
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);

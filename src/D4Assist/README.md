@@ -509,7 +509,8 @@ near an edge costs more. Traversals join the floors they split: every two traver
 - **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list). First the
   helltides the server has active, from anywhere (user request 2026-10-27): the session's world states `UberSubzone` (base
   game, 1 Scosglen … 5 Dry Steppes) and `UberSubzone_Expansions` (1 Nahantu, 2 Skovos), read through `WorldStateReader`
-  (`ActiveHelltides`), each as `region, next change in N minutes` (on the hour, the expansions on the half hour); none says
+  (`ActiveHelltides`), each as `region, N minutes left` (the base game's end five minutes before the hour before build 3.3, on the hour after;
+  the expansions' on the half hour; the position only with two up); none says
   when the next starts; unreadable world states open the objects at once. Enter on a helltide lists its objects: the helltide
   objects the map marks (`HelltideObjects`: tortured gifts and other gizmos named Helltide, the accursed ritual, the fallen
   altars and demonic spires, the doomsayer; not Hell's prize, which led nowhere), nearest first, as
@@ -518,7 +519,9 @@ near an edge costs more. Traversals join the floors they split: every two traver
   player is out in the helltide's area, so an empty list says so. Zoomed out past 1500 the map shows them as no icon the
   cursor can point at (live: said at zoom 1100, not at 1934 or 3046), so Enter turns the mouse wheel a notch at a time
   (`IGameMouse.Scroll`, user request 2026-10-27; reversed once if it zooms out) with the cursor on the object until the zoom
-  is 1500 or less, and asks to zoom in only when that fails. With two helltides up an object belongs to the one its area's
+  is 1500 or less, and asks to zoom in only when that fails. The helltide's Blood Maiden bounties (`HelltideBountyCatalog`:
+  quest `Bounty_Helltide_Tier3_<territory>_Succuboss`, spot `vecStartLocation`, up while world state
+  `Bounty_Helltide_Tier2_<territory>_Succuboss` is 1) list with the objects from anywhere, as the map marks them. With two helltides up an object belongs to the one its area's
   region names; without objects Enter says to enter the area. `--debug` logs `HELLTIDE active: …`, `HELLTIDE n object(s)
   among m map markers` and `WAYPOINT zoom a -> b (wheel ±1)`.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).

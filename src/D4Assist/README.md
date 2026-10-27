@@ -521,7 +521,9 @@ near an edge costs more. Traversals join the floors they split: every two traver
   (`IGameMouse.Scroll`, user request 2026-10-27; reversed once if it zooms out) with the cursor on the object until the zoom
   is 1500 or less, and asks to zoom in only when that fails. The helltide's Blood Maiden bounties (`HelltideBountyCatalog`:
   quest `Bounty_Helltide_Tier3_<territory>_Succuboss`, spot `vecStartLocation`, up while world state
-  `Bounty_Helltide_Tier2_<territory>_Succuboss` is 1) list with the objects from anywhere, as the map marks them. With two helltides up an object belongs to the one its area's
+  `Bounty_Helltide_Tier2_<territory>_Succuboss` is 1 and its territory has the turn: world state `Helltide_BountySubzone`
+  against `Bounty_Unlock_Condition_Helltide_<territory>`, Scosglen's Deep Forest == 1, its coast >= 2; live 2026-10-27 the
+  coast's Blood Maiden, listed too before this test, was not on the map) list with the objects from anywhere, as the map marks them. With two helltides up an object belongs to the one its area's
   region names; without objects Enter says to enter the area. `--debug` logs `HELLTIDE active: …`, `HELLTIDE n object(s)
   among m map markers` and `WAYPOINT zoom a -> b (wheel ±1)`.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).

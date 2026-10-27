@@ -465,7 +465,8 @@ internal static class Program
                     session.Query(r => states = r.ReadWorldStates());
                     if (states is null) return [];
                     lock (cascGate)
-                        return bounties.All.Where(b => HelltideRegionOf(b.Territory) == region && states.GetValueOrDefault(b.WorldStateSno) == 1)
+                        return bounties.All.Where(b => HelltideRegionOf(b.Territory) == region && states.GetValueOrDefault(b.WorldStateSno) == 1 &&
+                                b.HasTurn(states.GetValueOrDefault(bounties.BountySubzoneSno)))
                             .Select(b => (bounties.Name(b, SpeechLanguages.GameLocale(language.Current)), (double)b.Position.X, (double)b.Position.Y))
                             .ToList();
                 });

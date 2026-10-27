@@ -25,6 +25,13 @@ public class HelltideBountyCatalogRealDataTests
         Assert.InRange(maiden.Position.X, -1305, -1302);
         Assert.InRange(maiden.Position.Y, -1004, -1001);
         Assert.True(catalog.All.Count >= 11); // two or three per base-game region, two in each expansion
+        // Live 2026-10-27: at Helltide_BountySubzone 1 the map marked the Deep Forest's Blood Maiden, not the coast's.
+        var coast = Assert.Single(catalog.All, b => b.Territory == "Scos_Coast");
+        Assert.True(maiden.HasTurn(1));
+        Assert.False(coast.HasTurn(1));
+        Assert.True(coast.HasTurn(2));
+        Assert.Contains(catalog.All, b => b.Territory == "Hawe_Wetlands");
+        Assert.True(catalog.BountySubzoneSno > 0);
         if (store.Text("deDE", "Quest_Bounty_Helltide_Tier3_Scos_DeepForest_Succuboss", "Name") is null) return; // no German text
         Assert.Equal("Tötet die Blutjungfrau", catalog.Name(maiden, "deDE"));
     }

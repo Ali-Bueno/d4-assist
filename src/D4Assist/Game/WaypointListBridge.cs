@@ -13,9 +13,12 @@ namespace D4Assist.Game;
 /// the list, Escape closes it. Everything it says also goes to the braille display (ISpeechSink.Output, user request
 /// 2026-10-25). Only waypoints the player's saved data lists as activated are ever offered; when that list is unreadable the
 /// list says so instead of guessing.
-/// Shift+F2 opens the same list over the helltide's objects the map marks (user request 2026-10-25): tortured gifts, the accursed
-/// ritual, Hell's prize. The map marks them only while the player is in the helltide's area outside a town (live 2026-10-25,
-/// Hawezar), so an empty list says so.
+/// Shift+F2 lists the helltides the server has active (the session's world states, ActiveHelltides; user request 2026-10-27),
+/// each with the minutes to its next change; Enter opens the same list as Shift+F1 over that helltide's objects the map marks
+/// (user request 2026-10-25): tortured gifts, the accursed ritual, altars, spires, the doomsayer. The map marks them only while
+/// the player is in the helltide's area outside a town (live 2026-10-25, Hawezar), so without them the list asks to go there.
+/// Enter on an object zooms the map in with the wheel until the cursor can point at it (user request 2026-10-27). Without
+/// readable world states Shift+F2 opens the objects at once, as before.
 /// </summary>
 /// <param name="waypoints">Every waypoint of the game (WaypointCatalog.All).</param>
 /// <param name="nameOf">A waypoint's name in the current language.</param>
@@ -27,30 +30,44 @@ namespace D4Assist.Game;
 /// start in a world entered before this bridge listened (live 2026-10-18: "0 in world -1").</param>
 /// <param name="helltidePlace">A map marker as a helltide object of the list (name, level area, the helltide's area), null for any
 /// other marker; null for no helltide list.</param>
+/// <param name="readHelltides">The helltides the server has active (ActiveHelltides.From); null when the world states are unreadable.</param>
+/// <param name="regionName">A helltide region's name in the current language ("Hawezar"), as the objects' areas end in it.</param>
+/// <param name="now">The local time, for the minutes to a helltide's change.</param>
+/// <param name="wait">Waits the given milliseconds (for the map's zoom to settle).</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
     IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null, Func<Waypoint, string?>? regionOf = null,
-    Func<MarkedActor, HelltidePlace?>? helltidePlace = null)
+    Func<MarkedActor, HelltidePlace?>? helltidePlace = null, Func<IReadOnlyList<HelltideRegion>?>? readHelltides = null,
+    Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
     private readonly IReadOnlySet<int> _levelAreas = waypoints.Select(w => w.LevelAreaSno).ToHashSet();
     private PlayerState? _player;
     private IReadOnlyList<MarkedActor> _markers = [];
-    private bool _mapOpen, _openKey, _helltide;
+    private bool _mapOpen, _openKey;
+    private Mode _mode;
+    private IReadOnlyList<HelltideRegion> _regions = [];
+    private int _regionIndex;
+
+    // What the open list holds: waypoints (Shift+F1), the active helltides or one helltide's objects (Shift+F2).
+    private enum Mode { Waypoints, Regions, Objects }
 
     // Zoomed farther out than this the map shows the helltide's objects as no icon the cursor can point at (live 2026-10-25:
     // gifts said at zoom 1100, not at 1934 or 3046; the steps between are 1100 and 1934).
     private const float HelltideMaxZoom = 1500f;
+
+    // The wheel zooms the map a step per notch (3046 → 1934 → 1100 …); the map takes a moment to settle on the new zoom.
+    private const int MaxZoomSteps = 4, ZoomSettleMs = 300;
 
     /// <summary>Hooks the keys; call once.</summary>
     public void Start()
     {
         keys.OpenPressed += Open;
         if (helltidePlace is not null) keys.OpenHelltidePressed += OpenHelltide;
-        keys.UpPressed += () => Move(_list.Previous);
-        keys.DownPressed += () => Move(_list.Next);
+        keys.UpPressed += () => Move(_list.Previous, -1);
+        keys.DownPressed += () => Move(_list.Next, 1);
         keys.EnterPressed += Choose;
         keys.EscapePressed += () => Close(spoken: true);
     }
@@ -111,7 +128,7 @@ public sealed class WaypointListBridge(
             var here = waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
             var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
             _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
-            _helltide = false;
+            _mode = Mode.Waypoints;
             log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
             keys.SetListKeys(_list.IsOpen);
             speech.Output(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
@@ -123,27 +140,70 @@ public sealed class WaypointListBridge(
         lock (_gate)
         {
             if (!_mapOpen || helltidePlace is null) return;
-            var places = _markers.Select(m => (Marker: m, Place: helltidePlace(m)))
-                .Where(p => p.Place is not null)
-                .DistinctBy(p => (p.Marker.ActorSno, MathF.Round(p.Marker.X), MathF.Round(p.Marker.Y)))
-                .ToList();
-            var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
-            _list.Open(WaypointList.Build(places.Select(h => (h.Place!.Name, h.Place.Region, (double)h.Marker.X, (double)h.Marker.Y)), fromX, fromY));
-            _helltide = true;
-            // The area most of them lie in names the helltide; one with no known area still lists.
-            string? area = places.Select(h => h.Place!.Area).OfType<string>().GroupBy(a => a).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
-            log?.Invoke($"HELLTIDE {_list.Count} object(s) among {_markers.Count} map markers, area {area ?? "unknown"}");
-            keys.SetListKeys(_list.IsOpen);
             var text = HelltideStrings.For(language.Current);
-            speech.Output(_list.IsOpen ? $"{string.Format(text.OpenedFormat, area ?? "?", _list.Count)} {EntryText()}" : text.NoneOnMap, interrupt: true);
+            CloseLocked(spoken: false);
+            if (readHelltides?.Invoke() is not { } active)
+            {
+                log?.Invoke("HELLTIDE world states unreadable: the objects the map marks");
+                if (!OpenObjectsLocked(null)) speech.Output(text.NoneOnMap, interrupt: true);
+                return;
+            }
+            log?.Invoke($"HELLTIDE active: {(active.Count == 0 ? "none" : string.Join(", ", active))}");
+            if (active.Count == 0)
+            {
+                speech.Output(string.Format(text.NoneActiveFormat, ActiveHelltides.MinutesToNextBase(Now())), interrupt: true);
+                return;
+            }
+            (_regions, _regionIndex, _mode) = (active, 0, Mode.Regions);
+            keys.SetListKeys(true);
+            speech.Output($"{text.RegionsOpened} {RegionText()}", interrupt: true);
         }
     }
 
+    // The objects the map marks of the helltide in region (null: of any), nearest first; false when it marks none.
+    private bool OpenObjectsLocked(HelltideRegion? region)
+    {
+        var places = _markers.Select(m => (Marker: m, Place: helltidePlace!(m)))
+            .Where(p => p.Place is not null)
+            .DistinctBy(p => (p.Marker.ActorSno, MathF.Round(p.Marker.X), MathF.Round(p.Marker.Y)))
+            .ToList();
+        // With two helltides up, an object belongs to the one whose region its area names ("Auen von Fethis, Hawezar").
+        if (region is { } r && _regions.Count > 1 && regionName?.Invoke(r) is { } name)
+            places = places.Where(p => p.Place!.Area?.EndsWith(name, StringComparison.Ordinal) == true).ToList();
+        log?.Invoke($"HELLTIDE {places.Count} object(s) among {_markers.Count} map markers{(region is { } shown ? $" for {shown}" : "")}");
+        if (places.Count == 0) return false;
+        var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
+        _list.Open(WaypointList.Build(places.Select(h => (h.Place!.Name, h.Place.Region, (double)h.Marker.X, (double)h.Marker.Y)), fromX, fromY));
+        _mode = Mode.Objects;
+        // The area most of them lie in names the helltide; one with no known area still lists.
+        string? area = places.Select(h => h.Place!.Area).OfType<string>().GroupBy(a => a).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+        keys.SetListKeys(true);
+        speech.Output($"{string.Format(HelltideStrings.For(language.Current).OpenedFormat, area ?? "?", _list.Count)} {EntryText()}", interrupt: true);
+        return true;
+    }
+
+    private DateTime Now() => now?.Invoke() ?? DateTime.Now;
+
+    private string RegionText()
+    {
+        var region = _regions[_regionIndex];
+        return string.Format(HelltideStrings.For(language.Current).RegionEntryFormat, RegionName(region),
+            ActiveHelltides.MinutesToChange(region, Now()), _regionIndex + 1, _regions.Count);
+    }
+
+    private string RegionName(HelltideRegion region) => regionName?.Invoke(region) ?? region.ToString();
+
     // At either end the list stays and says its entry again.
-    private void Move(Func<bool> step)
+    private void Move(Func<bool> step, int regionStep)
     {
         lock (_gate)
         {
+            if (_mode == Mode.Regions)
+            {
+                _regionIndex = Math.Clamp(_regionIndex + regionStep, 0, _regions.Count - 1);
+                speech.Output(RegionText(), interrupt: true);
+                return;
+            }
             if (!_list.IsOpen) return;
             step();
             speech.Output(EntryText(), interrupt: true);
@@ -154,19 +214,29 @@ public sealed class WaypointListBridge(
     {
         lock (_gate)
         {
+            if (_mode == Mode.Regions)
+            {
+                ChooseRegion();
+                return;
+            }
             if (_list.Current is not { } entry) return;
             if (readMapView() is not { } view || mouse.ClientSize() is not { } size)
             {
                 speech.Output(Text.MapUnreadable, interrupt: true);
                 return;
             }
-            if (_helltide && view.Zoom > HelltideMaxZoom)
+            bool helltide = _mode == Mode.Objects;
+            if (helltide && view.Zoom > HelltideMaxZoom)
             {
                 log?.Invoke($"WAYPOINT {entry.Name}: zoom {view.Zoom:F0} too far out for the helltide's icons");
-                speech.Output(string.Format(HelltideStrings.For(language.Current).ZoomInFormat, entry.Name), interrupt: true);
-                return;
+                if (ZoomIn(entry, view, size) is not { } zoomed)
+                {
+                    speech.Output(string.Format(HelltideStrings.For(language.Current).ZoomInFormat, entry.Name), interrupt: true);
+                    return;
+                }
+                view = zoomed;
             }
-            float farthestZoom = _helltide ? HelltideMaxZoom : MapProjection.MaxZoom;
+            float farthestZoom = helltide ? HelltideMaxZoom : MapProjection.MaxZoom;
             if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not { } pixel)
             {
                 log?.Invoke($"WAYPOINT {entry.Name} off the map view (center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0})");
@@ -198,6 +268,35 @@ public sealed class WaypointListBridge(
             CloseLocked(spoken: false);
             speech.Output(string.Format(Text.CursorFormat, entry.Name), interrupt: true);
         }
+    }
+
+    // Enter on an active helltide: its objects, or, when the map marks none yet, where to go for them; the list stays for another.
+    private void ChooseRegion()
+    {
+        var region = _regions[_regionIndex];
+        if (OpenObjectsLocked(region)) return;
+        speech.Output(string.Format(HelltideStrings.For(language.Current).NotEnteredFormat, RegionName(region)), interrupt: true);
+    }
+
+    // Zoomed out past HelltideMaxZoom the cursor can't point at a helltide object: the wheel zooms in a step at a time, with the
+    // cursor kept on the object in case the map zooms about it. A wheel turn that zooms out reverses the direction once. Null when
+    // the map didn't get close enough.
+    private MapView? ZoomIn(WaypointEntry entry, MapView view, (int Width, int Height) size)
+    {
+        int notch = 1;
+        bool reversed = false;
+        for (int step = 0; step < MaxZoomSteps; step++)
+        {
+            if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is { } pixel) mouse.MoveTo(pixel.X, pixel.Y);
+            if (!mouse.Scroll(notch)) return null;
+            (wait ?? Thread.Sleep)(ZoomSettleMs);
+            if (readMapView() is not { } next) return null;
+            log?.Invoke($"WAYPOINT zoom {view.Zoom:F0} -> {next.Zoom:F0} (wheel {notch:+0;-0})");
+            if (next.Zoom > view.Zoom && !reversed) (notch, reversed) = (-notch, true);
+            view = next;
+            if (view.Zoom <= HelltideMaxZoom) return view;
+        }
+        return null;
     }
 
     // Even zoomed out all the way the map shows only ~1400 units above and below its center (live 2026-10-19: Farobru from
@@ -234,8 +333,9 @@ public sealed class WaypointListBridge(
 
     private void CloseLocked(bool spoken)
     {
-        if (!_list.IsOpen) return;
+        if (_mode != Mode.Regions && !_list.IsOpen) return;
         _list.Close();
+        _mode = Mode.Waypoints;
         keys.SetListKeys(false);
         if (spoken) speech.Output(Text.Closed, interrupt: true);
     }

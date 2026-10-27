@@ -527,6 +527,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
+    public IReadOnlyDictionary<int, int>? ReadWorldStates() =>
+        _offsets is { } offsets ? WorldStateReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
     // The gizmos and triggers the map marks, wherever they are: those the current phases name are quest places even out of reach
     // (the server places some, the Labyrinth's lair door, and the game only streams actors in about 25 units around the player);
     // a quest gizmo marked is open to the player (ActorFilter).

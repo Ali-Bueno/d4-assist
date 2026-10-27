@@ -4,7 +4,7 @@ using D4Memory.Safety;
 
 namespace D4Assist.Input;
 
-/// <summary>The mouse cursor over the game window: its client size, and a move to a client pixel. Never clicks.</summary>
+/// <summary>The mouse cursor over the game window: its client size, a move to a client pixel, and the wheel. Never clicks.</summary>
 public interface IGameMouse
 {
     /// <summary>The game window's client size in pixels; null while there is no game window.</summary>
@@ -12,17 +12,23 @@ public interface IGameMouse
 
     /// <summary>Moves the cursor to a client pixel; false when the game window is gone or not in the foreground.</summary>
     bool MoveTo(int clientX, int clientY);
+
+    /// <summary>Turns the wheel by <paramref name="notches"/> (positive away from the user) where the cursor is; false when the game
+    /// window is gone or not in the foreground.</summary>
+    bool Scroll(int notches);
 }
 
 /// <summary>
 /// <see cref="IGameMouse"/> with SendInput: the game ignores SetCursorPos, and takes a SendInput move only while its window is in
 /// the foreground (research/client-memory.md §4, world map view). The first input the app ever sends to the game: the user
-/// allowed moving the mouse for the waypoint list (2026-10-18), nothing else.
+/// allowed moving the mouse for the waypoint list (2026-10-18), and the wheel to zoom the map in for the helltide list
+/// (2026-10-27), nothing else.
 /// </summary>
 public sealed class GameMouse : IGameMouse
 {
     // winuser.h: INPUT_MOUSE; MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK; SM_[XY]VIRTUALSCREEN, SM_C[XY]VIRTUALSCREEN.
-    private const uint InputMouse = 0, MoveAbsolute = 0x0001 | 0x8000 | 0x4000;
+    private const uint InputMouse = 0, MoveAbsolute = 0x0001 | 0x8000 | 0x4000, Wheel = 0x0800;
+    private const int WheelDelta = 120;
     private const int SmXVirtual = 76, SmYVirtual = 77, SmCxVirtual = 78, SmCyVirtual = 79;
     private const int AbsoluteRange = 65535;
 
@@ -47,6 +53,13 @@ public sealed class GameMouse : IGameMouse
                 Flags = MoveAbsolute,
             },
         };
+        return SendInput(1, [input], Marshal.SizeOf<Input>()) == 1;
+    }
+
+    public bool Scroll(int notches)
+    {
+        if (GameWindow() is not { } window || GetForegroundWindow() != window) return false;
+        var input = new Input { Type = InputMouse, Mouse = new MouseInput { Data = unchecked((uint)(notches * WheelDelta)), Flags = Wheel } };
         return SendInput(1, [input], Marshal.SizeOf<Input>()) == 1;
     }
 

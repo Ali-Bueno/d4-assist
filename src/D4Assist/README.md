@@ -506,13 +506,21 @@ near an edge costs more. Traversals join the floors they split: every two traver
   (`ISpeechSink.Output`: PRISM's speech + braille; user request 2026-10-25). `Input/MapListKeys` registers Shift+F1 only while
   `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
-- **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list): the helltide
+- **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list). First the
+  helltides the server has active, from anywhere (user request 2026-10-27): the session's world states `UberSubzone` (base
+  game, 1 Scosglen … 5 Dry Steppes) and `UberSubzone_Expansions` (1 Nahantu, 2 Skovos), read through `WorldStateReader`
+  (`ActiveHelltides`), each as `region, next change in N minutes` (on the hour, the expansions on the half hour); none says
+  when the next starts; unreadable world states open the objects at once. Enter on a helltide lists its objects: the helltide
   objects the map marks (`HelltideObjects`: tortured gifts and other gizmos named Helltide, the accursed ritual, the fallen
   altars and demonic spires, the doomsayer; not Hell's prize, which led nowhere), nearest first, as
   `name, level area, N meters, direction`, opened with the helltide's area (`ZoneCatalog`: territory and region, "Auen von
   Fethis, Hawezar"). Up/down, Enter (cursor) and Escape work as in the waypoint list. The map marks them only while the
   player is out in the helltide's area, so an empty list says so. Zoomed out past 1500 the map shows them as no icon the
-  cursor can point at (live: said at zoom 1100, not at 1934 or 3046), so Enter then asks to zoom in instead. `--debug` logs `HELLTIDE n object(s) among m map markers`.
+  cursor can point at (live: said at zoom 1100, not at 1934 or 3046), so Enter turns the mouse wheel a notch at a time
+  (`IGameMouse.Scroll`, user request 2026-10-27; reversed once if it zooms out) with the cursor on the object until the zoom
+  is 1500 or less, and asks to zoom in only when that fails. With two helltides up an object belongs to the one its area's
+  region names; without objects Enter says to enter the area. `--debug` logs `HELLTIDE active: …`, `HELLTIDE n object(s)
+  among m map markers` and `WAYPOINT zoom a -> b (wheel ±1)`.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

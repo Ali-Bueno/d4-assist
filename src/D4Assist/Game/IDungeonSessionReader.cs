@@ -62,6 +62,9 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The world map's center and zoom; null when unreadable. Meaningful while the map is open.</summary>
     MapView? ReadMapView() => null;
+
+    /// <summary>The session's world states, {WorldState SNO → value}; null when unreadable.</summary>
+    IReadOnlyDictionary<int, int>? ReadWorldStates() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

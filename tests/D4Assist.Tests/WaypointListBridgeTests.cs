@@ -106,9 +106,44 @@ public class WaypointListBridgeTests
         Assert.False(keys.ListKeys);
     }
 
-    // Live 2026-10-25: at zoom 1934 and 3046 the cursor on a gift's spot got no announcement; at 1100 it did.
+    // Live 2026-10-25: at zoom 1934 and 3046 the cursor on a gift's spot got no announcement; at 1100 it did. The wheel zooms
+    // in a step at a time (user request 2026-10-27).
     [Fact]
-    public void Zoomed_far_out_a_helltide_object_asks_to_zoom_in_and_leaves_the_cursor()
+    public void Zoomed_far_out_Enter_on_a_helltide_object_zooms_in_with_the_wheel_then_points_at_it()
+    {
+        var view = new MapView(681.64f, -410.26f, MapProjection.MaxZoom);
+        var (bridge, keys, speech, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide);
+        mouse.Scrolled = notches => view = view with { Zoom = view.Zoom == MapProjection.MaxZoom ? 1934f : 1100f };
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Equal([1, 1], mouse.Notches);
+        Assert.Equal(1100f, view.Zoom);
+        Assert.Equal(MapProjection.ToClient(view, 700, -410, 1920, 1080), mouse.Moved);
+        Assert.StartsWith("Cursor on Tortured Gift of Mysteries", speech.Last);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void A_wheel_that_zooms_out_is_turned_the_other_way()
+    {
+        var view = new MapView(681.64f, -410.26f, 1934f);
+        var (bridge, keys, _, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide);
+        mouse.Scrolled = notches => view = view with { Zoom = notches > 0 ? MapProjection.MaxZoom : 1100f };
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Equal([1, -1], mouse.Notches);
+        Assert.Equal(1100f, view.Zoom);
+        Assert.NotNull(mouse.Moved);
+    }
+
+    [Fact]
+    public void When_the_wheel_does_not_zoom_in_it_asks_to_zoom_in_and_keeps_the_list()
     {
         var (bridge, keys, speech, mouse) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1934f), helltidePlace: Helltide);
         bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
@@ -116,9 +151,75 @@ public class WaypointListBridgeTests
         keys.OpenHelltide();
         keys.Enter();
 
-        Assert.Null(mouse.Moved);
+        Assert.NotEmpty(mouse.Notches);
         Assert.StartsWith("Zoom in further and choose Tortured Gift of Mysteries again", speech.Last);
         Assert.True(keys.ListKeys); // the list stays open for the next try
+    }
+
+    // 18:37 local: the base game's helltide changes on the hour, in 23 minutes.
+    private static readonly DateTime Evening = new(2026, 10, 27, 18, 37, 10);
+
+    [Fact]
+    public void Shift_F2_names_the_active_helltide_and_Enter_lists_its_objects()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1100f), helltidePlace: Helltide,
+            helltides: [HelltideRegion.Hawezar]);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        Assert.Equal("Helltide: Hawezar, next change in 23 minutes. 1 of 1.", speech.Last);
+        Assert.True(keys.ListKeys);
+
+        keys.Enter();
+        Assert.StartsWith("Helltide in Auen von Fethis, Hawezar: 1 objects by distance. Tortured Gift of Mysteries", speech.Last);
+        keys.Enter();
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Before_the_helltide_area_is_entered_Enter_says_to_go_there_and_keeps_the_list()
+    {
+        var (bridge, keys, speech, mouse) = Create([GeaKul], helltidePlace: Helltide, helltides: [HelltideRegion.Hawezar]);
+        bridge.OnMapMarkers([new MarkedActor(Cultist, 690, -410, 0, 1, 10)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Equal("The map shows the objects of the helltide in Hawezar only once you enter its area, outside towns.", speech.Last);
+        Assert.True(keys.ListKeys);
+        Assert.Null(mouse.Moved);
+        keys.Escape();
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Between_helltides_Shift_F2_says_when_the_next_starts()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, helltides: []);
+
+        keys.OpenHelltide();
+
+        Assert.Equal("No helltide right now. The next one starts in 23 minutes.", speech.Last);
+        Assert.False(keys.ListKeys);
+    }
+
+    // Patch 3.3.0: an expansion's helltide rises on the half hour beside the base game's; each takes the objects in its region.
+    [Fact]
+    public void Two_helltides_list_one_after_the_other_and_each_takes_its_own_objects()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, helltides: [HelltideRegion.Hawezar, HelltideRegion.Skovos]);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        keys.Down();
+        Assert.Equal("Skovos, next change in 53 minutes. 2 of 2.", speech.Last);
+        keys.Down(); // stays at the end
+        Assert.StartsWith("Skovos, ", speech.Last);
+        keys.Enter();
+        Assert.StartsWith("The map shows the objects of the helltide in Skovos only", speech.Last); // the gift is Hawezar's
+        keys.Up();
+        keys.Enter();
+        Assert.StartsWith("Helltide in Auen von Fethis, Hawezar: 1 objects", speech.Last);
     }
 
     [Fact]
@@ -246,14 +347,16 @@ public class WaypointListBridgeTests
 
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
         int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
-        Func<MarkedActor, HelltidePlace?>? helltidePlace = null)
+        Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
+        Func<MapView?>? readView = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
         var mouse = new FakeMouse();
         var bridge = new WaypointListBridge(
-            Catalog, w => w.LevelAreaName, _ => activated, () => view ?? FarOut, () => world, speech, new LanguageSetting(SpeechLanguage.English),
-            DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf, helltidePlace: helltidePlace);
+            Catalog, w => w.LevelAreaName, _ => activated, readView ?? (() => view ?? FarOut), () => world, speech,
+            new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
+            helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { });
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
@@ -294,7 +397,10 @@ public class WaypointListBridgeTests
     private sealed class FakeMouse : IGameMouse
     {
         public (int X, int Y)? Moved;
+        public readonly List<int> Notches = [];
+        public Action<int>? Scrolled;
         public (int Width, int Height)? ClientSize() => (1920, 1080);
         public bool MoveTo(int clientX, int clientY) { Moved = (clientX, clientY); return true; }
+        public bool Scroll(int notches) { Notches.Add(notches); Scrolled?.Invoke(notches); return true; }
     }
 }

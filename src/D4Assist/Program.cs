@@ -449,7 +449,14 @@ internal static class Program
                 () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
                 GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null,
                 w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); },
-                m => { lock (cascGate) return HelltidePlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current)); });
+                m => { lock (cascGate) return HelltidePlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current)); },
+                () =>
+                {
+                    IReadOnlyDictionary<int, int>? states = null;
+                    session.Query(r => states = r.ReadWorldStates());
+                    return states is null ? null : ActiveHelltides.From(states);
+                },
+                region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }));
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;
@@ -686,6 +693,18 @@ internal static class Program
     // ("Auen von Fethis, Hawezar").
     private static string? StripGrammarTag(string? text) =>
         text is ['[', ..] && text.IndexOf(']') is > 0 and var end ? text[(end + 1)..] : text;
+
+    // A helltide region's name in the game's language: the region of a town waypoint in it ("Hawezar" for Zarbinzet), as the
+    // helltide objects' areas name it.
+    private static readonly Dictionary<HelltideRegion, string> HelltideRegionTowns = new()
+    {
+        [HelltideRegion.Scosglen] = "Scos_Cerrigar", [HelltideRegion.FracturedPeaks] = "Frac_Kyovashad", [HelltideRegion.Hawezar] = "Hawe_Zarbinzet",
+        [HelltideRegion.Kehjistan] = "Kehj_Gea_Kul", [HelltideRegion.DrySteppes] = "Step_KedBardu", [HelltideRegion.Nahantu] = "Naha_Kurast_Bazaar",
+        [HelltideRegion.Skovos] = "Skov_Temis",
+    };
+
+    private static string HelltideRegionName(HelltideRegion region, IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string?> zoneOf) =>
+        waypoints.FirstOrDefault(w => w.LevelAreaName == HelltideRegionTowns[region]) is { } town && zoneOf(town) is { } name ? name : region.ToString();
 
     private static HelltidePlace? HelltidePlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale)
     {

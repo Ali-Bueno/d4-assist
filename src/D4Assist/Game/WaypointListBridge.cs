@@ -167,10 +167,11 @@ public sealed class WaypointListBridge(
                 return;
             }
             float farthestZoom = _helltide ? HelltideMaxZoom : MapProjection.MaxZoom;
-            if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height) is not { } pixel)
+            if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not { } pixel)
             {
                 log?.Invoke($"WAYPOINT {entry.Name} off the map view (center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0})");
-                if (MapProjection.ToClient(view with { Zoom = Math.Max(view.Zoom, farthestZoom) }, entry.X, entry.Y, size.Width, size.Height) is not null)
+                if (MapProjection.ToClient(view with { Zoom = Math.Max(view.Zoom, farthestZoom) }, entry.X, entry.Y, size.Width, size.Height,
+                        TargetInset) is not null)
                 {
                     speech.Output(string.Format(Text.ZoomOutFormat, entry.Name), interrupt: true);
                     return;
@@ -206,6 +207,11 @@ public sealed class WaypointListBridge(
     // y 104 and the trip didn't happen (live 2026-10-19), likely under the tab bar.
     private const double StopoverInset = 120;
 
+    // The cursor's target stays this far inside the map's edges: from Ichorfall Wejinhani shows at y 102 zoomed out all the
+    // way, so the trip failed again (user, 2026-10-25, from Skovos via the stopover Ichorfall). Closer to the edge it counts as
+    // out of view and a stopover from which it is farther in takes over (Temis -> Kurast Bazaar, Wejinhani at y 139).
+    private const double TargetInset = 60;
+
     private (WaypointEntry Entry, (int X, int Y) Pixel)? Hop(WaypointEntry target, MapView view, (int Width, int Height) size)
     {
         double Remaining(double x, double y) => Math.Sqrt(Math.Pow(target.X - x, 2) + Math.Pow(target.Y - y, 2));
@@ -215,7 +221,7 @@ public sealed class WaypointListBridge(
             .Select(e => (Entry: e, Pixel: MapProjection.ToClient(view, e.X, e.Y, size.Width, size.Height, StopoverInset)))
             .Where(c => c.Pixel is not null)
             .OrderBy(c => MapProjection.ToClient(view with { CenterX = (float)c.Entry.X, CenterY = (float)c.Entry.Y }, target.X, target.Y,
-                size.Width, size.Height) is null ? 1 : 0)
+                size.Width, size.Height, TargetInset) is null ? 1 : 0)
             .ThenBy(c => Remaining(c.Entry.X, c.Entry.Y))
             .Select(c => ((WaypointEntry, (int, int))?)(c.Entry, c.Pixel!.Value))
             .FirstOrDefault();

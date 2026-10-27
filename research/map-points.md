@@ -64,11 +64,19 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   ("Höllenflut: 5:57").
 - **Area names (H):** `SubzoneDefinition.snoTerritory` names the helltide's area: `Territory_Hawe_Wetland` "Auen von Fethis",
   its level areas "Lichtschwund", "Das Schlingmoor", "Ebenen des Verfalls", "Verseuchter Deich" (`ZoneCatalog`).
-- **The active helltide zone is not a world state (M).** A live table of 16-byte nodes {snoWorldState, nValue, next} holds
-  ~540 world states (`D4MemScan sno-scan` + `words`). Every territory's `Bounty_Helltide_*` states dropped 1 → 0 at the
-  helltide's end (14:55) and were set again at 15:00, for all regions at once: the bounty rotation, not the active zone.
-  Other live values there: `SME_S08_BelialTide` counting 5..1 every 5 minutes, `LocalEvent_OverlandBoss_<region>`,
-  `S07_WhisperRotation_<region>`, `RS_<region>`. Not found: the helltide's zone from afar.
+- **The active helltide region is the world state `UberSubzone` (H, live and game data, 2026-10-27).** World state 1055388
+  `UberSubzone` in the session's world-state table (16-byte nodes {snoWorldState, nValue, next}, ~500 states) holds the
+  base game's helltide region: the conditions `Bounty_Unlock_Condition_Helltide_<territory>` (group 51) test
+  `UberSubzone == N`: **1 Scosglen** (Coast, DeepForest), **2 Fractured Peaks** (TundraN, TundraS), **3 Hawezar** (Verge,
+  Wetland), **4 Kehjistan** (HighDesert, Oasis, LowDesert), **5 Dry Steppes** (Central, South); `EGB_UberSubzone_Inactive`
+  tests 0. The expansions have their own state 2077464 `UberSubzone_Expansions`: **1 Nahantu** (LingeringHatred,
+  SevenStones), **2 Skovos** (Celestia, Skartara); unset in build 3.2.3 (season 16 / 3.3.0 starts expansion helltides at the
+  half hour). Live: 4 with the helltide in Kehjistan (2026-10-25 14h, 10-27 16h), 3 in Hawezar (10-25 15h, 10-27 17h), 2 in
+  the Fractured Peaks (10-27 18h); 17:51–17:55 the node was absent and 17:56–17:59 it read 0 (the five-minute gap); the value
+  changes on the hour and reads at once after logging in, anywhere in the world. The table belongs to the game session:
+  after a disconnect it froze and a new one was built at another address (find it by the node of a known state). The
+  `Bounty_Helltide_*` states are the world-wide bounty rotation, not the region. Not matched: `WE_Sanc_<region>` stayed 1
+  for Hawezar after the 17:00 world boss there; `ZE_Sanc_<region>` did not follow the legion (helltides.com).
 - **Server messages in the definitions:** `WorldStateUpdateData {snoWorldState, nValue}`, `WorldEventStartingMessage
   {snoQuest, bIsWorldEvent, snoWorld, snoSubzone, snoReward, wpLocation}`, `WorldEventWarmupWarningMessage {snoSubzone}`.
   World bosses are quests `WE_WorldBoss_<name>` (Ashava 366701). Not pursued: the game's own world-boss announcement names

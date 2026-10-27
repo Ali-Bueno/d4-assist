@@ -14,9 +14,11 @@ namespace D4Assist.Game;
 /// 2026-10-25). Only waypoints the player's saved data lists as activated are ever offered; when that list is unreadable the
 /// list says so instead of guessing.
 /// Shift+F2 lists the helltides the server has active (the session's world states, ActiveHelltides; user request 2026-10-27),
-/// each with the minutes to its next change; Enter opens the same list as Shift+F1 over that helltide's objects the map marks
+/// each with the minutes it has left (user request 2026-10-27); Enter opens the same list as Shift+F1 over that helltide's objects the map marks
 /// (user request 2026-10-25): tortured gifts, the accursed ritual, altars, spires, the doomsayer. The map marks them only while
 /// the player is in the helltide's area outside a town (live 2026-10-25, Hawezar), so without them the list asks to go there.
+/// The helltide's Blood Maiden bounties ("Tötet die Blutjungfrau") the map marks from anywhere, so they list at once (user
+/// request 2026-10-27).
 /// Enter on an object zooms the map in with the wheel until the cursor can point at it (user request 2026-10-27). Without
 /// readable world states Shift+F2 opens the objects at once, as before.
 /// </summary>
@@ -34,12 +36,16 @@ namespace D4Assist.Game;
 /// <param name="regionName">A helltide region's name in the current language ("Hawezar"), as the objects' areas end in it.</param>
 /// <param name="now">The local time, for the minutes to a helltide's change.</param>
 /// <param name="wait">Waits the given milliseconds (for the map's zoom to settle).</param>
+/// <param name="helltideEndsEarly">A base-game helltide ends five minutes before the hour (game builds before 3.3.0).</param>
+/// <param name="bountiesOf">The helltide's bounties up in a region, by name and spot ("Tötet die Blutjungfrau", HelltideBountyCatalog):
+/// the map marks them from anywhere, so they list before the area is entered.</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
     IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null, Func<Waypoint, string?>? regionOf = null,
     Func<MarkedActor, HelltidePlace?>? helltidePlace = null, Func<IReadOnlyList<HelltideRegion>?>? readHelltides = null,
-    Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null)
+    Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null, bool helltideEndsEarly = false,
+    Func<HelltideRegion, IReadOnlyList<(string Name, double X, double Y)>>? bountiesOf = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
@@ -170,13 +176,18 @@ public sealed class WaypointListBridge(
         // With two helltides up, an object belongs to the one whose region its area names ("Auen von Fethis, Hawezar").
         if (region is { } r && _regions.Count > 1 && regionName?.Invoke(r) is { } name)
             places = places.Where(p => p.Place!.Area?.EndsWith(name, StringComparison.Ordinal) == true).ToList();
-        log?.Invoke($"HELLTIDE {places.Count} object(s) among {_markers.Count} map markers{(region is { } shown ? $" for {shown}" : "")}");
-        if (places.Count == 0) return false;
+        var bounties = region is { } up && bountiesOf is not null ? bountiesOf(up) : [];
+        log?.Invoke($"HELLTIDE {places.Count} object(s) among {_markers.Count} map markers, {bounties.Count} bounty(ies)" +
+            (region is { } shown ? $" for {shown}" : ""));
+        if (places.Count == 0 && bounties.Count == 0) return false;
         var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
-        _list.Open(WaypointList.Build(places.Select(h => (h.Place!.Name, h.Place.Region, (double)h.Marker.X, (double)h.Marker.Y)), fromX, fromY));
+        _list.Open(WaypointList.Build(
+            places.Select(h => (h.Place!.Name, h.Place.Region, (double)h.Marker.X, (double)h.Marker.Y))
+                .Concat(bounties.Select(b => (b.Name, (string?)null, b.X, b.Y))), fromX, fromY));
         _mode = Mode.Objects;
-        // The area most of them lie in names the helltide; one with no known area still lists.
-        string? area = places.Select(h => h.Place!.Area).OfType<string>().GroupBy(a => a).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+        // The area most of them lie in names the helltide, else its region; one with no known area still lists.
+        string? area = places.Select(h => h.Place!.Area).OfType<string>().GroupBy(a => a).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key
+            ?? (region is { } named ? RegionName(named) : null);
         keys.SetListKeys(true);
         speech.Output($"{string.Format(HelltideStrings.For(language.Current).OpenedFormat, area ?? "?", _list.Count)} {EntryText()}", interrupt: true);
         return true;
@@ -187,8 +198,9 @@ public sealed class WaypointListBridge(
     private string RegionText()
     {
         var region = _regions[_regionIndex];
-        return string.Format(HelltideStrings.For(language.Current).RegionEntryFormat, RegionName(region),
-            ActiveHelltides.MinutesToChange(region, Now()), _regionIndex + 1, _regions.Count);
+        var text = HelltideStrings.For(language.Current);
+        string entry = string.Format(text.RegionEntryFormat, RegionName(region), ActiveHelltides.MinutesLeft(region, Now(), helltideEndsEarly));
+        return _regions.Count > 1 ? $"{entry} {string.Format(text.PositionFormat, _regionIndex + 1, _regions.Count)}" : entry;
     }
 
     private string RegionName(HelltideRegion region) => regionName?.Invoke(region) ?? region.ToString();

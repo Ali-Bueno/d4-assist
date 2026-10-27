@@ -23,9 +23,14 @@ public static class ActiveHelltides
 
     public static bool IsExpansion(HelltideRegion region) => region >= HelltideRegion.Nahantu;
 
-    /// <summary>Whole minutes, rounded up, until the region's helltides next change: the base game's on the hour, the expansions'
-    /// on the half hour (patch 3.3.0). Before that patch a helltide ends five minutes early, so this is when the next one rises.</summary>
-    public static int MinutesToChange(HelltideRegion region, DateTime now) => MinutesTo(IsExpansion(region) ? 30 : 0, now);
+    /// <summary>Whole minutes, rounded up, a helltide in the region has left: the base game's end on the hour, five minutes
+    /// before it while <paramref name="baseEndsEarly"/> (before patch 3.3.0: live 2026-10-27, 0 from 17:56 to 17:59); the
+    /// expansions' (patch 3.3.0) on the half hour.</summary>
+    public static int MinutesLeft(HelltideRegion region, DateTime now, bool baseEndsEarly) =>
+        MinutesTo(IsExpansion(region) ? 30 : baseEndsEarly ? 55 : 0, now);
+
+    /// <summary>Patch 3.3.0 removes the five minutes between two base-game helltides.</summary>
+    public static bool BaseEndsEarly(string? gameBuild) => !Version.TryParse(gameBuild, out var build) || build < new Version(3, 3);
 
     /// <summary>Whole minutes, rounded up, until the base game's next helltide rises (on the hour).</summary>
     public static int MinutesToNextBase(DateTime now) => MinutesTo(0, now);

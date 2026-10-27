@@ -31,12 +31,20 @@ public class ActiveHelltidesTests
     }
 
     [Fact]
-    public void The_base_game_changes_on_the_hour_the_expansions_on_the_half_hour()
+    public void The_base_game_ends_on_the_hour_or_five_minutes_before_the_expansions_on_the_half_hour()
     {
         var now = new DateTime(2026, 10, 27, 18, 37, 10);
-        Assert.Equal(23, ActiveHelltides.MinutesToChange(HelltideRegion.Hawezar, now));
-        Assert.Equal(53, ActiveHelltides.MinutesToChange(HelltideRegion.Nahantu, now));
+        Assert.Equal(23, ActiveHelltides.MinutesLeft(HelltideRegion.Hawezar, now, baseEndsEarly: false));
+        Assert.Equal(18, ActiveHelltides.MinutesLeft(HelltideRegion.Hawezar, now, baseEndsEarly: true));
+        Assert.Equal(53, ActiveHelltides.MinutesLeft(HelltideRegion.Nahantu, now, baseEndsEarly: true));
         Assert.Equal(60, ActiveHelltides.MinutesToNextBase(new DateTime(2026, 10, 27, 18, 0, 0)));
-        Assert.Equal(1, ActiveHelltides.MinutesToChange(HelltideRegion.Skovos, new DateTime(2026, 10, 27, 18, 29, 30)));
+        Assert.Equal(1, ActiveHelltides.MinutesLeft(HelltideRegion.Skovos, new DateTime(2026, 10, 27, 18, 29, 30), baseEndsEarly: false));
     }
+
+    [Theory]
+    [InlineData("3.2.3.73883", true)]
+    [InlineData("3.3.0.74145", false)]
+    [InlineData(null, true)]
+    public void Before_patch_3_3_a_base_helltide_ends_five_minutes_early(string? build, bool early) =>
+        Assert.Equal(early, ActiveHelltides.BaseEndsEarly(build));
 }

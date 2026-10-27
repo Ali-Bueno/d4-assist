@@ -205,11 +205,12 @@ Everything the list says also appears on your braille display, if your
 screen reader has one connected.
 
 Helltide list. With the world map open, Shift+F2 says where the helltide is
-right now, from anywhere in the world, and how many minutes until it changes
+right now, from anywhere in the world, and how many minutes it has left
 (when two are up, one in an expansion, up and down move between them). Enter
 on a helltide lists its objects (tortured gifts, the accursed ritual, fallen
 altars, demonic spires, the doomsayer) nearest first, with their area,
-distance and direction. It works like the waypoint list: up and down, Enter
+distance and direction. The Blood Maiden's bounty ("Kill the Blood Maiden")
+lists from anywhere, as the map shows it from afar. It works like the waypoint list: up and down, Enter
 for the cursor, Escape to close. The game shows these objects only while you
 are out in the helltide's area, not in a town; until then Enter says to go
 there. Zoomed far out the map does not show them as icons, so Enter on an

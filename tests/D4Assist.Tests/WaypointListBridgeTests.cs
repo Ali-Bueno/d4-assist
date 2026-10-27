@@ -156,7 +156,7 @@ public class WaypointListBridgeTests
         Assert.True(keys.ListKeys); // the list stays open for the next try
     }
 
-    // 18:37 local: the base game's helltide changes on the hour, in 23 minutes.
+    // 18:37 local: from patch 3.3.0 the base game's helltide ends on the hour, in 23 minutes.
     private static readonly DateTime Evening = new(2026, 10, 27, 18, 37, 10);
 
     [Fact]
@@ -167,7 +167,7 @@ public class WaypointListBridgeTests
         bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
 
         keys.OpenHelltide();
-        Assert.Equal("Helltide: Hawezar, next change in 23 minutes. 1 of 1.", speech.Last);
+        Assert.Equal("Helltide: Hawezar, 23 minutes left.", speech.Last);
         Assert.True(keys.ListKeys);
 
         keys.Enter();
@@ -192,6 +192,22 @@ public class WaypointListBridgeTests
         Assert.False(keys.ListKeys);
     }
 
+    // Live 2026-10-27, Scosglen: the map marks the Blood Maiden's bounty from the inn, far outside the helltide's area.
+    [Fact]
+    public void The_Blood_Maiden_lists_before_the_area_is_entered_and_takes_the_cursor()
+    {
+        var (bridge, keys, speech, mouse) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1100f), helltidePlace: Helltide,
+            helltides: [HelltideRegion.Hawezar], bounties: [("Kill the Blood Maiden", 690, -430)]);
+        bridge.OnMapMarkers([new MarkedActor(Cultist, 690, -410, 0, 1, 10)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+        Assert.StartsWith("Helltide in Hawezar: 1 objects by distance. Kill the Blood Maiden, ", speech.Last);
+
+        keys.Enter();
+        Assert.Equal(MapProjection.ToClient(new MapView(681.64f, -410.26f, 1100f), 690, -430, 1920, 1080), mouse.Moved);
+    }
+
     [Fact]
     public void Between_helltides_Shift_F2_says_when_the_next_starts()
     {
@@ -212,7 +228,7 @@ public class WaypointListBridgeTests
 
         keys.OpenHelltide();
         keys.Down();
-        Assert.Equal("Skovos, next change in 53 minutes. 2 of 2.", speech.Last);
+        Assert.Equal("Skovos, 53 minutes left. 2 of 2.", speech.Last);
         keys.Down(); // stays at the end
         Assert.StartsWith("Skovos, ", speech.Last);
         keys.Enter();
@@ -348,7 +364,7 @@ public class WaypointListBridgeTests
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
         int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
         Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
-        Func<MapView?>? readView = null)
+        Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
@@ -356,7 +372,8 @@ public class WaypointListBridgeTests
         var bridge = new WaypointListBridge(
             Catalog, w => w.LevelAreaName, _ => activated, readView ?? (() => view ?? FarOut), () => world, speech,
             new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
-            helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { });
+            helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { },
+            bountiesOf: _ => bounties ?? []);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);

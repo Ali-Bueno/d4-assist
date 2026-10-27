@@ -438,6 +438,7 @@ internal static class Program
         if (mapKeys is not null)
         {
             var zones = new ZoneCatalog(store, schema);
+            var bounties = new HelltideBountyCatalog(store, schema);
             // The game's text bundle (60,000 tables) loads on the first name, the regions on the first one asked (every subzone read):
             // both now, not on the first Shift+F1.
             if (allWaypoints.Count > 0)
@@ -456,7 +457,18 @@ internal static class Program
                     session.Query(r => states = r.ReadWorldStates());
                     return states is null ? null : ActiveHelltides.From(states);
                 },
-                region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }));
+                region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }),
+                helltideEndsEarly: ActiveHelltides.BaseEndsEarly(store.BuildVersion),
+                bountiesOf: region =>
+                {
+                    IReadOnlyDictionary<int, int>? states = null;
+                    session.Query(r => states = r.ReadWorldStates());
+                    if (states is null) return [];
+                    lock (cascGate)
+                        return bounties.All.Where(b => HelltideRegionOf(b.Territory) == region && states.GetValueOrDefault(b.WorldStateSno) == 1)
+                            .Select(b => (bounties.Name(b, SpeechLanguages.GameLocale(language.Current)), (double)b.Position.X, (double)b.Position.Y))
+                            .ToList();
+                });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;
@@ -701,6 +713,14 @@ internal static class Program
         [HelltideRegion.Scosglen] = "Scos_Cerrigar", [HelltideRegion.FracturedPeaks] = "Frac_Kyovashad", [HelltideRegion.Hawezar] = "Hawe_Zarbinzet",
         [HelltideRegion.Kehjistan] = "Kehj_Gea_Kul", [HelltideRegion.DrySteppes] = "Step_KedBardu", [HelltideRegion.Nahantu] = "Naha_Kurast_Bazaar",
         [HelltideRegion.Skovos] = "Skov_Temis",
+    };
+
+    // A helltide bounty's region by its territory key's prefix ("Scos_DeepForest" → Scosglen).
+    private static HelltideRegion? HelltideRegionOf(string territory) => territory.Split('_')[0] switch
+    {
+        "Scos" => HelltideRegion.Scosglen, "Frac" => HelltideRegion.FracturedPeaks, "Hawe" => HelltideRegion.Hawezar,
+        "Kehj" => HelltideRegion.Kehjistan, "Step" => HelltideRegion.DrySteppes, "Naha" => HelltideRegion.Nahantu, "Skov" => HelltideRegion.Skovos,
+        _ => null,
     };
 
     private static string HelltideRegionName(HelltideRegion region, IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string?> zoneOf) =>

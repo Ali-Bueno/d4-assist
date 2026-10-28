@@ -527,8 +527,17 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
-    public IReadOnlyDictionary<int, int>? ReadWorldStates() =>
-        _offsets is { } offsets ? WorldStateReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+    public IReadOnlyDictionary<int, int>? ReadWorldStates()
+    {
+        if (_offsets is not { } offsets) return null;
+        var conflicting = new List<int>();
+        var states = WorldStateReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva, conflicting);
+        foreach (int sno in conflicting)
+            if (_worldStateConflictsLogged.Add(sno)) Console.WriteLine($"WORLD STATE {sno} held twice with different values; the later block's taken.");
+        return states;
+    }
+
+    private readonly HashSet<int> _worldStateConflictsLogged = [];
 
     // The gizmos and triggers the map marks, wherever they are: those the current phases name are quest places even out of reach
     // (the server places some, the Labyrinth's lair door, and the game only streams actors in about 25 units around the player);

@@ -455,7 +455,7 @@ internal static class Program
                 {
                     IReadOnlyDictionary<int, int>? states = null;
                     session.Query(r => states = r.ReadWorldStates());
-                    return states is null ? null : ActiveHelltides.From(states);
+                    return states is null ? null : ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides(store.BuildVersion));
                 },
                 region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }),
                 helltideEndsEarly: ActiveHelltides.BaseEndsEarly(store.BuildVersion),

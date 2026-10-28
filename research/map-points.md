@@ -77,6 +77,15 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   after a disconnect it froze and a new one was built at another address (find it by the node of a known state). The
   `Bounty_Helltide_*` states are the world-wide bounty rotation, not the region. Not matched: `WE_Sanc_<region>` stayed 1
   for Hawezar after the 17:00 world boss there; `ZE_Sanc_<region>` did not follow the legion (helltides.com).
+- **The world-state table is a node pool of several blocks (H, live 2026-10-28, build 3.2.3).** `[G+0xA58]` is the pool:
+  `+0x28` → its block holders, 0x18 bytes apart, `+0x30` their count (u32, 5 here), `+0x18` the live states' count (775),
+  `+0x10` the last node handed out. Each holder's first word is a block {first node, u32 count at +0x10, node size 16 at
+  +0x14, end at +0x30}. The blocks held 60, 20, 10, 540 and 180 nodes; `UberSubzone` = 1 (Scosglen) only in the last,
+  `UberSubzone_Expansions` = 1 in the 540 one although no Nahantu helltide runs before 3.3.0. 35 states sat in two blocks,
+  each with the same value (810 nodes for 775 states). On 2026-10-27 the first block alone held every state read; reading
+  only the first block on 2026-10-28 found the expansions' state without the base game's, and the helltide list named
+  Nahantu. `WorldStateReader` reads every block (a state held twice: the later block's value, logged `WORLD STATE … twice`);
+  `ActiveHelltides` counts the expansions' state only from build 3.3.
 - **Server messages in the definitions:** `WorldStateUpdateData {snoWorldState, nValue}`, `WorldEventStartingMessage
   {snoQuest, bIsWorldEvent, snoWorld, snoSubzone, snoReward, wpLocation}`, `WorldEventWarmupWarningMessage {snoSubzone}`.
   World bosses are quests `WE_WorldBoss_<name>` (Ashava 366701). Not pursued: the game's own world-boss announcement names

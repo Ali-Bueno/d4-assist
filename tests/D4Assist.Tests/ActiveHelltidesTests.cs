@@ -12,22 +12,31 @@ public class ActiveHelltidesTests
     [InlineData(4, HelltideRegion.Kehjistan)]
     [InlineData(5, HelltideRegion.DrySteppes)]
     public void UberSubzone_names_the_base_games_region(int value, HelltideRegion region) =>
-        Assert.Equal([region], ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = value }));
+        Assert.Equal([region], ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = value }, expansionsHaveHelltides: false));
 
     [Fact]
     public void The_expansions_have_their_own_state_beside_the_base_games()
     {
         var states = new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = 3, [ActiveHelltides.UberSubzoneExpansions] = 2 };
-        Assert.Equal([HelltideRegion.Hawezar, HelltideRegion.Skovos], ActiveHelltides.From(states));
-        Assert.Equal([HelltideRegion.Nahantu], ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzoneExpansions] = 1 }));
+        Assert.Equal([HelltideRegion.Hawezar, HelltideRegion.Skovos], ActiveHelltides.From(states, expansionsHaveHelltides: true));
+        Assert.Equal([HelltideRegion.Nahantu], ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzoneExpansions] = 1 }, expansionsHaveHelltides: true));
     }
 
     [Fact]
     public void Zero_an_unknown_value_or_no_state_is_no_helltide()
     {
-        Assert.Empty(ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = 0 }));
-        Assert.Empty(ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = 6, [ActiveHelltides.UberSubzoneExpansions] = 3 }));
-        Assert.Empty(ActiveHelltides.From(new Dictionary<int, int>()));
+        Assert.Empty(ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = 0 }, true));
+        Assert.Empty(ActiveHelltides.From(new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = 6, [ActiveHelltides.UberSubzoneExpansions] = 3 }, true));
+        Assert.Empty(ActiveHelltides.From(new Dictionary<int, int>(), true));
+    }
+
+    // Live 2026-10-28, build 3.2.3: UberSubzone_Expansions read 1 beside UberSubzone 1 (Scosglen), with no helltide in Nahantu.
+    [Fact]
+    public void Before_patch_3_3_the_expansions_state_names_no_helltide()
+    {
+        var states = new Dictionary<int, int> { [ActiveHelltides.UberSubzone] = 1, [ActiveHelltides.UberSubzoneExpansions] = 1 };
+        Assert.Equal([HelltideRegion.Scosglen], ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides("3.2.3.73883")));
+        Assert.Equal([HelltideRegion.Scosglen, HelltideRegion.Nahantu], ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides("3.3.0.74145")));
     }
 
     [Fact]

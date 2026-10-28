@@ -7,19 +7,25 @@ public enum HelltideRegion { Scosglen = 1, FracturedPeaks, Hawezar, Kehjistan, D
 /// The helltides the server has active, from the session's world states (research/map-points.md §4): UberSubzone holds the base
 /// game's region, UberSubzone_Expansions the expansions'; 0 or no state is none. The values are the game data's own
 /// (Bounty_Unlock_Condition_Helltide_* test UberSubzone == 1 Scosglen … 5 Dry Steppes, UberSubzone_Expansions == 1 Nahantu,
-/// 2 Skovos), confirmed live 2026-10-27 for Kehjistan, Hawezar and the Fractured Peaks.
+/// 2 Skovos), confirmed live 2026-10-27 for Kehjistan, Hawezar and the Fractured Peaks. The expansions' helltides come with
+/// patch 3.3.0; before it UberSubzone_Expansions reads 1 with no helltide in Nahantu (live 2026-10-28, build 3.2.3).
 /// </summary>
 public static class ActiveHelltides
 {
     public const int UberSubzone = 1055388, UberSubzoneExpansions = 2077464;
 
-    public static IReadOnlyList<HelltideRegion> From(IReadOnlyDictionary<int, int> worldStates)
+    /// <param name="expansionsHaveHelltides">Patch 3.3.0 or later (<see cref="ExpansionsHaveHelltides"/>).</param>
+    public static IReadOnlyList<HelltideRegion> From(IReadOnlyDictionary<int, int> worldStates, bool expansionsHaveHelltides)
     {
         var active = new List<HelltideRegion>();
         if (worldStates.GetValueOrDefault(UberSubzone) is >= 1 and <= 5 and var region) active.Add((HelltideRegion)region);
-        if (worldStates.GetValueOrDefault(UberSubzoneExpansions) is >= 1 and <= 2 and var expansion) active.Add(HelltideRegion.Nahantu + (expansion - 1));
+        if (expansionsHaveHelltides && worldStates.GetValueOrDefault(UberSubzoneExpansions) is >= 1 and <= 2 and var expansion)
+            active.Add(HelltideRegion.Nahantu + (expansion - 1));
         return active;
     }
+
+    /// <summary>Patch 3.3.0 brings the expansions' helltides, on the half hour.</summary>
+    public static bool ExpansionsHaveHelltides(string? gameBuild) => !BaseEndsEarly(gameBuild);
 
     public static bool IsExpansion(HelltideRegion region) => region >= HelltideRegion.Nahantu;
 

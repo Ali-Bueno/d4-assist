@@ -353,7 +353,15 @@ internal static class Program
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
         // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below). Only while the
         // game is in front: the settings and exit keys (TrayApp) are the only ones that work everywhere.
-        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount, GameWindowFocus.IsGameForeground);
+        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount, GameWindowFocus.IsGameForeground, config.WalletKeyEnabled);
+        // F2: the helltide's cinders and Baneful Hearts, named as the game names them.
+        var wallet = new WalletAnnouncer(
+            () => { IReadOnlyList<long>? amounts = null; session.Query(r => amounts = r.ReadCurrencies()); return amounts; },
+            type => WalletCurrencyItems.TryGetValue(type, out var item)
+                ? StripGrammarTag(LockedText(cascGate, () => store.Text(SpeechLanguages.GameLocale(language.Current), "Item_" + item, "Name")))
+                : null,
+            speech, language, debug ? Console.WriteLine : null);
+        hotkeys.WalletKeyPressed += wallet.Announce;
         // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
         // The pad is read whatever window has the focus: in another game, or with Diablo IV closed, its D-pad isn't ours.
         var pad = xboxPad is not null && sonyPad is not null
@@ -704,6 +712,17 @@ internal static class Program
     // A map marker as an object of the helltide list (HelltideObjects): its UI name ("Gequältes Geschenk der Geheimnisse"; the
     // Name label adds the cinder cost on a second line), its level area's name and the helltide's area, the territory and region
     // ("Auen von Fethis, Hawezar").
+    // The currencies F2 says, by eCurrencyType: the ItemDefinitions that name them (ItemDefinition.eCurrencyType).
+    private static readonly Dictionary<int, string> WalletCurrencyItems = new()
+    {
+        [D4Memory.Actors.CurrencyReader.Cinders] = "Helltide_Currency", [D4Memory.Actors.CurrencyReader.BanefulHearts] = "Helltide_BossSummon_Currency",
+    };
+
+    private static string? LockedText(object gate, Func<string?> read)
+    {
+        lock (gate) return read();
+    }
+
     private static string? StripGrammarTag(string? text) =>
         text is ['[', ..] && text.IndexOf(']') is > 0 and var end ? text[(end + 1)..] : text;
 

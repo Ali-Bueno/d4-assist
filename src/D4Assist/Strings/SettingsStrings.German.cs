@@ -93,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Geschlossene Türen im Radar",
         LiveBarriers = "Dungeon-Barrieren im Radar und in der Führung",
         WaypointList = "Wegpunktliste auf der Karte (Umschalt+F1)",
+        WalletKey = "Glut und Unheilsherzen auf F2",
         ExplorationGuide = "Erkundungsführung (Steuerkreuz links schaltet sie ein und aus)",
         ExplorationGuideInDungeons = "Führung an beim Betreten normaler Dungeons (in der Unterstadt und der Grube startet sie immer an)",
         CompassDirections = "Richtungen als Himmelsrichtungen (Norden, Osten …) statt oben, rechts … ansagen",

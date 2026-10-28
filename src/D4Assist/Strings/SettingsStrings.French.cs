@@ -93,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Portes fermées dans le radar",
         LiveBarriers = "Barrières des donjons dans le radar et le guide",
         WaypointList = "Liste des points de passage sur la carte (Maj+F1)",
+        WalletKey = "Braises et cœurs funestes sur F2",
         ExplorationGuide = "Guide d'exploration (la croix directionnelle gauche l'active et le désactive)",
         ExplorationGuideInDungeons = "Guide activé en entrant dans les donjons ordinaires (dans les Souterrains et la Fosse, il démarre toujours activé)",
         CompassDirections = "Annoncer les directions en points cardinaux (nord, est…) au lieu de haut, droite…",

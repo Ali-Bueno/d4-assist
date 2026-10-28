@@ -93,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Portas fechadas no radar",
         LiveBarriers = "Barreiras das masmorras no radar e no guia",
         WaypointList = "Lista de pontos de viagem no mapa (Shift+F1)",
+        WalletKey = "Cinzas e corações funestos no F2",
         ExplorationGuide = "Guia de exploração (esquerda no direcional liga e desliga)",
         ExplorationGuideInDungeons = "Guia ativado ao entrar em masmorras comuns (na Subcidade e no Fosso ele sempre começa ativado)",
         CompassDirections = "Dizer as direções como pontos cardeais (norte, leste…) em vez de cima, direita…",

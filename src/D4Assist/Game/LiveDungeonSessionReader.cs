@@ -525,6 +525,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     public IReadOnlyList<int>? ReadActivatedWaypoints(IReadOnlySet<int> waypointLevelAreas) =>
         _offsets is { } offsets ? ActivatedWaypointsReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva, waypointLevelAreas) : null;
 
+    public IReadOnlyList<long>? ReadCurrencies() =>
+        _offsets is { } offsets ? CurrencyReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
     public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
     public IReadOnlyDictionary<int, int>? ReadWorldStates()

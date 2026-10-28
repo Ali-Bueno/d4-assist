@@ -535,6 +535,21 @@ restart while mounted (the player's RActor is still listed) and in a dungeon.
   waypoints within the beacon reach (60) whose LevelArea is missing from this list, re-read every 2 s while one is near.
   The catalog position is the global marker's; whether it matches the `Waypoint_Temp` actor is unchecked.
 
+### Currencies (live 2026-10-28, build 3.2.3.73883, Scosglen helltide)
+
+- **The local player's currencies sit at slot + 0x7688** (H): 98 entries 16 bytes apart, one per `eCurrencyType` (as many
+  as `GlobalData.arCurrencyCaps`), each an i64 amount followed by 8 other bytes (high dword 0x7FF7). No schema field names it.
+  Live: gold at 0 (93,051,377 → 93,217,242 as gold was picked up), the cinders at 25 (36 → 0 as the helltide ended at
+  15:55), the Baneful Hearts at 66 (1); also 3 = 144, 12 = 1055, 14 = 1132 → 1136, 21 = 508 → 509 (crafting materials).
+  The entry before index 0 reads 0xFFFFFFFF. A slot whose player leaves is zeroed (slot 2 here).
+- **Which type is which** comes from `ItemDefinition.eCurrencyType` (+68): `Helltide_Currency` (1201932, deDE „Glut“) 25,
+  `Helltide_BossSummon_Currency` (1817849, „Unheilsherz“) 66, `CraftingMaterial_Herb_Common` „Kräuterbündel“ 4, … (666
+  item definitions with a type). The Global `globals` (1360) caps both at 999,999.
+- **Not here:** no ACD attribute of the player holds them (the name table has only `Currency_Cap_Bonus_Amount` and the
+  like), they are no inventory items (`D4MemScan acd --all` lists gems and runes with `ItemStackQuantityLo`, no heart), and
+  no `Currency {u32 type, i64 amount}` record in the heap followed the cinders. Found by diffing the player block and the
+  words behind its pointers before and after the helltide ended (36 → 0), then reading the run of 98 entries.
+
 ### World map view (live 2026-10-18, Gea Kul, 1920×1080 windowed)
 
 - **Open:** `screen_Map` opens and closes with the map (together with `screen_MainInGameMenu`); the pause menu opens only

@@ -58,6 +58,7 @@ public sealed partial record SettingsStrings
     public required string RadarClosedDoors { get; init; }
     public required string LiveBarriers { get; init; }
     public required string WaypointList { get; init; }
+    public required string WalletKey { get; init; }
     public required string ExplorationGuide { get; init; }
     public required string ExplorationGuideInDungeons { get; init; }
     public required string CompassDirections { get; init; }
@@ -168,6 +169,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Puertas cerradas en el radar",
         LiveBarriers = "Barreras de las mazmorras en el radar y la guía",
         WaypointList = "Lista de puntos de ruta en el mapa (Mayús+F1)",
+        WalletKey = "Ascuas y corazones funestos con F2",
         ExplorationGuide = "Guía de exploración (cruceta izquierda la activa y desactiva)",
         ExplorationGuideInDungeons = "Guía activada al entrar en mazmorras normales (en la Ciudad Subterránea y el Pozo siempre empieza activada)",
         CompassDirections = "Decir las direcciones como puntos cardinales (norte, este…) en vez de arriba, derecha…",
@@ -276,6 +278,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Closed doors in the radar",
         LiveBarriers = "Dungeon barriers in the radar and the guide",
         WaypointList = "Waypoint list on the map (Shift+F1)",
+        WalletKey = "Cinders and Baneful Hearts on F2",
         ExplorationGuide = "Exploration guide (D-pad left turns it on and off)",
         ExplorationGuideInDungeons = "Guide on when entering ordinary dungeons (in the Undercity and the Pit it always starts on)",
         CompassDirections = "Say directions as compass points (north, east…) instead of up, right…",

@@ -526,6 +526,12 @@ near an edge costs more. Traversals join the floors they split: every two traver
   coast's Blood Maiden, listed too before this test, was not on the map) list with the objects from anywhere, as the map marks them. With two helltides up an object belongs to the one its area's
   region names; without objects Enter says to enter the area. `--debug` logs `HELLTIDE active: …`, `HELLTIDE n object(s)
   among m map markers` and `WAYPOINT zoom a -> b (wheel ±1)`.
+- **F2** (keyboard, while the game is in front) — the helltide's cinders and Baneful Hearts, the two counts the HUD shows in a
+  helltide (user request 2026-10-28): „Glut: 36, Unheilsherz: 1“, the names from the game's text (`Item_Helltide_Currency`,
+  `Item_Helltide_BossSummon_Currency`), an amount of 0 as „keine“; spoken and on the braille display. Read as they are,
+  anywhere: before patch 3.3.0 the cinders vanish when the helltide ends, the hearts stay. `CurrencyReader` reads the local
+  player's currencies (slot + 0x7688 of the player block, research/client-memory.md §4); `--debug` logs `WALLET …`. Off in
+  the settings ("Glut und Unheilsherzen auf F2"), then the game keeps F2.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

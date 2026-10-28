@@ -95,6 +95,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "在雷达中显示关闭的门",
         LiveBarriers = "在雷达和向导中反映地下城屏障",
         WaypointList = "在地图上列出传送点（Shift+F1）",
+        WalletKey = "按 F2 读出余烬和灾厄之心",
         ExplorationGuide = "探索向导（方向键左键开启或关闭）",
         ExplorationGuideInDungeons = "进入普通地下城时开启向导（在地下都市和深坑中始终默认开启）",
         CompassDirections = "用方位（北、东……）而不是上、右……来报方向",

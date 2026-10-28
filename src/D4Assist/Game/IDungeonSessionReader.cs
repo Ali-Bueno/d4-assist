@@ -65,6 +65,9 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The session's world states, {WorldState SNO → value}; null when unreadable.</summary>
     IReadOnlyDictionary<int, int>? ReadWorldStates() => null;
+
+    /// <summary>The local player's amount of each currency, indexed by eCurrencyType (CurrencyReader); null when unreadable.</summary>
+    IReadOnlyList<long>? ReadCurrencies() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

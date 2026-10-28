@@ -95,6 +95,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "レーダーに閉じたドアを表示する",
         LiveBarriers = "レーダーとガイドにダンジョンの障壁を反映する",
         WaypointList = "マップでウェイポイント一覧（Shift+F1）",
+        WalletKey = "F2 で残り火と災いの心臓",
         ExplorationGuide = "探索ガイド（十字キーの左でオンとオフを切り替え）",
         ExplorationGuideInDungeons = "通常のダンジョンに入るときガイドをオンにする（アンダーシティとピットでは常にオンで始まります）",
         CompassDirections = "方向を上・右ではなく方位（北・東など）で伝える",

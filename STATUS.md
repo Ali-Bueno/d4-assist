@@ -101,7 +101,7 @@
 | No verbose/debug log switch for players | `DebugLoggingTypesEnabled` is a server/debug attribute, not a pref | exe strings + `LocalPrefs.txt` |
 | Equipped skills and unlocked waypoints (type only) | `PlayerSavedData`: `tHotbarBtnAssignments` +0 = 6 × `HotbarButtonData {m_PowerSno +0, m_ItemSno +4, m_annItem +8}`, `tPotionBtn` +96, `arWaypointsActivated` +120 = 64 level-area SNOs, `tActiveSkills` +384. Not located in memory yet | `data/definitions.json` (build 3.2.1.73552), 2026-10-11 |
 | Map points (waypoints, dungeon entrances) | Global `global_markers` 332242: 3,260 marker actors with world position (53 waypoints, 656 portals incl. ~190 cellars); name = StringList `LevelArea_<area>` label `Name` (dungeons: the portal's destination area), per locale from `StringList-Text-<locale>.dat` (enUS + esES checked) | [map-points](research/map-points.md), `D4DungeonDump --map-points` |
-| Event currency (helltide cinders?) | `EventCurrencyData {eCurrencyType, bPlayerLosesCurrencyOnDeath}`; changes arrive as `CurrencyModifiedMessage`. Not located in memory | `data/definitions.json`, 2026-10-11 |
+| Currencies (gold, helltide cinders, Baneful Hearts) | Local player's slot + 0x7688: 98 × {i64 amount, 8 bytes} by `eCurrencyType` (gold 0, cinders 25 `Helltide_Currency`, hearts 66 `Helltide_BossSummon_Currency`); `CurrencyReader`, F2 (`WalletAnnouncer`) | live 2026-10-28, research/client-memory.md §4 Currencies |
 
 ## Next step
 

@@ -93,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Porte chiuse nel radar",
         LiveBarriers = "Barriere dei dungeon nel radar e nella guida",
         WaypointList = "Elenco dei punti di viaggio sulla mappa (Maiusc+F1)",
+        WalletKey = "Braci e cuori funesti su F2",
         ExplorationGuide = "Guida all'esplorazione (la croce direzionale sinistra la attiva e la disattiva)",
         ExplorationGuideInDungeons = "Guida attiva quando entri nei dungeon normali (nella Sottocittà e nella Fossa parte sempre attiva)",
         CompassDirections = "Dire le direzioni come punti cardinali (nord, est…) invece di su, destra…",

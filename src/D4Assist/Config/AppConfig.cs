@@ -34,6 +34,9 @@ public sealed class AppConfig
     /// <summary>Shift+F1 on the world map lists the activated waypoints; Enter puts the mouse cursor on the chosen one.</summary>
     public bool WaypointListEnabled { get; set; } = true;
 
+    /// <summary>F2 says the helltide's cinders and Baneful Hearts (the counts the HUD shows in a helltide).</summary>
+    public bool WalletKeyEnabled { get; set; } = true;
+
     /// <summary>Look for a newer version on GitHub at start and offer to update (the downloaded build only).</summary>
     public bool CheckForUpdates { get; set; } = true;
 

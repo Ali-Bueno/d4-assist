@@ -93,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Zamknięte drzwi na radarze",
         LiveBarriers = "Bariery lochów na radarze i w przewodniku",
         WaypointList = "Lista punktów podróży na mapie (Shift+F1)",
+        WalletKey = "Żar i zgubne serca pod F2",
         ExplorationGuide = "Przewodnik po eksploracji (lewy przycisk krzyżaka włącza go i wyłącza)",
         ExplorationGuideInDungeons = "Przewodnik włączony po wejściu do zwykłych lochów (w Podmieściu i Jamie zawsze zaczyna jako włączony)",
         CompassDirections = "Podawaj kierunki jako strony świata (północ, wschód…) zamiast góra, prawo…",

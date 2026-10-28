@@ -95,6 +95,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "레이더에 닫힌 문 표시",
         LiveBarriers = "레이더와 안내에 던전 장벽 반영",
         WaypointList = "지도에서 웨이포인트 목록 (Shift+F1)",
+        WalletKey = "F2로 잔불과 흉악한 심장",
         ExplorationGuide = "탐색 안내 (방향 패드 왼쪽으로 켜고 끔)",
         ExplorationGuideInDungeons = "일반 던전에 들어갈 때 안내 켜기 (지하 도시와 구덩이에서는 항상 켜진 채로 시작합니다)",
         CompassDirections = "방향을 위, 오른쪽 대신 방위(북쪽, 동쪽…)로 말하기",

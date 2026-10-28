@@ -12,6 +12,8 @@ namespace D4Assist.Game;
 /// switching it on says where it leads. Outside the endgame it leads first to an objective heard earlier (ObjectiveMemory) and holds,
 /// silent, while the player stands at it. Chimes on each target reached, yields to the beacon while an unused portal is in sight, stays off in Undercity's boss room, and
 /// once nothing is left to explore leads to the boss room and the portals seen earlier (BossRoomDestination, PortalMemory) or says so once.
+/// Holding D-pad left switches it to exploring past the objectives and back (tester, 2026-10-27: an objective the guide holds on
+/// while the step goes on farther kept leading back); each new world starts on the objectives.
 /// </summary>
 public sealed class ExplorationGuideBridge
 {
@@ -27,7 +29,7 @@ public sealed class ExplorationGuideBridge
     private readonly Func<PlayerInput, bool, IReadOnlyList<GuideDestination>, IReadOnlyList<GuideDestination>, GuideStep> _step;
     private readonly Func<IReadOnlyList<GuideDestination>> _destinations;
     private readonly Func<IReadOnlyList<GuideDestination>> _objectives;
-    private readonly Action? _rearmObjectives;
+    private readonly Action<bool>? _rearmObjectives;
     private readonly GuidePingPlayer _ping;
     private readonly ISpeechSink _speech;
     private readonly LanguageSetting _language;
@@ -52,6 +54,8 @@ public sealed class ExplorationGuideBridge
     private int _rearmedAtArrivals = -1;
     private string? _heldAt;
     private string? _heightToldFor;
+    // The player asked to explore past the objectives (D-pad left held).
+    private bool _exploring;
 
     // An objective is reached inside its radius and on its floor: a height gap up to this (or the radius, if larger) is the
     // same floor. Live 2026-10-01: the Rathma temple's trigger lay 23 units below the walkway the player stood on.
@@ -62,13 +66,15 @@ public sealed class ExplorationGuideBridge
     /// <param name="step">Asks the navigation engine for the next guide step: the flag asks it to re-check exit candidates when nothing is left to explore,
     /// the lists are where to lead after that and the objectives to lead to before exploring (NavigationBridge.NextGuideStep).</param>
     /// <param name="beaconActive">True while an unused portal's beacon is in sight (PortalMemory.FreshInSight).</param>
-    /// <param name="pad">D-pad left toggles the guide for the current kind of dungeon; null for no toggle.</param>
+    /// <param name="pad">D-pad left toggles the guide for the current kind of dungeon, and held switches it between the objectives and
+    /// exploring; null for no toggle.</param>
     /// <param name="guideInDungeons">Default outside the endgame worlds (config ExplorationGuideInDungeons).</param>
     /// <param name="language">Spoken language; null means Spanish.</param>
     /// <param name="log">Debug sink for target-change and toggle lines; null when not debugging.</param>
     /// <param name="destinations">Portals seen in this dungeon, unused ones in tier 0 (PortalMemory.Destinations); null for none.</param>
     /// <param name="objectives">Objectives heard in this dungeon, quest steps in tier 0 (ObjectiveMemory.Destinations); null for none. Never used in endgame worlds.</param>
-    /// <param name="rearmObjectives">Called when the guide is switched on: objectives already reached lead again (ObjectiveMemory.Rearm).</param>
+    /// <param name="rearmObjectives">Called when the guide is switched on: objectives already reached lead again (ObjectiveMemory.Rearm);
+    /// true when nothing is left to explore, so the triggers walked through lead again too.</param>
     /// <param name="routeActive">True while a quest route takes D-pad left outside dungeons (QuestRouteBridge.IsActive); null for none.</param>
     /// <param name="bossFight">True while a boss fight is on (ObjectiveMemory.BossFight): the guide leads to the fight's objectives
     /// and holds between them, never out to explore; null for never.</param>
@@ -76,7 +82,7 @@ public sealed class ExplorationGuideBridge
         IDungeonFeed feed, Func<PlayerInput, bool, IReadOnlyList<GuideDestination>, IReadOnlyList<GuideDestination>, GuideStep> step,
         GuidePingPlayer ping, ISpeechSink speech, Func<bool> beaconActive, Action<string>? log = null, IGuideTogglePad? pad = null,
         bool guideInDungeons = false, LanguageSetting? language = null, Func<IReadOnlyList<GuideDestination>>? destinations = null,
-        Func<IReadOnlyList<GuideDestination>>? objectives = null, Action? rearmObjectives = null, Func<bool>? routeActive = null,
+        Func<IReadOnlyList<GuideDestination>>? objectives = null, Action<bool>? rearmObjectives = null, Func<bool>? routeActive = null,
         Func<bool>? bossFight = null)
     {
         _bossFight = bossFight ?? (() => false);
@@ -94,7 +100,11 @@ public sealed class ExplorationGuideBridge
 
         if (feed.CurrentWorld is { } startWorld) _switch.WorldChanged(startWorld.Name, startWorld.IsDungeon); // app started mid-dungeon
         feed.WorldChanged += (_, name, isDungeon) => { lock (_gate) { Reset(); _switch.WorldChanged(name, isDungeon); } };
-        if (pad is not null) pad.DpadLeftPressed += OnTogglePressed;
+        if (pad is not null)
+        {
+            pad.DpadLeftPressed += OnTogglePressed;
+            pad.DpadLeftHeld += OnModePressed;
+        }
         feed.TilesUpdated += tiles => { lock (_gate) { NoteBossRoom(tiles); Update(); } };
         feed.PlayerMoved += p => { lock (_gate) { _player = new PlayerInput(p.X, p.Y, p.Z); Update(); } };
     }
@@ -115,12 +125,36 @@ public sealed class ExplorationGuideBridge
             if (on)
             {
                 // A player who got lost switches the guide on to hear where it leads, objectives walked past included.
-                _rearmObjectives?.Invoke();
+                _rearmObjectives?.Invoke(false);
                 _announcedGoal = null;
                 _announcedDestination = null;
                 _announcedAllExplored = false;
                 _announcedRound = 0;
             }
+            Update();
+        }
+    }
+
+    // Objectives or exploring; switching it on says the mode. Endgame worlds only explore (their tuned order).
+    private void OnModePressed()
+    {
+        lock (_gate)
+        {
+            var strings = AppStrings.For(_language.Current);
+            if (!_switch.InDungeon)
+            {
+                if (!_routeActive()) _speech.Speak(strings.GuideDungeonsOnly, interrupt: true);
+                return;
+            }
+            _exploring = !_exploring || _switch.IsEndgame;
+            if (!_switch.IsOn) _switch.Toggle();
+            _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE mode {(_exploring ? "explore" : "objectives")}");
+            _speech.Speak(_exploring ? strings.GuideExploreMode : strings.GuideObjectivesMode, interrupt: true);
+            _announcedAllExplored = false;
+            _announcedRound = 0;
+            _announcedDestination = null;
+            _announcedGoal = _exploring ? ExploreGoal : null; // the mode said where it leads; back on objectives the goal is said again
+            if (!_exploring) _rearmObjectives?.Invoke(false);
             Update();
         }
     }
@@ -136,6 +170,7 @@ public sealed class ExplorationGuideBridge
         _inBossRoom = false;
         _arrivals = 0;
         _rearmedAtArrivals = -1;
+        _exploring = false;
         Mute();
     }
 
@@ -159,7 +194,7 @@ public sealed class ExplorationGuideBridge
 
         var destinations = _destinations();
         // Endgame runs keep their tuned order: explore, re-check the dead ends, then the portals.
-        var objectives = _switch.IsEndgame ? NoPoints : _objectives();
+        var objectives = _switch.IsEndgame || _exploring ? NoPoints : _objectives();
         // An unused portal in sight leads by its own beacon, unless an objective heard earlier still waits.
         if (_beaconActive() && objectives.Count == 0) { Mute(); return; }
 
@@ -242,10 +277,10 @@ public sealed class ExplorationGuideBridge
     // fell silent. Never in endgame worlds, whose tuned order ends with the portals.
     private bool RearmWhenAllExplored(GuideStep step)
     {
-        if (_rearmObjectives is null || _switch.IsEndgame || step.Arrivals <= _rearmedAtArrivals) return false;
+        if (_rearmObjectives is null || _switch.IsEndgame || _exploring || step.Arrivals <= _rearmedAtArrivals) return false;
         _rearmedAtArrivals = step.Arrivals;
         _log?.Invoke($"[{_clock.Elapsed.TotalSeconds,7:F1}s] GUIDE all explored: objectives and doors left undone lead again");
-        _rearmObjectives();
+        _rearmObjectives(true);
         return true;
     }
 

@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "오각별 안내.",
         PentagramEnd: "오각별 끝.",
         QuestMarker: "퀘스트 표시",
-        PlaceCountFormat: "{1}개 중 {0}번째.");
+        PlaceCountFormat: "{1}개 중 {0}번째.",
+        GuideExploreMode: "안내: 탐험.",
+        GuideObjectivesMode: "안내: 목표.");
 }

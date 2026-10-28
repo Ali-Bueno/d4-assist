@@ -3,8 +3,9 @@ using D4Assist.Navigation;
 namespace D4Assist.Game;
 
 /// <summary>
-/// The jump links of the loaded tiles, for the guide: each tile's jump points (Traversal_Gizmo_Jump, in any marker layer: the
-/// Philios mindscape's tiles keep them in "Game" and in "Traversals") paired with their mutual nearest within
+/// The jump links of the loaded tiles, for the guide: each tile's traversal points (Traversal_Gizmo_*, the one-way slide aside: a
+/// jump's two ends, a ladder's foot and top, a duck-under's two sides; in any marker layer: the Philios mindscape's tiles keep them
+/// in "Game" and in "Traversals") paired with their mutual nearest within
 /// <see cref="MaxPairUnits"/>. Known offline once a tile loads, before the game streams the points in (live 2026-10-18: one
 /// tile's floor in four islands joined by three pairs 4.9 units apart; the guide had aimed straight across the gaps).
 /// </summary>

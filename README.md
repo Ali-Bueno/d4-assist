@@ -67,6 +67,10 @@ Pit, and off in normal dungeons. It knows where your quest's objective is even w
 the map (a door or a lever at the other end of the dungeon), and if that's somewhere you haven't explored yet, it explores
 toward it. At an objective it plays three notes and goes quiet until you use it, so the object's own sound guides the last
 steps; step away and it points you back. If you walk well away from it without using it (say it needs a key), it moves on.
+A spot you only have to walk into (a story trigger) is different: once you've walked through it, it moves on as soon as you
+step out, and it never sends you back to one you already passed. If it still keeps leading somewhere you don't want to go,
+hold left on the D-pad for a second (or press Ctrl+Alt+Shift+E): it says "Guía: exploración." and leads only to unexplored
+places, ignoring objectives; hold it again for "Guía: objetivos.". Each new dungeon starts on objectives.
 In the big seasonal dungeons with side dungeons inside, it also leads to the side dungeons' entrances you haven't used yet,
 even before you've seen them.
 
@@ -123,7 +127,8 @@ General tab has the Diablo IV folder and a Browse button to choose another one.
 Ctrl+Alt+Shift plus a number from 1 to 8 plays each sound with its name, so you can learn them: exit, open floor, wall,
 door, unexplored exit, quest sound, guide ping and arrival.
 
-Left on the D-pad turns the guide on and off in dungeons (Xbox controllers, and PlayStation's DualSense or DualShock 4).
+Left on the D-pad turns the guide on and off in dungeons (Xbox controllers, and PlayStation's DualSense or DualShock 4);
+it acts when you let go of the button, and holding it for a second switches between objectives and exploring instead.
 Outside dungeons it leads to the nearest place your quest marks on the map and says the quest and how far; press it again
 for the next place, and after the last one it turns off. In the
 desert sandstorm quest it mutes and unmutes the ping that leads you from shelter to shelter. While a game menu is open the

@@ -468,7 +468,11 @@ near an edge costs more. Traversals join the floors they split: every two traver
   Pit vs other dungeons) for the rest of the run, and speaks "Guía activada." / "Guía desactivada.". Outside a dungeon
   it mutes and unmutes a leading quest route the same way, leads in the open world and the story areas to the quest
   places the map marks (see Quest places over a found path), and otherwise says "La guía solo funciona en mazmorras." (a
-  silent press read as a pad the app can't hear, tester 2026-10-16). Ignored while a game menu is open
+  silent press read as a pad the app can't hear, tester 2026-10-16). A press acts as the button comes back up; **held**
+  for 1 s (`Input/PressHold`) it switches the dungeon guide between the objectives and exploring instead ("Guía:
+  exploración." / "Guía: objetivos.", switching the guide on if off; exploring leads past every objective to unexplored
+  ground; each new world starts on the objectives; endgame worlds only explore; tester 2026-10-27, user's binding
+  2026-10-28; logs `Guide mode pressed.`, `--debug` `GUIDE mode explore|objectives`). Ignored while a game menu is open
   (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`),
   and while Diablo IV isn't the foreground window (another game, or the game closed: the pad is read globally);
   every press past that gate logs `Guide toggle pressed.`. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
@@ -483,6 +487,7 @@ near an edge costs more. Traversals join the floors they split: every two traver
   window is in front (checked every 250 ms) and freed for other programs otherwise (user, 2026-10-26: only C and Q work everywhere).
 - **Ctrl+Alt+Shift+G** (keyboard, while the game is in front) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
+- **Ctrl+Alt+Shift+E** (keyboard, while the game is in front) — holding D-pad left: the guide's mode, objectives or exploring.
 - **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
   the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
   it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),

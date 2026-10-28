@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "五芒星引导。",
         PentagramEnd: "五芒星结束。",
         QuestMarker: "任务标记",
-        PlaceCountFormat: "第{0}个，共{1}个。");
+        PlaceCountFormat: "第{0}个，共{1}个。",
+        GuideExploreMode: "向导：探索。",
+        GuideObjectivesMode: "向导：目标。");
 }

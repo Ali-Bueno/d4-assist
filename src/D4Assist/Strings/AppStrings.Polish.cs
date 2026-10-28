@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "Przewodnik po pentagramie.",
         PentagramEnd: "Koniec pentagramu.",
         QuestMarker: "Znacznik zadania",
-        PlaceCountFormat: "{0} z {1}.");
+        PlaceCountFormat: "{0} z {1}.",
+        GuideExploreMode: "Przewodnik: eksploracja.",
+        GuideObjectivesMode: "Przewodnik: cele.");
 }

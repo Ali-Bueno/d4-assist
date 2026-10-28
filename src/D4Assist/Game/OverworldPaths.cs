@@ -15,9 +15,12 @@ public readonly record struct TraversalPoint(Vector3 Local, bool Slide = false);
 /// <param name="chunks">The scene placements of a world by its CoreTOC name; empty for a world without a fixed grid.</param>
 /// <param name="surfaces">A scene's surface voxels, scene-local (SceneReader.SurfaceVoxels); null when it has none.</param>
 /// <param name="traversals">A scene's traversal ends, scene-local; null for none.</param>
+/// <param name="worldTraversals">The traversal ends a world's own marker layers place, by its CoreTOC name, in world space: the
+/// Darkened Way's jump to the wounded knight and its ladder down from the lift sit in <c>Frac_Underworld (…)</c> sets, in no
+/// scene (research/dungeon-data.md §4.1c); null for none.</param>
 public sealed class OverworldPaths(
     Func<string, IReadOnlyList<SceneChunkInfo>> chunks, Func<int, IReadOnlyList<Vector3>?> surfaces,
-    Func<int, IReadOnlyList<TraversalPoint>>? traversals = null)
+    Func<int, IReadOnlyList<TraversalPoint>>? traversals = null, Func<string, IReadOnlyList<TraversalPoint>>? worldTraversals = null)
 {
     /// <summary>The chunks searched reach this far beyond the box of start and target, room for a detour.</summary>
     public const float MarginUnits = 150f;
@@ -51,6 +54,9 @@ public sealed class OverworldPaths(
                 if (!_traversals.TryGetValue(chunk.SceneSno, out var points)) _traversals[chunk.SceneSno] = points = traversals(chunk.SceneSno);
                 foreach (var p in points) ends.Add((chunk.Position + Vector3.Transform(p.Local, chunk.Rotation), p.Slide));
             }
+        if (worldTraversals is not null)
+            foreach (var p in worldTraversals(worldName))
+                if (p.Local.X >= minX && p.Local.X <= maxX && p.Local.Y >= minY && p.Local.Y <= maxY) ends.Add((p.Local, p.Slide));
         return SurfacePathfinder.Find(voxels, start, to, from.Z, Links(ends));
     }
 

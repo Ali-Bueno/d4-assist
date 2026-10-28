@@ -533,4 +533,94 @@ public class ObjectiveMemoryTests
         memory.ObservePlaces([]); // the phase moved on
         Assert.Equal([(100.2f, 0f)], memory.Destinations().Select(d => d.Position)); // heard: done once silent near the player
     }
+
+    // Tester, 2026-10-27 (act 1 campaign dungeons): a trigger has the game's 4-unit radius (Trigger_Sphere_8m).
+    private static (FakeFeed Feed, ObjectiveMemory Memory) NewTriggerMemory()
+    {
+        var feed = new FakeFeed();
+        return (feed, new ObjectiveMemory(feed, NameOf, triggerRadius: sno => sno == TriggerSno ? 4f : null));
+    }
+
+    private static void Walk(FakeFeed feed, (float X, float Y) from, (float X, float Y) to)
+    {
+        for (float t = 0; t <= 1; t += 0.05f) feed.RaisePlayer(At(from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t));
+        feed.RaisePlayer(At(to.X, to.Y));
+    }
+
+    [Fact]
+    public void The_last_trigger_of_a_step_is_set_aside_once_walked_out_of()
+    {
+        // The Necropolis (live 2026-10-01, phase 154; tester 2026-10-27): the phase waits on a region farther on, and holding on
+        // the trigger pulled the player back to it from every room.
+        var (feed, memory) = NewTriggerMemory();
+        QuestPlace[] step = [new(TriggerSno, 0, 0)];
+        feed.RaisePlayer(At(-30, 0));
+        memory.ObservePlaces(step);
+        Walk(feed, (-30, 0), (0, 1)); // in it
+        memory.ObservePlaces(step);
+        Assert.Single(memory.Destinations()); // still the goal while the player stands in it
+
+        Walk(feed, (0, 1), (0, 7)); // out of 1.5 times its radius
+        memory.ObservePlaces(step);
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void A_trigger_named_on_ground_the_player_already_walked_never_leads()
+    {
+        // The Cradle (tester, 2026-10-27): the step names the centre of a holdout tunnel the dungeon repeats; only the first copy,
+        // walked through on the way to the gate, was placed, and the guide led back away from the gate just opened.
+        var (feed, memory) = NewTriggerMemory();
+        Walk(feed, (0, 16), (-24, 16)); // through the tunnel's centre at (-15.7, 16) to the gate
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -15.7f, 16)]);
+        Assert.Empty(memory.Destinations());
+
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -15.7f, 16), new QuestPlace(TriggerSno, -143.8f, 48)]); // the next copy
+        Assert.Equal((-143.8f, 48f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Rearm(walkedThrough: true); // nothing left to explore
+        Assert.Equal(2, memory.Destinations().Count);
+    }
+
+    [Fact]
+    public void A_trigger_named_where_the_player_stands_is_reached_as_usual()
+    {
+        var (feed, memory) = NewTriggerMemory();
+        Walk(feed, (-10, 0), (0, 0));
+        memory.ObservePlaces([new QuestPlace(TriggerSno, 1, 0)]);
+        Assert.Single(memory.Destinations());
+    }
+
+    [Fact]
+    public void A_tile_placed_trigger_the_player_walked_never_leads_and_the_next_copy_does()
+    {
+        // The Cradle (tester, 2026-10-27): the phase names DSH_Generic_Holdout_Trigger by SNO; every holdout tile places one, and
+        // the guide led back to the two holdouts already fought until the third tile loaded.
+        var (feed, memory) = NewTriggerMemory();
+        Walk(feed, (0, 0), (50, 0)); // the first holdout, at (10, 0)
+        Walk(feed, (50, 0), (100, 0)); // the second, at (90, 0)
+        QuestPlace[] holdouts = [new(TriggerSno, 10, 0, Ahead: true), new(TriggerSno, 90, 0, Ahead: true), new(TriggerSno, 200, 0, Ahead: true)];
+        memory.ObservePlaces(holdouts);
+        memory.ObserveNamed(new HashSet<int> { TriggerSno });
+
+        Assert.Equal((200f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_trigger_walked_through_waits_when_another_objective_is_done_and_when_the_guide_is_switched_on()
+    {
+        // The Necropolis (tester, 2026-10-27): each tumor broken led back to the central chamber's triggers.
+        var (feed, memory) = NewTriggerMemory();
+        QuestPlace[] step = [new(TriggerSno, 0, 0), new(TriggerSno, 0, 30)];
+        feed.RaisePlayer(At(-20, 0));
+        memory.ObservePlaces(step);
+        memory.Heard(Lever(40, 0, quest: true));
+        Walk(feed, (-20, 0), (40, 0)); // through the first trigger to the lever
+        memory.ObservePlaces(step);
+        memory.Gone(); // the lever used
+        Assert.Equal((0f, 30f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Rearm();
+        Assert.Equal((0f, 30f), Assert.Single(memory.Destinations()).Position);
+    }
 }

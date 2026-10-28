@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "Проводник по пентаграмме.",
         PentagramEnd: "Конец пентаграммы.",
         QuestMarker: "Отметка задания",
-        PlaceCountFormat: "{0} из {1}.");
+        PlaceCountFormat: "{0} из {1}.",
+        GuideExploreMode: "Проводник: исследование.",
+        GuideObjectivesMode: "Проводник: цели.");
 }

@@ -36,8 +36,6 @@ internal static class Program
     private const string WorldDefinitionType = "WorldDefinition";
     private const string MarkerSetType = "MarkerSetDefinition";
     private const string QuestDefinitionType = "QuestDefinition";
-    // The jump points a gap's two sides carry (Traversal_Gizmo_Jump; live 2026-10-18, Philios mindscape).
-    private const string JumpGizmoPrefix = "Traversal_Gizmo_Jump";
     // data/definitions.json, embedded by D4Assist.csproj when it existed at build time; the default DefinitionsPath.
     private const string EmbeddedDefinitions = "definitions.json";
     // Passed to the copy a restart starts, which then waits for this one to exit.
@@ -206,9 +204,12 @@ internal static class Program
         var navigation = new NavigationBridge(
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains,
             config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
-        // Jump points join floor the walk map splits (a gap to jump): the guide routes over them and leads to the jump point.
+        // Traversal points join floor the walk map splits (a gap to jump, a ladder, a gap to duck under): the guide routes over them
+        // and leads to the traversal point. Every kind but the one-way slide (jumps: live 2026-10-18, Philios mindscape; ladders and a
+        // duck-under: three of the Necropolis's five tumors stand on ground reached only by them, research/dungeon-objectives.md §12).
         var jumpScenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false);
-        var tileJumps = new TileActorReader(jumpScenes, sno => store.Name(sno)?.StartsWith(JumpGizmoPrefix, StringComparison.Ordinal) == true);
+        var tileJumps = new TileActorReader(jumpScenes, sno => store.Name(sno) is { } name
+            && name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) && name != TraversalSlideName);
         _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null);
 
         // One mixer and one output for the radar cues and the beacon loops.
@@ -330,7 +331,11 @@ internal static class Program
                     () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null),
                 hotkeys])
             : null;
-        if (pad is not null) pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide
+        if (pad is not null)
+        {
+            pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide
+            pad.DpadLeftHeld += () => Console.WriteLine("Guide mode pressed.");
+        }
         QuestRouteBridge? routeBridge = null;
         QuestPathBridge? pathBridge = null;
         var bossEntrances = new TileActorReader(markerScenes, sno => store.Name(sno) == BossRoomDestination.EntranceTriggerName);
@@ -341,7 +346,7 @@ internal static class Program
                 pad, config.ExplorationGuideInDungeons, language,
                 portals is null ? bossRoom.Destinations : () => [.. bossRoom.Destinations(), .. portals.Destinations()],
                 objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
-                objectives is null ? null : () => { objectives.Rearm(); portals!.Rearm(); lockedDoors.Rearm(); },
+                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
@@ -701,6 +706,10 @@ internal static class Program
             new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false),
             sno => store.Name(sno) is { } name && (name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) || name == TraversalExitName));
         var chunks = new Dictionary<string, IReadOnlyList<SceneChunkInfo>>();
+        // A world's own marker layers ("Frac_Underworld (QST_Frac_Underworld_02_JumpTraversal)") place traversals in world space.
+        var markers = new MarkerReader(store, schema);
+        int markerSets = schema.SnoGroup(MarkerSetType), actors = schema.SnoGroup(ActorDefinitionType);
+        var worldTraversals = new Dictionary<string, IReadOnlyList<TraversalPoint>>();
         return new OverworldPaths(
             worldName =>
             {
@@ -716,6 +725,18 @@ internal static class Program
             {
                 lock (cascGate)
                     return [.. traversals.In(scene).Select(t => new TraversalPoint(t.Local, store.Name(t.ActorSno) == TraversalSlideName))];
+            },
+            worldName =>
+            {
+                lock (cascGate)
+                {
+                    if (worldTraversals.TryGetValue(worldName, out var known)) return known;
+                    return worldTraversals[worldName] = [.. store.EntriesWithPrefix(markerSets, worldName + " (")
+                        .SelectMany(set => markers.ReadAll(set.Id))
+                        .Where(m => m.Group == actors && store.Name(m.Sno) is { } name
+                            && (name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) || name == TraversalExitName))
+                        .Select(m => new TraversalPoint(m.Position, store.Name(m.Sno) == TraversalSlideName))];
+                }
             });
     }
 

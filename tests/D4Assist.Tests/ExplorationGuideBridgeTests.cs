@@ -35,6 +35,8 @@ public class ExplorationGuideBridgeTests
     {
         public event Action? DpadLeftPressed;
         public void Press() => DpadLeftPressed?.Invoke();
+        public event Action? DpadLeftHeld;
+        public void Hold() => DpadLeftHeld?.Invoke();
     }
 
     private sealed class Rig
@@ -58,7 +60,7 @@ public class ExplorationGuideBridgeTests
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             _ = new ExplorationGuideBridge(
                 Feed, (_, _, _, objectives) => { AskedObjectives = objectives; return Step; }, Ping, Speech, () => BeaconActive, Log.Add, Pad,
-                guideInDungeons, objectives: () => Objectives, rearmObjectives: () => Rearms++, routeActive: () => RouteActive);
+                guideInDungeons, objectives: () => Objectives, rearmObjectives: _ => Rearms++, routeActive: () => RouteActive);
             Feed.RaiseWorld();
         }
 
@@ -538,5 +540,42 @@ public class ExplorationGuideBridgeTests
         rig.Step = new GuideStep(GuideStatus.Guiding, new GuideTarget(GuideTargetKind.Frontier, "a", (-10, 10)), (-10, 10), 50); // objective cut off
         rig.Feed.RaisePlayer();
         Assert.Equal((0, 0), rig.Hear());
+    }
+
+    [Fact]
+    public void Holding_d_pad_left_switches_between_the_objectives_and_exploring_and_a_new_world_starts_on_the_objectives()
+    {
+        // Tester, 2026-10-27: a campaign dungeon's objective kept leading back; "a way to toggle between moving you to objectives
+        // and moving you to unexplored areas".
+        var rig = new Rig { Objectives = [new("d", (-10, 10), ObjectiveMemory.QuestTier)] };
+        rig.Feed.RaiseWorld("DGN_Test");
+        rig.Feed.RaisePlayer();
+        Assert.Empty(rig.AskedObjectives ?? []); // off by default outside the endgame
+
+        rig.Pad.Hold();
+        Assert.Equal(AppStrings.Spanish.GuideExploreMode, rig.Speech.Spoken[^1].Text);
+        Assert.Empty(rig.AskedObjectives!); // on, past the objectives
+
+        rig.Pad.Hold();
+        Assert.Contains((AppStrings.Spanish.GuideObjectivesMode, true), rig.Speech.Spoken); // then where it leads
+        Assert.Single(rig.AskedObjectives!);
+        Assert.Equal(1, rig.Rearms); // back on the objectives, those walked away from lead again
+
+        rig.Pad.Hold();
+        rig.Feed.RaiseWorld("DGN_Next");
+        rig.Feed.RaisePlayer();
+        rig.Pad.Press(); // on again
+        Assert.Single(rig.AskedObjectives!);
+    }
+
+    [Fact]
+    public void Holding_d_pad_left_outside_a_dungeon_says_the_guide_works_in_dungeons_only()
+    {
+        var rig = new Rig();
+        rig.Feed.RaiseWorld("Sanctuary_Eastern_Continent", isDungeon: false);
+
+        rig.Pad.Hold();
+
+        Assert.Equal(AppStrings.Spanish.GuideDungeonsOnly, rig.Speech.Spoken[^1].Text);
     }
 }

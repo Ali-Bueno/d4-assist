@@ -22,6 +22,7 @@ public sealed class SonyHidPad : IGuideTogglePad, IDisposable
     private bool _disposed;
 
     public event Action? DpadLeftPressed;
+    public event Action? DpadLeftHeld;
 
     /// <param name="log">Connect, disconnect and open-failure lines (a few per session).</param>
     public SonyHidPad(Action<string> log) => _log = log;
@@ -80,13 +81,14 @@ public sealed class SonyHidPad : IGuideTogglePad, IDisposable
     private void ReadLoop(HidDeviceInfo device, SonyPadModel model, SafeFileHandle handle, int reportLength)
     {
         var report = new byte[reportLength];
-        bool held = false;
+        var button = new PressHold(); // the pad streams reports while held, so a hold reads on time
         int read;
         while ((read = HidDevices.Read(handle, report)) > 0)
         {
             if (SonyPadReport.IsDpadLeft(report.AsSpan(0, read), model, device.IsBluetooth) is not { } left) continue;
-            if (left && !held) DpadLeftPressed?.Invoke();
-            held = left;
+            var edge = button.Sample(left, Environment.TickCount64);
+            if (edge == PressHold.Edge.Pressed) DpadLeftPressed?.Invoke();
+            else if (edge == PressHold.Edge.Held) DpadLeftHeld?.Invoke();
         }
 
         lock (_gate)

@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "Pentagram rehberi.",
         PentagramEnd: "Pentagramın sonu.",
         QuestMarker: "Görev işareti",
-        PlaceCountFormat: "{1} içinden {0}.");
+        PlaceCountFormat: "{1} içinden {0}.",
+        GuideExploreMode: "Rehber: keşif.",
+        GuideObjectivesMode: "Rehber: hedefler.");
 }

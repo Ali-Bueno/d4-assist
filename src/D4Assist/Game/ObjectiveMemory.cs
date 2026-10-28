@@ -12,6 +12,9 @@ namespace D4Assist.Game;
 /// step's hidden callbacks; the shown one waits for a group of enemies), so the guide holds there (ExplorationGuideBridge).
 /// A step naming several places sets one aside once the player stood in it and walked on, while another is still to reach:
 /// six triggers named one step through a story dungeon (live 2026-10-17, CSD_Skov_Temis_SmugglersRun_02).
+/// A trigger (a place or a gizmo a tile places, with a trigger radius) is set aside once walked out of even when it is the last
+/// one, and one named on ground the player already walked never leads: the game fires it as the player walks in, so a phase
+/// that stays is waiting on something farther on (research/dungeon-objectives.md §27).
 /// </summary>
 public sealed class ObjectiveMemory
 {
@@ -63,6 +66,8 @@ public sealed class ObjectiveMemory
         public bool Reached { get; set; }
         /// <summary>How often the player walked away from it undone.</summary>
         public int TimesLeft { get; set; }
+        /// <summary>A trigger the player stood in, since it was named or before: only nothing left to explore leads to it again.</summary>
+        public bool WalkedThrough { get; set; }
         /// <summary>Known only from the tile that places it or the map that marks it; cleared once heard.</summary>
         public bool PlacedOnly { get; set; }
         /// <summary>The game's map marks it now.</summary>
@@ -95,6 +100,8 @@ public sealed class ObjectiveMemory
     private readonly List<Objective> _objectives = [];
     private readonly List<Objective> _places = [];
     private (float X, float Y)? _player;
+    // The 1-unit cells the player stood in, this world.
+    private readonly HashSet<(int X, int Y)> _trail = [];
 
     /// <param name="log">Debug sink for sightings, arrivals and completions; null when not debugging.</param>
     /// <param name="triggerRadius">A trigger actor's ground radius (ActorDefinitionInfo.TriggerRadius): a quest place that is a
@@ -125,7 +132,7 @@ public sealed class ObjectiveMemory
         _takesHeld = takesHeld ?? (_ => null);
         _locked = locked ?? ((_, _) => false);
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _escorts = []; _player = null; _namedSnos = new HashSet<int>(); } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _trail.Clear(); _escorts = []; _player = null; _namedSnos = new HashSet<int>(); } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
@@ -176,11 +183,13 @@ public sealed class ObjectiveMemory
                         { Quest = true, Z = place.Z };
                     _places.Add(objective);
                     Log("seen (quest place)", objective);
+                    SetAsideIfWalked(objective);
                 }
                 else if (!objective.Pending)
                 {
                     objective.Pending = true;
                     Log("named again", objective);
+                    SetAsideIfWalked(objective);
                 }
                 named.Add(objective);
             }
@@ -206,7 +215,7 @@ public sealed class ObjectiveMemory
                 objective.Reached = false;
                 objective.TimesLeft = 0;
                 objective.Quest = true;
-                Log("named by the quest", objective);
+                if (!SetAsideIfWalked(objective)) Log("named by the quest", objective); // a tile's trigger walked: still behind
             }
             _namedSnos = snos;
         }
@@ -228,6 +237,7 @@ public sealed class ObjectiveMemory
                     { Quest = true, PlacedOnly = true, Z = place.Z };
                 _objectives.Add(objective);
                 Log(place.Marked ? "seen ahead (map)" : "seen ahead", objective);
+                SetAsideIfWalked(objective);
             }
             objective.Marked = place.Marked || (named.Contains(objective) && objective.Marked);
             named.Add(objective);
@@ -301,16 +311,19 @@ public sealed class ObjectiveMemory
         actors.Any(a => a.ActorSno == objective.Sno && Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits);
 
     /// <summary>Lets the objectives the player walked away from lead again (the guide was just switched on by a lost player).</summary>
-    public void Rearm()
+    /// <param name="walkedThrough">Triggers the player walked through too: nothing is left to explore (ExplorationGuideBridge).</param>
+    public void Rearm(bool walkedThrough = false)
     {
-        lock (_gate) RearmReached(int.MaxValue);
+        lock (_gate) RearmReached(int.MaxValue, walkedThrough);
     }
 
     // Another objective done may have unlocked one set aside; one left undone MaxTimesLeft times waits for the guide's toggle
-    // (live 2026-10-16: the Light's Watch lectern drew the guide back four times, and the second guard was never found).
-    private void RearmReached(int belowTimesLeft)
+    // (live 2026-10-16: the Light's Watch lectern drew the guide back four times, and the second guard was never found). A
+    // trigger walked through waits for nothing left to explore: in the Necropolis each tumor broken led back to the chamber's
+    // triggers, and switching the guide on led back through the gate just opened (tester, 2026-10-27).
+    private void RearmReached(int belowTimesLeft, bool walkedThrough = false)
     {
-        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft))
+        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft && (walkedThrough || !o.WalkedThrough)))
         {
             objective.Reached = false;
             Log("re-armed", objective);
@@ -320,6 +333,7 @@ public sealed class ObjectiveMemory
     private void OnPlayer((float X, float Y) here)
     {
         _player = here;
+        _trail.Add(((int)MathF.Floor(here.X), (int)MathF.Floor(here.Y)));
         foreach (var objective in _objectives.Concat(_places).Where(o => o.Pending && !o.Reached))
         {
             float distance = Distance(objective.Position, here);
@@ -327,6 +341,7 @@ public sealed class ObjectiveMemory
             {
                 if (objective.AtIt) continue;
                 objective.AtIt = true;
+                objective.WalkedThrough |= UnheardTrigger(objective);
                 Log("reached", objective);
             }
             else if (objective.AtIt && distance > LeaveDistance(objective) && _bossFight)
@@ -341,13 +356,43 @@ public sealed class ObjectiveMemory
         }
     }
 
-    // Walking this far sets it aside. A quest place: just out of it while another place is still to reach (a trigger acts as it is
-    // entered, and the next one can lie closer than LeaveUnits), else never (its step may wait for enemies there).
+    // Walking this far sets it aside. A trigger: just out of it, as the game fired it on entering. Live 2026-10-01 (the
+    // Necropolis, phase 154) the trigger was a hidden callback and the shown step a region farther on; holding the guide on it
+    // until the phase moved on pulled the player back to it from every room (tester, 2026-10-27). Another quest place: just
+    // out of it while another place is still to reach, else never (talking or using it is the step).
     private float LeaveDistance(Objective objective) =>
-        !_places.Contains(objective) ? LeaveUnits
+        objective.WalkedThrough ? objective.Radius * PlaceLeaveFactor
+        : !_places.Contains(objective) ? LeaveUnits
         : _places.Any(o => o != objective && o.Pending && !o.Reached) ? objective.Radius * PlaceLeaveFactor : float.PositiveInfinity;
 
     private const float PlaceLeaveFactor = 1.5f;
+
+    // A trigger the quest names by place, or a tile places: it has no loop and no "used" state.
+    private bool UnheardTrigger(Objective objective) =>
+        _triggerRadius(objective.Sno) is not null && (objective.PlacedOnly || _places.Contains(objective));
+
+    // A trigger named on ground the player already walked is behind them: the copy in a scene the dungeon repeats that was
+    // passed (the Cradle's two holdout tunnels, tester 2026-10-27), the trigger of an event already fought. It waits like one
+    // walked through. One the player stands near now is reached as usual.
+    private bool SetAsideIfWalked(Objective objective)
+    {
+        if (!UnheardTrigger(objective) || _player is not { } here || Distance(objective.Position, here) <= objective.Radius * PlaceLeaveFactor) return false;
+        if (!objective.WalkedThrough && !Walked(objective)) return false;
+        if (!objective.WalkedThrough) Log("walked through earlier", objective);
+        objective.WalkedThrough = true;
+        objective.Reached = true;
+        return true;
+    }
+
+    private bool Walked(Objective objective)
+    {
+        float r = objective.Radius;
+        var (x, y) = objective.Position;
+        for (int cx = (int)MathF.Floor(x - r); cx <= (int)MathF.Floor(x + r); cx++)
+            for (int cy = (int)MathF.Floor(y - r); cy <= (int)MathF.Floor(y + r); cy++)
+                if (_trail.Contains((cx, cy)) && Distance((cx + 0.5f, cy + 0.5f), (x, y)) <= r) return true;
+        return false;
+    }
 
     // How close counts as there: inside a trigger, else within reach of the object's edge.
     private float Reach(int sno) => _triggerRadius(sno) ?? (_footprint(sno) ?? 0) + InteractUnits;

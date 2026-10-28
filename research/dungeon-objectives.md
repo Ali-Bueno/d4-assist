@@ -386,6 +386,13 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
 - **App rule** (`ObjectiveClassifier`, reason `destructible`): a hostile non-gizmo `*_Multistage` actor some quest names gets
   the quest loop; it falls silent once it has no ACD (destroyed). Live: two tumors looped (`reason=destructible`) and
   stopped as `gone` within seconds of being broken. Not yet heard: the other nine.
+- **Reachability (offline, 2026-10-28; tester: "the guide will lead you close to them but it won't get you all the way"):** all five
+  of the dungeon's tumors stand in `Ancients_Blood_FLEX_POI_CentralChamber_01` (756893, 96×64, placed at (0,0)): (18.5,5.9,8),
+  (15.7,55.7,8), (46.0,43.7,0), (82.5,20.9,0), (87.1,34.4,12). Only the third is on the main floor; two stand on platforms
+  reached by a ladder (`Traversal_Gizmo_FreeClimb_Up/_Down`) and one in a pocket behind a duck-under, islands of the walk map
+  joined only by those traversals, which the guide's links left out (jumps only): `TraceToPoint` found no path and the guide
+  pointed straight through the wall. Now every traversal kind but the one-way slide links (`JumpLinkCollector`); offline the
+  three get routes over the ladder or duck-under point. The map's third tumor point (15.7,23.7,8) is no marker of these scenes.
 
 ## 13. Barrier walls and the targets that open them (offline + live, 2026-10-01)
 
@@ -744,3 +751,37 @@ Tester log (0.1.17, not `--debug`): quest `1478570` (Nahantu, "The Hand Remember
 - **Census (M):** 6533 of 8266 shown callbacks name no actor. 1466 carry a conversation filter, ~1286 of them with a marker handle;
   speaker → actor by name is weak (speakers are `NPC_QST_Raheir`, actors `NPC_QST_Raheir_*`). 165 shown callbacks are
   `ev32 ActorGroup+Player`; 84 of their 182 gbids resolve through `MarkerReader.ActorGroupMarkers`.
+
+## 27. Act 1 campaign dungeons: triggers behind the player, and the guide's mode (tester logs + offline, 2026-10-27/28)
+
+Tester logs (0.1.18, not `--debug`, act 1 from the Old Mines to the Necropolis): in campaign dungeons the guide "gets you to an
+objective, but then you often have to move past where the mod thinks you should be", kept leading back through a gate just
+opened, and "fixated on one area ... did not move on when I arrived there". Endgame and seasonal dungeons were fine.
+
+- **The Cradle (`CSD_Frac_Underworld_AncientCity`, quest 486212; H):** the dungeon places `Ancients_Ruins_NS_POI_HoldoutTunnel_01`
+  **twice**: the petals door (5,16) of phase 362 matched barrier `demonic_01` at world (−26.7,16.0) and the holdout door (5,16) of
+  phase 366 matched `demonic_02` at (−154.8,48.0). Phase 326 (`Trigger_Sphere_8m` (16,16) in that scene + Neyrelle) started as
+  the first gate opened and moved on 10 min later, 9 s after the player reached the **second** copy (13:16:02 → 13:16:11): its
+  trigger is the next copy's centre. With one copy placed, `InWorld` put it at the first copy's centre, which the player had
+  walked through on the way to the gate (the guide pointed back away from the open gate); once the second copy loaded the
+  marker was dropped ("placed more than once says nothing") and the guide explored again ("works fine for a bit").
+- **Holdout triggers by SNO (H):** phase 140 names `DSH_Generic_Holdout_Trigger` (730852, trigger radius 7) "(any)": every holdout
+  tile places one, so the two holdouts already fought led back until the third tile loaded ("you have to travel for quite a ways
+  ... before the guide starts taking you forward again").
+- **Triggers have no "used" state (H):** every quest place of these dungeons is a trigger gizmo (type 44): `Trigger_Sphere_8m`
+  4 units, `_16m` 8, `BCD_Trigger_Sphere_8m` 4, `DRLG_Generic_Boss_Trigger_Sphere_20m` 10, `Quest_FracPeaks_GV_OldMines_Exit` /
+  `_Scene` 4. Held on until the phase moved on (the 2026-10-01 rule, phase 154, client-memory §4 "shown vs hidden callbacks":
+  that trigger was a hidden callback, the shown step a region farther on), the last one pulled the player back from every
+  room; set aside, it came back each time another objective was done (each Necropolis tumor) and at every guide toggle (46
+  presses in the logs).
+- **App rule (not live-tested):** `ObjectiveMemory` keeps the player's trail (1-unit cells, this world). A trigger named as a
+  place, or placed by a tile, is set aside once the player walks out of 1.5× its radius, last one or not; one named on ground
+  the trail already covers never leads; neither comes back when another objective is done or the guide is switched on, only
+  once nothing is left to explore. Places that need using (an NPC, a petal, a door) keep the earlier rule.
+- **The guide's mode (tester request, binding by the user 2026-10-28):** D-pad left held 1 s (or Ctrl+Alt+Shift+E) switches the
+  dungeon guide between the objectives and exploring past them; every new world starts on the objectives.
+- **Not explained (no `--debug` log):** the Old Mines' pull back after Neyrelle's door (phase 133 names the mine's exit
+  trigger in `Cave_Mine_E_Entrance_POI_OldMines_01`, a tile with no start location, and three `Quest_FracPeaks_GV_OldMines_Scene`
+  triggers in generic tiles), and the Horadric Vault's slowness to move on to the next point. Vhenard's boss cue in the Mourning
+  Shore stopped right after it started: she is a kill target silent while invulnerable (`SteadyInvulnerability`), likely
+  between the waves; to confirm with `LOOP stopped … invulnerable` in a `--debug` log.

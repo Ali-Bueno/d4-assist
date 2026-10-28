@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "五芒星ガイド。",
         PentagramEnd: "五芒星の終わり。",
         QuestMarker: "クエストマーカー",
-        PlaceCountFormat: "{1}件中{0}件目。");
+        PlaceCountFormat: "{1}件中{0}件目。",
+        GuideExploreMode: "ガイド：探索。",
+        GuideObjectivesMode: "ガイド：目標。");
 }

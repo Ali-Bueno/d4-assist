@@ -15,7 +15,8 @@ next to the game (controller + NVDA through D4's third-party screen-reader optio
   objects and people the current step of the tracked quest asks for (the stones to place, the NPC to talk to), and of
   other quests in progress the app can read.
 - **An exploration guide**: an automatic ping along the path to the nearest unexplored part (on by default in
-  the Undercity and the Pit, D-pad left toggles it, ignored while a game menu is open), with an arrival chime. With
+  the Undercity and the Pit, D-pad left toggles it and held switches it between objectives and exploring, ignored while a
+  game menu is open), with an arrival chime. With
   nothing left to explore it leads to a portal seen earlier, preferring one the player has not come through. In other
   dungeons it first leads back to a quest or dungeon objective heard earlier and not done, and switching it on says where it leads.
 - **Campaign routes** outside dungeons: the same ping leads point by point through known story stretches, such as

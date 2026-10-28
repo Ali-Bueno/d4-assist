@@ -144,6 +144,19 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   the statue to the escape (the game teleports the player) and the campfire (a 36-unit gap: its cinematic moves the
   player down).
 - Rising bridges (`SightlessEye_Rising_Bridge_01_Dyn`, door-like gizmos) did not split the surfaces of that walk.
+- **Traversals in a world's own marker sets** (offline, 2026-10-28, `Frac_Underworld` 439872, the Darkened Way): its floors split
+  in two at a 5-unit strip (−96…−91, 50), both sides at Z≈5: a jump whose ends (−96.3,50.2) and (−91.4,50.2) sit in the world set
+  `Frac_Underworld (QST_Frac_Underworld_02_JumpTraversal)`, not in a scene; a ladder (`Traversal_Gizmo_RungClimb_Down/_Up`,
+  (−25.2,56.9,21.9)/(−25.1,58.2,13.9)) in `Frac_Underworld (QST_Frac_Underworld_01_DownClimb)` joins the upper arrival ledge to
+  the plateau. Read from scenes only, 14 of 16 quest legs pathed and 2 of 7 from where the tester pressed D-pad left (it pointed
+  straight across the gap, "dropoffs"); with the world sets' traversals (world space, `<World> (` prefix, the naming of
+  `QuestScriptMarkerReader.FrameOf`) 16 of 16 and 7 of 7. Census: only `Frac_Underworld` and `X1R_Khazra_Hub_KeyRoom` have
+  traversals in world sets; a few open-world subzone sets hold some too (`Hawe_Bog` 8, `Kehj_Caldeum` 6), not read yet.
+- **A locked gate is floor** (same replay): `Ancients_Ruins_Blocker_Door` (−103.7,19.9), in `Frac_Underworld (ShortcutToLake_Gate)`,
+  is the only overland link from the upper ruins to the Mourning Shore and stood locked through quest 486210; the path leads
+  through it (blocked, 12 of 16 legs path: the real way is the Cradle dungeon, whose exit lands at (−78.5,−39.9)). Not handled.
+- **DRLG tiles** link every traversal kind but the slide too (`JumpLinkCollector`, 2026-10-28): the Necropolis's tumor platforms
+  (ladders) and pocket (duck-under), [dungeon-objectives](dungeon-objectives.md) §12.
 
 ### 4.2 Detail voxel grid layout (H, validated on 104 tiles)
 

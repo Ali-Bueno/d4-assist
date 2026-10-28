@@ -56,5 +56,7 @@ public sealed partial record AppStrings
         PentagramGuide: "Pentagramm-Führung.",
         PentagramEnd: "Ende des Pentagramms.",
         QuestMarker: "Questmarkierung",
-        PlaceCountFormat: "{0} von {1}.");
+        PlaceCountFormat: "{0} von {1}.",
+        GuideExploreMode: "Führung: Erkunden.",
+        GuideObjectivesMode: "Führung: Ziele.");
 }

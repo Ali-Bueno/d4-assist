@@ -162,9 +162,13 @@ public sealed class ObjectiveClassifier(
         info.GizmoType == Conventions.GizmoChargeable && namedByAnyQuest?.Invoke(actorSno) == true;
 
     private bool IsQuestDestructible(int actorSno, string? name, ActorDefinitionInfo info) =>
+        IsStructure(name, info) && namedByAnyQuest?.Invoke(actorSno) == true;
+
+    /// <summary>True for a structure broken by attacking it (a hostile <c>*_Multistage</c> monster-type actor): it never moves, so
+    /// the map's monster marker of one stands where it is.</summary>
+    public static bool IsStructure(string? name, ActorDefinitionInfo info) =>
         info.GizmoType < 0 && info.DefaultTeam == Conventions.HostileTeam
-        && name?.Contains(DestructibleToken, StringComparison.OrdinalIgnoreCase) == true
-        && namedByAnyQuest?.Invoke(actorSno) == true;
+        && name?.Contains(DestructibleToken, StringComparison.OrdinalIgnoreCase) == true;
 
     private static bool IsBossOrUnique(ActorDefinitionInfo info) => EnemyClassifier.ClassOf(info) is not null;
 

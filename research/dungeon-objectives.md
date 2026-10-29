@@ -788,7 +788,7 @@ opened, and "fixated on one area ... did not move on when I arrived there". Endg
 
 ## 28. Act 2: a step that needs an item from elsewhere, and markers of renamed scenes (tester report + offline, 2026-10-28)
 
-Tester report (no log; likely still 0.1.18): in the Weeping Cairns the guide "stayed locked" on the sealed door while a ward
+Tester report, then its logs (0.1.18, no `--debug`): in the Weeping Cairns the guide "stayed locked" on the sealed door while a ward
 stone had to be fetched from elsewhere; in the Eldhaime Barracks, past the dead knight, it "took me back to the dungeon
 entrance, then said the quest objective was below me", and only led to the climb down once the player headed back in.
 
@@ -820,6 +820,16 @@ entrance, then said the quest objective was below me", and only led to the climb
   space; else the scenes whose own layers carry that frame place it (each copy where its scene is placed once); a frame no
   scene carries is dropped. Real-data test: phase 162's marker lands in `TT_Protodun_Keep_to_CaveRoot_NS_01`. The one-pass
   scene scan adds about 30 ms to the quest index.
+- **Tester log (0.1.18, no `--debug`, 2026-10-28; H):** the Weeping Cairns' phase 184 began at 14:20:14 and at 14:20:16 the map
+  listed the altar as `MAP marker kind 10: ScosglenHU_Druid_Overgrown_Wardstone_Altar_Corner_2x2_01_Multistage (1046746) at
+  (−48.4,−40.8,−8.0)`; the phase moved on at 14:24:46. Kind 10 lists monsters (werewolves and goatmen in the same log), and a
+  structure to break is one that never moves, so its marker is its spot. **App rule (not live-tested):** a kind-10 marker of a
+  structure (`ObjectiveClassifier.IsStructure`: hostile, no gizmo, `_Multistage`) the phase names leads like a marked gizmo
+  (`OBJECTIVE seen ahead (map)`); walking monsters' markers stay out. With it the guide leads from the gate straight to the altar.
+- **Tester log, the Barracks (H):** phases ran 118 → 162 (16:25:16) → 121 (16:25:41) → 145 (16:29:40) → 124 → 98, not in array
+  order. Phase 121, the one past the climb down, hides marker 32 at (19.1,18.3,−9.9): read as world space it sat ten units
+  under the floor near the world's origin, which matches "took me back to the dungeon entrance, then said the quest objective
+  was below me"; it is the climb's foot in `TT_Protodun_Keep_to_CaveRoot_NS_01`. The guide was switched off and on at 16:28:06.
 - **Not explained:** "at the tomb … it did try and back track me again for a second": phases 228 and 265 name nothing (the
   guide explores). `QST_Scos_EldhaimeRuin_01` 532967 phase 169 is shown in the Barracks but names `Scos_Lowlands
   (Eldhaime_Keep_Ruins_Donan_POI)` markers in overworld coordinates (−1438,−527); a DRLG world places no subzone set, so

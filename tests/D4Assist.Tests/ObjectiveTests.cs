@@ -112,6 +112,17 @@ public class ObjectiveTests
     public void Classify_RejectsMonstersAndOrdinaryActors(int sno) =>
         Assert.Null(Classifier().Classify(sno, WorldADpo));
 
+    // The map lists a structure with the monsters (kind 10); one stays put, so its marker is its spot (the Weeping Cairns' altar,
+    // tester log 2026-10-28).
+    [Theory]
+    [InlineData(TumorSno, true)]
+    [InlineData(MummySno, true)]          // named by a quest or not: the reader asks about one the phase names
+    [InlineData(PlainMonsterSno, false)]  // walks
+    [InlineData(CloneGateSno, false)]
+    [InlineData(TumorPieceSno, false)]    // a gizmo: the map marks it as one
+    public void IsStructure_TellsBreakableStructuresFromMonsters(int sno, bool expected) =>
+        Assert.Equal(expected, ObjectiveClassifier.IsStructure(Actors[sno].Name, Actors[sno].Info));
+
     [Fact]
     public void Classify_DpoActorsCountOnlyInTheirOwnWorld()
     {

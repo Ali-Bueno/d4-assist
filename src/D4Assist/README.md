@@ -376,7 +376,8 @@ over until another objective is done (a key found may open a door visited earlie
 the player can't open yet is a wall for the guide and never its goal; once it or a barrier falls, the ground past it is explored
 before the ground left behind (Barriers in the radar and the guide).
 A gizmo the current phase names is a goal before it is heard: where a loaded tile places it (not triggers: the map marks the copy
-a phase means) or where the game's map marks it (research/dungeon-objectives.md §19-20). Near the player it is done once its actor
+a phase means) or where the game's map marks it (research/dungeon-objectives.md §19-20). So is a structure to break the phase
+names where the map marks it with the monsters (kind 10, `ObjectiveClassifier.IsStructure`; §28). Near the player it is done once its actor
 is silent (used); a tile's copy with no actor there was never spawned; one standing there that loops as something else (a door) or
 not at all waits for the phase to move on, as does any copy the map marks. An objective the live game placed in this world (heard,
 or on the map) but on ground not loaded or reachable yet draws exploring towards it: each unexplored target costs its route plus the

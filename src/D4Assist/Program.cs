@@ -194,7 +194,8 @@ internal static class Program
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
-                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner, questHistory),
+                scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner, questHistory,
+                sno => definitionOf(sno) is { } definition && ObjectiveClassifier.IsStructure(store.Name(sno), definition)),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
 

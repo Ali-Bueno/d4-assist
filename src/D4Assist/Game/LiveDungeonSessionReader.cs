@@ -49,6 +49,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly ReadHealth? _health;
     private readonly SwitchStateLog? _switches;
     private readonly Func<int, int?>? _questOwner;
+    private readonly Func<int, bool> _staysPut;
     private readonly SteadyInvulnerability _invulnerability = new();
     private readonly HashSet<(int ActorSno, uint Quest)> _offersLogged = [];
 
@@ -64,9 +65,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         ConversationAddresses? conversations, uint build, IReadOnlyList<MemoryRegion> moduleData, int worldSno,
         Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, SwitchStateLog? switches,
         Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner,
-        QuestPhaseHistory? questHistory)
+        QuestPhaseHistory? questHistory, Func<int, bool>? staysPut)
     {
         _questOwner = questOwner;
+        _staysPut = staysPut ?? (_ => false);
         _health = health;
         _switches = switches;
         _tileGizmos = tileGizmos;
@@ -106,7 +108,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         ConversationAddresses? conversations = null, Func<QuestSearchArea, IReadOnlyList<int>>? questsHere = null,
         ReadHealth? health = null, Func<int, bool>? isActorSno = null, SwitchStateLog? switches = null,
         Func<int, IReadOnlyList<TileActor>>? tileGizmos = null, MapMarkerTracker? mapMarkers = null, Func<int, int?>? questOwner = null,
-        QuestPhaseHistory? questHistory = null)
+        QuestPhaseHistory? questHistory = null, Func<int, bool>? staysPut = null)
     {
         ProcessReader process;
         using (var game = ProcessLocator.Find()) // InvalidOperationException when the game isn't running; caller decides how to react
@@ -118,7 +120,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         try
         {
             return OpenWith(process, installPath, candidates, playerActorSnos, worldSno, sceneSnos, menus, readsFlags, questMarkers,
-                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers, questOwner, questHistory);
+                conversations, questsHere, health, isActorSno, switches, tileGizmos, mapMarkers, questOwner, questHistory, staysPut);
         }
         catch
         {
@@ -133,7 +135,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         Func<int, IReadOnlyList<QuestPhaseObjects>>? questMarkers, ConversationAddresses? conversations,
         Func<QuestSearchArea, IReadOnlyList<int>>? questsHere, ReadHealth? health, Func<int, bool>? isActorSno,
         SwitchStateLog? switches, Func<int, IReadOnlyList<TileActor>>? tileGizmos, MapMarkerTracker? mapMarkers, Func<int, int?>? questOwner,
-        QuestPhaseHistory? questHistory)
+        QuestPhaseHistory? questHistory, Func<int, bool>? staysPut)
     {
         string exePath = Path.Combine(installPath, ExecutableFileName);
         // A store that keeps the exe outside the data root: identify the module by the running game's own file.
@@ -179,7 +181,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         return new LiveDungeonSessionReader(
             process, candidates, offsets, liveModule, found.PositionAddress, menus, readsFlags ?? (_ => false), found.ActorSno, questMarkers,
             conversations, build, ModuleLocator.WritableRegionsAt(regions, liveModule.Base), worldSno, questsHere, health, switches, tileGizmos, mapMarkers,
-            questOwner, questHistory);
+            questOwner, questHistory, staysPut);
     }
 
     // The game maps its image more than once (research/client-memory.md §6), and the copy that holds the game object pointer
@@ -491,8 +493,12 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     // The gizmos and triggers the map marks, wherever they are: those the current phases name are quest places even out of reach
     // (the server places some, the Labyrinth's lair door, and the game only streams actors in about 25 units around the player);
     // a quest gizmo marked is open to the player (ActorFilter).
-    private static List<(int Sno, Vector3 Position)> MarkedGizmos(IReadOnlyList<MapMarker> markers) =>
-        [.. markers.Where(m => m.Kind == MapMarkerReader.KindGizmo).Select(m => (m.ActorSno, m.Position))];
+    // The markers of actors that stay where they are: gizmos and triggers, and the structures a quest has the player break, which
+    // the map lists with the monsters. The Weeping Cairns' ward-stone altar was marked from the moment its step began, and the
+    // guide, which knew only gizmos there, kept the player at the sealed gate (tester log 0.1.18, 2026-10-28).
+    private List<(int Sno, Vector3 Position)> MarkedGizmos(IReadOnlyList<MapMarker> markers) =>
+        [.. markers.Where(m => m.Kind == MapMarkerReader.KindGizmo || (m.Kind == MapMarkerReader.KindBoss && _staysPut(m.ActorSno)))
+            .Select(m => (m.ActorSno, m.Position))];
 
     // The gizmos the current phases name by SNO alone, wherever the loaded tiles place them.
     private List<(int Sno, Vector3 Position)> PlacedByTiles(IReadOnlySet<int> snos)

@@ -21,10 +21,14 @@ public sealed class UpdateService(
 
     private readonly ForegroundGate _gate = new(isGameForeground, ForegroundPollInterval);
     private readonly string _statePath = Path.Combine(appFolder, UpdateState.FileName);
+    private readonly TaskCompletionSource _appStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _busy;
 
     /// <summary>The check at start: silent unless a newer version exists.</summary>
     public void CheckAtStart() => Start(manual: false);
+
+    /// <summary>Called once the app has finished starting: an update accepted before then replaces the files only now.</summary>
+    public void AppStarted() => _appStarted.TrySetResult();
 
     /// <summary>The tray menu's check: also tells when there is nothing new or the check failed.</summary>
     public void CheckNow() => Start(manual: true);
@@ -121,6 +125,10 @@ public sealed class UpdateService(
         try
         {
             var files = await UpdatePackage.PrepareAsync(release, client, SpeakProgress());
+            // The single-file exe loads each assembly from its own path on first use: a new exe there mid-start breaks the loads still
+            // to come (tester log 2026-10-28: the tray's System.Drawing.Common not found, the app ended before restarting).
+            if (!_appStarted.Task.IsCompleted) log("Update downloaded; it is installed once the app has finished starting.");
+            await _appStarted.Task;
             var report = FileReplacement.Apply(appFolder, files, exeName, UpdatePackage.BackupPath(release.Version));
             log($"Updated to {release.Version.ToString(3)}: copied {string.Join(", ", report.Copied)}; kept {string.Join(", ", report.Kept)}.");
         }

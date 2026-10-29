@@ -438,6 +438,7 @@ internal static class Program
         tray.RestartRequested += () => { restart = true; exit.Set(); };
         tray.CheckUpdatesRequested += updates.CheckNow;
         tray.Start();
+        updates.AppStarted();
 
         Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings, Ctrl+Alt+Shift+Q exits.");
         exit.Wait();

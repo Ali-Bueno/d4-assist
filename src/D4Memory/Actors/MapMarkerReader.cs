@@ -8,7 +8,8 @@ namespace D4Memory.Actors;
 
 /// <summary>One entry of the client's map-marker list: an actor the map can show, streamed in or not.</summary>
 /// <param name="Kind">1 the player, 2 a follower or pet, 8 an NPC, 10 a boss, 11 a gizmo or trigger (<see cref="MapMarkerReader.KindGizmo"/>).</param>
-public readonly record struct MapMarker(int ActorSno, Vector3 Position, int LevelAreaSno, int Kind);
+/// <param name="Flags">The node's flags at +0x54 (0x80: pinned on the map; the rest not known yet).</param>
+public readonly record struct MapMarker(int ActorSno, Vector3 Position, int LevelAreaSno, int Kind, uint Flags = 0);
 
 /// <summary>
 /// Finds and reads the client's map-marker list: a doubly-linked list of 0xA0-byte pool nodes whose head sits in the heap
@@ -31,7 +32,7 @@ public static class MapMarkerReader
     // Node: next, prev, then the fields below; every node of the list carries the same u32 twice (+0x10, +0x18: 19, then 21
     // after the list was rebuilt).
     private const int PrevOffset = 8, GenerationOffset = 0x10, GenerationCopyOffset = 0x18, SnoOffset = 0x1C, PositionOffset = 0x20,
-        LevelAreaOffset = 0x38, KindOffset = 0x50;
+        LevelAreaOffset = 0x38, KindOffset = 0x50, FlagsOffset = 0x54;
 
     private const long MinPointer = 0x10000, MaxPointer = 0x7FF000000000;
     private static readonly int ScanThreads = Math.Max(1, Environment.ProcessorCount / 2);
@@ -93,7 +94,8 @@ public static class MapMarkerReader
                 new Vector3(BinaryPrimitives.ReadSingleLittleEndian(span[PositionOffset..]), BinaryPrimitives.ReadSingleLittleEndian(span[(PositionOffset + 4)..]),
                     BinaryPrimitives.ReadSingleLittleEndian(span[(PositionOffset + 8)..])),
                 BinaryPrimitives.ReadInt32LittleEndian(span[LevelAreaOffset..]),
-                BinaryPrimitives.ReadInt32LittleEndian(span[KindOffset..])));
+                BinaryPrimitives.ReadInt32LittleEndian(span[KindOffset..]),
+                BinaryPrimitives.ReadUInt32LittleEndian(span[FlagsOffset..])));
             at = BinaryPrimitives.ReadInt64LittleEndian(span);
         }
         return markers.Count == (int)count ? markers : null;

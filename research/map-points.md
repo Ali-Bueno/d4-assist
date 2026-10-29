@@ -104,6 +104,25 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   World bosses are quests `WE_WorldBoss_<name>` (Ashava 366701). Not pursued: the game's own world-boss announcement names
   several places (user, 2026-10-25).
 
+## 4a. Treasure goblins on the map (game data, build 3.2.3, 2026-10-29)
+
+- **Who (H):** the monsters of the family `Treasure_Goblin` (24 actors: `treasure_goblin` "Schatzgoblin", the named ones
+  `treasure_goblin_gold` "Goldener Baron", `_obols` "Murl der Neugierige", `_gelatinous`, `_socketable`, `_resplendent`,
+  `_crafting`, the Infernal Hordes' `BSK_treasure_goblin*` "Äthergoblin", the Undercity's `X1_Undercity_Treasure_Goblin` and
+  the expansion's `X2_EA_*` "Portal-Streichbold", seasonal ones). All team 19; none sets a monster rarity.
+- **The map (H):** every goblin has a map icon (`ActorUIData.hMinimapIcon`, 2609695548; the Undercity's 889161053). Most
+  respect the fog of war and the reveal radius around the player (`fMinimapRespectsFoW`, `fMinimapRespectsRevealRadius`):
+  shown only near the player. `X1_Undercity_Treasure_Goblin`, `X2_EA_Treasure_Goblin` and `X2_EA_Portal_Goblin*` are active by
+  default with `flMinimapMaxVisRange` / `flMinimapDiscoveryRadius` 2048: shown from anywhere. Ordinary monsters
+  (`cultist_melee_female_phys`) have no icon; the Blood Maiden has her own.
+- **Subo (H, text; M, mechanism):** the bounty hunter's passive "Seeker" (`NPC_Mercenary_BountyHunter_Perk`) "reveals all
+  enemies and materials in the area" through a buff (a script formula of 85, likely its radius): with him the map shows
+  ordinary monsters too (marker kind 10). Goblins need no Subo.
+- **Open (L):** whether a reveal-radius goblin enters the client's map-marker list (dungeon-objectives.md §19) only once
+  the map shows it, and whether a node flag (+0x54) tells it. The app counts such a goblin as shown while it is marked and
+  its actor is streamed in nearby (`GoblinWatch`); `--debug` GOBLIN lines record marker, flags, distance and streaming to
+  check that live, with and without Subo.
+
 ## 5. Open questions
 
 - Which of these the live map actually shows, and how it marks locked waypoints (unlocked ones: `PlayerSavedData.

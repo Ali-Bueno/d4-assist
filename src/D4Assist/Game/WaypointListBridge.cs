@@ -39,13 +39,16 @@ namespace D4Assist.Game;
 /// <param name="helltideEndsEarly">A base-game helltide ends five minutes before the hour (game builds before 3.3.0).</param>
 /// <param name="bountiesOf">The helltide's bounties up in a region, by name and spot ("Tötet die Blutjungfrau", HelltideBountyCatalog):
 /// the map marks them from anywhere, so they list before the area is entered.</param>
+/// <param name="goblinPlace">A map marker as a treasure goblin the map shows the player now (GoblinWatch: name, level area, area),
+/// null for any other marker; null for no goblin list (Shift+F3, user request 2026-10-29).</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
     IGameMouse mouse, Func<bool> isGameForeground, Action<string>? log = null, Func<Waypoint, string?>? regionOf = null,
     Func<MarkedActor, HelltidePlace?>? helltidePlace = null, Func<IReadOnlyList<HelltideRegion>?>? readHelltides = null,
     Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null, bool helltideEndsEarly = false,
-    Func<HelltideRegion, IReadOnlyList<(string Name, double X, double Y)>>? bountiesOf = null)
+    Func<HelltideRegion, IReadOnlyList<(string Name, double X, double Y)>>? bountiesOf = null,
+    Func<MarkedActor, HelltidePlace?>? goblinPlace = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
@@ -57,8 +60,9 @@ public sealed class WaypointListBridge(
     private IReadOnlyList<HelltideRegion> _regions = [];
     private int _regionIndex;
 
-    // What the open list holds: waypoints (Shift+F1), the active helltides or one helltide's objects (Shift+F2).
-    private enum Mode { Waypoints, Regions, Objects }
+    // What the open list holds: waypoints (Shift+F1), the active helltides or one helltide's objects (Shift+F2), the treasure
+    // goblins the map shows (Shift+F3).
+    private enum Mode { Waypoints, Regions, Objects, Goblins }
 
     // Zoomed farther out than this the map shows the helltide's objects as no icon the cursor can point at (live 2026-10-25:
     // gifts said at zoom 1100, not at 1934 or 3046; the steps between are 1100 and 1934).
@@ -72,6 +76,7 @@ public sealed class WaypointListBridge(
     {
         keys.OpenPressed += Open;
         if (helltidePlace is not null) keys.OpenHelltidePressed += OpenHelltide;
+        if (goblinPlace is not null) keys.OpenGoblinsPressed += OpenGoblins;
         keys.UpPressed += () => Move(_list.Previous, -1);
         keys.DownPressed += () => Move(_list.Next, 1);
         keys.EnterPressed += Choose;
@@ -166,6 +171,41 @@ public sealed class WaypointListBridge(
         }
     }
 
+    // The treasure goblins the map shows, nearest first, each with the level area it runs in.
+    private void OpenGoblins()
+    {
+        lock (_gate)
+        {
+            if (!_mapOpen || goblinPlace is null) return;
+            CloseLocked(spoken: false);
+            var text = GoblinStrings.For(language.Current);
+            var goblins = Goblins();
+            log?.Invoke($"GOBLINS {goblins.Count} shown among {_markers.Count} map markers");
+            if (goblins.Count == 0)
+            {
+                speech.Output(text.NoneOnMap, interrupt: true);
+                return;
+            }
+            var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
+            _list.Open(WaypointList.Build(goblins.Select(g => (g.Place.Name, g.Place.Region ?? g.Place.Area, (double)g.Marker.X, (double)g.Marker.Y)),
+                fromX, fromY));
+            _mode = Mode.Goblins;
+            keys.SetListKeys(true);
+            speech.Output($"{string.Format(text.OpenedFormat, _list.Count)} {EntryText()}", interrupt: true);
+        }
+    }
+
+    private List<(MarkedActor Marker, HelltidePlace Place)> Goblins() =>
+        [.. _markers.Select(m => (Marker: m, Place: goblinPlace!(m))).Where(g => g.Place is not null).Select(g => (g.Marker, g.Place!))];
+
+    // A goblin runs: Enter takes its spot from the latest markers, the one of its name nearest to where the list had it.
+    private WaypointEntry Fresh(WaypointEntry entry)
+    {
+        var now = Goblins().Where(g => g.Place.Name == entry.Name)
+            .OrderBy(g => Math.Pow(g.Marker.X - entry.X, 2) + Math.Pow(g.Marker.Y - entry.Y, 2)).FirstOrDefault();
+        return now.Place is null ? entry : entry with { X = now.Marker.X, Y = now.Marker.Y };
+    }
+
     // The objects the map marks of the helltide in region (null: of any), nearest first; false when it marks none.
     private bool OpenObjectsLocked(HelltideRegion? region)
     {
@@ -232,12 +272,14 @@ public sealed class WaypointListBridge(
                 return;
             }
             if (_list.Current is not { } entry) return;
+            if (_mode == Mode.Goblins) entry = Fresh(entry);
             if (readMapView() is not { } view || mouse.ClientSize() is not { } size)
             {
                 speech.Output(Text.MapUnreadable, interrupt: true);
                 return;
             }
-            bool helltide = _mode == Mode.Objects;
+            // Helltide objects and goblins are small icons the cursor can point at only zoomed in.
+            bool helltide = _mode is Mode.Objects or Mode.Goblins;
             if (helltide && view.Zoom > HelltideMaxZoom)
             {
                 log?.Invoke($"WAYPOINT {entry.Name}: zoom {view.Zoom:F0} too far out for the helltide's icons");

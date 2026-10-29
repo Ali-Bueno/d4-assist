@@ -21,18 +21,29 @@ namespace D4Data.Readers;
 /// <param name="PropHalfExtents">A breakable prop's or structure's box: its collision box, else its appearance box (single props carry
 /// only a default collision cylinder: MageHalls_Prop_Furniture_Table_Medium_01_Dyn's appearance is 1.2 x 2.2 units); zero for other
 /// actors. A structure is a hostile non-gizmo actor named *_Multistage (Conventions.StructureNameToken).</param>
+/// <param name="Minimap">How the map shows the actor (ActorUIData); null when it has no UI data.</param>
 public readonly record struct ActorDefinitionInfo(
     int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default,
     int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1, IReadOnlyList<int>? AcceptedCarryables = null,
     float? TriggerRadius = null, int MonsterRarity = Conventions.MonsterRarityNone, bool MultiUseSwitch = false,
-    Vector3 PropCenter = default, Vector3 PropHalfExtents = default);
+    Vector3 PropCenter = default, Vector3 PropHalfExtents = default,
+    MinimapInfo? Minimap = null);
+
+/// <summary>How the map shows an actor (ActorUIData). A treasure goblin has its own icon that respects the fog of war and the
+/// reveal radius around the player; the Undercity's and an expansion event's goblins show from anywhere (active by default,
+/// 2048 units); ordinary monsters have no icon (game data, build 3.2.3).</summary>
+/// <param name="Icon">hMinimapIcon, 0 for none.</param>
+/// <param name="ActiveByDefault">fMinimapActiveByDefault: shown without being discovered first.</param>
+/// <param name="RespectsRevealRadius">fMinimapRespectsRevealRadius: shown only within the reveal radius around the player.</param>
+/// <param name="MaxVisRange">flMinimapMaxVisRange, 0 when unset.</param>
+public readonly record struct MinimapInfo(uint Icon, bool ActiveByDefault, bool RespectsRevealRadius, float MaxVisRange);
 
 /// <summary>Reads (and caches per SNO) <see cref="ActorDefinitionInfo"/> from ActorDefinition meta records.</summary>
 public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
 {
     private const string ActorDefinition = "ActorDefinition";
     private const string Aabb = "AABB";
-    private const string MonsterData = "ActorMonsterData";
+    private const string MonsterData = "ActorMonsterData", UiData = "ActorUIData";
     private const string ReceptacleData = "CarryableReceptacleGizmoData", SwitchData = "SwitchGizmoData";
     private const string TriggerGizmo = "TriggerGizmoData", Trigger = "TriggerData", TriggerProximity = "TriggerProximityData";
     private const string ShapeBase = "ProximityDataBase", Sphere = "SphereProximityData", Capsule = "CapsuleProximityData", Box = "BoxProximityData";
@@ -60,6 +71,13 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
                 IsNpc = meta!.I32(monster + schema.Offset(MonsterData, "fIsNPC")) != 0,
                 MonsterFamilySno = meta.I32(monster + schema.Offset(MonsterData, "snoMonsterFamily")),
                 MonsterRarity = meta.I32(monster + schema.Offset(MonsterData, "eOverriddenMonsterRarity")),
+            };
+        if (info is { } shown && UiDataOffset(meta!) is { } ui)
+            info = shown with
+            {
+                Minimap = new MinimapInfo(
+                    meta!.U32(ui + schema.Offset(UiData, "hMinimapIcon")), meta.I32(ui + schema.Offset(UiData, "fMinimapActiveByDefault")) != 0,
+                    meta.I32(ui + schema.Offset(UiData, "fMinimapRespectsRevealRadius")) != 0, meta.F32(ui + schema.Offset(UiData, "flMinimapMaxVisRange"))),
             };
         if (info is { GizmoType: Conventions.GizmoCarryableReceptacle } receptacle)
             info = receptacle with { AcceptedCarryables = AcceptedCarryables(meta!) };
@@ -128,6 +146,13 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
     {
         int typeOffset = shape + schema.Offset(ShapeBase, "dwType");
         return typeOffset + sizeof(uint) <= meta.Length ? schema.TypeName(meta.U32(typeOffset)) : null;
+    }
+
+    // Where the actor's ActorUIData block starts in its record, or null when it has none.
+    private int? UiDataOffset(SnoBlob meta)
+    {
+        var (data, size) = meta.ArrayDescriptor(schema.Offset(ActorDefinition, "ptUIData"));
+        return data > 0 && size >= schema.Size(UiData) && data + schema.Size(UiData) <= meta.Length ? data : null;
     }
 
     // Where the actor's ActorMonsterData block starts in its record, or null when it has none.

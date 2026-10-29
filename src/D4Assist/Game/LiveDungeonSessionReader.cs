@@ -508,7 +508,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlyList<MarkedActor>? ReadMapMarkers() =>
         _offsets is { } offsets && _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is { } markers
-            ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind))]
+            ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind, m.Flags))]
             : null;
 
     public IReadOnlySet<int>? ReadQuestActorSnos() => _activeQuests is null ? null : _questActorSnos;

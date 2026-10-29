@@ -285,7 +285,12 @@ internal static class Program
         session.WorldChanged += (_, _, _) => markerLog.Reset();
         using var enemyCue = new EnemyCuePlayer(mixer);
         var carried = new CarryGoals(new ObjectiveClassifier(definitionOf, store.Name));
-        var enemyClasses = new EnemyClassifier(definitionOf);
+        var enemyClasses = new EnemyClassifier(definitionOf, store.Name);
+        // Treasure goblins: the elite's cue (EnemyClassifier), and which of them the map shows for the Shift+F3 list.
+        var goblins = new GoblinWatch(definitionOf, store.Name, debug ? Console.WriteLine : null);
+        session.PlayerMoved += goblins.OnPlayerMoved;
+        session.ActorsUpdated += goblins.OnActors;
+        session.MapMarkersRead += goblins.OnMarkers;
         double telegraphGain = 1;
         _ = new EnemyCueBridge(session, enemyCue, enemyClasses.Of, store.Name, debug ? Console.WriteLine : null,
             actors => actors.Any(carried.IsHeld) ? [.. actors.Select(a => carried.IsBossToBind(a) ? a with { Invulnerable = false } : a)] : actors);
@@ -458,6 +463,10 @@ internal static class Program
         {
             var zones = new ZoneCatalog(store, schema);
             var bounties = new HelltideBountyCatalog(store, schema);
+            HelltidePlace MarkerPlaceOfLocked(MarkedActor m)
+            {
+                lock (cascGate) return MarkerPlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current));
+            }
             // The game's text bundle (60,000 tables) loads on the first name, the regions on the first one asked (every subzone read):
             // both now, not on the first Shift+F1.
             if (allWaypoints.Count > 0)
@@ -477,6 +486,7 @@ internal static class Program
                     return states is null ? null : ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides(store.BuildVersion));
                 },
                 region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }),
+                goblinPlace: m => goblins.IsShown(m) ? MarkerPlaceOfLocked(m) : null,
                 helltideEndsEarly: ActiveHelltides.BaseEndsEarly(store.BuildVersion),
                 bountiesOf: region =>
                 {
@@ -495,7 +505,7 @@ internal static class Program
             session.MenusRead += waypointList.OnMenus;
             waypointList.Start();
             mapKeys.Start();
-            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the helltide.");
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the helltide, Shift+F3 the treasure goblins.");
         }
 
         session.WorldChanged += (sno, name, isDungeon) =>
@@ -759,10 +769,13 @@ internal static class Program
     private static string HelltideRegionName(HelltideRegion region, IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string?> zoneOf) =>
         waypoints.FirstOrDefault(w => w.LevelAreaName == HelltideRegionTowns[region]) is { } town && zoneOf(town) is { } name ? name : region.ToString();
 
-    private static HelltidePlace? HelltidePlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale)
+    private static HelltidePlace? HelltidePlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale) =>
+        HelltideObjects.Is(marker.Kind, store.Name(marker.ActorSno)) ? MarkerPlaceOf(marker, store, zones, locale) : null;
+
+    // A map marker's name in the game's words, its level area, and its territory and zone ("Auen von Fethis, Hawezar").
+    private static HelltidePlace MarkerPlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale)
     {
         string? actor = store.Name(marker.ActorSno);
-        if (!HelltideObjects.Is(marker.Kind, actor)) return null;
         // A monster's Name carries a grammar tag ("[ms]Gefallener Altar").
         string name = StripGrammarTag(store.Text(locale, "Actor_" + actor, "UIName")
             ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0]) ?? actor!;

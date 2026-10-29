@@ -361,10 +361,78 @@ public class WaypointListBridgeTests
         Assert.False(keys.OpenKey);
     }
 
+    // Treasure goblins the map shows (GoblinWatch decides which; here every goblin marker counts as shown).
+    private const int Goblin = 384484, GoldGoblin = 2170341;
+
+    private static HelltidePlace? GoblinPlace(MarkedActor marker) => marker.ActorSno switch
+    {
+        Goblin => new HelltidePlace("Treasure Goblin", "Lichtschwund", "Auen von Fethis, Hawezar"),
+        GoldGoblin => new HelltidePlace("Gilded Goblin", null, "Auen von Fethis, Hawezar"),
+        _ => null,
+    };
+
+    [Fact]
+    public void Shift_F3_lists_the_treasure_goblins_the_map_shows_nearest_first_with_where_they_run()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1100f), goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([
+            new MarkedActor(Cultist, 690, -410, 0, 1, 10),
+            new MarkedActor(GoldGoblin, 681.64f, -450, 0, 1, 10),
+            new MarkedActor(Goblin, 700, -410, 0, 1, 10),
+        ]);
+
+        keys.OpenGoblins();
+
+        Assert.StartsWith("Treasure goblins on the map: 2. Treasure Goblin, Lichtschwund, 18 meters", speech.Last);
+        Assert.True(speech.Brailled);
+        keys.Down();
+        Assert.StartsWith("Gilded Goblin, Auen von Fethis, Hawezar, 40 meters", speech.Last);
+    }
+
+    [Fact]
+    public void Without_a_goblin_on_the_map_Shift_F3_says_so_and_opens_nothing()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([new MarkedActor(Cultist, 690, -410, 0, 1, 10)]);
+
+        keys.OpenGoblins();
+
+        Assert.Equal("No treasure goblin on the map.", speech.Last);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Enter_points_at_where_the_goblin_runs_now()
+    {
+        var view = new MapView(681.64f, -410.26f, 1100f);
+        var (bridge, keys, speech, mouse) = Create([GeaKul], view: view, goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([new MarkedActor(Goblin, 700, -410, 0, 1, 10)]);
+        keys.OpenGoblins();
+
+        bridge.OnMapMarkers([new MarkedActor(Goblin, 710, -400, 0, 1, 10)]); // it ran on
+
+        keys.Enter();
+        Assert.Equal(MapProjection.ToClient(view, 710, -400, 1920, 1080), mouse.Moved);
+        Assert.StartsWith("Cursor on Treasure Goblin", speech.Last);
+    }
+
+    [Fact]
+    public void Shift_F3_works_only_while_the_map_shows()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([new MarkedActor(Goblin, 700, -410, 0, 1, 10)]);
+        bridge.OnMenus([MenuScreens.MainMenu]);
+
+        keys.OpenGoblins();
+
+        Assert.Null(speech.Last);
+    }
+
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
         int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
         Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
-        Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null)
+        Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null,
+        Func<MarkedActor, HelltidePlace?>? goblinPlace = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
@@ -373,7 +441,7 @@ public class WaypointListBridgeTests
             Catalog, w => w.LevelAreaName, _ => activated, readView ?? (() => view ?? FarOut), () => world, speech,
             new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
             helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { },
-            bountiesOf: _ => bounties ?? []);
+            bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
@@ -387,6 +455,7 @@ public class WaypointListBridgeTests
         public void SetListKeys(bool active) => ListKeys = active;
         public event Action? OpenPressed;
         public event Action? OpenHelltidePressed;
+        public event Action? OpenGoblinsPressed;
         public event Action? UpPressed;
         public event Action? DownPressed;
         public event Action? EnterPressed;
@@ -395,6 +464,7 @@ public class WaypointListBridgeTests
         // A key reaches the app only while it is registered, as with RegisterHotKey.
         public void Open() { if (OpenKey) OpenPressed?.Invoke(); }
         public void OpenHelltide() { if (OpenKey) OpenHelltidePressed?.Invoke(); }
+        public void OpenGoblins() { if (OpenKey) OpenGoblinsPressed?.Invoke(); }
         public void Up() { if (ListKeys) UpPressed?.Invoke(); }
         public void Down() { if (ListKeys) DownPressed?.Invoke(); }
         public void Enter() { if (ListKeys) EnterPressed?.Invoke(); }

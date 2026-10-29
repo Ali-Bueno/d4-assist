@@ -42,7 +42,8 @@ public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, boo
 
 /// <summary>An actor the game's map marks, streamed in or not (research/dungeon-objectives.md §19).</summary>
 /// <param name="Kind">The marker kind (D4Memory MapMarkerReader: 10 a boss, 11 a gizmo or trigger).</param>
-public sealed record MarkedActor(int ActorSno, float X, float Y, float Z, int LevelAreaSno, int Kind);
+/// <param name="Flags">The node's flags (D4Memory MapMarker.Flags).</param>
+public sealed record MarkedActor(int ActorSno, float X, float Y, float Z, int LevelAreaSno, int Kind, uint Flags = 0);
 
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)

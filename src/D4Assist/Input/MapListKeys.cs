@@ -2,11 +2,11 @@ using System.Runtime.InteropServices;
 
 namespace D4Assist.Input;
 
-/// <summary>The keys of the map's lists: Shift+F1 opens the waypoint list and Shift+F2 the helltide list while the map shows,
-/// the arrows, Enter and Escape work the open list.</summary>
+/// <summary>The keys of the map's lists: Shift+F1 opens the waypoint list, Shift+F2 the helltide list and Shift+F3 the treasure
+/// goblins' while the map shows, the arrows, Enter and Escape work the open list.</summary>
 public interface IMapListKeys
 {
-    /// <summary>Takes Shift+F1 and Shift+F2 from the game while true; the game keeps them otherwise.</summary>
+    /// <summary>Takes Shift+F1, Shift+F2 and Shift+F3 from the game while true; the game keeps them otherwise.</summary>
     void SetOpenKey(bool active);
 
     /// <summary>Takes up, down, Enter and Escape from the game while true (only while the list is open).</summary>
@@ -14,6 +14,7 @@ public interface IMapListKeys
 
     event Action? OpenPressed;
     event Action? OpenHelltidePressed;
+    event Action? OpenGoblinsPressed;
     event Action? UpPressed;
     event Action? DownPressed;
     event Action? EnterPressed;
@@ -22,16 +23,16 @@ public interface IMapListKeys
 
 /// <summary>
 /// <see cref="IMapListKeys"/> with Win32 RegisterHotKey on a private message-loop thread (as <see cref="GlobalHotkeys"/>).
-/// A registered key goes to this app alone, so each is registered only while it means something here: Shift+F1 and Shift+F2
+/// A registered key goes to this app alone, so each is registered only while it means something here: Shift+F1 to Shift+F3
 /// while the map is open, the list keys while a list is.
 /// </summary>
 public sealed class MapListKeys : IMapListKeys, IDisposable
 {
-    // winuser.h: MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; VK_F1, VK_F2, VK_UP, VK_DOWN, VK_RETURN, VK_ESCAPE.
+    // winuser.h: MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; VK_F1 to VK_F3, VK_UP, VK_DOWN, VK_RETURN, VK_ESCAPE.
     private const uint ModShift = 0x4, ModNoRepeat = 0x4000;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetOpenKey = 0x8001, WmSetListKeys = 0x8002;
-    private const uint VkF1 = 0x70, VkF2 = 0x71, VkUp = 0x26, VkDown = 0x28, VkReturn = 0x0D, VkEscape = 0x1B;
-    private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204, OpenHelltideId = 205;
+    private const uint VkF1 = 0x70, VkF2 = 0x71, VkF3 = 0x72, VkUp = 0x26, VkDown = 0x28, VkReturn = 0x0D, VkEscape = 0x1B;
+    private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204, OpenHelltideId = 205, OpenGoblinsId = 206;
 
     private static readonly (int Id, uint Key)[] ListKeys = [(UpId, VkUp), (DownId, VkDown), (EnterId, VkReturn), (EscapeId, VkEscape)];
 
@@ -44,6 +45,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
 
     public event Action? OpenPressed;
     public event Action? OpenHelltidePressed;
+    public event Action? OpenGoblinsPressed;
     public event Action? UpPressed;
     public event Action? DownPressed;
     public event Action? EnterPressed;
@@ -82,11 +84,13 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
                     {
                         Register(OpenId, ModShift | ModNoRepeat, VkF1, "Shift+F1");
                         Register(OpenHelltideId, ModShift | ModNoRepeat, VkF2, "Shift+F2");
+                        Register(OpenGoblinsId, ModShift | ModNoRepeat, VkF3, "Shift+F3");
                     }
                     else
                     {
                         UnregisterHotKey(IntPtr.Zero, OpenId);
                         UnregisterHotKey(IntPtr.Zero, OpenHelltideId);
+                        UnregisterHotKey(IntPtr.Zero, OpenGoblinsId);
                     }
                     break;
                 case WmSetListKeys when (message.WParam != 0) != listKeys:
@@ -102,6 +106,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
         }
         UnregisterHotKey(IntPtr.Zero, OpenId);
         UnregisterHotKey(IntPtr.Zero, OpenHelltideId);
+        UnregisterHotKey(IntPtr.Zero, OpenGoblinsId);
         foreach (var (id, _) in ListKeys) UnregisterHotKey(IntPtr.Zero, id);
     }
 
@@ -116,6 +121,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
         {
             OpenId => OpenPressed,
             OpenHelltideId => OpenHelltidePressed,
+            OpenGoblinsId => OpenGoblinsPressed,
             UpId => UpPressed,
             DownId => DownPressed,
             EnterId => EnterPressed,

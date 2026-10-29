@@ -409,6 +409,38 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_place_whose_step_names_an_item_to_carry_not_found_yet_gives_way_once_walked_from_and_leads_again_once_it_is_taken()
+    {
+        // The Weeping Cairns (QST_Scos_Hills_02 phase 184, tester 2026-10-28): the step names Yorin at the sealed tomb gate and a
+        // ward stone an altar deeper in gives; held at Yorin, the guide led back to the gate from everywhere.
+        const int YorinSno = 525351, StoneSno = 1008173;
+        bool holding = false;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, carryableWaits: sno => sno == StoneSno ? holding : null);
+        QuestPlace[] yorin = [new(YorinSno, 0, 0)];
+        feed.RaisePlayer(At(-20, 0));
+        memory.ObservePlaces(yorin);
+        memory.ObserveNamed(new HashSet<int> { YorinSno, StoneSno });
+
+        feed.RaisePlayer(At(1, 0)); // at Yorin
+        feed.RaisePlayer(At(-Far, 0)); // off to find the stone
+        memory.ObservePlaces(yorin);
+        Assert.Empty(memory.Destinations()); // the guide explores
+
+        memory.Heard(new ActorState(11, StoneSno, -Far, 5, 0, QuestStep: true)); // the altar broken, the stone on the ground
+        Assert.Equal((-Far, 5f), Assert.Single(memory.Destinations()).Position);
+
+        holding = true; // taken: it left the ground
+        memory.Observe(new ObjectiveSighting([], [], [new ActorState(99, StoneSno, -Far, 0, 0, ClientOnly: true)]));
+        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position); // back to Yorin at the gate
+
+        feed.RaisePlayer(At(1, 0));
+        feed.RaisePlayer(At(-Far, 0)); // the stone found: Yorin holds again until the step moves on
+        memory.ObservePlaces(yorin);
+        Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
     public void A_trigger_place_carries_its_own_radius_and_height()
     {
         var feed = new FakeFeed();

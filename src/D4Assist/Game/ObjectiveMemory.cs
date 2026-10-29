@@ -11,7 +11,8 @@ namespace D4Assist.Game;
 /// until the phase moves on: reaching one is not the end of the step (live 2026-10-01: phase 154's trigger is one of the
 /// step's hidden callbacks; the shown one waits for a group of enemies), so the guide holds there (ExplorationGuideBridge).
 /// A step naming several places sets one aside once the player stood in it and walked on, while another is still to reach:
-/// six triggers named one step through a story dungeon (live 2026-10-17, CSD_Skov_Temis_SmugglersRun_02).
+/// six triggers named one step through a story dungeon (live 2026-10-17, CSD_Skov_Temis_SmugglersRun_02). So does a step naming
+/// an item to carry not found yet (research/dungeon-objectives.md §28).
 /// A trigger (a place or a gizmo a tile places, with a trigger radius) is set aside once walked out of even when it is the last
 /// one, and one named on ground the player already walked never leads: the game fires it as the player walks in, so a phase
 /// that stays is waiting on something farther on (research/dungeon-objectives.md §27).
@@ -359,13 +360,21 @@ public sealed class ObjectiveMemory
     // Walking this far sets it aside. A trigger: just out of it, as the game fired it on entering. Live 2026-10-01 (the
     // Necropolis, phase 154) the trigger was a hidden callback and the shown step a region farther on; holding the guide on it
     // until the phase moved on pulled the player back to it from every room (tester, 2026-10-27). Another quest place: just
-    // out of it while another place is still to reach, else never (talking or using it is the step).
+    // out of it while another place is still to reach or an item to carry still to find, else never (talking or using it is
+    // the step).
     private float LeaveDistance(Objective objective) =>
         objective.WalkedThrough ? objective.Radius * PlaceLeaveFactor
         : !_places.Contains(objective) ? LeaveUnits
-        : _places.Any(o => o != objective && o.Pending && !o.Reached) ? objective.Radius * PlaceLeaveFactor : float.PositiveInfinity;
+        : _places.Any(o => o != objective && o.Pending && !o.Reached) || CarryToFind() ? objective.Radius * PlaceLeaveFactor : float.PositiveInfinity;
 
     private const float PlaceLeaveFactor = 1.5f;
+
+    // The step names an item to carry, or where it goes, that nothing here has shown yet: its work starts elsewhere. The Weeping
+    // Cairns' step at the sealed tomb gate names Yorin there and a ward stone that an altar deeper in gives; held at Yorin, the
+    // guide led back to the gate from everywhere (tester, 2026-10-28). Once the stone is found and taken, Yorin leads again
+    // (another objective done).
+    private bool CarryToFind() =>
+        _namedSnos.Any(sno => (_carryableWaits(sno) is not null || _takesHeld(sno) is not null) && !_objectives.Any(o => o.Sno == sno));
 
     // A trigger the quest names by place, or a tile places: it has no loop and no "used" state.
     private bool UnheardTrigger(Objective objective) =>

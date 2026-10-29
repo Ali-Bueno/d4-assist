@@ -785,3 +785,43 @@ opened, and "fixated on one area ... did not move on when I arrived there". Endg
   triggers in generic tiles), and the Horadric Vault's slowness to move on to the next point. Vhenard's boss cue in the Mourning
   Shore stopped right after it started: she is a kill target silent while invulnerable (`SteadyInvulnerability`), likely
   between the waves; to confirm with `LOOP stopped … invulnerable` in a `--debug` log.
+
+## 28. Act 2: a step that needs an item from elsewhere, and markers of renamed scenes (tester report + offline, 2026-10-28)
+
+Tester report (no log; likely still 0.1.18): in the Weeping Cairns the guide "stayed locked" on the sealed door while a ward
+stone had to be fetched from elsewhere; in the Eldhaime Barracks, past the dead knight, it "took me back to the dungeon
+entrance, then said the quest objective was below me", and only led to the climb down once the player headed back in.
+
+- **The Weeping Cairns (`CSD_Scos_Hills_WeepingCairns` 522978, DRLG; quest `QST_Scos_Hills_02` 523697; H):** phase 184 names
+  `NPC_QST_Scos_Yorin` (5,16) in `Cave_Root_POI_CSD_Scos_Hills_WeepingCairns_DruidTombGate`, the altar
+  `ScosglenHU_Druid_Overgrown_Wardstone_Altar_Corner_2x2_01_Multistage` 1046746 (eType 1, team 19: a destructible, hidden
+  callback event 0) and `Carryable_RunicStandingStone` 1008173 (gizmo 94, shown callback event 18), both "(any)": no Cave_Root
+  tile places either; the gate tile holds the sealed door `ScosglenHU_Druid_Stone_Door_WeepingCairns_Dyn` (3.7,16) and two
+  `Receptacle_RunicStandingStone` beside Yorin, and the step ends on a conversation (`QST_Scos_Hills_LockOpen`) at Yorin's
+  marker. Yorin was the step's only quest place, held until the phase moved on (§27: places that need using keep that rule),
+  so the guide led back to the gate from wherever the player looked for the stone.
+- **App rule (not live-tested):** a quest place stood at gives way once walked 1.5× its reach away also while the phase names
+  a carryable or a receptacle no objective here stands for yet (not heard, not placed). The stone heard leads; taken (done),
+  it re-arms the place, and with the stone found the place holds again. Census of every phase: 100 of 3000 with a non-trigger
+  place also name a non-NPC, non-trigger actor no marker places (mostly monsters a spawner raises); limited to carryables and
+  receptacles, which `CarryGoals` already models.
+- **The Eldhaime Barracks (`CSD_Scos_Eldhaime_Barracks` 806405, DRLG, level areas `_Barracks`, `_Cave`, `_Tomb`; quest
+  `QST_Scos_EldhaimeRuin_02` 809146; H):** phases 118, 121 and 162 name markers 18, 32 and 34 of
+  `TT_PDKeep_CaveRoot_NS_01 (CSD_Scos_EldhaimeRuins_SecretDoor)` 992192. No scene has that name: the scene is
+  `TT_Protodun_Keep_to_CaveRoot_NS_01` 992194, whose own layers are `TT_PDKeep_CaveRoot_NS_01 (Merged)` and `(Game)`; set
+  992192 is in no scene's `arLayers` (the server adds it). `QuestScriptMarkerReader` resolved the frame as a scene by name
+  only, so these markers read as world space at their scene-local spots ((35.2,10.7), (19.1,18.3), (30.4,16.9)), the spot
+  phase 162 led to standing nowhere near the transition tile. The tile is 32x32 with exits N and S and a
+  `Traversal_Gizmo_RungClimb_Down` (20.8,15.7,−2) / `_Up` (20.8,17.0,−10) pair, linked by the DRLG traversal links (§27).
+- **Frames census (M):** of the marker-set frames in the build, 4019 name a scene, 104 a subzone, 6 a world and 364 nothing;
+  of those 364, 164 are carried by one scene's own layers (a renamed scene), 158 by several (a tileset's shared base sets:
+  `Cave_Base_N_02` by five `Cave_*_N_02`) and 41 by none (scenes gone from the build). None of the 364 is a world or subzone.
+- **App rule (offline-tested, not live):** a frame that names a scene lands there; one naming a world or subzone is world
+  space; else the scenes whose own layers carry that frame place it (each copy where its scene is placed once); a frame no
+  scene carries is dropped. Real-data test: phase 162's marker lands in `TT_Protodun_Keep_to_CaveRoot_NS_01`. The one-pass
+  scene scan adds about 30 ms to the quest index.
+- **Not explained:** "at the tomb … it did try and back track me again for a second": phases 228 and 265 name nothing (the
+  guide explores). `QST_Scos_EldhaimeRuin_01` 532967 phase 169 is shown in the Barracks but names `Scos_Lowlands
+  (Eldhaime_Keep_Ruins_Donan_POI)` markers in overworld coordinates (−1438,−527); a DRLG world places no subzone set, so
+  such a marker would lead off into nothing there. Not filtered (no log shows it leading).
+

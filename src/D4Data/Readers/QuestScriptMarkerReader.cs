@@ -40,6 +40,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
 {
     private const string Quest = "QuestDefinition", Phase = "QuestPhase", Set = "QuestObjectiveSet", Callback = "QuestCallback";
     private const string ActorDefinition = "ActorDefinition", SnoName = "DT_SNO_NAME", SceneDefinition = "SceneDefinition";
+    private const string WorldDefinition = "WorldDefinition", SubzoneDefinition = "SubzoneDefinition";
     private const string MessageMap = "ScriptMessageMap", Filter = "ScriptMessageMapFilter";
     private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle", QuestParam = "ScriptEventParamQuest";
     private const string ActorGroupParam = "ScriptEventParamActorGroup";
@@ -51,7 +52,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<int, List<int>>? _questsByWorld;
     private readonly Dictionary<int, Blueprint> _blueprints = [];
     private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _groupMarkers;
-    private List<(int Scene, Vector3 Local)>? _footprints;
+    private SceneLayerIndex? _sceneLayers;
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -80,7 +81,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
             var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
-                .Select(h => (Scene: SceneOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
+                .Select(h => (Scenes: ScenesOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
                 .Where(m => m.Marker is not null).ToList();
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
@@ -89,9 +90,9 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             var hidden = handles.Where(h => h.PhaseUid == uid).GroupBy(h => (h.MarkerSet, h.Id)).Where(h => h.All(n => n.Hidden))
                 .Select(h => markers.Find(h.Key.MarkerSet, h.Key.Id)).OfType<PlacedMarker>().ToHashSet();
             return new QuestPhaseObjects(uid,
-                [.. named.Where(m => m.Scene is null && m.Blueprint is null).Select(m => m.Marker!)],
+                [.. named.Where(m => m.Scenes is null && m.Blueprint is null).Select(m => m.Marker!)],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
-                [.. named.Where(m => m.Scene is not null).Select(m => new SceneMarker(m.Scene!.Value, m.Marker!)), .. overlays],
+                [.. named.Where(m => m.Scenes is not null).SelectMany(m => m.Scenes!.Select(scene => new SceneMarker(scene, m.Marker!))), .. overlays],
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
@@ -166,7 +167,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         }
         var byActor = new Dictionary<int, List<(int Quest, Vector3 Position)>>();
         int actorGroup = schema.SnoGroup(ActorDefinition);
-        foreach (var set in handles.GroupBy(h => h.MarkerSet).Where(set => SceneOf(set.Key) is null))
+        foreach (var set in handles.GroupBy(h => h.MarkerSet).Where(set => ScenesOf(set.Key) is null))
         {
             var top = markers.TopLevel(set.Key);
             foreach (var (quest, _, id) in set)
@@ -191,11 +192,22 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         return _blueprints[markerSet] = new Blueprint(markerSet, [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)]);
     }
 
-    // The scene a marker set belongs to, or null for a world's layer set.
-    private int? SceneOf(int markerSet)
+    // The scenes a marker set belongs to; null for a world's or a subzone's layer set (world space) or a set with no frame. A scene
+    // renamed since keeps its sets under the old name, and the scenes whose own layers carry that name place them: the Eldhaime
+    // Barracks' secret-door set "TT_PDKeep_CaveRoot_NS_01 (CSD_Scos_EldhaimeRuins_SecretDoor)" lies in
+    // TT_Protodun_Keep_to_CaveRoot_NS_01, and read as world space it led back to the entrance (tester, 2026-10-28). Empty for a
+    // set of a scene gone from the build (research/dungeon-objectives.md §28).
+    private IReadOnlyList<int>? ScenesOf(int markerSet)
     {
         if (FrameOf(store.Name(markerSet)) is not { } frame) return null;
-        try { return store.Resolve(schema.SnoGroup(SceneDefinition), frame); }
+        if (Resolve(SceneDefinition, frame) is { } scene) return [scene];
+        if (Resolve(WorldDefinition, frame) is not null || Resolve(SubzoneDefinition, frame) is not null) return null;
+        return SceneLayers().ScenesByFrame.GetValueOrDefault(frame) ?? [];
+    }
+
+    private int? Resolve(string type, string name)
+    {
+        try { return store.Resolve(schema.SnoGroup(type), name); }
         catch (ArgumentException) { return null; }
     }
 
@@ -229,7 +241,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private IEnumerable<SceneMarker> SceneGroupMarkers(uint group)
     {
         foreach (var (set, marker) in GroupMarkers(group))
-            if (SceneOf(set) is { } scene) yield return new SceneMarker(scene, marker);
+            foreach (int scene in ScenesOf(set) ?? [])
+                yield return new SceneMarker(scene, marker);
     }
 
     // Every set that holds actor groups (blueprints, overlays and scene layers), read once on first use.
@@ -248,21 +261,36 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         return _groupMarkers.GetValueOrDefault(group) ?? [];
     }
 
-    // The arena footprints (prefab sets Dungeon_Template_*_Footprint_*) in the scenes' layers, scene-local; read once on first use.
-    private List<(int Scene, Vector3 Local)> Footprints()
+    // The arena footprints (prefab sets Dungeon_Template_*_Footprint_*) in the scenes' layers, scene-local.
+    private List<(int Scene, Vector3 Local)> Footprints() => SceneLayers().Footprints;
+
+    // One pass over every scene's layers, on first use: the arena footprints in them, and the scenes that place each frame other
+    // than their own name (a tileset's shared base sets, a scene's sets from before it was renamed).
+    private SceneLayerIndex SceneLayers()
     {
-        if (_footprints is not null) return _footprints;
-        _footprints = [];
+        if (_sceneLayers is not null) return _sceneLayers;
+        var footprints = new List<(int Scene, Vector3 Local)>();
+        var byFrame = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
         int sceneGroup = schema.SnoGroup(SceneDefinition), markerSetGroup = schema.SnoGroup("MarkerSetDefinition");
-        foreach (var (scene, _) in store.AllEntries(sceneGroup))
+        foreach (var (scene, name) in store.AllEntries(sceneGroup))
         {
             if (store.Meta(sceneGroup, scene) is not { } meta) continue;
             foreach (int layer in meta.Array(schema.Offset(SceneDefinition, "arLayers"), schema.Size("LayerData")))
-            foreach (var marker in markers.TopLevel(meta.I32(layer + schema.Offset("LayerData", "snoLayerMarkerset"))).Values)
-                if (marker.Group == markerSetGroup && IsFootprint(store.Name(marker.Sno))) _footprints.Add((scene, marker.Position));
+            {
+                int set = meta.I32(layer + schema.Offset("LayerData", "snoLayerMarkerset"));
+                if (FrameOf(store.Name(set)) is { } frame && !string.Equals(frame, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    var scenes = byFrame.TryGetValue(frame, out var list) ? list : byFrame[frame] = [];
+                    if (!scenes.Contains(scene)) scenes.Add(scene);
+                }
+                foreach (var marker in markers.TopLevel(set).Values)
+                    if (marker.Group == markerSetGroup && IsFootprint(store.Name(marker.Sno))) footprints.Add((scene, marker.Position));
+            }
         }
-        return _footprints;
+        return _sceneLayers = new(footprints, byFrame.ToDictionary(f => f.Key, f => (IReadOnlyList<int>)f.Value, StringComparer.OrdinalIgnoreCase));
     }
+
+    private sealed record SceneLayerIndex(List<(int Scene, Vector3 Local)> Footprints, IReadOnlyDictionary<string, IReadOnlyList<int>> ScenesByFrame);
 
     private static bool IsFootprint(string? actor) =>
         actor is not null && actor.StartsWith("Dungeon_Template_", StringComparison.OrdinalIgnoreCase) && actor.Contains("_Footprint", StringComparison.OrdinalIgnoreCase);

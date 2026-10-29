@@ -208,7 +208,10 @@ are objectives too (reason `enticement`), on their own settings cue; they fall s
 Quest places: the current phase of an active quest names spots such as a trigger to walk into ("chase Lilith"); the
 exploration guide leads to them in the quest tier, before unexplored ground, until the phase moves on
 (`ObjectiveMemory.ObservePlaces`; research/client-memory.md §4). `--debug` logs `… in progress here: …` and
-`OBJECTIVE seen (quest place): …`.
+`OBJECTIVE seen (quest place): …`. A place stood at is set aside once walked 1.5× its reach away while another is still to
+reach or the phase names a carryable or receptacle not heard yet (`left undone`), and leads again once another objective is
+done. A marker set named after a scene renamed since lands in the scenes whose own layers carry that name; one no scene
+places is dropped, not read as world space (research/dungeon-objectives.md §28).
 Structures the player must break (a hostile `*_Multistage` actor some quest names: the hatred tumors, a few cracked walls and
 gates, research/dungeon-objectives.md §12) loop the quest sound (reason `destructible`) until destroyed, when the remains
 lose their game record (ACD).

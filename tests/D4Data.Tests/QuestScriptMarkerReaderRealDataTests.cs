@@ -78,6 +78,25 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void ASetOfARenamedSceneLandsInTheSceneWhoseLayersCarryItsName()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // The Eldhaime Barracks (QST_Scos_EldhaimeRuin_02 phase 162, tester 2026-10-28): the trigger past the climb down is in
+        // "TT_PDKeep_CaveRoot_NS_01 (CSD_Scos_EldhaimeRuins_SecretDoor)", no scene's name; TT_Protodun_Keep_to_CaveRoot_NS_01's own
+        // layers carry it. Read as world space, it led back to the entrance.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Scos_EldhaimeRuin_02")).Single(p => p.PhaseUid == 162);
+        var tile = store.Resolve(schema.SnoGroup("SceneDefinition"), "TT_Protodun_Keep_to_CaveRoot_NS_01");
+        Assert.Empty(step.Markers);
+        var marker = Assert.Single(step.SceneMarkers, m => m.SceneSno == tile).Marker;
+        Assert.Equal(30f, marker.Position.X, 1f);
+        Assert.Equal(17f, marker.Position.Y, 1f);
+    }
+
+    [Fact]
     public void TheFirstQuestDoesNotNameTheGate()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>D4Assist</RootNamespace>
     <!-- Logged at start (with the commit): a tester's log tells which build it came from. -->
-    <Version>0.1.20</Version>
+    <Version>0.1.21</Version>
     <!-- Needed so restore/build copies Prismatoid's bundled win-x64 prism.dll (runtimes/win-x64/native) to
          the output dir — see reference/screen-reader-integration/prism-prebuilt.md (no x86 PRISM build exists). -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

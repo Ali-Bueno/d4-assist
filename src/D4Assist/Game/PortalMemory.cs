@@ -44,6 +44,10 @@ public sealed class PortalMemory
         public int Returns { get; set; }
         /// <summary>The player stood at it: as an objective it has led them there (until the guide is switched on again).</summary>
         public bool Reached { get; set; }
+        /// <summary>Its tile is a DRLG entrance tile.</summary>
+        public bool OnEntranceTile { get; set; }
+        /// <summary>Counted used only because its tile is an entrance tile, not because the player came or went through it.</summary>
+        public bool WayInGuess { get; set; }
     }
 
     private readonly Func<ActorState, bool> _isBeacon;
@@ -124,7 +128,8 @@ public sealed class PortalMemory
     /// <summary>Every portal seen here, to outlive a restart of the app; the ones only their tile places are read again.</summary>
     public IReadOnlyList<SavedPortal> Export()
     {
-        lock (_gate) return [.. _portals.Where(p => p.Seen).Select(p => new SavedPortal(p.Sno, p.Name, p.Position.X, p.Position.Y, p.Used))];
+        lock (_gate)
+            return [.. _portals.Where(p => p.Seen).Select(p => new SavedPortal(p.Sno, p.Name, p.Position.X, p.Position.Y, p.Used && !p.WayInGuess))];
     }
 
     /// <summary>Adds back the portals an earlier run saw in this instance; a used mark is never lost.</summary>
@@ -236,6 +241,7 @@ public sealed class PortalMemory
         {
             if (generation != _generation) return; // the world changed meanwhile
             foreach (var (tile, sno, position) in placed) Place(sno, position, tile);
+            SeparateEntrances();
         }
     }
 
@@ -252,15 +258,34 @@ public sealed class PortalMemory
         bool entrance = IsEntranceTile(tile);
         if (Find(sno, position) is { } known)
         {
-            if (entrance && !known.Used) MarkUsed(known, "the way in"); // restored from a save as unused
+            known.OnEntranceTile |= entrance;
+            if (entrance && !known.Used) MarkUsed(known, WayIn); // restored from a save as unused
             return;
         }
-        var portal = new Portal(sno, _nameOf(sno) ?? sno.ToString(), position);
-        portal.Used = entrance || _arrivals.Any(a => Distance(a, position) <= UsedRadiusUnits);
+        var portal = new Portal(sno, _nameOf(sno) ?? sno.ToString(), position) { OnEntranceTile = entrance };
+        bool arrived = _arrivals.Any(a => Distance(a, position) <= UsedRadiusUnits);
+        (portal.Used, portal.WayInGuess) = (entrance || arrived, entrance && !arrived);
         _portals.Add(portal);
         _log?.Invoke($"PORTAL placed by tile {tile}: {portal.Name} at ({position.X:F1},{position.Y:F1}) " +
-            (entrance ? "the way in" : portal.Used ? "arrived by" : "new"));
+            (arrived ? "arrived by" : entrance ? WayIn : "new"));
     }
+
+    // A floor of a tower holds two entrance tiles, one with the portal the player came up by and one with the portal on up
+    // (live 2026-10-29, S15_CountessTower: ProtoDun_Crypt_N_Entrance_01 at (0,0) and (32,-32); the guide, taking both for the
+    // way in, led back to the arrival once the floor was explored). Once a portal on an entrance tile is known to be the way in
+    // (the player came or went through it), the others the entrance rule alone marked lead on.
+    private void SeparateEntrances()
+    {
+        var onEntrances = _portals.Where(p => p.OnEntranceTile && !p.Absent).ToList();
+        if (onEntrances.Count < 2 || !onEntrances.Any(p => p.Used && !p.WayInGuess)) return;
+        foreach (var portal in onEntrances.Where(p => p.WayInGuess))
+        {
+            (portal.Used, portal.WayInGuess) = (false, false);
+            _log?.Invoke($"PORTAL on another entrance tile: {portal.Name} at ({portal.Position.X:F1},{portal.Position.Y:F1}) leads on");
+        }
+    }
+
+    private const string WayIn = "the way in";
 
     // A DRLG dungeon's entrance tile (Cave_Tomb_W_Entrance_01) holds the portal the player came in by, though the app may not have
     // seen the arrival (live 2026-10-22, "Die Leere": started beside the boss after a death, it led to the entrance as an unused
@@ -273,6 +298,8 @@ public sealed class PortalMemory
     private void MarkUsed(Portal portal, string how)
     {
         portal.Used = true;
+        portal.WayInGuess = how == WayIn;
+        if (how != WayIn) SeparateEntrances();
         _log?.Invoke($"PORTAL {how}: {portal.Name} at ({portal.Position.X:F1},{portal.Position.Y:F1})");
     }
 

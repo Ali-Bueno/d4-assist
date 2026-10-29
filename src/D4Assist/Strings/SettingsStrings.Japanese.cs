@@ -47,6 +47,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "クエストとポータル",
             [SoundGroup.Guide] = "ガイド",
             [SoundGroup.Characters] = "キャラクター",
+            [SoundGroup.Danger] = "危険",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -78,6 +79,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "話しかけるキャラクター",
             [SoundCue.Boss] = "ボス",
             [SoundCue.Elite] = "エリートとユニーク",
+            [SoundCue.Telegraph] = "ボスの攻撃の警告",
         },
 
         GeneralTab = "全般",
@@ -93,6 +95,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "レーダーに閉じたドアを表示する",
         LiveBarriers = "レーダーとガイドにダンジョンの障壁を反映する",
         WaypointList = "マップでウェイポイント一覧（Shift+F1）",
+        WalletKey = "F2 で残り火と災いの心臓",
         ExplorationGuide = "探索ガイド（十字キーの左でオンとオフを切り替え）",
         ExplorationGuideInDungeons = "通常のダンジョンに入るときガイドをオンにする（アンダーシティとピットでは常にオンで始まります）",
         CompassDirections = "方向を上・右ではなく方位（北・東など）で伝える",

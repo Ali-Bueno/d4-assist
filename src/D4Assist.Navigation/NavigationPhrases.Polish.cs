@@ -20,6 +20,7 @@ public sealed partial class NavigationPhrases
         ToUnexplored = "W stronę niezbadanego terenu.",
         QuestObjectiveBelow = "Cel jest niżej.",
         QuestObjectiveAbove = "Cel jest wyżej.",
+        ShutForNow = "Przejście jest na razie zamknięte, otworzy się później.",
         Directions = Map("góra", "góra, prawo", "prawo", "dół, prawo", "dół", "dół, lewo", "lewo", "góra, lewo"),
         CompassDirections = Map("północ", "północny wschód", "wschód", "południowy wschód", "południe", "południowy zachód", "zachód", "północny zachód"),
         Labels = new() { [RoomKind.Junction] = "Skrzyżowanie.", [RoomKind.BigRoom] = "Duża sala.", [RoomKind.Corridor] = "Korytarz." },

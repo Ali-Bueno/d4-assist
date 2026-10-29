@@ -258,6 +258,19 @@ public class ObjectiveTests
     }
 
     [Fact]
+    public void Selector_AVesselTheBarrierNamesKeepsItsReusableLoop()
+    {
+        // Live 2026-10-24: Cain's vessel, named a second time, took the quest step's loop and fell silent on its old used mark.
+        var selector = Selector();
+        selector.SetWorld(WorldB, isDungeon: true);
+
+        var vessel = selector.Select(Placed(VesselSno) with { QuestStep = true, Operated = true })!;
+
+        Assert.True(vessel.Reusable);
+        Assert.False(vessel.StopsWhenUsed);
+    }
+
+    [Fact]
     public void Bridge_AReusableVesselKeepsLoopingOnceUsed_ButNotWhileTheGameLocksIt()
     {
         var (feed, player, _) = CreateBridge(_ => true); // every actor reads as used

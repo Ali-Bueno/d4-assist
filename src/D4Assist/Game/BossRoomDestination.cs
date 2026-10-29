@@ -50,6 +50,9 @@ public sealed class BossRoomDestination
         tileName is not null && tileName.Contains(NameMark, StringComparison.OrdinalIgnoreCase)
         && !tileName.EndsWith(ExplorationGuideBridge.UndercityBossRoomSuffix, StringComparison.Ordinal);
 
+    /// <summary>Tiles a restart restored (ExplorationPersistence.Restored), as if the game streamed them.</summary>
+    public void OnRestored(IReadOnlyList<TileState> tiles) => OnTiles(tiles);
+
     private void OnTiles(IReadOnlyList<TileState> tiles)
     {
         List<TileState> fresh;

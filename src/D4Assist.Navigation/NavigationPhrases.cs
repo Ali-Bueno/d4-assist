@@ -23,6 +23,7 @@ public sealed partial class NavigationPhrases
         ToUnexplored = "Hacia zona sin explorar.",
         QuestObjectiveBelow = "El objetivo está más abajo.",
         QuestObjectiveAbove = "El objetivo está más arriba.",
+        ShutForNow = "El paso está cerrado por ahora; se abrirá más tarde.",
         Directions = Map("arriba", "arriba a la derecha", "derecha", "abajo a la derecha", "abajo", "abajo a la izquierda", "izquierda", "arriba a la izquierda"),
         CompassDirections = Map("norte", "noreste", "este", "sureste", "sur", "suroeste", "oeste", "noroeste"),
         Labels = new() { [RoomKind.Junction] = "Cruce.", [RoomKind.BigRoom] = "Sala grande.", [RoomKind.Corridor] = "Pasillo." },
@@ -45,6 +46,7 @@ public sealed partial class NavigationPhrases
         ToUnexplored = "To unexplored ground.",
         QuestObjectiveBelow = "The objective is further down.",
         QuestObjectiveAbove = "The objective is further up.",
+        ShutForNow = "The way is shut for now; it opens later.",
         Directions = Map("up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left"),
         CompassDirections = Map("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"),
         Labels = new() { [RoomKind.Junction] = "Junction.", [RoomKind.BigRoom] = "Big room.", [RoomKind.Corridor] = "Corridor." },
@@ -89,6 +91,9 @@ public sealed partial class NavigationPhrases
 
     /// <summary>Spoken once when the player stands under a quest place on another floor (it is higher).</summary>
     public string QuestObjectiveAbove { get; private init; } = "";
+
+    /// <summary>At a door the game keeps shut, with the objective past it: wait, it opens later.</summary>
+    public string ShutForNow { get; private init; } = "";
 
     // How a room's announcement is put together: {0} label, {1} exit header, {2} the exits; and the label with no exits.
     // Japanese and Chinese use their own punctuation (、 ： 。) and no spaces.

@@ -25,6 +25,7 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
         SoundGroup.Objects => SoundCue.Chest,
         SoundGroup.Quest => SoundCue.QuestObjective,
         SoundGroup.Guide => SoundCue.GuidePing,
+        SoundGroup.Danger => SoundCue.Telegraph,
         _ => SoundCue.Npc,
     };
 
@@ -62,6 +63,7 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
             case SoundCue.GuideArrival: return (GuidePingSynth.SynthesizeArrived(), Boost, 0);
             case SoundCue.Npc: return (Repeated(NpcCueSynth.Synthesize(1.0), NpcIntervalSeconds / rate), Boost, 0);
             case SoundCue.Boss: return (Repeated(EnemyCueSynth.Synthesize(EnemyClass.Boss, 1.0), EnemyIntervalSeconds / rate), Boost, 0);
+            case SoundCue.Telegraph: return (TelegraphCueSynth.Synthesize(), Boost, 0);
             case SoundCue.Elite: return (Repeated(EnemyCueSynth.Synthesize(EnemyClass.Elite, 1.0), EnemyIntervalSeconds / rate), Boost, 0);
         }
         var (sound, profile) = Loop(cue);

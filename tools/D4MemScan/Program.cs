@@ -14,6 +14,7 @@ internal static class Program
         "       D4MemScan scene-route --defs <definitions.json> [--install <dir>] [--compare]\n" +
         "       D4MemScan player --defs <definitions.json> [--install <dir>] [--samples N] [--interval-ms M] [--dump-module <file.focus.json>] [--replay-module <file.focus.json>]\n" +
         "       D4MemScan actors --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--match <name-regex>] [--interval-ms <ms>]\n" +
+        "       D4MemScan effects --defs <definitions.json> [--install <dir>] [--range <units>] [--watch <seconds>] [--interval-ms <ms>] [--match <name-regex>] [--out <file.csv>]\n" +
         "       D4MemScan acd --defs <definitions.json> [--install <dir>] [--range <units>] [--match <name-regex>] [--watch <seconds>] [--interval-ms <ms>] [--names <attribute-regex>] [--slot-words <hex,hex>]\n" +
         "       D4MemScan pose-snapshot --scenes <report.json> --defs <definitions.json> [--install <dir>] [--out <file.json>]\n" +
         "       D4MemScan pose-filter --in <file.json> --mode changed|unchanged [--out <file.json>]\n" +
@@ -21,7 +22,10 @@ internal static class Program
         "       D4MemScan peek --address <hex>[,<hex>...] [--seconds N] [--interval-ms M]\n" +
         "       D4MemScan screens [--install <dir>] [--watch <seconds>] [--interval-ms M]\n" +
         "       D4MemScan layout --defs <definitions.json> [--install <dir>] [--shift <hex>]\n" +
-        "       D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--scan] [--min N] [--watch <seconds>]";
+        "       D4MemScan waypoints --defs <definitions.json> [--install <dir>] [--locale deDE] [--scan] [--min N] [--watch <seconds>]\n" +
+        "       D4MemScan markers --defs <definitions.json> [--install <dir>] [--locale deDE] [--match <regex>] [--watch <seconds>]\n" +
+        "       D4MemScan sno-scan --snos <file: one 'id name' per line> [--show N]\n" +
+        "       D4MemScan words --address <hex>[,<hex>...] [--install <dir>] [--before B] [--after A]";
 
     private static int Main(string[] args)
     {
@@ -36,6 +40,7 @@ internal static class Program
                 "scene-route" => SceneRouteCommand.Run(rest),
                 "player" => PlayerCommand.Run(rest),
                 "actors" => ActorsCommand.Run(rest),
+                "effects" => EffectsCommand.Run(rest),
                 "acd" => AcdCommand.Run(rest),
                 "layout" => LayoutCommand.Run(rest),
                 "pose-snapshot" => PoseSnapshotCommand.Run(rest),
@@ -47,6 +52,9 @@ internal static class Program
                 "quest" => QuestCommand.Run(rest),
                 "gizmos" => GizmosCommand.Run(rest),
                 "waypoints" => WaypointsCommand.Run(rest),
+                "markers" => MarkersCommand.Run(rest),
+                "sno-scan" => SnoScanCommand.Run(rest),
+                "words" => WordsCommand.Run(rest),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'."),
             };
             return code;

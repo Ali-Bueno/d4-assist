@@ -102,6 +102,18 @@ public sealed class PortalMemory
                 .Select(p => new GuideDestination($"objective:{p.Id}", p.Position, ObjectiveMemory.DungeonTier))];
     }
 
+    /// <summary>The portals the player came or went through, as quest steps: the quest goes on in another world, and the way there
+    /// is the way back (ActiveQuests.StepElsewhere).</summary>
+    public IReadOnlyList<GuideDestination> WayOutDestinations()
+    {
+        lock (_gate)
+            return [.. _portals.Where(p => p.Used && !p.Absent)
+                .Select(p => new GuideDestination($"way-out:{p.Id}", p.Position, ObjectiveMemory.QuestTier, Radius: WayOutReachUnits))];
+    }
+
+    /// <summary>Within this of the way-out portal the guide holds: its own loop takes over.</summary>
+    public const float WayOutReachUnits = 3f;
+
     /// <summary>Lets the objective portals the player already stood at lead again (the guide was just switched on).</summary>
     public void Rearm()
     {
@@ -237,12 +249,23 @@ public sealed class PortalMemory
 
     private void Place(int sno, (float X, float Y) position, string? tile)
     {
-        if (Find(sno, position) is not null) return;
+        bool entrance = IsEntranceTile(tile);
+        if (Find(sno, position) is { } known)
+        {
+            if (entrance && !known.Used) MarkUsed(known, "the way in"); // restored from a save as unused
+            return;
+        }
         var portal = new Portal(sno, _nameOf(sno) ?? sno.ToString(), position);
-        portal.Used = _arrivals.Any(a => Distance(a, position) <= UsedRadiusUnits);
+        portal.Used = entrance || _arrivals.Any(a => Distance(a, position) <= UsedRadiusUnits);
         _portals.Add(portal);
-        _log?.Invoke($"PORTAL placed by tile {tile}: {portal.Name} at ({position.X:F1},{position.Y:F1}) {(portal.Used ? "arrived by" : "new")}");
+        _log?.Invoke($"PORTAL placed by tile {tile}: {portal.Name} at ({position.X:F1},{position.Y:F1}) " +
+            (entrance ? "the way in" : portal.Used ? "arrived by" : "new"));
     }
+
+    // A DRLG dungeon's entrance tile (Cave_Tomb_W_Entrance_01) holds the portal the player came in by, though the app may not have
+    // seen the arrival (live 2026-10-22, "Die Leere": started beside the boss after a death, it led to the entrance as an unused
+    // exit instead of to the boss room).
+    private static bool IsEntranceTile(string? tile) => tile?.Contains("_Entrance", StringComparison.Ordinal) == true;
 
     private Portal? Find(int sno, (float X, float Y) position) =>
         _portals.FirstOrDefault(p => p.Sno == sno && Distance(p.Position, position) <= SameSpotUnits);

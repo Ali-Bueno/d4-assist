@@ -11,8 +11,11 @@ public sealed record QuestSearchArea(int WorldSno, IReadOnlyCollection<int> Scen
 
 /// <summary>What the followed quests' current phases name: markers (world space, or scene-local until the scene is placed),
 /// matched by spot, actors named by SNO alone (any placed copy), and blueprint markers, naming a kind until the blueprint is placed.</summary>
+/// <param name="Steps">The places of a sub-quest whose phase can't be read, one entry per phase in order (its markers only): the
+/// guide walks them one step at a time (<see cref="ActiveQuests"/>).</param>
 public sealed record QuestNames(
-    IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<BlueprintMarker> KindMarkers)
+    IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<BlueprintMarker> KindMarkers,
+    IReadOnlyList<QuestNames>? Steps = null)
 {
     public static readonly QuestNames None = new([], new HashSet<int>(), [], []);
 
@@ -73,11 +76,12 @@ public sealed class ActiveQuests(
     /// <param name="area">Where to look for quests in progress; built at most once every <see cref="PhaseSearchInterval"/>.</param>
     public QuestNames Update(IReadOnlyList<int>? tracked, Func<QuestSearchArea> area)
     {
-        if (UpdatePhases(log: true)) _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
+        if (UpdatePhases(log: true)) _names = Names();
         if (tracked is null) return _names;
         var here = InProgressHere(tracked, area);
         _seenHere.UnionWith(here.Keys);
         var waitedOn = WaitedOn().Where(q => !here.ContainsKey(q) && !tracked.Contains(q)).ToHashSet();
+        _waitedOn = waitedOn;
         int[] followed = [.. tracked.Concat(here.Keys).Concat(waitedOn).Distinct().Order()];
         if (followed.SequenceEqual(_followed))
         {
@@ -92,12 +96,13 @@ public sealed class ActiveQuests(
             })];
         UpdatePhases(log: false);
         RefreshOwned();
-        _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
+        _names = Names();
         Console.WriteLine($"Quest tracked: {List(tracked)}; in progress here: {List(here.Keys.Except(tracked))}; " +
             $"{(waitedOn.Count > 0 ? $"waited on: {List(waitedOn.Order())}; " : "")}{_names.Count} object(s) named{PhaseText()}.");
         return _names;
 
-        // A quest found here names nothing until its phase reads; a tracked or waited-on one names every phase's objects till then.
+        // A quest found here names nothing until its phase reads; a tracked one names every phase's objects till then, a waited-on
+        // one walks them as steps (WalkedAsSteps).
         bool RequiresPhase(int quest) => !tracked.Contains(quest) && !waitedOn.Contains(quest);
     }
 
@@ -107,17 +112,63 @@ public sealed class ActiveQuests(
     private IEnumerable<int> WaitedOn() =>
         _quests.Where(q => q.Phase is not null).SelectMany(q => q.Current.SelectMany(p => p.SubQuests ?? Enumerable.Empty<int>()));
 
+    private IReadOnlySet<int> _waitedOn = new HashSet<int>();
+
+    // Followed only as waited on, its phase unread: its phases' places are walked in order (UnreadSteps), not named all at once.
+    private bool WalkedAsSteps(int quest) => _waitedOn.Contains(quest) && _quests.FirstOrDefault(q => q.Sno == quest)?.Phase is null;
+
+    // Only quests whose step is shown here name anything: a step shown in another world named the hub's trigger, and the hub's
+    // blueprint, matched on a few of the wing's furniture, put it by Tal Rasha's seal in the wing (live 2026-10-23).
+    private QuestNames Names() =>
+        QuestNames.Of(_quests.Where(q => StepIsHere(q.Sno) && !WalkedAsSteps(q.Sno)).SelectMany(q => q.Current)) with { Steps = UnreadSteps() };
+
+    /// <summary>True while no quest's step is here and one whose step was read here has moved on to a step shown in another world:
+    /// the way on is the way out (live 2026-10-23: Tal Rasha's seal taken, the next step in the Horadric Vault's hall, no portal in
+    /// the wing but the one in). A quest tracked from elsewhere that never had a step here doesn't count.</summary>
+    public bool StepElsewhere => _owned.Length == 0 && _stepWasHere.Any(q => !StepIsHere(q));
+
+    private readonly HashSet<int> _stepWasHere = [];
+
+    private string _loggedSteps = "";
+
+    // A followed quest's phase waits on a sub-quest whose phase the module data doesn't hold: its phases' places, in order, so
+    // the guide walks them as the game asks (live 2026-10-23, "Der versiegelte Flügel": DQV_Skov_Skartara_06_TalRasha, four
+    // triggers around Tal Rasha's seal, then three more through the wing, then the seal; the guide pointed at the seal itself).
+    private IReadOnlyList<QuestNames> UnreadSteps()
+    {
+        var followed = _quests.Select(q => q.Sno).ToHashSet();
+        var subs = _quests.Where(q => q.Phase is not null && StepIsHere(q.Sno)).SelectMany(q => q.Current)
+            .SelectMany(p => p.SubQuests ?? Enumerable.Empty<int>()).Where(s => !followed.Contains(s) || WalkedAsSteps(s)).Distinct().Order().ToList();
+        var steps = subs.SelectMany(phases)
+            .Select(p => new QuestNames([.. p.Markers], new HashSet<int>(), [.. p.SceneMarkers], [.. p.KindMarkers ?? []]))
+            .Where(n => n.Count > 0).ToList();
+        string text = steps.Count == 0 ? "" : $"{List(subs)}: {steps.Count} step(s)";
+        if (text != _loggedSteps)
+        {
+            _loggedSteps = text;
+            if (steps.Count > 0) Console.WriteLine($"Quest phase not readable, its places led to in order: {text}.");
+        }
+        return steps;
+    }
+
     // Logged whenever it changes, with the quests left out for a step shown elsewhere.
     private void RefreshOwned()
     {
         var candidates = _seenHere.Union(_followed).Order().ToList();
         int[] owned = [.. candidates.Where(StepIsHere)];
+        _stepWasHere.UnionWith(owned.Where(ShownHere));
         if (owned.SequenceEqual(_owned)) return;
         _owned = owned;
         var elsewhere = candidates.Except(owned).ToList();
         Console.WriteLine($"Quest objects owned: {List(owned)}" +
-            (elsewhere.Count > 0 ? $"; step elsewhere: {string.Join(", ", elsewhere.Select(q => $"{q} at {_history.Last(q)}"))}" : "") + ".");
+            (elsewhere.Count > 0 ? $"; step elsewhere: {string.Join(", ", elsewhere.Select(q => $"{q} at {_history.Last(q)}"))}" : "") +
+            (StepElsewhere ? "; the way on is the way out" : "") + ".");
     }
+
+    // The quest's step was read here and names this world.
+    private bool ShownHere(int quest) =>
+        _quests.FirstOrDefault(q => q.Sno == quest)?.Phase is { } phase
+        && phases(quest).FirstOrDefault(p => p.PhaseUid == phase)?.Worlds?.Contains(worldSno) == true;
 
     // The quest's step, read here or else last read anywhere, is shown in this world or in none; true while it was never read.
     private bool StepIsHere(int quest)

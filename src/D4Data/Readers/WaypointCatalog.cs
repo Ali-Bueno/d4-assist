@@ -29,6 +29,12 @@ public sealed class WaypointCatalog(SnoStore store, TypeSchema schema)
     public string Name(Waypoint waypoint, string locale) =>
         store.Text(locale, $"LevelArea_{waypoint.LevelAreaName}", "Name") ?? waypoint.LevelAreaName;
 
+    private readonly ZoneCatalog _zones = new(store, schema);
+
+    /// <summary>The region the waypoint lies in, in <paramref name="locale"/> (ZoneCatalog: deDE Frac_Kyovashad → "Zersplitterte
+    /// Gipfel"); null when none is known.</summary>
+    public string? Zone(Waypoint waypoint, string locale) => _zones.Name(waypoint.LevelAreaSno, locale);
+
     private List<Waypoint> Read()
     {
         int group = schema.SnoGroup(GlobalDefinition);

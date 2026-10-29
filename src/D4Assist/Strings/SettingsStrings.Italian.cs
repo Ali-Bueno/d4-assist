@@ -46,6 +46,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Missione e portali",
             [SoundGroup.Guide] = "Guida",
             [SoundGroup.Characters] = "Personaggi",
+            [SoundGroup.Danger] = "Pericolo",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -77,6 +78,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Personaggi con cui parlare",
             [SoundCue.Boss] = "Boss",
             [SoundCue.Elite] = "Élite e unici",
+            [SoundCue.Telegraph] = "Avviso di attacchi dei boss",
         },
         GeneralTab = "Generale",
         GeneralBox = "Opzioni (hanno effetto al riavvio dell'assistente)",
@@ -91,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Porte chiuse nel radar",
         LiveBarriers = "Barriere dei dungeon nel radar e nella guida",
         WaypointList = "Elenco dei punti di viaggio sulla mappa (Maiusc+F1)",
+        WalletKey = "Braci e cuori funesti su F2",
         ExplorationGuide = "Guida all'esplorazione (la croce direzionale sinistra la attiva e la disattiva)",
         ExplorationGuideInDungeons = "Guida attiva quando entri nei dungeon normali (nella Sottocittà e nella Fossa parte sempre attiva)",
         CompassDirections = "Dire le direzioni come punti cardinali (nord, est…) invece di su, destra…",

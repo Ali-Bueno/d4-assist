@@ -21,6 +21,19 @@ public sealed class PrismSpeechSink : ISpeechSink
 
     public void Speak(string text, bool interrupt) => _backend.Speak(text, interrupt);
 
+    // PRISM's output speaks and brailles at once (NVDA, JAWS); a backend with braille but no output gets both calls, one
+    // without braille (SAPI) only speaks.
+    public void Output(string text, bool interrupt)
+    {
+        var features = _backend.Features;
+        if (features.HasFlag(PrismBackendFeature.SupportsOutput)) _backend.Output(text, interrupt);
+        else
+        {
+            _backend.Speak(text, interrupt);
+            if (features.HasFlag(PrismBackendFeature.SupportsBraille)) _backend.Braille(text);
+        }
+    }
+
     public void Dispose()
     {
         _backend.Dispose();

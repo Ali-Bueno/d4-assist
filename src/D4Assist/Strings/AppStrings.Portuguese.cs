@@ -58,5 +58,9 @@ public sealed partial record AppStrings
         QuestMarker: "Marcador de missão",
         PlaceCountFormat: "{0} de {1}.",
         GuideExploreMode: "Guia: exploração.",
-        GuideObjectivesMode: "Guia: objetivos.");
+        GuideObjectivesMode: "Guia: objetivos.",
+        GuideToMonstersFormat: "Tudo explorado. Ainda {0} monstros no mapa, levando você até eles.",
+        DodgeFormat: "Esquive: {0}",
+        MarkedWarning: "Marcado: a explosão segue você",
+        VesselUsedFormat: "{0} ativado. Agora entre na barreira.");
 }

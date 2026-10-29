@@ -21,10 +21,13 @@ public sealed record TileState(
 /// <param name="Talkable">An NPC with interact options or a conversation icon (research/client-memory.md §4).</param>
 /// <param name="NamedByQuest">The followed quests' current phase names this very actor (QuestNaming.It), whatever kind it is.</param>
 /// <param name="Invulnerable">ACD Invulnerable: read on gizmos, NPCs, bosses and uniques only (Program readsFlags).</param>
+/// <param name="Hostile">ACD TeamID reads the hostile monsters' team; read where Invulnerable is.</param>
+/// <param name="Buffs">The effects it shows (ACD Buff_Visual_Effect parameters, SNOs); read where Invulnerable is, null elsewhere.</param>
 public sealed record ActorState(
     uint Id, int ActorSno, float X, float Y, float Z, bool StateChanged = false, float Yaw = 0, bool Operated = false,
     bool QuestFollower = false, bool QuestLocked = false, bool ScriptDisabled = false, bool QuestStep = false, bool ClientOnly = false,
-    bool GizmoStateSet = false, bool Talkable = false, bool NamedByQuest = false, bool Invulnerable = false)
+    bool GizmoStateSet = false, bool Talkable = false, bool NamedByQuest = false, bool Invulnerable = false, bool Hostile = false,
+    IReadOnlyList<int>? Buffs = null)
 {
     /// <summary>The game doesn't let the player use this gizmo yet.</summary>
     public bool Unusable => QuestLocked || ScriptDisabled;
@@ -33,8 +36,9 @@ public sealed record ActorState(
 /// <summary>A place the active quest's current phase names (a marker in world space): where its step happens.</summary>
 /// <param name="Ahead">A gizmo the phase names by SNO alone, where a loaded tile places it or the map marks it: an objective to use, known before
 /// it streams in, rather than a spot to stand in (research/dungeon-objectives.md §18).</param>
-/// <param name="Marked">The game's map marks it (an Ahead gizmo): the server has it there, even before it streams in (§19).</param>
-public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false, bool Marked = false);
+/// <param name="Marked">The game's map marks it (an Ahead gizmo, or a place's trigger): the server has it there, even before it streams in (§19).</param>
+/// <param name="Step">A step of a sub-quest whose phase can't be read (1 first, QuestNames.Steps); 0 for a place the phase names.</param>
+public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false, bool Marked = false, int Step = 0);
 
 /// <summary>An actor the game's map marks, streamed in or not (research/dungeon-objectives.md §19).</summary>
 /// <param name="Kind">The marker kind (D4Memory MapMarkerReader: 10 a boss, 11 a gizmo or trigger).</param>

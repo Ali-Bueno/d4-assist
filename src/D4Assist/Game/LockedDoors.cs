@@ -1,4 +1,5 @@
 using System.Numerics;
+using D4Assist.Navigation;
 
 namespace D4Assist.Game;
 
@@ -66,6 +67,14 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
             }
             return _doors.Values.Where(d => d.GameLocked || d.Tried).SelectMany(d => d.Footprint.Cells).ToHashSet();
         }
+    }
+
+    /// <summary>The doors the game itself keeps shut now (not merely tried), for the guide: an objective past one leads to it.</summary>
+    public IReadOnlyList<GuideGate> Gates()
+    {
+        lock (_gate)
+            return [.. _doors.Where(d => d.Value.GameLocked).OrderBy(d => d.Key).Select(d =>
+                new GuideGate($"{d.Key.X},{d.Key.Y}", (d.Value.Spot.X, d.Value.Spot.Y), d.Value.Footprint.Cells.ToHashSet()))];
     }
 
     /// <summary>True while a locked door of <paramref name="actorSno"/> stands at <paramref name="at"/>: no objective to lead to.</summary>

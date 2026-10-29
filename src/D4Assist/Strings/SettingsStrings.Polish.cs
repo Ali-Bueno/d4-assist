@@ -46,6 +46,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Zadanie i portale",
             [SoundGroup.Guide] = "Przewodnik",
             [SoundGroup.Characters] = "Postacie",
+            [SoundGroup.Danger] = "Zagrożenie",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -77,6 +78,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Postacie do rozmowy",
             [SoundCue.Boss] = "Bossowie",
             [SoundCue.Elite] = "Elity i unikaty",
+            [SoundCue.Telegraph] = "Ostrzeżenie przed atakami bossów",
         },
         GeneralTab = "Ogólne",
         GeneralBox = "Opcje (zastosowane po ponownym uruchomieniu asystenta)",
@@ -91,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Zamknięte drzwi na radarze",
         LiveBarriers = "Bariery lochów na radarze i w przewodniku",
         WaypointList = "Lista punktów podróży na mapie (Shift+F1)",
+        WalletKey = "Żar i zgubne serca pod F2",
         ExplorationGuide = "Przewodnik po eksploracji (lewy przycisk krzyżaka włącza go i wyłącza)",
         ExplorationGuideInDungeons = "Przewodnik włączony po wejściu do zwykłych lochów (w Podmieściu i Jamie zawsze zaczyna jako włączony)",
         CompassDirections = "Podawaj kierunki jako strony świata (północ, wschód…) zamiast góra, prawo…",

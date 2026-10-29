@@ -71,6 +71,18 @@ internal static class AcdCommand
             }
             var defs = new ActorDefinitionReader(store, schema);
 
+            // --all: every occupied ACD slot, also those with no placed RActor (items in the inventory or stash), by SNO name.
+            if (reader.Has("--all"))
+            {
+                var all = acds.All()
+                    .Select(acd => (Acd: acd, Name: store.Name(acd.ActorSno)))
+                    .Where(c => match is null || c.Name is { } n && match.IsMatch(n)).ToList();
+                PrintAndSave([.. all.Select(c => new AcdLine(Vector3.Distance(c.Acd.Position, player.Position), "-", c.Acd.ActorSno, c.Name,
+                    defs.Read(c.Acd.ActorSno)?.GizmoType, c.Acd.RActorId, c.Acd.Id, c.Acd.SlotAddress,
+                    new SortedDictionary<string, string>(AcdWatch.Attributes(process, names, c.Acd))))], float.PositiveInfinity);
+                return 0;
+            }
+
             // Without --match: every gizmo (eActorGizmoType >= 0), the actors whose "used" state is wanted.
             var candidates = actors
                 .Where(a => a.IsPlaced && a.AcdId != NoAcdId && float.IsFinite(a.Position.X) && Vector3.Distance(a.Position, player.Position) <= range)

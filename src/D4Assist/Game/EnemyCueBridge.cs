@@ -12,7 +12,7 @@ namespace D4Assist.Game;
 public sealed class EnemyCueBridge
 {
     private readonly EnemyCuePlayer _player;
-    private readonly Func<int, EnemyClass?> _classOf;
+    private readonly Func<ActorState, EnemyClass?> _classOf;
     private readonly Func<int, string?> _nameOf;
     private readonly Action<string>? _log;
     private readonly Func<IReadOnlyList<ActorState>, IReadOnlyList<ActorState>> _withGoals;
@@ -21,12 +21,12 @@ public sealed class EnemyCueBridge
     private IReadOnlyList<(ActorState Actor, EnemyClass Class)> _enemies = [];
     private HashSet<uint> _cued = [];
 
-    /// <param name="classOf">The enemy class of an actor SNO, null for none (EnemyClassifier.ClassOf).</param>
+    /// <param name="classOf">The enemy class of an actor, null for none (EnemyClassifier.Of).</param>
     /// <param name="log">Debug sink for target changes; null when not debugging.</param>
     /// <param name="withGoals">Rewrites one actor poll before it is read: a boss to bind with what the player carries reads as
     /// vulnerable (CarryGoals.IsBossToBind). Null for none.</param>
     public EnemyCueBridge(
-        IDungeonFeed feed, EnemyCuePlayer player, Func<int, EnemyClass?> classOf, Func<int, string?> nameOf, Action<string>? log = null,
+        IDungeonFeed feed, EnemyCuePlayer player, Func<ActorState, EnemyClass?> classOf, Func<int, string?> nameOf, Action<string>? log = null,
         Func<IReadOnlyList<ActorState>, IReadOnlyList<ActorState>>? withGoals = null)
     {
         _withGoals = withGoals ?? (actors => actors);
@@ -42,7 +42,7 @@ public sealed class EnemyCueBridge
     // A dead enemy's remains have no game record (ClientOnly).
     private void OnActors(IReadOnlyList<ActorState> actors) =>
         _enemies = [.. _withGoals(actors).Where(a => !a.ClientOnly && !a.Invulnerable)
-            .Select(a => (Actor: a, Class: _classOf(a.ActorSno)))
+            .Select(a => (Actor: a, Class: _classOf(a)))
             .Where(e => e.Class is not null)
             .Select(e => (e.Actor, e.Class!.Value))];
 

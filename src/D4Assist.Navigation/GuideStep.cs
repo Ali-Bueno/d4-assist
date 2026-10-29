@@ -2,7 +2,7 @@ namespace D4Assist.Navigation;
 
 public enum GuideStatus { Unknown, Guiding, AllExplored, Rechecking }
 
-public enum GuideTargetKind { UnvisitedTile, Frontier, ExitCandidate, Destination, Objective }
+public enum GuideTargetKind { UnvisitedTile, Frontier, ExitCandidate, Destination, Objective, Gate }
 
 /// <summary>A known point to lead to: an objective seen earlier (before exploring), or a portal (once nothing is left to explore).</summary>
 /// <param name="Tier">Lower tiers win: the guide picks among the reachable destinations of the lowest tier.</param>
@@ -11,6 +11,11 @@ public enum GuideTargetKind { UnvisitedTile, Frontier, ExitCandidate, Destinatio
 /// <param name="Located">The live game put it in this world (an actor heard, the map's marker), so exploring heads towards it while its
 /// tile is unknown; a quest script's marker may belong to another world.</param>
 public sealed record GuideDestination(string Id, (float X, float Y) Position, int Tier = 0, float? Z = null, float Radius = 0, bool Located = false);
+
+/// <summary>A door the game keeps shut for now (quest-locked, script-disabled) that the guide routes around: when an objective
+/// lies only past it, the guide leads to it and waits there, as a sighted player would.</summary>
+/// <param name="Cells">The 1-unit world cells it blocks (part of the blocked cells the guide gets).</param>
+public sealed record GuideGate(string Id, (float X, float Y) Position, IReadOnlySet<(int X, int Y)> Cells);
 
 /// <param name="Id">Stable identity across recomputes (a tile cell, or an exit's tile/side/position).</param>
 /// <param name="Position">World point to reach: where the route enters the tile, or the frontier opening.</param>

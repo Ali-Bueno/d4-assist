@@ -59,6 +59,10 @@ public sealed class ObjectiveMemory
         public string Id { get; } = $"{kind}:{sno}:{MathF.Round(position.X)},{MathF.Round(position.Y)}";
         public (float X, float Y) Position { get; set; } = position;
         public uint ActorId { get; set; }
+        /// <summary>The actor heard has no game record (a client-side prop); null until heard.</summary>
+        public bool? ClientOnly { get; set; }
+        /// <summary>A quest place whose actor there was heard and is done (a monster killed): it stays done while the phase names it.</summary>
+        public bool ActorDone { get; set; }
         public bool Quest { get; set; }
         public bool Pending { get; set; } = true;
         /// <summary>The player stands within its radius.</summary>
@@ -77,6 +81,8 @@ public sealed class ObjectiveMemory
         public int MissingPolls { get; set; }
         /// <summary>Done as a followed quest moved on with the player at it: using it was the step.</summary>
         public bool UsedByStep { get; set; }
+        /// <summary>A sub-quest step whose phase can't be read (QuestPlace.Step); 0 for none.</summary>
+        public int Step { get; init; }
     }
 
     private readonly Func<int, string?> _nameOf;
@@ -147,7 +153,7 @@ public sealed class ObjectiveMemory
         lock (_gate)
             return [.. _escorts.Select(a => new GuideDestination(
                     $"{EscortKind}:{a.Id}", (a.X, a.Y), QuestTier, a.Z, _escortRadius(a.ActorSno)!.Value * EscortHoldFactor, Located: true)),
-                .. _places.Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
+                .. _places.Where(Leads).Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
                 .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position)
                     && _carryableWaits(x.Objective.Sno) != true)
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
@@ -183,21 +189,24 @@ public sealed class ObjectiveMemory
                 if (objective is null)
                 {
                     objective = new Objective(place.ActorSno, NameOf(place.ActorSno), (place.X, place.Y), Reach(place.ActorSno), QuestPlaceKind)
-                        { Quest = true, Z = place.Z };
+                        { Quest = true, Z = place.Z, Step = place.Step };
                     _places.Add(objective);
                     Log("seen (quest place)", objective);
                     SetAsideIfWalked(objective);
                 }
-                else if (!objective.Pending)
+                else if (!objective.Pending && !objective.ActorDone)
                 {
                     objective.Pending = true;
                     Log("named again", objective);
                     SetAsideIfWalked(objective);
                 }
+                objective.Marked = place.Marked;
                 named.Add(objective);
             }
-            foreach (var objective in _places.Where(o => o.Pending && !named.Contains(o)))
+            foreach (var objective in _places.Where(o => !named.Contains(o)))
             {
+                objective.ActorDone = false;
+                if (!objective.Pending) continue;
                 objective.Pending = false;
                 Log("done (phase moved on)", objective);
             }
@@ -284,6 +293,7 @@ public sealed class ObjectiveMemory
             {
                 var objective = Find(actor) ?? Add(actor);
                 objective.ActorId = actor.Id;
+                objective.ClientOnly = actor.ClientOnly;
                 objective.Position = (actor.X, actor.Y);
                 objective.Z = actor.Z;
                 objective.Quest = actor.QuestStep;
@@ -307,8 +317,17 @@ public sealed class ObjectiveMemory
                 objective.Pending = false;
                 objective.AtIt = false;
                 Log("done", objective);
+                foreach (var place in _places.Where(p => p.Pending && p.Sno == objective.Sno && Distance(p.Position, objective.Position) <= PlaceOfActorUnits))
+                {
+                    place.Pending = false;
+                    place.AtIt = false;
+                    place.ActorDone = true;
+                    Log("done (its actor is done)", place);
+                }
             }
-            if (done.Count > 0) RearmReached(MaxTimesLeft);
+            // A carryable taken lets the place its step waits on lead again (the Weeping Cairns' ward stone, back to Yorin); any other
+            // objective done leaves quest places reached in this phase reached.
+            if (done.Count > 0) RearmReached(MaxTimesLeft, places: done.Any(o => _carryableWaits(o.Sno) is not null));
         }
     }
 
@@ -320,30 +339,42 @@ public sealed class ObjectiveMemory
         : !objective.PlacedOnly ? Among(objective, seen.Silent) || objective.MissingPolls >= MissingPollsForDone
         : Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
 
-    // Its own actor (a boss moves), or one of its kind on its spot (a gizmo re-created under a new id).
-    private static bool Among(Objective objective, IReadOnlyList<ActorState> actors) =>
-        actors.Any(a => a.ActorSno == objective.Sno && (a.Id == objective.ActorId || Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits));
+    // A quest place this close to an objective heard is that objective's spot: the place is a marker, the actor stands about there
+    // (ActiveQuests.MarkerReach).
+    private const float PlaceOfActorUnits = ActiveQuests.MarkerReach;
 
-    // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to.
-    private bool Located(Objective objective) => _objectives.Contains(objective) && (!objective.PlacedOnly || objective.Marked);
+    // Its own actor (a boss moves), or one of its kind on its spot (a gizmo re-created under a new id); one with a game record when
+    // the one heard had one: a killed Hatred Spire leaves a client-side copy standing on its spot, and the spire never read done
+    // (live 2026-10-24, Skartara's mindscape 4: the guide held at a destroyed spire and led back to another).
+    private static bool Among(Objective objective, IReadOnlyList<ActorState> actors) =>
+        actors.Any(a => a.ActorSno == objective.Sno && (objective.ClientOnly is not { } clientOnly || a.ClientOnly == clientOnly)
+            && (a.Id == objective.ActorId || Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits));
+
+    // Heard here, or marked on this world's map; a quest place comes from script data, whatever world it belongs to, unless the
+    // map marks its trigger there (live 2026-10-22: lock room B's, on a tile not loaded yet).
+    private bool Located(Objective objective) =>
+        _objectives.Contains(objective) ? !objective.PlacedOnly || objective.Marked : objective.Marked;
 
     private static bool Stands(Objective objective, IReadOnlyList<ActorState> actors) =>
         actors.Any(a => a.ActorSno == objective.Sno && Distance(objective.Position, (a.X, a.Y)) <= SameSpotUnits);
 
     /// <summary>Lets the objectives the player walked away from lead again (the guide was just switched on by a lost player).</summary>
-    /// <param name="walkedThrough">Triggers the player walked through too: nothing is left to explore (ExplorationGuideBridge).</param>
+    /// <param name="walkedThrough">Triggers the player walked through and quest places reached in this phase too: nothing is left to explore (ExplorationGuideBridge).</param>
     public void Rearm(bool walkedThrough = false)
     {
-        lock (_gate) RearmReached(int.MaxValue, walkedThrough);
+        lock (_gate) RearmReached(int.MaxValue, walkedThrough, places: walkedThrough);
     }
 
     // Another objective done may have unlocked one set aside; one left undone MaxTimesLeft times waits for the guide's toggle
     // (live 2026-10-16: the Light's Watch lectern drew the guide back four times, and the second guard was never found). A
     // trigger walked through waits for nothing left to explore: in the Necropolis each tumor broken led back to the chamber's
-    // triggers, and switching the guide on led back through the gate just opened (tester, 2026-10-27).
-    private void RearmReached(int belowTimesLeft, bool walkedThrough = false)
+    // triggers, and switching the guide on led back through the gate just opened (tester, 2026-10-27). So does
+    // a quest place reached while its phase lasts: a phase may name several triggers, only the last moving it on (live 2026-10-23:
+    // the Tunnels of Hefaetrust's dialog triggers led in circles after a toggle, and in the Kulle wing a lorebook read sent the
+    // player back onto the anvil already stood on).
+    private void RearmReached(int belowTimesLeft, bool walkedThrough = false, bool places = true)
     {
-        foreach (var objective in _places.Concat(_objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft && (walkedThrough || !o.WalkedThrough)))
+        foreach (var objective in (places ? _places.Concat(_objectives) : _objectives).Where(o => o.Reached && o.TimesLeft < belowTimesLeft && (walkedThrough || !o.WalkedThrough)))
         {
             objective.Reached = false;
             Log("re-armed", objective);
@@ -354,7 +385,8 @@ public sealed class ObjectiveMemory
     {
         _player = here;
         _trail.Add(((int)MathF.Floor(here.X), (int)MathF.Floor(here.Y)));
-        foreach (var objective in _objectives.Concat(_places).Where(o => o.Pending && !o.Reached))
+        int? step = CurrentStep();
+        foreach (var objective in _objectives.Concat(_places).Where(o => o.Pending && !o.Reached && (o.Step == 0 || o.Step == step)))
         {
             float distance = Distance(objective.Position, here);
             if (distance <= objective.Radius)
@@ -374,6 +406,21 @@ public sealed class ObjectiveMemory
                 Log("left undone", objective);
             }
         }
+    }
+
+    // Of a sub-quest walked in order, the first step with a place left: the game takes its triggers only then. A place the waiting
+    // phase names itself leads too (live 2026-10-23: the Holdout tunnel's trigger, past a door, came before the seal's steps), unless
+    // it lies by a later step's place: Tal Rasha's seal and the trigger beside it stood behind a locked door until then.
+    private int? CurrentStep() => _places.Where(o => o.Step > 0 && o.Pending && !o.Reached).Select(o => (int?)o.Step).Min();
+
+    /// <summary>A place of the waiting phase this close to a later step's place waits for that step.</summary>
+    public const float LaterStepUnits = 10f;
+
+    private bool Leads(Objective place)
+    {
+        if (CurrentStep() is not { } step) return true;
+        if (place.Step > 0) return place.Step == step;
+        return !_places.Any(o => o.Step > step && o.Pending && !o.Reached && Distance(o.Position, place.Position) <= LaterStepUnits);
     }
 
     // Walking this far sets it aside. A trigger: just out of it, as the game fired it on entering. Live 2026-10-01 (the

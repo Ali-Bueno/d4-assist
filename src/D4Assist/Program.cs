@@ -189,15 +189,28 @@ internal static class Program
         var conversationAddresses = new ConversationAddresses(
             Path.Combine(AppContext.BaseDirectory, "d4assist-addresses.json"), conversationSnos.Contains, debug ? Console.WriteLine : null);
         var questHistory = QuestPhaseHistory.Load(AppContext.BaseDirectory, log: Console.WriteLine);
+        var sceneLayers = new SceneLayerPlacement(Console.WriteLine);
         using var session = new GameSession(
             logWatcher, classifier,
             (worldSno, knownSceneSnos) => LiveDungeonSessionReader.TryOpen(
                 installPath, candidates, playerActorSnos, worldSno, knownSceneSnos, menuScreens, readsFlags, questMarkers, conversationAddresses,
                 questsHere, health, actorSnos.Contains, debug ? new SwitchStateLog(isMultiUseSwitch, store.Name, Console.WriteLine) : null,
                 scene => { lock (cascGate) return tileGizmos.In(scene); }, mapMarkers, questOwner, questHistory,
-                sno => definitionOf(sno) is { } definition && ObjectiveClassifier.IsStructure(store.Name(sno), definition)),
+                sno => definitionOf(sno) is { } definition && ObjectiveClassifier.IsStructure(store.Name(sno), definition),
+                sceneLayers),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
+        // The Horadric guardian's barriers: only the vessel a barrier names sounds, the guide leads to it, and its name is spoken
+        // as the game shows it ("Gefäß des Cain").
+        string VesselShown(string vessel)
+        {
+            lock (cascGate) return store.Text(SpeechLanguages.GameLocale(language.Current), "Actor_" + vessel, "Name") ?? vessel;
+        }
+        var ward = new HoradricWard(store.Name, Console.WriteLine,
+            vessel => speech.Speak(VesselShown(vessel), interrupt: true),
+            vessel => speech.Speak(string.Format(AppStrings.For(language.Current).VesselUsedFormat, VesselShown(vessel)), interrupt: true));
+        session.ActorRewrite = ward.Apply;
+        session.WorldChanged += (_, _, _) => ward.Reset();
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
         var exitScenes = LoadExitCandidateScenes(store, schema, cascGate);
@@ -206,12 +219,13 @@ internal static class Program
             session, speech, config.AutoAnnouncementsEnabled, diagnostics: debug, walkability, language, exitScenes.Contains,
             config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
         // Traversal points join floor the walk map splits (a gap to jump, a ladder, a gap to duck under): the guide routes over them
-        // and leads to the traversal point. Every kind but the one-way slide (jumps: live 2026-10-18, Philios mindscape; ladders and a
-        // duck-under: three of the Necropolis's five tumors stand on ground reached only by them, research/dungeon-objectives.md §12).
+        // and leads to the traversal point; a slide one way to its exit, a climb from its top exit to its bottom one (jumps: live
+        // 2026-10-18, Philios mindscape; ladders and a duck-under: three of the Necropolis's five tumors stand on ground reached only
+        // by them, research/dungeon-objectives.md §12; slide and climb: live 2026-10-22, "Die Leere").
         var jumpScenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false);
-        var tileJumps = new TileActorReader(jumpScenes, sno => store.Name(sno) is { } name
-            && name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) && name != TraversalSlideName);
-        _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null);
+        var tileJumps = new TileActorReader(jumpScenes, sno => TraversalKinds.Of(store.Name(sno)) != TraversalKind.None);
+        _ = new JumpLinkCollector(session, scene => { lock (cascGate) return tileJumps.In(scene); }, navigation.SetJumpLinks, debug ? Console.WriteLine : null,
+            sno => TraversalKinds.Of(store.Name(sno)));
 
         // One mixer and one output for the radar cues and the beacon loops.
         var interactables = new InteractableClassifier(definitionOf, store.Name);
@@ -233,7 +247,7 @@ internal static class Program
         var lockedDoors = new LockedDoors(doors ?? new DoorObstacles(interactables, definitionOf), store.Name, Console.WriteLine);
         var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
-            radarWorld.SetBarriers, navigation.SetBlockedCells);
+            radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates);
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
@@ -263,13 +277,30 @@ internal static class Program
         session.WorldChanged += (_, _, _) => markerLog.Reset();
         using var enemyCue = new EnemyCuePlayer(mixer);
         var carried = new CarryGoals(new ObjectiveClassifier(definitionOf, store.Name));
-        _ = new EnemyCueBridge(session, enemyCue, new EnemyClassifier(definitionOf).ClassOf, store.Name, debug ? Console.WriteLine : null,
+        var enemyClasses = new EnemyClassifier(definitionOf);
+        double telegraphGain = 1;
+        _ = new EnemyCueBridge(session, enemyCue, enemyClasses.Of, store.Name, debug ? Console.WriteLine : null,
             actors => actors.Any(carried.IsHeld) ? [.. actors.Select(a => carried.IsBossToBind(a) ? a with { Invulnerable = false } : a)] : actors);
         _ = new StolenSkillsAnnouncer(session, new ObjectiveClassifier(definitionOf, store.Name).IsStolenSkill, speech, language);
+        // A boss or elite attack about to land where the player stands: a sharp cue toward it and the way to step out.
+        var telegraphCue = TelegraphCueSynth.Synthesize();
+        _ = new TelegraphWarner(session, new TelegraphClassifier(store.Name), enemyClasses.Of, speech, language,
+            pan => { if (telegraphGain > 0) mixer.Play(telegraphCue, telegraphGain * RadarCuePlayer.LoudnessBoost, pan, priority: TelegraphPriority); },
+            (x, y) => radarWorld.Cell((int)MathF.Floor(x), (int)MathF.Floor(y)) is RadarCell.Blocked or RadarCell.Door,
+            debug ? Console.WriteLine : null, isProjectile: sno => definitionOf(sno)?.EType == ProjectileActorType);
+        // Every special or area attack, from its telegraph on: a loop where it is, moving with it.
+        if (loopSounds is not null && loopSounds.ContainsKey(HazardLoopBridge.HazardSound))
+        {
+            var hazardLoops = new SpatialLoopPlayer(mixer, loopSounds) { MaxVoices = HazardLoopBridge.MaxLoops };
+            _ = new HazardLoopBridge(session, new TelegraphClassifier(store.Name), enemyClasses.Of,
+                sno => definitionOf(sno)?.EType == ProjectileActorType, hazardLoops.Update, () => liveSound.Current.Level(SoundCue.Telegraph),
+                debug ? Console.WriteLine : null);
+        }
         // A restart mid-dungeon (a rebuild, a crash) keeps the map, the explored tiles, the portals and the objectives heard.
-        _ = new ExplorationPersistence(
+        var persistence = new ExplorationPersistence(
             session, new ExplorationStore(AppContext.BaseDirectory, Console.WriteLine), navigation, portals, ProcessLocator.StartedUtc, Console.WriteLine,
-            objectives);
+            objectives, sceneLayers);
+        session.WorldChanged += (_, _, _) => sceneLayers.Reset();
         var cueGate = new CueGate(paused => mixer.Paused = paused, Console.WriteLine); // mute reasons always logged: testers' "no sound" reports
         session.TransitChanged += loading => cueGate.Set(CueMute.Loading, loading); // the loops would hang on their last positions
         if (config.PauseCuesInCutscenes)
@@ -311,6 +342,7 @@ internal static class Program
                 var (volume, rate) = mix.Level(cue);
                 enemyCue.SetLevel(kind, volume, rate);
             }
+            telegraphGain = mix.Level(SoundCue.Telegraph).Gain;
             if (guidePing is null) return;
             (guidePing.Volume, guidePing.Rate) = mix.Level(SoundCue.GuidePing);
             guidePing.ArrivalVolume = mix.Level(SoundCue.GuideArrival).Gain;
@@ -322,7 +354,15 @@ internal static class Program
         using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
         // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below). Only while the
         // game is in front: the settings and exit keys (TrayApp) are the only ones that work everywhere.
-        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount, GameWindowFocus.IsGameForeground);
+        using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount, GameWindowFocus.IsGameForeground, config.WalletKeyEnabled);
+        // F2: the helltide's cinders and Baneful Hearts, named as the game names them.
+        var wallet = new WalletAnnouncer(
+            () => { IReadOnlyList<long>? amounts = null; session.Query(r => amounts = r.ReadCurrencies()); return amounts; },
+            type => WalletCurrencyItems.TryGetValue(type, out var item)
+                ? StripGrammarTag(LockedText(cascGate, () => store.Text(SpeechLanguages.GameLocale(language.Current), "Item_" + item, "Name")))
+                : null,
+            speech, language, debug ? Console.WriteLine : null);
+        hotkeys.WalletKeyPressed += wallet.Announce;
         // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
         // The pad is read whatever window has the focus: in another game, or with Diablo IV closed, its D-pad isn't ours.
         var pad = xboxPad is not null && sonyPad is not null
@@ -342,13 +382,28 @@ internal static class Program
         QuestPathBridge? pathBridge = null;
         var bossEntrances = new TileActorReader(markerScenes, sno => store.Name(sno) == BossRoomDestination.EntranceTriggerName);
         var bossRoom = new BossRoomDestination(session, scene => { lock (cascGate) return bossEntrances.In(scene); }, debug ? Console.WriteLine : null);
+        persistence.Restored += bossRoom.OnRestored;
+        // A dungeon whose objective quest names no actor asks for a kill count: every monster (the seasonal Den of Evil).
+        var monsters = new RemainingMonstersDestination(session, name =>
+        {
+            int world = WorldSnoOrNone(store, schema, name);
+            lock (cascGate) return dpo.QuestSnos(world).Count > 0 && dpo.ActorSnos(world).Count == 0;
+        }, debug ? Console.WriteLine : null);
+        session.MapMarkersRead += monsters.OnMarkers;
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
                 pad, config.ExplorationGuideInDungeons, language,
-                portals is null ? bossRoom.Destinations : () => [.. bossRoom.Destinations(), .. portals.Destinations()],
-                objectives is null ? null : () => [.. objectives.Destinations(), .. portals!.ObjectiveDestinations()],
-                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); },
+                portals is null ? () => [.. monsters.Destinations(), .. bossRoom.Destinations()]
+                    : () => [.. monsters.Destinations(), .. bossRoom.Destinations(), .. portals.Destinations()],
+                objectives is null ? null : () =>
+                {
+                    bool elsewhere = false;
+                    session.Query(r => elsewhere = r.QuestStepElsewhere);
+                    return [.. ward.Destinations(), .. objectives.Destinations(), .. portals!.ObjectiveDestinations(),
+                        .. elsewhere ? portals.WayOutDestinations() : []];
+                },
+                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)
@@ -391,21 +446,46 @@ internal static class Program
         using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
         if (mapKeys is not null)
         {
-            // The game's text bundle (60,000 tables) loads on the first name; load it now, not on the first Shift+F1.
+            var zones = new ZoneCatalog(store, schema);
+            var bounties = new HelltideBountyCatalog(store, schema);
+            // The game's text bundle (60,000 tables) loads on the first name, the regions on the first one asked (every subzone read):
+            // both now, not on the first Shift+F1.
             if (allWaypoints.Count > 0)
-                _ = Task.Run(() => { lock (cascGate) waypointCatalog.Name(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
+                _ = Task.Run(() => { lock (cascGate) waypointCatalog.Zone(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
             var waypointList = new WaypointListBridge(
                 allWaypoints, w => { lock (cascGate) return waypointCatalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
                 readActivatedWaypoints,
                 () => { D4Memory.Ui.MapView? view = null; session.Query(r => view = r.ReadMapView()); return view; },
                 () => session.CurrentWorldSno, speech, language, config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, mapKeys, new GameMouse(),
-                GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null);
+                GameWindowFocus.IsGameForeground, debug ? Console.WriteLine : null,
+                w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); },
+                m => { lock (cascGate) return HelltidePlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current)); },
+                () =>
+                {
+                    IReadOnlyDictionary<int, int>? states = null;
+                    session.Query(r => states = r.ReadWorldStates());
+                    return states is null ? null : ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides(store.BuildVersion));
+                },
+                region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }),
+                helltideEndsEarly: ActiveHelltides.BaseEndsEarly(store.BuildVersion),
+                bountiesOf: region =>
+                {
+                    IReadOnlyDictionary<int, int>? states = null;
+                    session.Query(r => states = r.ReadWorldStates());
+                    if (states is null) return [];
+                    lock (cascGate)
+                        return bounties.All.Where(b => HelltideRegionOf(b.Territory) == region && b.IsUp(states) &&
+                                b.HasTurn(states.GetValueOrDefault(bounties.BountySubzoneSno)))
+                            .Select(b => (bounties.Name(b, SpeechLanguages.GameLocale(language.Current)), (double)b.Position.X, (double)b.Position.Y))
+                            .ToList();
+                });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
+            session.MapMarkersRead += waypointList.OnMapMarkers;
             session.MenusRead += waypointList.OnMenus;
             waypointList.Start();
             mapKeys.Start();
-            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map.");
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the helltide.");
         }
 
         session.WorldChanged += (sno, name, isDungeon) =>
@@ -527,7 +607,7 @@ internal static class Program
 
     private static Dictionary<string, float[]>? LoadLoopSounds()
     {
-        try { return SpatialLoopPlayer.LoadSounds(); }
+        try { return SpatialLoopPlayer.LoadSounds(Path.Combine(AppContext.BaseDirectory, "Sounds"), Console.WriteLine); }
         catch (InvalidDataException e) { Console.WriteLine($"Loop sounds disabled, sounds not loaded: {e.Message}"); return null; }
     }
 
@@ -554,11 +634,17 @@ internal static class Program
             safeZones.InsideRadius);
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name), start.IsDungeon); // app started mid-dungeon
 
-        var player = new SpatialLoopPlayer(mixer, sounds);
+        var player = new SpatialLoopPlayer(mixer, sounds) { MaxVoices = AudioMixer.MaxLoopVoices - HazardLoopBridge.MaxLoops };
         var sightings = debug
             ? new ActorSightingLog(definitionOf, store.Name, Console.WriteLine)
             : null;
         if (debug) _ = new SoulSplitLog(session, store.Name, definitionOf, Console.WriteLine);
+        if (debug)
+        {
+            var life = new PlayerLifeLog(Console.WriteLine);
+            session.PlayerMoved += life.OnPlayer;
+            session.LifeRead += life.OnLife;
+        }
         var chests = GlowingChestStore.Load(AppContext.BaseDirectory, Console.WriteLine);
         var used = new GizmoUsedSignal(store.Name, chests.Kinds, chests.Add, debug ? Console.WriteLine : null);
         var loops = new ActorLoopBridge(
@@ -622,6 +708,55 @@ internal static class Program
                     string.Join(" ", r.Points.Select(p => $"({p.X:F1},{p.Y:F1})")) +
                     (r.End is { } end ? $", end ({end.X:F1},{end.Y:F1})" : "") + $", {r.ActivationSnos.Count} activation actors.");
         return routes;
+    }
+
+    // A map marker as an object of the helltide list (HelltideObjects): its UI name ("Gequältes Geschenk der Geheimnisse"; the
+    // Name label adds the cinder cost on a second line), its level area's name and the helltide's area, the territory and region
+    // ("Auen von Fethis, Hawezar").
+    // The currencies F2 says, by eCurrencyType: the ItemDefinitions that name them (ItemDefinition.eCurrencyType).
+    private static readonly Dictionary<int, string> WalletCurrencyItems = new()
+    {
+        [D4Memory.Actors.CurrencyReader.Cinders] = "Helltide_Currency", [D4Memory.Actors.CurrencyReader.BanefulHearts] = "Helltide_BossSummon_Currency",
+    };
+
+    private static string? LockedText(object gate, Func<string?> read)
+    {
+        lock (gate) return read();
+    }
+
+    private static string? StripGrammarTag(string? text) =>
+        text is ['[', ..] && text.IndexOf(']') is > 0 and var end ? text[(end + 1)..] : text;
+
+    // A helltide region's name in the game's language: the region of a town waypoint in it ("Hawezar" for Zarbinzet), as the
+    // helltide objects' areas name it.
+    private static readonly Dictionary<HelltideRegion, string> HelltideRegionTowns = new()
+    {
+        [HelltideRegion.Scosglen] = "Scos_Cerrigar", [HelltideRegion.FracturedPeaks] = "Frac_Kyovashad", [HelltideRegion.Hawezar] = "Hawe_Zarbinzet",
+        [HelltideRegion.Kehjistan] = "Kehj_Gea_Kul", [HelltideRegion.DrySteppes] = "Step_KedBardu", [HelltideRegion.Nahantu] = "Naha_Kurast_Bazaar",
+        [HelltideRegion.Skovos] = "Skov_Temis",
+    };
+
+    // A helltide bounty's region by its territory key's prefix ("Scos_DeepForest" → Scosglen).
+    private static HelltideRegion? HelltideRegionOf(string territory) => territory.Split('_')[0] switch
+    {
+        "Scos" => HelltideRegion.Scosglen, "Frac" => HelltideRegion.FracturedPeaks, "Hawe" => HelltideRegion.Hawezar,
+        "Kehj" => HelltideRegion.Kehjistan, "Step" => HelltideRegion.DrySteppes, "Naha" => HelltideRegion.Nahantu, "Skov" => HelltideRegion.Skovos,
+        _ => null,
+    };
+
+    private static string HelltideRegionName(HelltideRegion region, IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string?> zoneOf) =>
+        waypoints.FirstOrDefault(w => w.LevelAreaName == HelltideRegionTowns[region]) is { } town && zoneOf(town) is { } name ? name : region.ToString();
+
+    private static HelltidePlace? HelltidePlaceOf(MarkedActor marker, SnoStore store, ZoneCatalog zones, string locale)
+    {
+        string? actor = store.Name(marker.ActorSno);
+        if (!HelltideObjects.Is(marker.Kind, actor)) return null;
+        // A monster's Name carries a grammar tag ("[ms]Gefallener Altar").
+        string name = StripGrammarTag(store.Text(locale, "Actor_" + actor, "UIName")
+            ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0]) ?? actor!;
+        string? region = store.Name(marker.LevelAreaSno) is { } area ? store.Text(locale, "LevelArea_" + area, "Name") : null;
+        string[] parts = [.. new[] { zones.TerritoryName(marker.LevelAreaSno, locale), zones.Name(marker.LevelAreaSno, locale) }.OfType<string>()];
+        return new HelltidePlace(name, region, parts.Length > 0 ? string.Join(", ", parts) : null);
     }
 
     // The game's own quest markers (map kind 12: Symbol_Quest_Proxy for an area step such as "kill the fiend roaming here", live
@@ -700,6 +835,12 @@ internal static class Program
     private const string TraversalExitName = "MarkerLocation_TraversalExit";
 
     // Paths over the offline scene surfaces of the open world and the story areas; every game-data read holds the CASC gate.
+    // Above every radar cue (RadarCueKindExtensions.Priority): a warning is never the voice stolen.
+    private const int TelegraphPriority = 100;
+
+    // ActorDefinition.eType of a projectile (the Horadric guardian's wave wall, tornadoes, chakram).
+    private const int ProjectileActorType = 10;
+
     private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
     {
         var worlds = new WorldReader(store, schema);

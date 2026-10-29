@@ -500,15 +500,43 @@ near an edge costs more. Traversals join the floors they split: every two traver
 - **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
   the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
   it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),
-  nearest first. Up/down speak `name, N meters, direction. i of n`; Enter moves the mouse to the waypoint's pixel
+  nearest first. Up/down speak `name, region, N meters, direction. i of n` (the region: `WaypointCatalog.Zone`, the Zone of the
+  subzone listing the waypoint's LevelArea, e.g. "Nevesk, Zersplitterte Gipfel"; user request 2026-10-25); Enter moves the mouse to the waypoint's pixel
   (`MapViewReader` center and zoom, `MapProjection`) with `SendInput` (`Input/GameMouse`, the app's only input to the
   game, never a click) and closes the list; Escape closes it. A waypoint off the view that zooming out would show says
   "zoom out"; one farther than the map shows even all the way out (zoom 3046: ~1400 units above and below the center,
   live 2026-10-19, Farobru from Temis and Ichorfall) puts the cursor on a stopover instead: the activated waypoint in
   view nearest to it, preferring one from which it is in view (`WAYPOINT hop …`), and says to choose it again after the
-  trip; with no stopover it says which way to move the map. `Input/MapListKeys` registers Shift+F1 only while
+  trip; with no stopover it says which way to move the map. Every line also goes to the braille display
+  (`ISpeechSink.Output`: PRISM's speech + braille; user request 2026-10-25). `Input/MapListKeys` registers Shift+F1 only while
   `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
+- **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list). First the
+  helltides the server has active, from anywhere (user request 2026-10-27): the session's world states `UberSubzone` (base
+  game, 1 Scosglen … 5 Dry Steppes) and `UberSubzone_Expansions` (1 Nahantu, 2 Skovos), read through `WorldStateReader`
+  (`ActiveHelltides`), each as `region, N minutes left` (the base game's end five minutes before the hour before build 3.3, on the hour after;
+  the expansions' on the half hour; the position only with two up); none says
+  when the next starts; unreadable world states open the objects at once. Enter on a helltide lists its objects: the helltide
+  objects the map marks (`HelltideObjects`: tortured gifts and other gizmos named Helltide, the accursed ritual, the fallen
+  altars and demonic spires, the doomsayer; not Hell's prize, which led nowhere), nearest first, as
+  `name, level area, N meters, direction`, opened with the helltide's area (`ZoneCatalog`: territory and region, "Auen von
+  Fethis, Hawezar"). Up/down, Enter (cursor) and Escape work as in the waypoint list. The map marks them only while the
+  player is out in the helltide's area, so an empty list says so. Zoomed out past 1500 the map shows them as no icon the
+  cursor can point at (live: said at zoom 1100, not at 1934 or 3046), so Enter turns the mouse wheel a notch at a time
+  (`IGameMouse.Scroll`, user request 2026-10-27; reversed once if it zooms out) with the cursor on the object until the zoom
+  is 1500 or less, and asks to zoom in only when that fails. The helltide's Blood Maiden bounties (`HelltideBountyCatalog`:
+  quest `Bounty_Helltide_Tier3_<territory>_Succuboss`, spot `vecStartLocation`, up while world state
+  `Bounty_Helltide_Tier2_<territory>_Succuboss` is 1 and its territory has the turn: world state `Helltide_BountySubzone`
+  against `Bounty_Unlock_Condition_Helltide_<territory>`, Scosglen's Deep Forest == 1, its coast >= 2; live 2026-10-27 the
+  coast's Blood Maiden, listed too before this test, was not on the map) list with the objects from anywhere, as the map marks them. With two helltides up an object belongs to the one its area's
+  region names; without objects Enter says to enter the area. `--debug` logs `HELLTIDE active: …`, `HELLTIDE n object(s)
+  among m map markers` and `WAYPOINT zoom a -> b (wheel ±1)`.
+- **F2** (keyboard, while the game is in front) — the helltide's cinders and Baneful Hearts, the two counts the HUD shows in a
+  helltide (user request 2026-10-28): „Glut: 36, Unheilsherz: 1“, the names from the game's text (`Item_Helltide_Currency`,
+  `Item_Helltide_BossSummon_Currency`), an amount of 0 as „keine“; spoken and on the braille display. Read as they are,
+  anywhere: before patch 3.3.0 the cinders vanish when the helltide ends, the hearts stay. `CurrencyReader` reads the local
+  player's currencies (slot + 0x7688 of the player block, research/client-memory.md §4); `--debug` logs `WALLET …`. Off in
+  the settings ("Glut und Unheilsherzen auf F2"), then the game keeps F2.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

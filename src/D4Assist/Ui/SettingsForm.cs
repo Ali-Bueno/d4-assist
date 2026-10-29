@@ -48,7 +48,7 @@ public sealed class SettingsForm : Form
             SoundBox(text.RadarDirections, null, SoundCatalog.CuesOf(SoundGroup.Radar).Where(SoundCatalog.IsRadarDirection))));
         tabs.TabPages.Add(Page(text.Groups[SoundGroup.Objects], GroupBox(SoundGroup.Objects)));
         tabs.TabPages.Add(Page(text.Groups[SoundGroup.Quest], GroupBox(SoundGroup.Quest)));
-        tabs.TabPages.Add(Page(text.GuideAndCharactersTab, GroupBox(SoundGroup.Guide), CharactersBox()));
+        tabs.TabPages.Add(Page(text.GuideAndCharactersTab, GroupBox(SoundGroup.Guide), CharactersBox(), GroupBox(SoundGroup.Danger)));
         tabs.TabPages.Add(Page(text.GeneralTab, GeneralBox(), PausesBox()));
 
         var ok = Button(text.Ok, (_, _) => { if (Save()) { _keepChanges = true; Close(); } });
@@ -190,6 +190,7 @@ public sealed class SettingsForm : Form
             Check(_text.RadarClosedDoors, () => Config.RadarClosedDoorsEnabled, v => Config.RadarClosedDoorsEnabled = v),
             Check(_text.LiveBarriers, () => Config.LiveBarriersEnabled, v => Config.LiveBarriersEnabled = v),
             Check(_text.WaypointList, () => Config.WaypointListEnabled, v => Config.WaypointListEnabled = v),
+            Check(_text.WalletKey, () => Config.WalletKeyEnabled, v => Config.WalletKeyEnabled = v),
             Check(_text.ExplorationGuide, () => Config.ExplorationGuideEnabled, v => Config.ExplorationGuideEnabled = v),
             Check(_text.ExplorationGuideInDungeons, () => Config.ExplorationGuideInDungeons, v => Config.ExplorationGuideInDungeons = v),
             Check(_text.QuestRoutes, () => Config.QuestRoutesEnabled, v => Config.QuestRoutesEnabled = v),

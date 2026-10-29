@@ -7,7 +7,10 @@ namespace D4Data.Readers;
 
 /// <summary>A marker in a scene's own layer set (<c>&lt;Scene&gt; (&lt;Layer&gt;)</c>): its position is scene-local, so it lands in the
 /// world only where that scene is placed (a DRLG dungeon's tile, live 2026-10-01: the Ancient Mausoleum's central chamber).</summary>
-public sealed record SceneMarker(int SceneSno, PlacedMarker Marker);
+/// <param name="Layer">The layer's marker set: a scene placed twice can carry two layers, one per tile (QST_Skov_Celestia_03's lock
+/// rooms A and B, both <c>Cave_Tomb_EW_01</c>, live 2026-10-22). Null for a marker no layer names (an overlay's).</param>
+/// <param name="Anchors">The layer's own actor markers, scene-local: one the map marks tells the tile that carries it. Null with no layer.</param>
+public sealed record SceneMarker(int SceneSno, PlacedMarker Marker, int? Layer = null, IReadOnlyList<PlacedMarker>? Anchors = null);
 
 /// <summary>A blueprint's own marker set (<c>&lt;Name&gt;_BPMS</c>, no layer) and its actor markers, which anchor it: the instance
 /// places the blueprint shifted, not turned (live 2026-10-17: the ship to Skovos by (-32,-127), CSD_Skov_Temis_SmugglersRun_02 by
@@ -51,6 +54,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<int, List<(int Quest, Vector3 Position)>>? _questsByActor;
     private Dictionary<int, List<int>>? _questsByWorld;
     private readonly Dictionary<int, Blueprint> _blueprints = [];
+    private readonly Dictionary<int, IReadOnlyList<PlacedMarker>> _layerAnchors = [];
     private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _groupMarkers;
     private Dictionary<int, List<(int Host, Matrix4x4 ToHost)>>? _prefabHosts;
     private SceneLayerIndex? _sceneLayers;
@@ -196,6 +200,14 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         return _blueprints[markerSet] = new Blueprint(markerSet, [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)]);
     }
 
+    // A scene layer's actor markers (its barrier walls, NPCs, spawners), read once per set.
+    private IReadOnlyList<PlacedMarker> LayerAnchors(int markerSet)
+    {
+        if (_layerAnchors.TryGetValue(markerSet, out var known)) return known;
+        int actorGroup = schema.SnoGroup(ActorDefinition);
+        return _layerAnchors[markerSet] = [.. markers.TopLevel(markerSet).Values.Where(m => m.Group == actorGroup && m.Sno > 0)];
+    }
+
     // The scenes a marker set belongs to; null for a world's or a subzone's layer set (world space) or a set with no frame. A scene
     // renamed since keeps its sets under the old name, and the scenes whose own layers carry that name place them: the Eldhaime
     // Barracks' secret-door set "TT_PDKeep_CaveRoot_NS_01 (CSD_Scos_EldhaimeRuins_SecretDoor)" lies in
@@ -252,7 +264,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     // no chain of prefabs places in a scene or world.
     private Landing? Land(int markerSet, PlacedMarker marker)
     {
-        if (ScenesOf(markerSet) is { } scenes) return new Landing([], [.. scenes.Select(scene => new SceneMarker(scene, marker))]);
+        if (ScenesOf(markerSet) is { } scenes)
+            return new Landing([], [.. scenes.Select(scene => new SceneMarker(scene, marker, markerSet, LayerAnchors(markerSet)))]);
         if (FrameOf(store.Name(markerSet)) is not null) return new Landing([marker], []);
         var hosts = Hosts(markerSet, 0).ToList();
         if (hosts.Count == 0) return null;

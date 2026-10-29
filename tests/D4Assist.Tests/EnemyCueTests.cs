@@ -31,13 +31,23 @@ public class EnemyCueTests
     public void Rarity_picks_the_cue_of_hostile_monsters_only(int sno, EnemyClass? expected) =>
         Assert.Equal(expected, Classifier.ClassOf(sno));
 
+    [Fact]
+    public void A_boss_whose_definition_is_not_hostile_is_cued_once_its_live_team_is()
+    {
+        // Live 2026-10-23: the Horadric guardian's definition says team 1; it turns hostile for its fight.
+        var guardian = new ActorState(7, FriendlyBossSno, 0, 0, 0);
+        Assert.Null(Classifier.Of(guardian));
+        Assert.Equal(EnemyClass.Boss, Classifier.Of(guardian with { Hostile = true }));
+        Assert.Null(Classifier.Of(new ActorState(8, GizmoSno, 0, 0, 0, Hostile: true)));
+    }
+
     private static (FakeFeed Feed, AudioMixer Mixer, EnemyCuePlayer Player, List<string> Log) Bridge()
     {
         var feed = new FakeFeed();
         var mixer = new AudioMixer();
         var player = new EnemyCuePlayer(mixer, () => 0, autoTick: false);
         var log = new List<string>();
-        _ = new EnemyCueBridge(feed, player, Classifier.ClassOf, _ => null, log.Add);
+        _ = new EnemyCueBridge(feed, player, Classifier.Of, _ => null, log.Add);
         return (feed, mixer, player, log);
     }
 

@@ -58,5 +58,9 @@ public sealed partial record AppStrings
         QuestMarker: "Görev işareti",
         PlaceCountFormat: "{1} içinden {0}.",
         GuideExploreMode: "Rehber: keşif.",
-        GuideObjectivesMode: "Rehber: hedefler.");
+        GuideObjectivesMode: "Rehber: hedefler.",
+        GuideToMonstersFormat: "Her yer keşfedildi. Haritada {0} canavar kaldı, seni götürüyorum.",
+        DodgeFormat: "Kaç: {0}",
+        MarkedWarning: "İşaretlendin: patlama seni takip ediyor",
+        VesselUsedFormat: "{0} etkinleştirildi. Şimdi bariyere gir.");
 }

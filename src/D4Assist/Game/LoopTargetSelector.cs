@@ -117,6 +117,9 @@ public sealed class LoopTargetSelector
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
         if (_objectives is not null && actor.QuestStep)
             return _objectives.IsBossOrUnique(actor.ActorSno) ? _enemyKillTarget
+                // A vessel the barrier names keeps its reusable loop: the game's used mark stays from an earlier barrier or attempt
+                // (live 2026-10-24: Cain's vessel, named a second time, went silent as "used" at once).
+                : _objectives.IsWardBreaker(actor.ActorSno) ? _objectiveTargets[ObjectiveReason.WardBreaker]
                 : ObjectiveFor(actor, ObjectiveReason.Quest, gizmo: !actor.Talkable);
         if (_carry?.IsHeld(actor) == true) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)

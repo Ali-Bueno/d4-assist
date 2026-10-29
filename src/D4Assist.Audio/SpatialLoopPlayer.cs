@@ -62,6 +62,9 @@ public sealed class SpatialLoopPlayer
 
     public int ActiveCount => _playing.Count;
 
+    /// <summary>At most this many of this player's loops at once, so players sharing the mixer each keep a share of its budget.</summary>
+    public int MaxVoices { get; init; } = AudioMixer.MaxLoopVoices;
+
     public SpatialLoopPlayer(AudioMixer mixer, IReadOnlyDictionary<string, float[]> sounds)
     {
         _mixer = mixer;
@@ -72,7 +75,29 @@ public sealed class SpatialLoopPlayer
     public const string SoundResourcePrefix = "Sounds/";
 
     /// <summary>Loads every embedded Sounds/*.wav by file name (no extension), peak-normalized like D2R's loops.</summary>
-    public static Dictionary<string, float[]> LoadSounds()
+    /// <param name="overrides">A folder whose *.wav files (same format) add to or replace the embedded ones by file name, so a sound
+    /// can be tried without a rebuild; null or missing for none. A file in another format is skipped and reported.</param>
+    public static Dictionary<string, float[]> LoadSounds(string? overrides = null, Action<string>? log = null)
+    {
+        var sounds = LoadEmbedded();
+        if (overrides is null || !Directory.Exists(overrides)) return sounds;
+        foreach (var file in Directory.EnumerateFiles(overrides, "*.wav"))
+        {
+            try
+            {
+                var samples = WavLoader.Load(file);
+                Normalize(samples, LoopPeak);
+                sounds[Path.GetFileNameWithoutExtension(file)] = samples;
+                log?.Invoke($"Loop sound {Path.GetFileName(file)} loaded from {overrides}.");
+            }
+            catch (Exception e) when (e is InvalidDataException or IOException) { log?.Invoke($"Loop sound {file} skipped: {e.Message}"); }
+        }
+        return sounds;
+    }
+
+    private static void Normalize(float[] samples, float peak) => WavLoader.Normalize(samples, peak);
+
+    private static Dictionary<string, float[]> LoadEmbedded()
     {
         var assembly = typeof(SpatialLoopPlayer).Assembly;
         var sounds = new Dictionary<string, float[]>();
@@ -118,7 +143,7 @@ public sealed class SpatialLoopPlayer
             double pan = Pan(source.Right, source.Up), pitch = Pitch(source.Up);
             if (_playing.TryGetValue(source.Key, out var voice))
                 voice.Set(gain, pan, pitch, source.Rate);
-            else if (_mixer.StartLoop(samples, gain, pan, pitch, source.Rate) is { } started)
+            else if (live.Count < MaxVoices && _mixer.StartLoop(samples, gain, pan, pitch, source.Rate) is { } started)
                 _playing[source.Key] = started;
             else
                 continue; // loop budget full; the nearer sources already hold it

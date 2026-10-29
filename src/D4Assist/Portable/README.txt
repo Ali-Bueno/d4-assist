@@ -195,12 +195,27 @@ D-pad and the program's keys do nothing and are left to the other programs;
 only Ctrl+Alt+Shift+C (settings) and Ctrl+Alt+Shift+Q (exit) work.
 
 Waypoint list. With the world map open, Shift+F1 lists the waypoints you have
-activated in this world, nearest first. Up and down read them (name, distance
-and direction), Enter puts the mouse cursor on the chosen waypoint and closes
+activated in this world, nearest first. Up and down read them (name, region,
+distance and direction), Enter puts the mouse cursor on the chosen waypoint and closes
 the list, and Escape closes it. Shift+F1 belongs to the program only while the
 map is open, and the arrows, Enter and Escape only while the list is. If the
 waypoint lies outside the map view, zoom out and choose it again. The program
 only moves the cursor; it never clicks.
+Everything the list says also appears on your braille display, if your
+screen reader has one connected.
+
+Helltide list. With the world map open, Shift+F2 says where the helltide is
+right now, from anywhere in the world, and how many minutes it has left
+(when two are up, one in an expansion, up and down move between them). Enter
+on a helltide lists its objects (tortured gifts, the accursed ritual, fallen
+altars, demonic spires, the doomsayer) nearest first, with their area,
+distance and direction. The Blood Maiden's bounty ("Kill the Blood Maiden")
+lists from anywhere, as the map shows it from afar. It works like the waypoint list: up and down, Enter
+for the cursor, Escape to close. The game shows these objects only while you
+are out in the helltide's area, not in a town; until then Enter says to go
+there. Zoomed far out the map does not show them as icons, so Enter on an
+object first zooms the map in with the mouse wheel. Between two helltides
+Shift+F2 says when the next one starts.
 
 
 Known issues

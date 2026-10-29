@@ -46,6 +46,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Görev ve portallar",
             [SoundGroup.Guide] = "Rehber",
             [SoundGroup.Characters] = "Karakterler",
+            [SoundGroup.Danger] = "Tehlike",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -77,6 +78,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Konuşulacak karakterler",
             [SoundCue.Boss] = "Patronlar",
             [SoundCue.Elite] = "Elitler ve benzersizler",
+            [SoundCue.Telegraph] = "Boss saldırısı uyarısı",
         },
         GeneralTab = "Genel",
         GeneralBox = "Seçenekler (yardımcı yeniden başlatıldığında geçerli olur)",
@@ -91,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Radarda kapalı kapılar",
         LiveBarriers = "Radarda ve rehberde zindan bariyerleri",
         WaypointList = "Haritada geçiş noktası listesi (Shift+F1)",
+        WalletKey = "F2 ile közler ve uğursuz kalpler",
         ExplorationGuide = "Keşif rehberi (yön tuşlarının solu açar ve kapatır)",
         ExplorationGuideInDungeons = "Normal zindanlara girerken rehber açık (Yeraltı Şehri ve Çukur'da her zaman açık başlar)",
         CompassDirections = "Yönleri yukarı, sağ… yerine ana yönler (kuzey, doğu…) olarak söyle",

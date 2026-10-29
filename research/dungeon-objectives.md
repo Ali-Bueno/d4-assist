@@ -364,10 +364,7 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
   `QST_Skov_Skartara_WardBreakerShrine_Kulle` 2480807 (−10.7, −10.7), `_Rasha` 2481232, `_Fahd` 2481234, `_Cain` 2481230:
   switches, team 1, set `QST_Horadric_Guardian_Boss` 2329502, `fSwitchCanOperateMultipleTimes` 1, not starting disabled.
   Symbol → vessel: Zoltun → Kulle, Tal → Rasha, Iben → Fahd, Jared → Cain. The barrier and its symbols are effect groups
-  (`Horadric_Guardian_harmless_Barrier_<Mage>`), not actors, so the client actor list can't tell the symbol. The app loops
-  the vessels as reusable (silent only while locked). **Live check:** do the four vessels' ACD flags
-  (`Gizmo_Disabled_By_Script`, quest restriction, `MinimapActive`) single out the matching one? `--debug` logs it as
-  `LOOP stopped … cause=unusable` / `started`. No barrier loop yet (size unknown, 4–6 L).
+  (`Horadric_Guardian_harmless_Barrier_<Mage>`), not actors. **Live 2026-10-23 (H):** the guardian's ACD carries the symbol: `Buff_Visual_Effect[2377345 Barrier_Zoltun]` = 1 while a Zoltun barrier stands (with `Invulnerable` = 1), `[2377401 Barrier_Jared]` for the next one (Tal 2377406, Iben 2377346); the guardian's `TeamID` is 19 in the fight though its definition says 1. The vessels' flags don't single one out (all `MinimapActive`, none restricted); a used vessel's `Gizmo_State` turns 1 (Kulle stayed 1, Rasha flipped back within 1.5 s). The quest names only the first barrier's vessel (phase 242 → 271 on `QST_Horadric_Guardian_Boss_Ward_Activate_v2`, 271 names Kulle; 271/277 → 241 on `event_WardDestoryed`); later barriers stay in phase 241. The app reads the guardian's effects (`HoradricWard`): only the named vessel sounds, the guide leads to it, then onto the guardian (barrier reach 4, a guess); in the fight with no barrier up all vessels are silent.
 
 ## 12. Structures to break: hatred tumors (offline + live, 2026-10-01)
 

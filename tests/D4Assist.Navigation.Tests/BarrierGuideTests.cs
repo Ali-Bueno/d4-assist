@@ -179,6 +179,60 @@ public class BarrierGuideTests
         Assert.Equal("behind", guide.Step(Centre(4), objectives: objectives).Target!.Id);
     }
 
+    [Fact]
+    public void An_objective_cut_off_only_by_a_door_the_game_keeps_shut_leads_to_that_door()
+    {
+        // The Tunnels of Hefaetrust (live 2026-10-23): an invisible door shut the way to the quest's last trigger until the fight
+        // before it ended; the guide explored the start's corners 400 units away instead.
+        var (_, guide) = Corridor();
+        GuideDestination[] objectives = [new("behind", (Half, BarrierTile * 32 + 20), 0, Located: true)];
+        var door = WallAcross(BarrierTile * 32 + 5);
+        guide.SetBlockedCells(door);
+
+        Assert.Equal(GuideTargetKind.UnvisitedTile, guide.Step(Centre(4), objectives: objectives).Target!.Kind);
+
+        guide.SetGates([new GuideGate("door", (Half, BarrierTile * 32 + 5.5f), door)]);
+        var step = guide.Step(Centre(4), objectives: objectives);
+        Assert.Equal(GuideTargetKind.Gate, step.Target!.Kind);
+        Assert.Equal("behind", step.Toward!.Id);
+        Assert.True(step.RemainingLength < 32, $"route {step.RemainingLength}");
+
+        guide.SetBlockedCells(new HashSet<(int X, int Y)>());
+        guide.SetGates([]);
+        Assert.Equal("behind", guide.Step(Centre(4), objectives: objectives).Target!.Id);
+    }
+
+    [Fact]
+    public void A_shut_door_the_player_stood_at_and_walked_away_from_leads_no_more_until_switched_on_again()
+    {
+        // A key door is shut by the game too, its key elsewhere: waiting at it would wait forever.
+        var (_, guide) = Corridor();
+        GuideDestination[] objectives = [new("behind", (Half, BarrierTile * 32 + 20), 0, Located: true)];
+        var door = WallAcross(BarrierTile * 32 + 5);
+        guide.SetBlockedCells(door);
+        guide.SetGates([new GuideGate("door", (Half, BarrierTile * 32 + 5.5f), door)]);
+        var atDoor = new PlayerInput(Half, BarrierTile * 32 + 2, 0);
+
+        Assert.Equal(GuideTargetKind.Gate, guide.Step(atDoor, objectives: objectives).Target!.Kind);
+        Assert.Equal(GuideTargetKind.Gate, guide.Step(Centre(4), objectives: objectives).Target!.Kind); // a step back, still near
+        Assert.Equal(GuideTargetKind.UnvisitedTile, guide.Step(Centre(3), objectives: objectives).Target!.Kind);
+
+        guide.RearmGates();
+        Assert.Equal(GuideTargetKind.Gate, guide.Step(Centre(3), objectives: objectives).Target!.Kind);
+    }
+
+    [Fact]
+    public void A_shut_door_with_no_objective_past_it_is_no_target()
+    {
+        var (_, guide) = Corridor();
+        GuideDestination[] objectives = [new("elsewhere", (Half, -40), 0, Located: true)];
+        var door = WallAcross(BarrierTile * 32 + 5);
+        guide.SetBlockedCells(door);
+        guide.SetGates([new GuideGate("door", (Half, BarrierTile * 32 + 5.5f), door)]);
+
+        Assert.NotEqual(GuideTargetKind.Gate, guide.Step(Centre(4), objectives: objectives).Target!.Kind);
+    }
+
     // One open 32x32 room with its exit east (Y = 32); a wall across it at Y = 16 leaves a gap at X 26-31.
     private static readonly HashSet<(int X, int Y)> RoomWall = [.. Enumerable.Range(0, 26).Select(x => (x, 16))];
 

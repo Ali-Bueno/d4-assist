@@ -60,10 +60,16 @@ Looping positional sources, ported from D2R's ground-item loops (`ground_items.h
 `item_audio.cpp:24`, `cmake/GroundItems.cmake:9-31`). `SpatialLoopPlayer.Update` takes `LoopSource`s (key, sound,
 offset in screen right/up, `LoopProfile`) and starts/retargets/stops `AudioMixer` loop voices by key. Gain =
 `NearGain * (1 - d/Reach)^Falloff` (silent at reach), flat equal-power pan from the screen-right component, 0.94
-pitch when the source is screen-down, 80 ms smoothing. Loops have their own `MaxLoopVoices` = 8 budget, separate
-from radar cues. Profiles: `Quest` (D2R values) and `Beacon` (user request: louder, reach 60 vs 27).
+pitch when the source is screen-down, 80 ms smoothing. Loops have their own `MaxLoopVoices` = 12 budget, separate
+from radar cues: 8 for the objects' loops, 4 for the attack loops (`HazardLoopBridge`). Profiles: `Quest` (D2R values) and `Beacon` (user request: louder, reach 60 vs 27).
 `Sounds/quest-item.wav` (embedded in the assembly, loaded by `SpatialLoopPlayer.LoadSounds`) is D2R's quest loop (Diablo IV audio, reuse approved), trimmed to 700 ms like D2R:
 `ffmpeg -i "quest item.ogg" -map_metadata -1 -vn -af "apad=whole_dur=0.7,atrim=duration=0.7,afade=t=in:d=0.005,afade=t=out:st=0.68:d=0.02" -ac 1 -ar 48000 -c:a pcm_s16le quest-item.wav`
+
+`Sounds/hazard.wav` is the attack loop (`HazardLoopBridge`), a placeholder: 0.5 s of a 200/300 Hz buzz pulsing twice,
+whole cycles so the loop has no seam. Any loop WAV can be replaced without a rebuild: a file of the same name in the
+`Sounds` folder beside the app wins (`LoadSounds(overrides)`). Every loop WAV must be **RIFF PCM 16-bit, mono, 48000 Hz**;
+it is peak-normalized on load and repeats end to start, so it should begin and end at zero without a click:
+`ffmpeg -i <any> -map_metadata -1 -vn -ac 1 -ar 48000 -c:a pcm_s16le hazard.wav`.
 
 The other WAVs are D2R's loops converted by its own recipe (`d2r-access/cmake/GroundItems.cmake`):
 `ffmpeg -i <ogg> -map_metadata -1 -vn [filter] -ac 1 -ar 48000 -c:a pcm_s16le -fflags +bitexact -flags:a +bitexact <wav>`.

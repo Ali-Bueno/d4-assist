@@ -23,6 +23,7 @@ public sealed partial class NavigationPhrases
         ToUnexplored = "前往未探索区域。",
         QuestObjectiveBelow = "目标在更下方。",
         QuestObjectiveAbove = "目标在更上方。",
+        ShutForNow = "前方的路被封住了，稍后会打开。",
         Directions = Map("上", "右上", "右", "右下", "下", "左下", "左", "左上"),
         CompassDirections = Map("北", "东北", "东", "东南", "南", "西南", "西", "西北"),
         Labels = new() { [RoomKind.Junction] = "岔路口。", [RoomKind.BigRoom] = "大房间。", [RoomKind.Corridor] = "走廊。" },

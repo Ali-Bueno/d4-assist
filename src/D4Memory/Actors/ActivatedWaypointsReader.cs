@@ -31,24 +31,30 @@ public static class ActivatedWaypointsReader
     /// </summary>
     public static IReadOnlyList<int>? Read(IMemoryReader memory, long moduleBase, long gameObjectPointerRva, IReadOnlySet<int> waypointLevelAreas)
     {
+        if (LocalSlot(memory, moduleBase, gameObjectPointerRva) is not { } slot) return null;
+        var words = new byte[WaypointSlots * sizeof(uint)];
+        if (!memory.TryRead(slot + SavedDataOffset + WaypointsOffset, words, words.Length)) return null;
+        var activated = new List<int>();
+        for (int w = 0; w < WaypointSlots; w++)
+        {
+            int levelArea = BitConverter.ToInt32(words, w * sizeof(uint));
+            if (!waypointLevelAreas.Contains(levelArea)) break;
+            activated.Add(levelArea);
+        }
+        return activated;
+    }
+
+    /// <summary>The address of the local player's slot in the player block; null when the block is unreadable or no slot is
+    /// the local player's.</summary>
+    public static long? LocalSlot(IMemoryReader memory, long moduleBase, long gameObjectPointerRva)
+    {
         if (!PoolContainer.TryReadU64(memory, moduleBase + gameObjectPointerRva, out ulong g) || g == 0) return null;
         if (!PoolContainer.TryReadU64(memory, (long)g + PlayerBlockOffset, out ulong block) || block == 0) return null;
         for (int i = 0; i < SlotCount; i++)
         {
             long slot = (long)block + FirstSlotOffset + (long)i * SlotStride;
             if (!PoolContainer.TryReadU32(memory, slot, out uint index) || index != i) return null; // not the player block
-            long saved = slot + SavedDataOffset;
-            if (!IsLocal(memory, saved)) continue;
-            var words = new byte[WaypointSlots * sizeof(uint)];
-            if (!memory.TryRead(saved + WaypointsOffset, words, words.Length)) return null;
-            var activated = new List<int>();
-            for (int w = 0; w < WaypointSlots; w++)
-            {
-                int levelArea = BitConverter.ToInt32(words, w * sizeof(uint));
-                if (!waypointLevelAreas.Contains(levelArea)) break;
-                activated.Add(levelArea);
-            }
-            return activated;
+            if (IsLocal(memory, slot + SavedDataOffset)) return slot;
         }
         return null;
     }

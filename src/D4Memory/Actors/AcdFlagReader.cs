@@ -46,9 +46,20 @@ public sealed class AcdFlagReader
     /// <summary>A unit no damage hurts (live 2026-10-04: the Echo of Diablo while its clone gates stand).</summary>
     public const string Invulnerable = "Invulnerable";
 
+    /// <summary>The actor's team: 19 for hostile monsters (live 2026-10-23: Tal Rasha's seal 19; the Horadric guardian's definition
+    /// says 1, a neutral that turns hostile for its fight).</summary>
+    public const string TeamId = "TeamID";
+
+    /// <summary>An effect shown on the actor, by its parameter (live 2026-10-23: the Horadric guardian carries
+    /// Horadric_Guardian_harmless_Barrier_Zoltun while its barrier names Zoltun Kulle's vessel).</summary>
+    public const string BuffVisualEffect = "Buff_Visual_Effect";
+
     /// <summary>On the player during a real-time (in-engine) cinematic, 0 again when it ends (live 2026-09-30: 1 during the
     /// Inarius door scene, 0 after it; the player's other scene-time flags also turn on in NPC menus and teleports).</summary>
     public const string RtcPlaying = "RTC Playing";
+
+    /// <summary>A unit's life now and its full life (the names are in the build's table; not yet read live).</summary>
+    public const string HitpointsCur = "Hitpoints_Cur", HitpointsMaxTotal = "Hitpoints_Max_Total";
 
     // The live descriptor table held 1366 attributes, ids up to 0x571.
     private const uint MaxAttributeId = 0x1000;
@@ -79,6 +90,27 @@ public sealed class AcdFlagReader
 
     /// <summary>The flags set (nonzero) on the actor behind <paramref name="acdId"/> (an RActor's +0x0C); empty when its ACD is gone.</summary>
     public IReadOnlySet<string> Read(uint acdId) => Values(acdId).Keys.ToHashSet();
+
+    /// <summary>The parameters of every set (nonzero) instance of <paramref name="name"/> on the actor behind <paramref name="acdId"/>.</summary>
+    public IReadOnlyList<int> Parameters(uint acdId, string name)
+    {
+        if (!_acds.TryGet(acdId, out var acd)) return [];
+        return [.. AcdAttributeReader.Read(_reader, acd.AttributesAddress)
+            .Where(a => a.RawValue != 0 && a.Parameter != AcdAttribute.NoParameter && _flags.TryGetValue(a.AttributeId, out var n) && n == name)
+            .Select(a => a.Parameter)];
+    }
+
+    /// <summary>The numbers of the named attributes set (nonzero) on the actor behind <paramref name="acdId"/>, floats and integers
+    /// alike; empty when its ACD is gone.</summary>
+    public IReadOnlyDictionary<string, float> Numbers(uint acdId)
+    {
+        var numbers = new Dictionary<string, float>();
+        if (!_acds.TryGet(acdId, out var acd)) return numbers;
+        foreach (var a in AcdAttributeReader.Read(_reader, acd.AttributesAddress))
+            if (a.RawValue != 0 && _flags.TryGetValue(a.AttributeId, out var name))
+                numbers[name] = a.Kind == AcdAttribute.IntegerKind ? (int)a.RawValue : BitConverter.UInt32BitsToSingle(a.RawValue);
+        return numbers;
+    }
 
     /// <summary>The raw values of the flags set (nonzero) on the actor behind <paramref name="acdId"/>; empty when its ACD is gone.</summary>
     public IReadOnlyDictionary<string, uint> Values(uint acdId)

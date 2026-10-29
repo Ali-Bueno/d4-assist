@@ -72,7 +72,9 @@ public class ActiveQuestsTests
         quests.Update(tracked: [OrbeiQuest], Nowhere); // reads the tracked quest's phase
         var named = quests.Update(tracked: [OrbeiQuest], Nowhere);
 
-        Assert.Equal([PriestSno], named.SceneMarkers.Select(m => m.Marker.Sno));
+        var step = Assert.Single(named.Steps!); // its phases are walked in order, not named at once
+        Assert.Equal([PriestSno], step.SceneMarkers.Select(m => m.Marker.Sno));
+        Assert.Empty(named.SceneMarkers);
         Assert.Contains(SermonHallQuest, quests.Owned); // the priest's quest icon is a followed quest's
     }
 
@@ -90,6 +92,45 @@ public class ActiveQuestsTests
 
         Assert.DoesNotContain(SermonHallQuest, quests.Followed);
         Assert.Empty(named.SceneMarkers);
+        Assert.Empty(named.Steps!);
+    }
+
+    [Fact]
+    public void A_phase_waiting_on_a_quest_whose_pair_is_never_found_names_that_quests_places_as_steps()
+    {
+        // Live 2026-10-23, "Der versiegelte Flügel": DQV_Skov_Skartara_06_TalRasha held no pair in the module data.
+        var quests = Create(new ModuleReader((WrackAndRuin, FindTheEyesPhase)));
+
+        var named = quests.Update(tracked: [], AreaWith(VillagerSno));
+
+        var step = Assert.Single(named.Steps!);
+        Assert.Equal([RightSocket], step.Markers);
+        Assert.Empty(step.ActorSnos);
+    }
+
+    [Fact]
+    public void A_waited_on_quest_whose_pair_is_never_found_is_still_walked_as_steps_once_followed()
+    {
+        var quests = Create(new ModuleReader((WrackAndRuin, FindTheEyesPhase)));
+        quests.Update(tracked: [], AreaWith(VillagerSno));
+
+        var named = quests.Update(tracked: [], AreaWith(VillagerSno)); // the read phase now has its sub-quest followed
+
+        Assert.Contains(RightEyeQuest, quests.Followed);
+        var step = Assert.Single(named.Steps!);
+        Assert.Equal([RightSocket], step.Markers);
+        Assert.Empty(named.Markers);
+    }
+
+    [Fact]
+    public void A_phase_waiting_on_a_quest_whose_pair_is_found_names_no_steps()
+    {
+        var quests = Create(new ModuleReader((WrackAndRuin, FindTheEyesPhase), (RightEyeQuest, ReturnTheEyePhase)));
+
+        var named = quests.Update(tracked: [], AreaWith(VillagerSno));
+
+        Assert.Empty(named.Steps!);
+        Assert.Equal([RightSocket], named.Markers);
     }
 
     [Fact]
@@ -242,6 +283,35 @@ public class ActiveQuestsTests
 
         Assert.Empty(quests.Followed);
         Assert.Equal([SideQuest], quests.Owned);
+    }
+
+    [Fact]
+    public void A_quest_whose_step_moves_on_to_another_world_names_nothing_here_and_leads_out()
+    {
+        // Live 2026-10-23: Tal Rasha's seal taken, the next step in the Horadric Vault's hall; its blueprint marker was placed in
+        // the wing, and the guide held the player at the seal.
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((SideQuest, FindPhase));
+        var quests = SideQuestSession(memory, LightsWatch, new QuestPhaseHistory(), () => now);
+        quests.Update(tracked: [SideQuest], AreaWith(LecternSno));
+        Assert.False(quests.StepElsewhere);
+
+        memory.Hold(SideQuest, ReturnPhase);
+        now += TimeSpan.FromSeconds(10);
+        var named = quests.Update(tracked: [SideQuest], AreaWith(LecternSno));
+
+        Assert.Empty(named.Markers);
+        Assert.True(quests.StepElsewhere);
+    }
+
+    [Fact]
+    public void A_quest_tracked_from_another_world_never_leads_out()
+    {
+        var quests = SideQuestSession(new ModuleReader((SideQuest, ReturnPhase)), LightsWatch, new QuestPhaseHistory());
+
+        quests.Update(tracked: [SideQuest], AreaWith(LecternSno));
+
+        Assert.False(quests.StepElsewhere);
     }
 
     [Fact]

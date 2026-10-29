@@ -3,7 +3,7 @@ using D4Assist.Audio;
 namespace D4Assist.Config;
 
 /// <summary>A set of sound cues that share a switch, a volume and a repeat speed on top of each cue's own.</summary>
-public enum SoundGroup { Radar, Objects, Quest, Guide, Characters }
+public enum SoundGroup { Radar, Objects, Quest, Guide, Characters, Danger }
 
 /// <summary>Every sound cue the user can switch off, level and, when it repeats, speed up or slow down.</summary>
 public enum SoundCue
@@ -14,6 +14,7 @@ public enum SoundCue
     Portal, Waypoint, QuestObjective, Prisoner, Enticement, SafeZone, StolenSkill, AkaratLight, WardBreaker,
     GuidePing, GuideArrival,
     Npc, Boss, Elite,
+    Telegraph,
 }
 
 /// <summary>A switch, a volume and a repeat speed: one group's or one cue's entry in d4assist.json.</summary>

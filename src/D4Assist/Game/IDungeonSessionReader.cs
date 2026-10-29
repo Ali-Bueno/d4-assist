@@ -29,6 +29,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>True while an in-engine cinematic plays; null while the player's state is unreadable.</summary>
     bool? ReadCinematic() => null;
 
+    /// <summary>The player's life; null while unreadable.</summary>
+    PlayerLife? ReadLife() => null;
+
     /// <summary>The places the active quests' current phases name, as of the last actor read; null when unknown.</summary>
     IReadOnlyList<QuestPlace>? ReadQuestPlaces() => null;
 
@@ -45,6 +48,9 @@ public interface IDungeonSessionReader : IDisposable
     /// quests aren't read.</summary>
     IReadOnlyList<int>? ReadOwnedQuests() => null;
 
+    /// <summary>No quest's step is here and a followed one's is shown in another world (ActiveQuests.StepElsewhere).</summary>
+    bool QuestStepElsewhere => false;
+
     /// <summary>The phase of each of <paramref name="quests"/> (quest SNO → its phase UIDs) whose {quest, phase} pair the module data
     /// holds: one scan, on the caller's thread. A pair at phase 0 is left out (a stray one, QuestPhaseLocator.Pick). Null when
     /// quests aren't read.</summary>
@@ -56,6 +62,12 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The world map's center and zoom; null when unreadable. Meaningful while the map is open.</summary>
     MapView? ReadMapView() => null;
+
+    /// <summary>The session's world states, {WorldState SNO → value}; null when unreadable.</summary>
+    IReadOnlyDictionary<int, int>? ReadWorldStates() => null;
+
+    /// <summary>The local player's amount of each currency, indexed by eCurrencyType (CurrencyReader); null when unreadable.</summary>
+    IReadOnlyList<long>? ReadCurrencies() => null;
 }
 
 /// <summary>Opening a session failed with the game running: no access to the process, no game module, or no player record.

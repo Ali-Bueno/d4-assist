@@ -118,6 +118,27 @@ public class ExplorationPersistenceTests : IDisposable
     }
 
     [Fact]
+    public void Another_instance_with_the_same_tiles_in_the_same_game_run_keeps_the_map()
+    {
+        // Live 2026-10-22, "Die Leere": after a death beside the boss the game named instance 3670019 instead of 3145731, same
+        // tiles, and the guide explored the whole dungeon again instead of leading to the boss room.
+        var tileC = new TileState(12, "C", 32, 0, 32, 32, 1, 3, 3);
+        var app = Start();
+        app.Feed.RaiseTiles(TileA, TileB, tileC);
+        app.Feed.RaisePlayer(16, 16);
+        app.Feed.RaiseTiles(TileA, TileB, tileC);
+
+        var sameTiles = Start(instance: "1048578");
+        sameTiles.Feed.RaiseTiles(TileA, TileB, tileC);
+        Assert.Contains((0, 0), sameTiles.Navigation.ExportExploration().Visited);
+        Assert.Contains(sameTiles.Log, l => l.StartsWith("Exploration: restored instance 524290's"));
+
+        var fewTiles = Start(instance: "2097154");
+        fewTiles.Feed.RaiseTiles(TileA, TileB); // two tiles agree: too few to call it the same layout
+        Assert.DoesNotContain((0, 0), fewTiles.Navigation.ExportExploration().Visited);
+    }
+
+    [Fact]
     public void A_save_whose_tiles_disagree_with_the_loaded_ones_is_another_layout()
     {
         ExploreTileA();
@@ -132,14 +153,19 @@ public class ExplorationPersistenceTests : IDisposable
     }
 
     [Fact]
-    public void Leaving_the_dungeon_discards_the_save()
+    public void A_town_trip_keeps_the_dungeons_map_for_the_way_back()
     {
+        // Live 2026-10-22, "Die Leere": to the blacksmith and back by town portal, and the guide explored the whole dungeon again.
         var app = ExploreTileA();
-        Assert.True(File.Exists(Path.Combine(_dir, ExplorationStore.FileName)));
 
         app.Feed.RaiseWorld("Kehj_Town", isDungeon: false);
+        app.Feed.RaiseWorld("DGN_Test", isDungeon: true);
+        app.Feed.RaiseTiles(TileB);
 
-        Assert.False(File.Exists(Path.Combine(_dir, ExplorationStore.FileName)));
+        var state = app.Navigation.ExportExploration();
+        Assert.Contains(state.Tiles, t => t.Name == "A");
+        Assert.Contains((0, 0), state.Visited);
+        Assert.Equal(1, Assert.Single(app.Portals.Destinations()).Tier);
     }
 
     [Fact]

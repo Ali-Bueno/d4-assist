@@ -177,11 +177,31 @@ public class QuestScriptMarkerReaderRealDataTests
         Assert.Contains(quest, reader.QuestsWithMarkersIn([chamber]));
         var phase = reader.PhaseObjects(quest).Single(p => p.PhaseUid == 80);
         Assert.Empty(phase.Markers);
-        var (scene, trigger) = Assert.Single(phase.SceneMarkers);
+        var (scene, trigger, _, _) = Assert.Single(phase.SceneMarkers);
         Assert.Equal(chamber, store.Name(scene));
         Assert.Equal("Trigger_Sphere_8m", store.Name(trigger.Sno));
         Assert.Equal(-1f, trigger.Position.X, 1f);
         Assert.Equal(51f, trigger.Position.Y, 1f);
+    }
+
+    [Fact]
+    public void ASceneLayerMarkerKnowsItsLayerAndTheLayersOwnActors()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        var schema = TypeSchema.Load(definitions);
+        using var store = new SnoStore(install);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // Live 2026-10-22, "Die Leere": phase 276 names lock room A's trigger, phase 280 lock room B's, both in Cave_Tomb_EW_01; the
+        // layer's barrier wall tells which tile carries it.
+        int quest = store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Skov_Celestia_03");
+        var phases = reader.PhaseObjects(quest);
+        var a = Assert.Single(phases.Single(p => p.PhaseUid == 276).SceneMarkers);
+        var b = Assert.Single(phases.Single(p => p.PhaseUid == 280).SceneMarkers);
+        Assert.Equal(a.SceneSno, b.SceneSno);
+        Assert.Equal("Cave_Tomb_EW_01 (CSD_Skov_Celestia_SpearDungeon_LockRoomA)", store.Name(a.Layer!.Value));
+        Assert.Equal("Cave_Tomb_EW_01 (CSD_Skov_Celestia_SpearDungeon_LockRoomB)", store.Name(b.Layer!.Value));
+        Assert.Contains(b.Anchors!, m => store.Name(m.Sno) == "DRLGKit_fxKit_harmless_barrierWall_demonic_01");
     }
 
     [Fact]

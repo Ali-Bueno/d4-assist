@@ -100,6 +100,9 @@ public sealed class ObjectiveClassifier(
     /// <summary>True for the actor marking the body Rathma's soul split leaves behind.</summary>
     public bool IsSoulBody(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.SoulBody;
 
+    /// <summary>True for one of the Horadric guardian's vessels, used again on every barrier that names it.</summary>
+    public bool IsWardBreaker(int actorSno) => TraitsOf(actorSno)?.Fixed == ObjectiveReason.WardBreaker;
+
     /// <summary>True for the light beam standing on the body during Rathma's soul split.</summary>
     public bool IsSoulSplitBeam(int actorSno) =>
         _beams.GetOrAdd(actorSno, sno => nameOf(sno)?.Contains(SoulSplitBeamToken, StringComparison.OrdinalIgnoreCase) == true);

@@ -434,6 +434,19 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_quest_place_the_map_marks_is_located_so_exploring_heads_for_it()
+    {
+        // Live 2026-10-22, "Die Leere": the map marked lock room B's trigger at (-16,205), on a tile not loaded yet.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(-48, 365));
+
+        memory.ObservePlaces([new QuestPlace(TriggerSno, -16, 205, Marked: true), new QuestPlace(TriggerSno, 0, 40)]);
+
+        Assert.True(Assert.Single(memory.Destinations(), d => d.Position == (-16, 205)).Located);
+        Assert.False(Assert.Single(memory.Destinations(), d => d.Position == (0, 40)).Located);
+    }
+
+    [Fact]
     public void Of_several_quest_places_one_stood_in_and_walked_on_from_gives_way_to_the_next()
     {
         // Live 2026-10-17 (CSD_Skov_Temis_SmugglersRun_02): one step named six triggers through the dungeon.
@@ -483,6 +496,65 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(-Far, 0)); // the stone found: Yorin holds again until the step moves on
         memory.ObservePlaces(yorin);
         Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_quest_place_reached_in_this_phase_leads_again_only_once_nothing_else_is_left()
+    {
+        // Live 2026-10-23, the Kulle wing: the phase named the anvil and a trigger far west; a lorebook read on the way re-armed
+        // the anvil and the guide sent the player back onto it. In the Tunnels of Hefaetrust a toggle did the same to four triggers.
+        var (feed, memory) = NewMemory();
+        QuestPlace[] places = [new(TriggerSno, 0, 0), new(TriggerSno, Far, 0)];
+        feed.RaisePlayer(At(-20, 0));
+        memory.ObservePlaces(places);
+        feed.RaisePlayer(At(0, 1)); // on the anvil
+        feed.RaisePlayer(At(30, 0)); // on west
+        memory.ObservePlaces(places);
+        memory.Heard(Lever(30, 10));
+        memory.Gone(); // the lorebook read
+        memory.ObservePlaces(places);
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Rearm(); // the guide switched on
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position);
+
+        memory.Rearm(walkedThrough: true); // all explored
+        Assert.Equal(2, memory.Destinations().Count);
+    }
+
+    [Fact]
+    public void The_steps_of_a_sub_quest_whose_phase_cant_be_read_lead_one_at_a_time()
+    {
+        // Live 2026-10-23, "Der versiegelte Flügel": Tal Rasha's seal (the waiting phase's own place) stood behind its triggers.
+        var (feed, memory) = NewMemory();
+        QuestPlace[] places =
+        [
+            new(TriggerSno, 0, 0), // the seal, by the last step's trigger
+            new(TriggerSno, 30, 0, Step: 1), new(TriggerSno, 0, 30, Step: 1),
+            new(TriggerSno, 60, 0, Step: 2),
+            new(TriggerSno, 5, 5, Step: 3),
+            new(TriggerSno, -100, 0), // the Holdout tunnel's trigger, the waiting phase's own
+        ];
+        feed.RaisePlayer(At(-40, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal([(-100f, 0f), (0f, 30f), (30f, 0f)], memory.Destinations().Select(d => d.Position).Order());
+
+        feed.RaisePlayer(At(-100, 0));
+        feed.RaisePlayer(At(-40, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal([(0f, 30f), (30f, 0f)], memory.Destinations().Select(d => d.Position).Order());
+
+        feed.RaisePlayer(At(60, 0)); // a later step's trigger first: the game doesn't take it yet
+        feed.RaisePlayer(At(30, 0));
+        feed.RaisePlayer(At(0, 30));
+        feed.RaisePlayer(At(-40, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal((60f, 0f), Assert.Single(memory.Destinations()).Position);
+
+        feed.RaisePlayer(At(60, 0));
+        feed.RaisePlayer(At(-40, 0));
+        memory.ObservePlaces(places);
+        Assert.Equal([(0f, 0f), (5f, 5f)], memory.Destinations().Select(d => d.Position).Order());
     }
 
     [Fact]
@@ -699,5 +771,28 @@ public class ObjectiveMemoryTests
 
         memory.Rearm();
         Assert.Equal((0f, 30f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_killed_monster_whose_remains_stand_on_its_spot_is_done_and_so_is_the_quest_place_there()
+    {
+        // Skartara's mindscape 4 (live 2026-10-24): a destroyed Hatred Spire left a client-side copy on its spot; the guide held there.
+        const int SpireSno = 2495603;
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(1, 1));
+        var places = new List<QuestPlace> { new(SpireSno, 10.5f, 0.5f), new(SpireSno, 60, 0) };
+        memory.ObservePlaces(places);
+        var spire = new ActorState(5, SpireSno, 10, 0, 0, QuestStep: true);
+        memory.Observe(new ObjectiveSighting([spire], [], [spire]));
+
+        var remains = new ActorState(6, SpireSno, 10, 0, 0, ClientOnly: true);
+        for (int poll = 0; poll < ObjectiveMemory.MissingPollsForDone; poll++)
+        {
+            memory.Observe(new ObjectiveSighting([], [], [remains]));
+            memory.ObservePlaces(places);
+        }
+
+        var lead = Assert.Single(memory.Destinations());
+        Assert.Equal((60f, 0f), lead.Position);
     }
 }

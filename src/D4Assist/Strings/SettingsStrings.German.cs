@@ -46,6 +46,7 @@ public sealed partial record SettingsStrings
             [SoundGroup.Quest] = "Quest und Portale",
             [SoundGroup.Guide] = "Führung",
             [SoundGroup.Characters] = "Figuren",
+            [SoundGroup.Danger] = "Gefahr",
         },
         Cues = new Dictionary<SoundCue, string>
         {
@@ -77,6 +78,7 @@ public sealed partial record SettingsStrings
             [SoundCue.Npc] = "Figuren zum Ansprechen",
             [SoundCue.Boss] = "Bosse",
             [SoundCue.Elite] = "Elite- und einzigartige Gegner",
+            [SoundCue.Telegraph] = "Warnung vor Boss-Angriffen",
         },
         GeneralTab = "Allgemein",
         GeneralBox = "Optionen (wirksam nach Neustart des Assistenten)",
@@ -91,6 +93,7 @@ public sealed partial record SettingsStrings
         RadarClosedDoors = "Geschlossene Türen im Radar",
         LiveBarriers = "Dungeon-Barrieren im Radar und in der Führung",
         WaypointList = "Wegpunktliste auf der Karte (Umschalt+F1)",
+        WalletKey = "Glut und Unheilsherzen auf F2",
         ExplorationGuide = "Erkundungsführung (Steuerkreuz links schaltet sie ein und aus)",
         ExplorationGuideInDungeons = "Führung an beim Betreten normaler Dungeons (in der Unterstadt und der Grube startet sie immer an)",
         CompassDirections = "Richtungen als Himmelsrichtungen (Norden, Osten …) statt oben, rechts … ansagen",

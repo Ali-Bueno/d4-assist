@@ -5,21 +5,23 @@ namespace D4Assist.Input;
 
 /// <summary>
 /// Ctrl+Alt+Shift hotkeys (Win32 RegisterHotKey) served by a private message-loop thread: the digits play the sound examples,
-/// G toggles the guide like D-pad left and E switches its mode like holding it. A registered key goes to this app alone, so they are registered only while the game
+/// G toggles the guide like D-pad left and E switches its mode like holding it; F2 alone (when asked for) says the helltide's
+/// cinders and hearts. A registered key goes to this app alone, so they are registered only while the game
 /// window is in front (user, 2026-10-26: only the settings and exit keys work everywhere); the game never sees them.
 /// </summary>
 public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
 {
-    // winuser.h: MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; virtual keys '1' and 'G'.
+    // winuser.h: MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; virtual keys '1', 'G', 'E' and F2.
     private const uint ModAlt = 0x1, ModControl = 0x2, ModShift = 0x4, ModNoRepeat = 0x4000;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetActive = 0x8001;
-    private const uint FirstDigitKey = 0x31, GuideKey = 0x47, GuideModeKey = 0x45;
-    private const int GuideHotkeyId = 100, GuideModeHotkeyId = 101; // past the digit ids 1-9
+    private const uint FirstDigitKey = 0x31, GuideKey = 0x47, GuideModeKey = 0x45, WalletKey = 0x71;
+    private const int GuideHotkeyId = 100, GuideModeHotkeyId = 101, WalletHotkeyId = 102; // past the digit ids 1-9
 
     // Checked at the player-poll rate, like the cue pause while the game is in the background.
     private const int ActivePollMs = GameSession.DefaultPlayerPollIntervalMs;
 
     private readonly int _digitCount;
+    private readonly bool _walletKey;
     private readonly Func<bool> _active;
     private readonly ManualResetEventSlim _started = new();
     private readonly HashSet<int> _takenLogged = [];
@@ -33,13 +35,18 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
     /// <summary>Raised on the hotkey thread for Ctrl+Alt+Shift+G: the keyboard's D-pad left.</summary>
     public event Action? GuideKeyPressed;
 
+    /// <summary>Raised on the hotkey thread for F2: the cinders and hearts (WalletAnnouncer).</summary>
+    public event Action? WalletKeyPressed;
+
     event Action? IGuideTogglePad.DpadLeftPressed { add => GuideKeyPressed += value; remove => GuideKeyPressed -= value; }
     public event Action? GuideModeKeyPressed;
     event Action? IGuideTogglePad.DpadLeftHeld { add => GuideModeKeyPressed += value; remove => GuideModeKeyPressed -= value; }
 
     /// <param name="digitCount">Registers Ctrl+Alt+Shift+1 up to this digit (at most 9).</param>
     /// <param name="active">True while the keys belong to this app: the game window is in front (GameWindowFocus.IsGameForeground).</param>
-    public GlobalHotkeys(int digitCount, Func<bool> active) => (_digitCount, _active) = (Math.Clamp(digitCount, 1, 9), active);
+    /// <param name="walletKey">Registers F2 alone for the cinders and hearts.</param>
+    public GlobalHotkeys(int digitCount, Func<bool> active, bool walletKey = false) =>
+        (_digitCount, _active, _walletKey) = (Math.Clamp(digitCount, 1, 9), active, walletKey);
 
     public void Start()
     {
@@ -71,6 +78,9 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
                 case WmHotkey when (int)message.WParam == GuideModeHotkeyId:
                     GuideModeKeyPressed?.Invoke();
                     break;
+                case WmHotkey when (int)message.WParam == WalletHotkeyId:
+                    WalletKeyPressed?.Invoke();
+                    break;
                 case WmHotkey:
                     DigitPressed?.Invoke((int)message.WParam);
                     break;
@@ -85,12 +95,13 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
             Register(digit, FirstDigitKey + (uint)digit - 1, $"Ctrl+Alt+Shift+{digit} is already taken by another program; that sound example is unavailable.");
         Register(GuideHotkeyId, GuideKey, "Ctrl+Alt+Shift+G is already taken by another program; toggle the guide with D-pad left.");
         Register(GuideModeHotkeyId, GuideModeKey, "Ctrl+Alt+Shift+E is already taken by another program; switch the guide's mode by holding D-pad left.");
+        if (_walletKey) Register(WalletHotkeyId, WalletKey, "F2 is already taken by another program; the cinders and hearts can't be asked for.", ModNoRepeat);
     }
 
     // Registered again each time the game comes to the front: a key another program holds is reported once.
-    private void Register(int id, uint key, string taken)
+    private void Register(int id, uint key, string taken, uint modifiers = ModControl | ModAlt | ModShift | ModNoRepeat)
     {
-        if (!RegisterHotKey(IntPtr.Zero, id, ModControl | ModAlt | ModShift | ModNoRepeat, key) && _takenLogged.Add(id))
+        if (!RegisterHotKey(IntPtr.Zero, id, modifiers, key) && _takenLogged.Add(id))
             Console.Error.WriteLine(taken);
     }
 
@@ -99,6 +110,7 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
         for (int digit = 1; digit <= _digitCount; digit++) UnregisterHotKey(IntPtr.Zero, digit);
         UnregisterHotKey(IntPtr.Zero, GuideHotkeyId);
         UnregisterHotKey(IntPtr.Zero, GuideModeHotkeyId);
+        UnregisterHotKey(IntPtr.Zero, WalletHotkeyId);
     }
 
     public void Dispose()

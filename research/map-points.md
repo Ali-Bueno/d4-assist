@@ -86,6 +86,19 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   only the first block on 2026-10-28 found the expansions' state without the base game's, and the helltide list named
   Nahantu. `WorldStateReader` reads every block (a state held twice: the later block's value, logged `WORLD STATE … twice`);
   `ActiveHelltides` counts the expansions' state only from build 3.3.
+- **The helltide's bounties are the game's own table (game data, 2026-10-29, build 3.2.3).** The Global `bounties` (588203,
+  `GlobalBountyData.arBountyGroups`) groups each territory's bounties under its unlock condition
+  `Bounty_Unlock_Condition_Helltide[_]<territory>`; each `BountyData` names the quest, the world state and the value that put it
+  up. Ten per territory (15 territories, 150): cull cultists (`Tier1_Kill`), cull demons (`Tier2_Kill`), cultist rituals,
+  doomsayers, harbingers (`Harbinger`), Ironwolves, tortured gifts (`Chests`), cinders, demonic structures (`Structure`) and the
+  Blood Maiden (`Succuboss`, quest Tier3, state Tier2). Only the Blood Maiden is the accursed ritual's altar (Baneful Hearts; the
+  quest also counts the war plans' `Warplans_Helltide_Duriel_boss`); the others count kills, events, gifts, cinders or structures
+  anywhere in the territory. Their map spots are `Bounty_Pin` markers of `<territory> (UberSubzone)`, shared: on the Scosglen coast
+  one pin for gifts/cinders/structures, one for rituals/doomsayers/harbingers/Ironwolves, one for the culls, one for the Blood
+  Maiden. Live 2026-10-27 16:15 the coast had `Tier1_Kill`, `Cinders` and `Succuboss` at 1, the others 0. Seasons' bounties (S10
+  chaos rifts, S12 kill streaks, S14 ruptures) name their season in `tRequirementsToBeActive.arSeasons`, and their world states
+  stay 1 out of season. War plans (Tyrael's "Helltide Harvest": open tortured gifts) change the helltide's content (node 3B
+  Hell's Prize, Hellborne, Butchers, rats, Duriel's brood), not its bounties. `HelltideBountyCatalog`, Shift+F2.
 - **Server messages in the definitions:** `WorldStateUpdateData {snoWorldState, nValue}`, `WorldEventStartingMessage
   {snoQuest, bIsWorldEvent, snoWorld, snoSubzone, snoReward, wpLocation}`, `WorldEventWarmupWarningMessage {snoSubzone}`.
   World bosses are quests `WE_WorldBoss_<name>` (Ashava 366701). Not pursued: the game's own world-boss announcement names

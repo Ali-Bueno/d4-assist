@@ -17,8 +17,8 @@ namespace D4Assist.Game;
 /// each with the minutes it has left (user request 2026-10-27); Enter opens the same list as Shift+F1 over that helltide's objects the map marks
 /// (user request 2026-10-25): tortured gifts, the accursed ritual, altars, spires, the doomsayer. The map marks them only while
 /// the player is in the helltide's area outside a town (live 2026-10-25, Hawezar), so without them the list asks to go there.
-/// The helltide's Blood Maiden bounties ("Tötet die Blutjungfrau") the map marks from anywhere, so they list at once (user
-/// request 2026-10-27).
+/// The helltide's bounties the map marks from anywhere list at once: the Blood Maiden ("Tötet die Blutjungfrau", user request
+/// 2026-10-27) and the others up in the rotation (cultists, rituals, tortured gifts…, user request 2026-10-29).
 /// Enter on an object zooms the map in with the wheel until the cursor can point at it (user request 2026-10-27). Without
 /// readable world states Shift+F2 opens the objects at once, as before.
 /// </summary>

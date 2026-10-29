@@ -209,6 +209,51 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void The_step_the_player_stands_at_as_the_quest_moves_on_is_done_and_a_later_phase_naming_its_kind_leaves_it()
+    {
+        // Guulrahn's jail (tester 2026-10-28): the gate opened to free Oyun; the escape's step named its kind again, and the guide
+        // led back to the cell from the abandoned wing.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(1, 0, quest: true));
+        feed.RaisePlayer(At(2, 0)); // at it (the origin reads as a world not loaded)
+
+        memory.QuestMovedOn();
+        memory.Heard();
+        feed.RaisePlayer(At(-Far, 0));
+        memory.ObserveNamed(new HashSet<int> { LeverSno });
+
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void The_step_done_as_the_quest_moved_on_leads_again_once_it_loops_again()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(1, 0, quest: true));
+        feed.RaisePlayer(At(2, 0));
+        memory.QuestMovedOn();
+        Assert.Empty(memory.Destinations());
+
+        memory.Heard(Lever(1, 0, quest: true));
+
+        Assert.Equal((1f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void An_objective_away_from_the_player_stays_when_the_quest_moves_on()
+    {
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Lever(50, 0, quest: true));
+
+        memory.QuestMovedOn();
+
+        Assert.Equal((50f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
     public void An_objective_done_or_set_aside_leads_again_as_a_quest_step_once_a_phase_names_its_sno()
     {
         // Live 2026-10-17, the Light's Watch: the gate read done, the key was found far away, and the guide fell silent.

@@ -53,6 +53,20 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
         return result;
     }
 
+    /// <summary>The marker sets a marker set places as prefabs at its top level, each with its transform into the set's frame.</summary>
+    public IReadOnlyList<(int MarkerSet, Matrix4x4 ToFrame)> Prefabs(int markerSetSno)
+    {
+        var result = new List<(int, Matrix4x4)>();
+        if (store.Meta(MarkerSetGroup, markerSetSno) is not { } meta) return result;
+        var blob = schema.IsInPayload(MarkerSet, "tMarkerSet") ? store.Payload(MarkerSetGroup, markerSetSno) : meta;
+        if (blob is null) return result;
+        int nameField = schema.Offset(Marker, "snoname");
+        foreach (var m in blob.Array(schema.Offset(MarkerSet, "tMarkerSet"), schema.Size(Marker)))
+            if (blob.I32(m + nameField) == MarkerSetGroup && blob.I32(m + nameField + sizeof(int)) is > 0 and var prefab)
+                result.Add((prefab, LocalMatrix(blob, m)));
+        return result;
+    }
+
     /// <summary>The top-level markers of a marker set that belong to actor groups, with those groups' GBIDs, in the set's frame:
     /// Marker.ptBase holds a MarkerActorData whose ptServerData lists arActorGroups. A quest step names such a group instead of
     /// an actor (live 2026-10-18, QST_X2_Skov_Philios_Mindscape_02 phase 285: "enter" a Trigger_Sphere_8m of group 1357711822).</summary>

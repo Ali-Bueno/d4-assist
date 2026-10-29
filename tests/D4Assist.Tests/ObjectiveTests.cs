@@ -133,6 +133,23 @@ public class ObjectiveTests
     }
 
     [Fact]
+    public void Classify_AQuestsPrisonerPropNoQuestNamesIsNotAPrisoner()
+    {
+        // Guulrahn's jail cells (tester 2026-10-28): the guide led to each of these before the jail's quest step.
+        const int sno = 1058625;
+        var classifier = new ObjectiveClassifier(_ => new ActorDefinitionInfo(Monster, NotGizmo), _ => "QST_Step_Guulrahn_Prisoner_M_01", _ => false);
+        Assert.Null(classifier.Classify(sno, new HashSet<int>()));
+    }
+
+    [Fact]
+    public void Classify_AQuestsPrisonerSomeQuestNamesIsAPrisoner()
+    {
+        const int sno = 1058625;
+        var classifier = new ObjectiveClassifier(_ => new ActorDefinitionInfo(Monster, NotGizmo), _ => "QST_Step_Guulrahn_Prisoner_M_01", s => s == sno);
+        Assert.Equal(ObjectiveReason.Prisoner, classifier.Classify(sno, new HashSet<int>()));
+    }
+
+    [Fact]
     public void Classify_ADeadPrisonerNpcIsNotAPrisoner()
     {
         var classifier = new ObjectiveClassifier(_ => new ActorDefinitionInfo(Monster, NotGizmo), _ => "DGN_NPC_X_DeadPrisoner_M_01");

@@ -14,8 +14,9 @@ public enum ObjectiveReason { Dpo, Gizmo, Prisoner, Quest, Enticement, StolenSki
 public sealed class ObjectiveClassifier(
     Func<int, ActorDefinitionInfo?> definition, Func<int, string?> nameOf, Func<int, bool>? namedByAnyQuest = null)
 {
-    // Free-able prisoners are named DGN_NPC_<Region>_Prisoner_*; "Dead" excludes DGN_Standard_DeadPrisoner_*.
-    private const string PrisonerToken = "Prisoner", DeadToken = "Dead";
+    // Free-able prisoners are named DGN_NPC_<Region>_Prisoner_*; "Dead" excludes DGN_Standard_DeadPrisoner_*. A quest's own prop no
+    // quest names stands in a cell for show: Guulrahn's jail, where the guide led to each one first (research/dungeon-objectives.md §29).
+    private const string PrisonerToken = "Prisoner", DeadToken = "Dead", QuestPropPrefix = "QST_";
 
     // Story switches and notes the game data can't tell from levers and lore (research/dungeon-objectives.md §8): named
     // for their quest, the prologue, or Lilith's blood petals.
@@ -133,7 +134,7 @@ public sealed class ObjectiveClassifier(
     private ObjectiveReason? FixedReason(int actorSno, ActorDefinitionInfo info)
     {
         string? name = nameOf(actorSno);
-        if (IsPrisoner(name, info)) return ObjectiveReason.Prisoner;
+        if (IsPrisoner(actorSno, name, info)) return ObjectiveReason.Prisoner;
         if (name?.Contains(StolenSkillToken, StringComparison.OrdinalIgnoreCase) == true) return ObjectiveReason.StolenSkill;
         if (string.Equals(name, AkaratLightName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.AkaratLight;
         if (string.Equals(name, SoulBodyName, StringComparison.OrdinalIgnoreCase)) return ObjectiveReason.SoulBody;
@@ -172,9 +173,10 @@ public sealed class ObjectiveClassifier(
 
     private static bool IsBossOrUnique(ActorDefinitionInfo info) => EnemyClassifier.ClassOf(info) is not null;
 
-    private static bool IsPrisoner(string? name, ActorDefinitionInfo info) =>
+    private bool IsPrisoner(int actorSno, string? name, ActorDefinitionInfo info) =>
         name is not null
         && name.Contains(PrisonerToken, StringComparison.OrdinalIgnoreCase)
         && !name.Contains(DeadToken, StringComparison.OrdinalIgnoreCase)
-        && (info.EType == Conventions.ActorTypeMonster || info.GizmoType == Conventions.GizmoSwitch);
+        && (info.EType == Conventions.ActorTypeMonster || info.GizmoType == Conventions.GizmoSwitch)
+        && (!name.StartsWith(QuestPropPrefix, StringComparison.OrdinalIgnoreCase) || namedByAnyQuest?.Invoke(actorSno) == true);
 }

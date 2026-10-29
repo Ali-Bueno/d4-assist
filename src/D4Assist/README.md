@@ -172,7 +172,8 @@ ACD, stays silent), carryable receptacle (a quest-locked one only while the play
 wait meanwhile), quest
 switch and quest chest, switches and notes named for a quest (`QST_`, `Quest`, `Prologue`), boss-summoning monoliths (door gizmos
 named `Monolith`, reason `monolith`, research/dungeon-objectives.md §15), and
-free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor). A closed door within 8 units of a receptacle
+free-able prisoners (name contains `Prisoner`, not `Dead`, monster or switch actor; a quest's own `QST_` prop no quest names stands
+in a cell for show and stays silent, research/dungeon-objectives.md §29). A closed door within 8 units of a receptacle
 still empty, unless the DPO names it, waits silent: filling the receptacles opens it by script (`Game/CarryGoals`,
 research/dungeon-objectives.md §14). A hostile unique or boss the followed quests' current phase names is the quest step too
 (`ActorState.NamedByQuest`, reason `killtarget`, research/dungeon-objectives.md §16); ordinary monsters a phase names stay silent,
@@ -197,8 +198,9 @@ the log names each NPC's offered quest once: `Quest conversation: actor … offe
 plus the quests in progress here, those with markers in this world or its scenes, or on an actor loaded around the player (an
 overworld side quest marks its objects in a subzone layer set), the world's objective quest, and any quest a phase of a
 followed quest waits on (`ScriptEventParamQuest`: the game then shows that quest's phase instead, research/dungeon-objectives.md
-§18, §24), whose {quest, phase} pair the module data holds. A quest found in progress stays followed while that pair still
-reads, so walking away from its objects doesn't drop it. `--debug`
+§18, §24), whose {quest, phase} pair the module data holds; one the current phase waits on whose pair is nowhere is followed
+like a tracked quest whose phase is unknown until the phase moves on (`waited on: <sno>`, research/dungeon-objectives.md §29).
+A quest found in progress stays followed while that pair still reads, so walking away from its objects doesn't drop it. `--debug`
 logs `Quest tracked: <snos>; in progress here: <snos>; N object(s) named, <sno> at phase <uid>.` on each change and
 `LOOP silent … cause=unusable|used` once per gizmo silent at first sight. It also logs every multi-use switch (braziers, levers)
 once seen and on each change of its state signals: `SWITCH <name> sno=<sno> at (x,y): <signal>=<old>→<new>` (`Game/SwitchStateLog`,
@@ -210,8 +212,11 @@ exploration guide leads to them in the quest tier, before unexplored ground, unt
 (`ObjectiveMemory.ObservePlaces`; research/client-memory.md §4). `--debug` logs `… in progress here: …` and
 `OBJECTIVE seen (quest place): …`. A place stood at is set aside once walked 1.5× its reach away while another is still to
 reach or the phase names a carryable or receptacle not heard yet (`left undone`), and leads again once another objective is
-done. A marker set named after a scene renamed since lands in the scenes whose own layers carry that name; one no scene
-places is dropped, not read as world space (research/dungeon-objectives.md §28).
+done. The objective the player stands at when a followed quest moves on is done (using it was the step), and a later phase
+naming its kind doesn't call it back from afar (`OBJECTIVE done (quest moved on at it)`). A marker set named after a scene
+renamed since lands in the scenes whose own layers carry that name; one no scene places is dropped, not read as world space
+(research/dungeon-objectives.md §28). A set that names no frame lands where the prefab markers placing it put it: a scene's
+set's prefab in that scene, a world's in world space (§29).
 Structures the player must break (a hostile `*_Multistage` actor some quest names: the hatred tumors, a few cracked walls and
 gates, research/dungeon-objectives.md §12) loop the quest sound (reason `destructible`) until destroyed, when the remains
 lose their game record (ACD).

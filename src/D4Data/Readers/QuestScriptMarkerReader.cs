@@ -52,6 +52,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<int, List<int>>? _questsByWorld;
     private readonly Dictionary<int, Blueprint> _blueprints = [];
     private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _groupMarkers;
+    private Dictionary<int, List<(int Host, Matrix4x4 ToHost)>>? _prefabHosts;
     private SceneLayerIndex? _sceneLayers;
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
@@ -80,19 +81,21 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
-            var named = handles.Where(h => h.PhaseUid == uid).Select(h => (h.MarkerSet, h.Id)).Distinct()
-                .Select(h => (Scenes: ScenesOf(h.MarkerSet), Blueprint: BlueprintOf(h.MarkerSet), Marker: markers.Find(h.MarkerSet, h.Id)))
+            var named = handles.Where(h => h.PhaseUid == uid).GroupBy(h => (h.MarkerSet, h.Id))
+                .Select(h => (Blueprint: BlueprintOf(h.Key.MarkerSet), Marker: markers.Find(h.Key.MarkerSet, h.Key.Id), h.Key.MarkerSet,
+                    Hidden: h.All(n => n.Hidden)))
                 .Where(m => m.Marker is not null).ToList();
             var waitsOn = subQuests.Where(s => s.PhaseUid == uid).Select(s => s.Quest).ToHashSet();
             var kinds = named.Where(m => m.Blueprint is not null).Select(m => new BlueprintMarker(m.Blueprint!, m.Marker!))
                 .Concat(groups.Where(g => g.PhaseUid == uid).SelectMany(g => BlueprintGroupMarkers(g.Group))).Distinct().ToList();
-            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => OverlayGroupMarkers(g.Group).Concat(SceneGroupMarkers(g.Group))).Distinct();
-            var hidden = handles.Where(h => h.PhaseUid == uid).GroupBy(h => (h.MarkerSet, h.Id)).Where(h => h.All(n => n.Hidden))
-                .Select(h => markers.Find(h.Key.MarkerSet, h.Key.Id)).OfType<PlacedMarker>().ToHashSet();
+            var landed = named.Where(m => m.Blueprint is null)
+                .Select(m => (m.Hidden, At: Land(m.MarkerSet, m.Marker!) ?? new Landing([m.Marker!], []))).ToList();
+            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => GroupLandings(g.Group)).ToList();
+            var hidden = landed.Where(m => m.Hidden).SelectMany(m => m.At.World.Concat(m.At.InScenes.Select(s => s.Marker))).ToHashSet();
             return new QuestPhaseObjects(uid,
-                [.. named.Where(m => m.Scenes is null && m.Blueprint is null).Select(m => m.Marker!)],
+                [.. landed.SelectMany(m => m.At.World), .. overlays.SelectMany(o => o.World).Distinct()],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
-                [.. named.Where(m => m.Scenes is not null).SelectMany(m => m.Scenes!.Select(scene => new SceneMarker(scene, m.Marker!))), .. overlays],
+                [.. landed.SelectMany(m => m.At.InScenes), .. overlays.SelectMany(o => o.InScenes).Distinct()],
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
@@ -172,7 +175,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             var top = markers.TopLevel(set.Key);
             foreach (var (quest, _, id) in set)
                 if (top.TryGetValue(id, out var marker) && marker.Group == actorGroup)
-                    (byActor.TryGetValue(marker.Sno, out var list) ? list : byActor[marker.Sno] = []).Add((quest, marker.Position));
+                    foreach (var at in BlueprintOf(set.Key) is null && Land(set.Key, marker) is { } landed ? landed.World : [marker])
+                        (byActor.TryGetValue(at.Sno, out var list) ? list : byActor[at.Sno] = []).Add((quest, at.Position));
         }
         (_questsByFrame, _questsByActor, _questsByWorld) = (byFrame, byActor, byWorld);
     }
@@ -221,44 +225,94 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             if (BlueprintOf(set) is { } frame) yield return new BlueprintMarker(frame, marker);
     }
 
-    // The markers of an actor group a step names in an overlay: a set no world, scene or blueprint places (no layer, no _BPMS),
-    // which the server drops on a dungeon tile's arena footprint, the set's origin there. "Die Erde, die Saat, die Frucht" phase
-    // 43 shows a trigger sphere of CSD_Skov_Skartara_Mindscape_03_Holdout at (0,0); the holdout tunnel's footprint sits at its
-    // middle (16,16), where the next step's Lilith and memory fragments stand (live 2026-10-21). Every tile with a footprint
-    // gets a copy; only placed ones land in the world.
-    private IEnumerable<SceneMarker> OverlayGroupMarkers(uint group)
+    // Where the markers of an actor group a step names land. In a scene's layer set, scene-local: "Die Erde, die Saat, die Frucht"
+    // phase 52 hides a trigger sphere in the traversal bridges' Game layers (live 2026-10-21). In a set no frame names: where the
+    // prefab markers placing it put it, else on every dungeon tile's arena footprint, the set's origin there (an overlay the server
+    // drops: phase 43's CSD_Skov_Skartara_Mindscape_03_Holdout sphere at the holdout tunnel's footprint, live 2026-10-21); only
+    // placed tiles land in the world. A world's set lands nowhere.
+    private IEnumerable<Landing> GroupLandings(uint group)
     {
         foreach (var (set, marker) in GroupMarkers(group))
-            if (FrameOf(store.Name(set)) is null && BlueprintOf(set) is null)
-                foreach (var (scene, footprint) in Footprints())
-                    yield return new SceneMarker(scene, marker with { Position = footprint + marker.Position });
+        {
+            if (BlueprintOf(set) is not null) continue;
+            if (FrameOf(store.Name(set)) is not null)
+                yield return new Landing([], [.. (ScenesOf(set) ?? []).Select(scene => new SceneMarker(scene, marker))]);
+            else
+                yield return Land(set, marker)
+                    ?? new Landing([], [.. Footprints().Select(f => new SceneMarker(f.Scene, marker with { Position = f.Local + marker.Position }))]);
+        }
     }
 
-    // The markers of an actor group a step names in a scene's layer set, scene-local. "Die Erde, die Saat, die Frucht" phase 52
-    // hides a trigger sphere in the traversal bridges' Game layers: at TT_Sightless_Skovos_to_Sightless_Mephisto_NE_Traversal_Bridge_01
-    // it stands before the rising bridge the shown sphere lies across, and the guide, its goal behind the bridge, found nothing
-    // else to lead to (live 2026-10-21).
-    private IEnumerable<SceneMarker> SceneGroupMarkers(uint group)
+    // A marker's landing: world-space copies and scene-local ones.
+    private sealed record Landing(IReadOnlyList<PlacedMarker> World, IReadOnlyList<SceneMarker> InScenes);
+
+    // Where a marker of a set lands: in its scenes, in world space for a world's or subzone's set, and for a set no frame names where
+    // the prefab markers placing it put it (DOV_Orbei_SermonHallWaves, read as world space, put the step's priest at the world's
+    // origin; Zak_Mona_EW_POI_HoldoutTunnel_01's layer set places it, research/dungeon-objectives.md §29). Null for a frameless set
+    // no chain of prefabs places in a scene or world.
+    private Landing? Land(int markerSet, PlacedMarker marker)
     {
-        foreach (var (set, marker) in GroupMarkers(group))
-            foreach (int scene in ScenesOf(set) ?? [])
-                yield return new SceneMarker(scene, marker);
+        if (ScenesOf(markerSet) is { } scenes) return new Landing([], [.. scenes.Select(scene => new SceneMarker(scene, marker))]);
+        if (FrameOf(store.Name(markerSet)) is not null) return new Landing([marker], []);
+        var hosts = Hosts(markerSet, 0).ToList();
+        if (hosts.Count == 0) return null;
+        var world = new List<PlacedMarker>();
+        var inScenes = new List<SceneMarker>();
+        foreach (var (hostScenes, toFrame) in hosts)
+        {
+            var at = marker with { Position = Vector3.Transform(marker.Position, toFrame) };
+            if (hostScenes is null) world.Add(at);
+            else inScenes.AddRange(hostScenes.Select(scene => new SceneMarker(scene, at)));
+        }
+        return new Landing(world, inScenes);
+    }
+
+    // The frames a frameless set is placed in, through the prefab markers placing it: a host's scenes (null: world space) and the
+    // transform into that frame. A blueprint host moves with the instance and is left out.
+    private IEnumerable<(IReadOnlyList<int>? Scenes, Matrix4x4 ToFrame)> Hosts(int markerSet, int depth)
+    {
+        foreach (var (host, toHost) in PrefabHosts(markerSet))
+        {
+            if (FrameOf(store.Name(host)) is not null)
+            {
+                var scenes = ScenesOf(host);
+                if (scenes is not { Count: 0 }) yield return (scenes, toHost);
+            }
+            else if (depth < Conventions.MaxPrefabDepth && BlueprintOf(host) is null)
+                foreach (var (scenes, toFrame) in Hosts(host, depth + 1))
+                    yield return (scenes, toHost * toFrame);
+        }
     }
 
     // Every set that holds actor groups (blueprints, overlays and scene layers), read once on first use.
     private List<(int MarkerSet, PlacedMarker Marker)> GroupMarkers(uint group)
     {
-        if (_groupMarkers is null)
+        IndexMarkerSets();
+        return _groupMarkers!.GetValueOrDefault(group) ?? [];
+    }
+
+    // The sets placing a set as a prefab, with the prefab's transform into theirs.
+    private List<(int Host, Matrix4x4 ToHost)> PrefabHosts(int markerSet)
+    {
+        IndexMarkerSets();
+        return _prefabHosts!.GetValueOrDefault(markerSet) ?? [];
+    }
+
+    // One pass over every marker set, on first use: the actor groups their markers carry and the prefabs they place.
+    private void IndexMarkerSets()
+    {
+        if (_groupMarkers is not null) return;
+        var groupMarkers = new Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>();
+        var prefabHosts = new Dictionary<int, List<(int Host, Matrix4x4 ToHost)>>();
+        foreach (var (set, _) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
         {
-            _groupMarkers = [];
-            foreach (var (set, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
-            {
-                foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
-                foreach (uint g in groups.Distinct())
-                    (_groupMarkers.TryGetValue(g, out var list) ? list : _groupMarkers[g] = []).Add((set, marker));
-            }
+            foreach (var (marker, groups) in markers.ActorGroupMarkers(set))
+            foreach (uint g in groups.Distinct())
+                (groupMarkers.TryGetValue(g, out var list) ? list : groupMarkers[g] = []).Add((set, marker));
+            foreach (var (prefab, toHost) in markers.Prefabs(set))
+                (prefabHosts.TryGetValue(prefab, out var hosts) ? hosts : prefabHosts[prefab] = []).Add((set, toHost));
         }
-        return _groupMarkers.GetValueOrDefault(group) ?? [];
+        (_groupMarkers, _prefabHosts) = (groupMarkers, prefabHosts);
     }
 
     // The arena footprints (prefab sets Dungeon_Template_*_Footprint_*) in the scenes' layers, scene-local.

@@ -29,8 +29,19 @@ public class ActiveQuestsTests
     private const uint FindTheEyesPhase = 24, ReturnTheEyePhase = 21;
     private static readonly PlacedMarker RightSocket = Marker(RightSocketSno, -777, 825);
 
+    // The Orbei Monastery (tester 2026-10-28, research/dungeon-objectives.md §29): QST_Step_Orbei_01 phase 297 waits on the sermon
+    // hall's quest, whose pair is nowhere in the module data; its phase 13 names the dying priest in the sermon hall tunnel.
+    private const int OrbeiQuest = 447920, SermonHallQuest = 563651, PriestSno = 463199, SermonHallTunnel = 839396;
+    private const uint WaitForSermonHallPhase = 297, DoorSealPhase = 440, PriestPhase = 13;
+
     private static readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> Phases = new()
     {
+        [OrbeiQuest] =
+        [
+            new QuestPhaseObjects(WaitForSermonHallPhase, [], new HashSet<int>(), [], new HashSet<int> { SermonHallQuest }),
+            new QuestPhaseObjects(DoorSealPhase, [], new HashSet<int>(), []),
+        ],
+        [SermonHallQuest] = [new QuestPhaseObjects(PriestPhase, [], new HashSet<int>(), [new SceneMarker(SermonHallTunnel, Marker(PriestSno, 16, 14.6f))])],
         [WrackAndRuin] = [new QuestPhaseObjects(FindTheEyesPhase, [], new HashSet<int>(), [], new HashSet<int> { RightEyeQuest })],
         [RightEyeQuest] = [Phase(ReturnTheEyePhase, [RightSocket])],
         [FieldsOfRuin] = [Phase(PickUpPhase, [Marker(CollectionSno, -1700, -400)]), Phase(PlacePhase, Bases)],
@@ -51,6 +62,34 @@ public class ActiveQuestsTests
         var named = quests.Update(tracked: [MainQuest], AreaWith(OrbSno)); // nothing here names the hub quest
 
         Assert.Equal([OrbSno], named.ActorSnos);
+    }
+
+    [Fact]
+    public void A_quest_the_current_phase_waits_on_is_followed_though_its_pair_is_nowhere()
+    {
+        var quests = Create(new ModuleReader((OrbeiQuest, WaitForSermonHallPhase)));
+
+        quests.Update(tracked: [OrbeiQuest], Nowhere); // reads the tracked quest's phase
+        var named = quests.Update(tracked: [OrbeiQuest], Nowhere);
+
+        Assert.Equal([PriestSno], named.SceneMarkers.Select(m => m.Marker.Sno));
+        Assert.Contains(SermonHallQuest, quests.Owned); // the priest's quest icon is a followed quest's
+    }
+
+    [Fact]
+    public void A_waited_on_quest_drops_out_once_the_phase_moves_on()
+    {
+        var memory = new ModuleReader((OrbeiQuest, WaitForSermonHallPhase));
+        var quests = Create(memory);
+        quests.Update(tracked: [OrbeiQuest], Nowhere);
+        quests.Update(tracked: [OrbeiQuest], Nowhere);
+
+        memory.Hold(OrbeiQuest, DoorSealPhase);
+        quests.Update(tracked: [OrbeiQuest], Nowhere);
+        var named = quests.Update(tracked: [OrbeiQuest], Nowhere);
+
+        Assert.DoesNotContain(SermonHallQuest, quests.Followed);
+        Assert.Empty(named.SceneMarkers);
     }
 
     [Fact]

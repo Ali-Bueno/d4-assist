@@ -250,6 +250,7 @@ internal static class Program
             waypointBeacons.Spots);
         var portals = loopMemory?.Portals;
         var objectives = loopMemory?.Objectives;
+        if (objectives is not null) session.QuestMovedOn += objectives.QuestMovedOn;
         session.QuestActorsNamed += snos =>
         {
             lockedDoors.ObserveNamed(snos);

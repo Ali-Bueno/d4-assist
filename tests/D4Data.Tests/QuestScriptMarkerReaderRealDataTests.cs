@@ -61,6 +61,42 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AFramelessSetLandsWhereAPrefabMarkerPlacesIt()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // The Orbei Monastery's dying priest (DOV_Step_OrbeiMonastery_SermonHallWaves phase 13, tester 2026-10-28): his set
+        // DOV_Orbei_SermonHallWaves names no frame; a prefab marker in the sermon hall tunnel's layer set places it. Read as
+        // world space, the step stood at the world's origin.
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "DOV_Step_OrbeiMonastery_SermonHallWaves")).Single(p => p.PhaseUid == 13);
+        var tunnel = store.Resolve(schema.SnoGroup("SceneDefinition"), "Zak_Mona_EW_POI_HoldoutTunnel_01");
+        Assert.Empty(step.Markers);
+        var marker = Assert.Single(step.SceneMarkers, m => m.SceneSno == tunnel).Marker;
+        Assert.Equal("NPC_Step_OrbeiMonastery_MadPriest_M_Praying", store.Name(marker.Sno));
+        Assert.Equal(16.0f, marker.Position.X, 0.5f);
+        Assert.Equal(14.6f, marker.Position.Y, 0.5f);
+    }
+
+    [Fact]
+    public void AnActorGroupInAPlacedPrefabLandsThereNotOnEveryFootprint()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // Guulrahn's marketplace vignette (DOV_Step_Guulrahn_SanguineAlley_Vignette_05 phase 40): the cannibals' group lies in a
+        // set the marketplace's Game layer places, not one the server drops on arena footprints (372 copies before).
+        var step = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "DOV_Step_Guulrahn_SanguineAlley_Vignette_05")).Single(p => p.PhaseUid == 40);
+        var marketplace = store.Resolve(schema.SnoGroup("SceneDefinition"), "Step_City_POI_FLEX_Marketplace_01");
+        Assert.NotEmpty(step.SceneMarkers);
+        Assert.All(step.SceneMarkers, m => Assert.Equal(marketplace, m.SceneSno));
+    }
+
+    [Fact]
     public void AStepsGroupInASceneLayerLandsInThatScene()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

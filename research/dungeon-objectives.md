@@ -835,3 +835,49 @@ entrance, then said the quest objective was below me", and only led to the climb
   (Eldhaime_Keep_Ruins_Donan_POI)` markers in overworld coordinates (−1438,−527); a DRLG world places no subzone set, so
   such a marker would lead off into nothing there. Not filtered (no log shows it leading).
 
+
+## 29. Act 3: sets a prefab places, a sub-quest with no readable phase, jail props (tester report + log + offline, 2026-10-29)
+
+Tester report (act 3 finished) and log (0.1.21, no `--debug`, 2026-10-28): in the Orbei Monastery the guide "couldn't see through
+the opening" to the dying monk and "just led near it"; in Guulrahn's jail it led "to where every NPC is hiding before it will
+guide you into the actual jail area", and after freeing Oyun it "kept trying to backtrack me" until the exit came near; in
+Elias's palace it would not lead "through openings to new areas until I actually passed through them" (not explained, below).
+
+- **Orbei (`CSD_Step_Orbei_OrbeiMonastery` 439752, quest 447920; H):** phase 297 (23:21:04 → 23:40:25) waits on quest 563651
+  `DOV_Step_OrbeiMonastery_SermonHallWaves` and names nothing itself; the log reads `447920 at 297, 0 object(s) named` and no
+  pair of 563651 ever. That quest's phase 13 names the priest `NPC_Step_OrbeiMonastery_MadPriest_M_Praying` 463199 (marker 26 of
+  `DOV_Orbei_SermonHallWaves` 788581, at the set's origin); phase 21 hides a `Trigger_Sphere_32m` on him. The set names no frame
+  and no scene's layers carry it: marker 1 of `Zak_Mona_EW_POI_HoldoutTunnel_01 (CSD_Step_Orbei_OrbeiMonastery_SermonHall)`
+  places it as a prefab at (16.0,14.6). Read as world space, the priest stood at the world's origin.
+- **Census (M):** of 324 frameless, non-blueprint sets the quests name, 210 are placed by prefab markers: 48 by a scene's set
+  (Orbei's ghost monks and dying monk, Guulrahn's vignette, Veneration of Destruction, the Temple of the Triune's worship),
+  192 by a world's or subzone's (limited-time events, the Pit's obelisks), 135 by another frameless set (bounty templates).
+- **App rule (offline-tested, not live):** a frameless set lands where the prefab markers placing it put it, through frameless
+  hosts up to `MaxPrefabDepth`: in the host scene, or in world space for a world's or subzone's host; one no chain places stays
+  world space. 563651 phase 13 now lands in the tunnel at (16,15); 447920 phase 414's `QST_Step_Orbei_AbbotOrders` in
+  `Zak_Mona_NS_02` (2,14), was world (1,−2). An actor group in such a set lands there too, not on every arena footprint (the overlay rule
+  for sets nothing places, `QuestScriptMarkerReader.GroupLandings`): `DOV_Step_Guulrahn_SanguineAlley_Vignette_05` phase 40's cannibals were 372 copies, the jail's holdout tunnels
+  among them, now 4 in `Step_City_POI_FLEX_Marketplace_01`.
+- **App rule (unit-tested, not live):** a quest the followed quests' current phase waits on is followed even when its pair is
+  nowhere in the module data, like a tracked quest whose phase is unknown (every phase's actors and scene markers, no world-space
+  marker), until the phase moves on; its NPCs' quest icons then read as followed. Log: `waited on: <sno>`.
+- **Guulrahn's jail (`CSD_Step_Guulrahn_SanguineAlley` 480664, quest 449298; H):** the cells hold `QST_Step_Guulrahn_Prisoner_M_01`
+  1058625 and `_F_03` 1058644 (set `ProtoDun_Jail_NSW_01 (CSD_Step_Guulrahn_SanguineAlley_Jail_Vignette_01)`) and `_M_02` 1058704
+  (`ProtoDun_Jail_S_01`), team 0; no quest names them. The prisoner rule (name `Prisoner`, monster or switch) took them for
+  free-able ones, and dungeon objectives lead while the quest's place is on a tile not loaded yet (phase 24's jail entrance
+  trigger, 00:14:49 → 00:28:00). Census of the rule's 87 actors: the 61 `DGN_NPC_*` (team 1) are the event prisoners; none of
+  the 7 `QST_*` is named by a quest. **App rule (unit-tested):** a `QST_` prisoner no quest names is no objective.
+- **After Oyun (H):** phases ran 163 (open the cell gate, shown) → 66 (talk to Oyun; the gate `QST_Step_GuulrahnPrison_TEMP_LockedGate`
+  named "(any)" by a hidden event 32, the event of operating it) → 146 → 149 (break `Guulrahn_CrackedWall_Multistage`) → 155
+  (00:40:53 → 00:44:00). Phase 155 shows only the exit portal (any): its one copy is in `ProtoDun_Jail_S_POI_TunnelExit_01`'s Game
+  set (23.7,16.1), beyond the Dregs; it hides `QST_Oyuun_FinalTrigger_Box` (set `…OyuunEscapeD` marker 1, (31.4,16.8) in the same
+  tile), the cell gate again (any) and the zombies. A phase starting to name an objective's SNO re-arms it as the quest step, so
+  the gate opened earlier led back to the cell until the tunnel's exit loaded. **App rule (unit-tested, not live):** the objective
+  the player stands at when a followed quest moves on is done (using it was the step) and a later phase naming its kind doesn't
+  call it back from afar; looping again it leads again (`OBJECTIVE done (quest moved on at it)`).
+- **Hidden callbacks are no filter (M):** 1388 of 3153 (phase, actor) pairs are named only by hidden callbacks: 675 NPCs, 180
+  wells and shrines, 90 switches, 17 carryables, 12 receptacles, 16 doors (`SilentMonolith_DYN` among them).
+- **Not explained (need `--debug`):** Elias's palace (`CSD_Kehj_Magnus_EliasPalace`, quest 574680): no phase held long; the
+  openings report needs the `GUIDE target` lines. The Throat of Avarice (`CSD_Step_Guulrahn_ThroatOfAvarice`, quest 485695) phase
+  284 (00:53:16 → 01:05:30, the guide's mode pressed 8 times) shows one `Trigger_Box` (57,16) in
+  `ProtoDun_South_SW_ThroatOfAvarice_MiniBoss`, behind two barrier walls that fell at phases 202/208.

@@ -75,6 +75,8 @@ public sealed class ObjectiveMemory
         public bool Marked { get; set; }
         /// <summary>Actor polls in a row it was missing from the actors read.</summary>
         public int MissingPolls { get; set; }
+        /// <summary>Done as a followed quest moved on with the player at it: using it was the step.</summary>
+        public bool UsedByStep { get; set; }
     }
 
     private readonly Func<int, string?> _nameOf;
@@ -210,7 +212,7 @@ public sealed class ObjectiveMemory
     {
         lock (_gate)
         {
-            foreach (var objective in _objectives.Where(o => snos.Contains(o.Sno) && !_namedSnos.Contains(o.Sno) && (!o.Pending || o.Reached)))
+            foreach (var objective in _objectives.Where(o => snos.Contains(o.Sno) && !_namedSnos.Contains(o.Sno) && (!o.Pending || o.Reached) && !o.UsedByStep))
             {
                 objective.Pending = true;
                 objective.Reached = false;
@@ -223,6 +225,22 @@ public sealed class ObjectiveMemory
     }
 
     private IReadOnlySet<int> _namedSnos = new HashSet<int>();
+
+    /// <summary>A followed quest's phase moved on (GameSession.QuestMovedOn): the objective the player stands at was the step, and is
+    /// done though the game marks no use on it. A later phase naming its kind doesn't call it back from afar; looping again, it
+    /// leads again. Guulrahn's jail gate, opened to free Oyun, drew the guide back when the escape's step named its kind again
+    /// (tester, 2026-10-28; research/dungeon-objectives.md §29).</summary>
+    public void QuestMovedOn()
+    {
+        lock (_gate)
+            foreach (var objective in _objectives.Where(o => o.Pending && o.AtIt))
+            {
+                objective.Pending = false;
+                objective.AtIt = false;
+                objective.UsedByStep = true;
+                Log("done (quest moved on at it)", objective);
+            }
+    }
 
     // A gizmo the phase names, placed by a loaded tile or marked on the map, is an objective before it's heard. It's done once
     // silent near the player (already used), or when the phase stops naming it; a tile's copy with nothing there was never spawned.
@@ -276,6 +294,7 @@ public sealed class ObjectiveMemory
                 {
                     Log("looping again", objective);
                     objective.Reached = false;
+                    objective.UsedByStep = false;
                 }
                 objective.Pending = true;
                 heard.Add(objective);

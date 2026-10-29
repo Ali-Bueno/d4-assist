@@ -77,25 +77,35 @@ public sealed class ActiveQuests(
         if (tracked is null) return _names;
         var here = InProgressHere(tracked, area);
         _seenHere.UnionWith(here.Keys);
-        int[] followed = [.. tracked.Concat(here.Keys).Distinct().Order()];
+        var waitedOn = WaitedOn().Where(q => !here.ContainsKey(q) && !tracked.Contains(q)).ToHashSet();
+        int[] followed = [.. tracked.Concat(here.Keys).Concat(waitedOn).Distinct().Order()];
         if (followed.SequenceEqual(_followed))
         {
             RefreshOwned();
             return _names;
         }
         _followed = followed;
-        _quests = [.. followed.Select(q => _quests.FirstOrDefault(old => old.Sno == q && old.RequirePhase != tracked.Contains(q))
+        _quests = [.. followed.Select(q => _quests.FirstOrDefault(old => old.Sno == q && old.RequirePhase == RequiresPhase(q))
             ?? new FollowedQuest(q, phases(q))
             {
-                RequirePhase = !tracked.Contains(q), PhaseAddress = here.TryGetValue(q, out long at) ? at : null,
+                RequirePhase = RequiresPhase(q), PhaseAddress = here.TryGetValue(q, out long at) ? at : null,
             })];
         UpdatePhases(log: false);
         RefreshOwned();
         _names = QuestNames.Of(_quests.SelectMany(q => q.Current));
         Console.WriteLine($"Quest tracked: {List(tracked)}; in progress here: {List(here.Keys.Except(tracked))}; " +
-            $"{_names.Count} object(s) named{PhaseText()}.");
+            $"{(waitedOn.Count > 0 ? $"waited on: {List(waitedOn.Order())}; " : "")}{_names.Count} object(s) named{PhaseText()}.");
         return _names;
+
+        // A quest found here names nothing until its phase reads; a tracked or waited-on one names every phase's objects till then.
+        bool RequiresPhase(int quest) => !tracked.Contains(quest) && !waitedOn.Contains(quest);
     }
+
+    // The quests the followed quests' current phases wait on. The game shows such a quest's step instead, but its {quest, phase} pair
+    // may be nowhere in the module data: the Orbei Monastery's step waits on DOV_Step_OrbeiMonastery_SermonHallWaves, whose priest
+    // the guide never led to (tester, 2026-10-28; research/dungeon-objectives.md §29).
+    private IEnumerable<int> WaitedOn() =>
+        _quests.Where(q => q.Phase is not null).SelectMany(q => q.Current.SelectMany(p => p.SubQuests ?? Enumerable.Empty<int>()));
 
     // Logged whenever it changes, with the quests left out for a step shown elsewhere.
     private void RefreshOwned()

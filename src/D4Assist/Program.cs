@@ -651,7 +651,7 @@ internal static class Program
         var safeZones = new SafeZoneClassifier(definitionOf, store.Name);
         var selector = new LoopTargetSelector(
             beaconSnos, objectives, world => { lock (cascGate) return dpo.ActorSnos(world); }, interactables, portalRule.IsPortal,
-            safeZones.InsideRadius);
+            safeZones.InsideRadius, sno => store.Name(sno) == WarPlansTable);
         if (session.CurrentWorld is { } start) selector.SetWorld(WorldSnoOrNone(store, schema, start.Name), start.IsDungeon); // app started mid-dungeon
 
         var player = new SpatialLoopPlayer(mixer, sounds) { MaxVoices = AudioMixer.MaxLoopVoices - HazardLoopBridge.MaxLoops };
@@ -855,6 +855,9 @@ internal static class Program
     private const float QuestSymbolNamingUnits = 60f;
 
     // A traversal's gizmos (Traversal_Gizmo_Jump, _DuckUnder, _Slide...) and the spots it lands at (research/dungeon-data.md §4.1c).
+    // The War Plans command table in Temis ("War Plans Command Table"; Warplans_Vendor_NonInteractable is its stand-in for
+    // scenes): the quest loop (user request 2026-10-29).
+    private const string WarPlansTable = "Warplans_Vendor";
     private const string TraversalGizmoPrefix = "Traversal_Gizmo_";
     private const string TraversalSlideName = "Traversal_Gizmo_Slide";
     private const string TraversalExitName = "MarkerLocation_TraversalExit";

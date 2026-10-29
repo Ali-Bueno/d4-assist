@@ -239,6 +239,12 @@ until they leave the actor list. The vessels are used once per barrier, so they 
 while the game locks them (`LoopTarget.Reusable`). `Game/StolenSkillsAnnouncer` speaks Mephisto's theft at the first orb
 and the recovery once no orb was seen for 2 s.
 
+## The War Plans command table
+
+The War Plans command table in Temis (`Warplans_Vendor`, "War Plans Command Table", an NPC actor with the War Plans crafter
+service) loops the quest sound with a portal beacon's reach (60 units), so it is found across the town (user request
+2026-10-29). It follows the quest objective's sound setting; `--debug` logs it with reason `war-plans`.
+
 ## Doors, chests and readables
 
 `Game/InteractableClassifier` gives every other gizmo a D2R loop by ActorDefinition gizmo type

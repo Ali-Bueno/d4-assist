@@ -53,6 +53,9 @@ public sealed class LoopTargetSelector
     /// <summary>Sound id of the boss-fight safe zones (the user's own sound, 2026-10-01).</summary>
     public const string SafeZoneSound = "barrier";
 
+    /// <summary>Reason logged for the War Plans command table.</summary>
+    public const string WarPlansReason = "war-plans";
+
     /// <summary>Reason logged for the exit beacons.</summary>
     public const string BeaconReason = "beacon";
 
@@ -72,6 +75,8 @@ public sealed class LoopTargetSelector
     private readonly InteractableClassifier? _interactables;
     private readonly Func<int, bool>? _isPortal;
     private readonly Func<int, float?>? _safeZoneRadius;
+    private readonly Func<int, bool>? _isWarPlans;
+    private readonly LoopTarget _warPlans;
     private volatile IReadOnlySet<int> _worldDpoActors = new HashSet<int>();
     private volatile bool _inDungeon;
 
@@ -80,10 +85,15 @@ public sealed class LoopTargetSelector
     /// <param name="interactables">Null disables the door, chest and readable loops.</param>
     /// <param name="isPortal">Portal actors that get the beacon inside dungeons (PortalClassifier.IsPortal); null for none.</param>
     /// <param name="safeZoneRadius">The sheltered distance of a safe-zone actor, null for others (SafeZoneClassifier.InsideRadius); null for none.</param>
+    /// <param name="isWarPlans">The War Plans command table (Warplans_Vendor, "Kriegspläne" in Temis): the quest sound, as far as a
+    /// portal's beacon so it is found across the town (user request 2026-10-29); null for none.</param>
     public LoopTargetSelector(
         IReadOnlySet<int> beaconSnos, ObjectiveClassifier? objectives, Func<int, IReadOnlySet<int>> dpoActors,
-        InteractableClassifier? interactables = null, Func<int, bool>? isPortal = null, Func<int, float?>? safeZoneRadius = null)
+        InteractableClassifier? interactables = null, Func<int, bool>? isPortal = null, Func<int, float?>? safeZoneRadius = null,
+        Func<int, bool>? isWarPlans = null)
     {
+        _isWarPlans = isWarPlans;
+        _warPlans = new LoopTarget(LoopKind.Objective, QuestItemSound, LoopProfiles.Beacon, WarPlansReason, SoundCue.QuestObjective);
         _beaconSnos = beaconSnos;
         _isPortal = isPortal;
         _safeZoneRadius = safeZoneRadius;
@@ -118,6 +128,7 @@ public sealed class LoopTargetSelector
         if (_safeZoneRadius?.Invoke(actor.ActorSno) is { } inside) return _safeZone with { QuietWithin = inside };
         if (actor.QuestFollower) return null; // walks beside the player: a loop would only blur the quest sounds (user, 2026-10-04)
         if (_beaconSnos.Contains(actor.ActorSno) || (_inDungeon && _isPortal?.Invoke(actor.ActorSno) == true)) return _beacon;
+        if (_isWarPlans?.Invoke(actor.ActorSno) == true) return _warPlans;
         if (_objectives is not null && actor.QuestStep)
             return _objectives.IsBossOrUnique(actor.ActorSno) ? _enemyKillTarget
                 // A vessel the barrier names keeps its reusable loop: the game's used mark stays from an earlier barrier or attempt

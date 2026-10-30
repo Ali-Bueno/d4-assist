@@ -122,6 +122,10 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   §19) long before its actor streams in: first read 25-46 units off, last read 75 off, with Subo along on 2026-10-30 (his 85
   may be that range: M). The actor streamed only now and then within ~40. Flags 0x0030, sometimes 0x8030 (meaning unknown).
   So the app lists a marked goblin within 75 units, streamed in or not (`GoblinWatch.ListedUnits`, user decision 2026-10-30).
+- **March of the Goblins (H, game data; not checked live, 2026-10-30):** the event quest `SME_MOTG_PE` (2237027, "Marsch der Goblins") has only
+  hidden steps, no text, no marker and names no goblin; `LTE_MotG_Connect_RepTracking` (2647019) tracks the event's reputation. Nothing ties tracking a
+  quest to a goblin's map icon, and the app reads no tracked quest. The event has its own spawner
+  (`DRLG_Spawner_Special_treasureGoblin_MarchOfTheGoblinEvent`) and shrine (`SB_MarchOfTheGoblins_Shrine_Gold`, "Schrein der Gier", map icon, range 60).
 - **Open (L):** the reveal radius itself (`flMinimapRevealRadius`, not found in `globals`), and whether the game's map draws
   a goblin as far off as its marker is read, with and without Subo.
 

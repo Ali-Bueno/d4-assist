@@ -911,6 +911,7 @@ Tester logs 0.1.23 (act 4) and 0.1.24 (second half of act 5), no `--debug`.
   through where none does; the bearing doesn't cut across one. Broken: its game record gone after it had one (some props may be
   client-only from the start), `Gizmo_Has_Been_Operated`, or missing from its spot for 6 polls within 20 units; a broken spot stays
   broken in that world (`BreakableProps`, `PROP standing|broken (cause)` under `--debug`, config `BreakablePropsAvoided`). Unknown:
-  which signal a broken prop really shows live.
+  which signal a broken prop really shows live. The radar reads a standing prop's cells as walls too (`DungeonRadarWorld.SetProps`,
+  2026-10-30; the tester asked whether the other cues matched where no walk goes). Room descriptions don't count props.
 - **Sub-quest 810088** (`CSD_Hawe_Verge_CorrosiveSwamp_MaggotNest`): its phase 2 names 188 generic `DRLG_Spawner_Maggot_adult` places
   across every tileset, none in `Hawe_Swamp_*`: no lead. The swamp's false "unexplored" exits: [dungeon-data](dungeon-data.md) §4.1d.

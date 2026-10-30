@@ -77,6 +77,20 @@ public class PassageClassificationTests
         Assert.Equal(RadarCueKind.Open, Baseline(world, 2).State);
     }
 
+    [Theory]
+    [InlineData(0, false, RadarCueKind.Exit)]
+    [InlineData(1, true, RadarCueKind.Open)] // a floor island no walk from the corridor reaches (the wall-less swamp tiles)
+    [InlineData(1, false, RadarCueKind.Exit)] // no doorway on the player's floor: the walk map is wrong here, every doorway counts
+    public void OnlyADoorwayOnThePlayersFloor_ReadsExit(int doorwayFloor, bool anotherOnThePlayersFloor, RadarCueKind expected)
+    {
+        var world = FakeRadarWorld.Corridor(wallX: 16);
+        world.FloorOf = (x, y) => world.Cell(x, y) == RadarCell.Open ? 0 : -1;
+        world.DoorwayList.Add(new RadarDoorway(new RadarVector(10, 2.5), 3, Room: 0, Beyond: 1, Floor: doorwayFloor));
+        if (anotherOnThePlayersFloor) world.DoorwayList.Add(new RadarDoorway(new RadarVector(0, 2.5), 3, Room: 0, Beyond: 2, Floor: 0));
+
+        Assert.Equal(expected, Baseline(world, 2).State);
+    }
+
     [Fact]
     public void DoorwayIntoUnloadedTiles_ReadsUnexploredExit()
     {

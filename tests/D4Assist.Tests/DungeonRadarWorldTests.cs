@@ -9,7 +9,7 @@ namespace D4Assist.Tests;
 public class DungeonRadarWorldTests
 {
     private const int TileSize = 32;
-    private const int SnoA = 101, SnoB = 102, SnoNoData = 103;
+    private const int SnoA = 101, SnoB = 102, SnoNoData = 103, SnoC = 104;
 
     // A: everything walkable except its north edge row. B: a single walkable column at local Y = 16.
     private readonly FakeWalkability _walkability = new FakeWalkability()
@@ -27,7 +27,7 @@ public class DungeonRadarWorldTests
         Assert.Equal(RadarCell.Open, world.Cell(5, 5));
         Assert.Equal(RadarCell.Open, world.Cell(40, 16));
         Assert.Equal(RadarCell.Blocked, world.Cell(40, 5));
-        Assert.Equal(RadarCell.Unknown, world.Cell(-1, 5));
+        Assert.Equal(RadarCell.Unknown, world.Cell(-2, 5));
         Assert.Equal(RadarCell.Unknown, world.Cell(70, 5));
         int a = world.RoomAt(5, 5), b = world.RoomAt(40, 16);
         Assert.True(a >= 0 && b >= 0 && a != b);
@@ -101,6 +101,57 @@ public class DungeonRadarWorldTests
         var fromA = Assert.Single(world.Doorways, d => d.Room == a);
         Assert.Equal(b, fromA.Beyond);
         Assert.Equal(TileSize, fromA.Centre.X); // on A's south edge
+    }
+
+    [Fact]
+    public void Floors_JoinWhatAWalkJoins_AndEachDoorwayKnowsItsFloor()
+    {
+        // C: floor west of a blocked column at local Y = 20, an island east of it reaching the east edge at rows 2..5, and a
+        // north passage at Y 8..11 from the main floor.
+        var walkability = new FakeWalkability().Add(SnoC, (row, col) => col < 20 ? row >= 1 || col is >= 8 and <= 11 : col > 20 && row is >= 2 and <= 5);
+        var world = new DungeonRadarWorld(walkability);
+
+        world.UpdateTiles([Tile(SnoC, 0, 0, node: 1, exitMask: ExitMaskBits.North | ExitMaskBits.East)]);
+
+        int main = world.FloorAt(16, 5), island = world.FloorAt(3, 25);
+        Assert.True(main >= 0 && island >= 0 && main != island);
+        Assert.Equal(main, world.FloorAt(0, 9));
+        Assert.Equal(-1, world.FloorAt(16, 20)); // the wall between
+        Assert.Equal(main, Assert.Single(world.Doorways, d => d.Centre.X == 0).Floor);
+        Assert.Equal(island, Assert.Single(world.Doorways, d => d.Centre.Y == TileSize).Floor);
+    }
+
+    [Fact]
+    public void PastASideWithNoExit_NothingLies_ButPastAnExitTheGroundIsUnknown()
+    {
+        var world = new DungeonRadarWorld(_walkability);
+
+        world.UpdateTiles([Tile(SnoA, 0, 0, node: 1, exitMask: ExitMaskBits.South)]);
+
+        Assert.Equal(RadarCell.Blocked, world.Cell(5, -1)); // west
+        Assert.Equal(RadarCell.Blocked, world.Cell(5, TileSize)); // east
+        Assert.Equal(RadarCell.Blocked, world.Cell(-1, -1)); // a corner
+        Assert.Equal(RadarCell.Unknown, world.Cell(TileSize, 16)); // south, its exit
+        Assert.Equal(-1, world.RoomAt(5, -1));
+
+        world.UpdateTiles([Tile(SnoA, 0, 0, node: 1, exitMask: ExitMaskBits.South), Tile(SnoA, 0, TileSize, node: 2)]);
+
+        Assert.Equal(RadarCell.Open, world.Cell(5, TileSize)); // a tile there: its own cells
+    }
+
+    [Fact]
+    public void BreakablePropsStanding_ReadAsWalls_AndLeaveTheFloorsAlone()
+    {
+        var world = new DungeonRadarWorld(_walkability);
+        world.UpdateTiles([Tile(SnoA, 0, 0, node: 1)]);
+        var floor = world.FloorAt(5, 5);
+
+        world.SetProps(new HashSet<(int X, int Y)> { (5, 5) });
+
+        Assert.Equal(RadarCell.Blocked, world.Cell(5, 5));
+        Assert.Equal(floor, world.FloorAt(5, 5));
+        world.SetProps(new HashSet<(int X, int Y)>());
+        Assert.Equal(RadarCell.Open, world.Cell(5, 5));
     }
 
     private static TileState Tile(int sno, float originX, float originY, uint node, int exitMask = 0) =>

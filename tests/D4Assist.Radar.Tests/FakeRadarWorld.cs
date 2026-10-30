@@ -10,8 +10,12 @@ internal sealed class FakeRadarWorld(Func<int, int, RadarCell> cell, Func<int, i
     public List<RadarDoorway> DoorwayList { get; } = [];
     public IReadOnlyList<RadarDoorway> Doorways => DoorwayList;
 
+    /// <summary>The floor id of a cell; null reads every cell as unknown floor (-1).</summary>
+    public Func<int, int, int>? FloorOf { get; set; }
+
     public RadarCell Cell(int x, int y) => cell(x, y);
     public int RoomAt(int x, int y) => room?.Invoke(x, y) ?? 0;
+    public int FloorAt(int x, int y) => FloorOf?.Invoke(x, y) ?? -1;
     public bool IsVisited(int r) => Visited.Contains(r);
 
     /// <summary>A three-cell corridor along +X (y = 1..3) from x = 0 up to a wall at <paramref name="wallX"/>;

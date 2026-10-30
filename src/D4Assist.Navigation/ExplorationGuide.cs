@@ -93,6 +93,9 @@ public sealed class ExplorationGuide
     private IReadOnlyList<JumpLink> _jumps = [];
     private int _jumpsVersion, _cachedJumps = -1;
 
+    /// <summary>The jump links last set; the same instance until they change.</summary>
+    public IReadOnlyList<JumpLink> JumpLinks => _jumps;
+
     /// <summary>The cells breakable props stand on (1-unit world cells): routes inside a room walk around them where they can, never
     /// a wall (RoomPathfinder.PropPenalty). Compared by content, like <see cref="SetBlockedCells"/>.</summary>
     public void SetPropCells(IReadOnlySet<(int X, int Y)> cells)

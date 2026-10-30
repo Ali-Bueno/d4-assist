@@ -98,7 +98,7 @@ public sealed class NavigationEngine
         _current = room;
         _entranceKey ??= room.Key;
 
-        var (text, openings) = _policy.Describe(room, player, _previous, isEntrance: room.Key == _entranceKey);
+        var (text, openings) = _policy.Describe(room, player, _previous, isEntrance: room.Key == _entranceKey, Guide.JumpLinks);
         if (text is null) return;
         LastOpenings = openings;
         Announce?.Invoke(text, Interrupt);

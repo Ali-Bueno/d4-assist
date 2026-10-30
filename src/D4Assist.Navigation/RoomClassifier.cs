@@ -10,10 +10,13 @@ namespace D4Assist.Navigation;
 /// </summary>
 public static class RoomClassifier
 {
-    public static RoomKind Classify(Room room)
+    public static RoomKind Classify(Room room) => Classify(room, room.Openings.Count);
+
+    /// <param name="openings">How many of the room's openings count (AnnouncementPolicy: those a walk reaches).</param>
+    public static RoomKind Classify(Room room, int openings)
     {
         if (room.IsMultiTile) return RoomKind.BigRoom;
-        return room.Openings.Count switch
+        return openings switch
         {
             <= 1 => RoomKind.DeadEnd,
             2 => RoomKind.Corridor,

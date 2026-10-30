@@ -178,6 +178,12 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   graph counts every opening of a tile reachable from all of it. The guide led the tester east to such an island exit
   ("unexplored", no way there). Now a frontier of the player's room that no walk reaches (jumps included, live barriers
   ignored) is spent while another opening of the room is walked to (`ExplorationGuide.SpendCutOffFrontiers`).
+- The same tester heard the radar sound an exit there. The room description listed every opening (from Tysa: 6, three of them
+  islands, all "unexplored") and the radar's doorway rule took them all. Now (2026-10-30, offline, `SwampFrontierRealDataTests`)
+  the description speaks and counts only openings a walk reaches while one is (3 from Tysa), and the radar takes only doorways on
+  the player's stretch of floor (`DungeonRadarWorld.FloorAt`, while one is). Past a tile side with no exit bit (live or authored)
+  and no tile, the radar reads wall, not unknown ground (an exit): the main floor of 3 swamp tiles reaches such a side
+  (`Hawe_Swamp_SW_01` east, 4 cells; `Hawe_Swamp_E_Arena_01` north, 5; `Hawe_Swamp_W_Entrance_01` south, 7).
 
 ### 4.2 Detail voxel grid layout (H, validated on 104 tiles)
 

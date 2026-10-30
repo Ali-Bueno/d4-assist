@@ -31,7 +31,10 @@ of `TileInput`/`PlayerInput` snapshots the host app feeds in.
 6. `RoomClassifier` labels a room DeadEnd/Corridor/Junction by opening count, or
    BigRoom if it spans more than one tile (BigRoom takes priority).
 7. `AnnouncementPolicy` decides what to say: junctions, dead ends and big rooms
-   speak; corridors are silent unless `IncludeCorridors` is set. Diff-gated —
+   speak; corridors are silent unless `IncludeCorridors` is set. An opening no
+   walk from the player reaches (jumps included) is neither spoken nor counted
+   while another one is, as for the guide (a wall-less tile's floor islands,
+   research/dungeon-data.md §4.1d; `--debug`: `no walk`). Diff-gated —
    identical text is never repeated. Also returns each opening's `OpeningRoute`
    (position, width, path length, fallback flags) for `--debug` diagnostics.
 8. `NavigationPhrases` holds every spoken string (`Spanish` / `English` instances; `LanguageSetting` is the live switch).

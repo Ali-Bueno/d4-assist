@@ -33,21 +33,28 @@ public sealed class RoomRouteCache
 
     private RoomKey _cachedKey = RoomKey.Invalid;
     private (float X, float Y) _cachedPlayer;
+    private IReadOnlyList<JumpLink>? _cachedJumps;
     private List<OpeningRoute>? _cached;
 
-    public IReadOnlyList<OpeningRoute> Resolve(Room room, PlayerInput player)
+    /// <param name="jumps">The loaded tiles' jump links (ExplorationGuide.JumpLinks), which a route may cross.</param>
+    public IReadOnlyList<OpeningRoute> Resolve(Room room, PlayerInput player, IReadOnlyList<JumpLink>? jumps = null)
     {
         var playerPos = (player.X, player.Y);
-        if (_cached is not null && room.Key == _cachedKey && Distance(playerPos, _cachedPlayer) <= RecomputeThresholdUnits)
+        if (_cached is not null && room.Key == _cachedKey && ReferenceEquals(jumps, _cachedJumps)
+            && Distance(playerPos, _cachedPlayer) <= RecomputeThresholdUnits)
             return _cached;
 
-        var routes = room.Openings.Select(opening => Resolve(room, playerPos, opening)).ToList();
+        var routes = room.Openings.Select(opening => Resolve(room, playerPos, opening, jumps)).ToList();
 
         _cachedKey = room.Key;
         _cachedPlayer = playerPos;
+        _cachedJumps = jumps;
         _cached = routes;
         return routes;
     }
+
+    /// <summary>Whether a walk from the player reaches the opening; an opening with no floor run (a midpoint guess) always counts.</summary>
+    public static bool Reached(OpeningRoute route) => route.Opening.UsedFallback || !route.UsedPathFallback;
 
     /// <summary>BFS path from the player to <paramref name="goal"/> inside the room, and the farthest visible
     /// point along it, around <paramref name="props"/> where it can. Falls back to the opening's own position when the room has no grid or no path.</summary>
@@ -115,9 +122,9 @@ public sealed class RoomRouteCache
         return cells;
     }
 
-    private static OpeningRoute Resolve(Room room, (float X, float Y) player, RoomOpening opening)
+    private static OpeningRoute Resolve(Room room, (float X, float Y) player, RoomOpening opening, IReadOnlyList<JumpLink>? jumps)
     {
-        var trace = Trace(room, player, opening);
+        var trace = Trace(room, player, opening, jumps);
         var direction = ScreenDirections.Bin(trace.Point.X - player.X, trace.Point.Y - player.Y);
         return new OpeningRoute(opening, direction, trace.Length, trace.UsedFallback);
     }

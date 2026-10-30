@@ -31,19 +31,23 @@ public sealed class AnnouncementPolicy
     /// <summary>The text to announce for entering <paramref name="room"/> (or null to stay silent), plus
     /// each opening's resolved route for diagnostics. <paramref name="cameFrom"/> is the room the player
     /// just left (its entry opening is excluded from the spoken list); <paramref name="isEntrance"/>
-    /// marks the very first room of the run ("Entrada." instead of the usual room-kind label).</summary>
-    public (string? Text, IReadOnlyList<OpeningRoute> Openings) Describe(Room room, PlayerInput player, Room? cameFrom = null, bool isEntrance = false)
+    /// marks the very first room of the run ("Entrada." instead of the usual room-kind label). <paramref name="jumps"/>: the loaded
+    /// tiles' jump links a route may cross.</summary>
+    public (string? Text, IReadOnlyList<OpeningRoute> Openings) Describe(
+        Room room, PlayerInput player, Room? cameFrom = null, bool isEntrance = false, IReadOnlyList<JumpLink>? jumps = null)
     {
         if (!Enabled) return (null, []);
-        var kind = RoomClassifier.Classify(room); // classification uses every opening, entry or not
-        if (kind == RoomKind.Corridor && !IncludeCorridors) return (null, []);
-
-        var routes = _routes.Resolve(room, player)
+        var routes = _routes.Resolve(room, player, jumps)
             .Select(r => r with { IsEntry = IsEntryRoute(r.Opening, cameFrom) })
             .ToList();
+        // An exit no walk from here reaches is no way on, as for the guide: a wall-less swamp tile's floor islands at its edges
+        // (tester, research/dungeon-data.md §4.1d). With none reached (the player off the walk map) every exit counts.
+        var ways = routes.Any(r => !r.Opening.UsedFallback && !r.UsedPathFallback) ? routes.Where(RoomRouteCache.Reached).ToList() : routes;
+        var kind = RoomClassifier.Classify(room, ways.Count); // classification uses every way on, entry or not
+        if (kind == RoomKind.Corridor && !IncludeCorridors) return (null, []);
 
         var words = NavigationPhrases.For(_language.Current);
-        var phrases = routes
+        var phrases = ways
             .Where(r => !r.IsEntry) // don't list the exit the player just walked through as if new
             .OrderBy(r => (int)r.Direction) // clockwise from up
             .Select(r => words.DirectionPhrase(r.Direction, MentionUnexplored && r.Opening.Unexplored, DirectionStyle))

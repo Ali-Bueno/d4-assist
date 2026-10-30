@@ -111,6 +111,32 @@ public class AnnouncementPolicyTests
     }
 
     [Fact]
+    public void An_exit_no_walk_reaches_is_neither_spoken_nor_counted_but_kept_for_diagnostics()
+    {
+        // Floor west of a blocked column at Y = 28, passages to the north and south edges, and an island east of the column
+        // on the east edge (rows 2..5): a wall-less swamp tile's island exit.
+        var cells = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++)
+                cells[r, c] = c < 28 ? r is >= 4 and <= 27 || c is >= 14 and <= 17 : c > 28 && r is >= 2 and <= 5;
+        var tile = new MapTile(new TileInput(1, "t", 0, 0, 32, 32, 0, 1, 1));
+        var island = new RoomOpening(ExitSide.East, (4f, 32f), Unexplored: true, Width: 4);
+        var room = new Room(new RoomKey(0, 0, true), [tile], [
+            new RoomOpening(ExitSide.North, (0f, 16f), Unexplored: false, Width: 4),
+            new RoomOpening(ExitSide.South, (32f, 16f), Unexplored: false, Width: 4),
+            island,
+        ], new WalkGrid(1f, 0f, 0f, 32, 32, cells));
+
+        Assert.Null(new AnnouncementPolicy().Describe(room, Player).Text); // two ways on: a corridor, silent by default
+
+        var (text, routes) = new AnnouncementPolicy { IncludeCorridors = true }.Describe(room, Player);
+
+        Assert.Equal("Pasillo. Salidas: arriba a la derecha, abajo a la izquierda.", text);
+        Assert.Equal(3, routes.Count);
+        Assert.True(routes.Single(r => r.Opening == island).UsedPathFallback);
+    }
+
+    [Fact]
     public void The_opening_the_player_came_through_is_excluded_from_the_spoken_list_but_kept_for_diagnostics()
     {
         var currentTile = new MapTile(new TileInput(1, "current", 0, 0, 32, 32, 0, 1, 1));

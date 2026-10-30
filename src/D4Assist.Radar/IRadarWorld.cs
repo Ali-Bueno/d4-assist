@@ -15,6 +15,9 @@ public interface IRadarWorld
     /// <summary>Stable id of the room covering the cell, or -1 when none.</summary>
     int RoomAt(int x, int y);
 
+    /// <summary>Id of the stretch of floor the open cell belongs to (cells a walk joins share one), or -1 when it isn't floor or unknown.</summary>
+    int FloorAt(int x, int y) => -1;
+
     /// <summary>Whether the player has stood in the room (D2R RoomGrid::visited).</summary>
     bool IsVisited(int room);
 
@@ -25,5 +28,6 @@ public interface IRadarWorld
     IReadOnlyList<RadarDoorway> Doorways => [];
 }
 
-/// <summary>A doorway of <paramref name="Room"/>: its centre in cells, its width, and the room beyond (-1 when not loaded).</summary>
-public readonly record struct RadarDoorway(RadarVector Centre, double Width, int Room, int Beyond);
+/// <summary>A doorway of <paramref name="Room"/>: its centre in cells, its width, the room beyond (-1 when not loaded), and the
+/// floor it opens from (IRadarWorld.FloorAt; -1 when unknown).</summary>
+public readonly record struct RadarDoorway(RadarVector Centre, double Width, int Room, int Beyond, int Floor = -1);

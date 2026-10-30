@@ -70,6 +70,11 @@ Unexplored rides on Exit only: the room beyond was never stood in, or the route 
   player's room's doorways, using each doorway's own half-width as the side tolerance. The maze rule alone almost never
   fired: a diagonal ray through a 14-unit doorway meets the far corridor's side wall before it clears the border by
   10. In the 2026-09-30 log, Exit came only 1.5 to 4.5 cells from the door. A doorway leading into unloaded tiles is unexplored.
+  Only doorways on the player's stretch of floor count (`IRadarWorld.FloorAt`: open cells a walk joins, the scan's
+  steps): a wall-less swamp tile's floor islands at its edges read as exits with no way there (tester, 2026-10-30,
+  research/dungeon-data.md §4.1d).
+- **Breakable props standing are walls** (desks, barrels: `DungeonRadarWorld.SetProps`), until the game breaks them; the
+  static walk map calls their cells floor (research/dungeon-objectives.md §30).
 - **Entering another room is an exit, even with a wall just beyond it.** D4 doorways open onto corridors along the
   screen diagonals: a cardinal ray through one meets the corridor's far wall within the closing depth, so D2R's order
   (walls first) read Blocked in a 4-wide passage two cells from the door (user, 2026-09-30: "no me avisó que había

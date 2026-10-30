@@ -46,7 +46,7 @@ public sealed class AppConfig
     /// <summary>Barrier walls a dungeon raises until its objective is done block the radar and the guide's routes while they stand.</summary>
     public bool LiveBarriersEnabled { get; set; } = true;
 
-    /// <summary>The guide's routes walk around breakable props (desks, barrels) where they can, until the game breaks them.</summary>
+    /// <summary>The guide's routes walk around breakable props (desks, barrels) where they can, and the radar reads them as walls, until the game breaks them.</summary>
     public bool BreakablePropsAvoided { get; set; } = true;
 
     /// <summary>Every sound cue's switch, volume and repeat speed, plus the master volume (the settings window's sound tabs).</summary>

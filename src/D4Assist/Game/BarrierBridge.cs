@@ -5,7 +5,8 @@ namespace D4Assist.Game;
 /// <summary>
 /// After every actor poll in a dungeon or story area, hands the standing barriers (BarrierObstacles) to the radar grid, and them
 /// with the doors the player can't open yet (LockedDoors) to the guide's routes (the radar sounds every closed door already), and the
-/// breakable props standing (BreakableProps) to the guide's routes to walk around; each only when it changes. A new world clears them.
+/// breakable props standing (BreakableProps) to the guide's routes to walk around and the radar as walls; each only when it changes.
+/// A new world clears them.
 /// </summary>
 internal sealed class BarrierBridge
 {

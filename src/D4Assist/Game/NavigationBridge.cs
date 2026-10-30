@@ -130,7 +130,8 @@ public sealed class NavigationBridge
         {
             var o = route.Opening;
             Log($"  opening {o.Side} at ({o.Position.X:F1},{o.Position.Y:F1}) width={o.Width:F1} " +
-                $"pathLength={route.PathLength:F1} {(route.UsedPathFallback ? "straight-line fallback" : "path")}{(route.IsEntry ? " entry" : "")}");
+                $"pathLength={route.PathLength:F1} {(!route.UsedPathFallback ? "path" : o.UsedFallback ? "straight-line fallback" : "no walk")}" +
+                $"{(route.IsEntry ? " entry" : "")}");
         }
     }
 

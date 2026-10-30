@@ -64,7 +64,7 @@ public sealed class RadarEngine
 
         var grid = new LocalGrid(world, cellX, cellY, Settings.StructuralRadius);
         if (Settings.RemoveClutter) ClutterFilter.Apply(grid, Settings.ClutterSpan, Settings.BodyRadius);
-        var doorways = DoorwaysAround(world, world.RoomAt(cellX, cellY), motion);
+        var doorways = DoorwaysAround(world, world.RoomAt(cellX, cellY), FloorAround(world, cellX, cellY), motion);
 
         var cues = new List<RadarCue>();
         foreach (var ray in RadarRays.All)
@@ -103,9 +103,26 @@ public sealed class RadarEngine
         return new[] { -lane, lane }.Any(offset => PassageScanner.Scan(grid, axis, query with { Offset = offset }).Observed?.IsObstacle() == true);
     }
 
-    // The player's room's doorways, relative to the player like the scan's cells.
-    private static List<RadarDoorway> DoorwaysAround(IRadarWorld world, int room, RadarVector player) =>
-        room < 0 ? [] : [.. world.Doorways.Where(d => d.Room == room).Select(d => d with { Centre = d.Centre - player })];
+    // The player's room's doorways, relative to the player like the scan's cells. D4: only those on the player's floor while one is,
+    // as for the guide; a wall-less swamp tile's floor islands at its edges read as exits with no way there (research/dungeon-data.md §4.1d).
+    private static List<RadarDoorway> DoorwaysAround(IRadarWorld world, int room, int floor, RadarVector player)
+    {
+        if (room < 0) return [];
+        var doorways = world.Doorways.Where(d => d.Room == room).ToList();
+        if (floor >= 0 && doorways.Any(d => d.Floor == floor)) doorways = doorways.FindAll(d => d.Floor < 0 || d.Floor == floor);
+        return doorways.ConvertAll(d => d with { Centre = d.Centre - player });
+    }
+
+    // The floor under the player, or the nearest around them when the 1-unit map puts their feet on a wall cell.
+    private int FloorAround(IRadarWorld world, int x, int y)
+    {
+        for (var reach = 0; reach <= Settings.BodyRadius; reach++)
+            for (var dx = -reach; dx <= reach; dx++)
+                for (var dy = -reach; dy <= reach; dy++)
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) == reach && world.FloorAt(x + dx, y + dy) is >= 0 and var floor)
+                        return floor;
+        return -1;
+    }
 
     // Engine::TrackRoom (radar.cpp:49-70): on a room change the ray most against the crossing step is the way back.
     private void TrackRoom(IRadarWorld world, int cellX, int cellY, RadarVector motion, RadarVector travel)

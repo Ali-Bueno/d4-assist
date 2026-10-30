@@ -118,10 +118,12 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
 - **Subo (H, text; M, mechanism):** the bounty hunter's passive "Seeker" (`NPC_Mercenary_BountyHunter_Perk`) "reveals all
   enemies and materials in the area" through a buff (a script formula of 85, likely its radius): with him the map shows
   ordinary monsters too (marker kind 10). Goblins need no Subo.
-- **Open (L):** whether a reveal-radius goblin enters the client's map-marker list (dungeon-objectives.md §19) only once
-  the map shows it, and whether a node flag (+0x54) tells it. The app counts such a goblin as shown while it is marked and
-  its actor is streamed in nearby (`GoblinWatch`); `--debug` GOBLIN lines record marker, flags, distance and streaming to
-  check that live, with and without Subo.
+- **Live (H, `--debug` logs of 2026-10-29/30):** a goblin's marker is in the client's map-marker list (dungeon-objectives.md
+  §19) long before its actor streams in: first read 25-46 units off, last read 75 off, with Subo along on 2026-10-30 (his 85
+  may be that range: M). The actor streamed only now and then within ~40. Flags 0x0030, sometimes 0x8030 (meaning unknown).
+  So the app lists a marked goblin within 75 units, streamed in or not (`GoblinWatch.ListedUnits`, user decision 2026-10-30).
+- **Open (L):** the reveal radius itself (`flMinimapRevealRadius`, not found in `globals`), and whether the game's map draws
+  a goblin as far off as its marker is read, with and without Subo.
 
 ## 5. Open questions
 

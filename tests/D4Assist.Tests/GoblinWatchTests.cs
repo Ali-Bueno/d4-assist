@@ -40,19 +40,13 @@ public class GoblinWatchTests
     }
 
     [Fact]
-    public void A_reveal_radius_goblin_shows_only_while_it_is_streamed_in_by_its_marker()
+    public void A_reveal_radius_goblin_lists_while_marked_within_its_range_streamed_in_or_not()
     {
         var watch = NewWatch();
         watch.OnPlayerMoved(new PlayerState(0, 0, 0, 0));
-        var marker = new MarkedActor(Goblin, 30, 0, 0, 1, 10);
 
-        Assert.False(watch.IsShown(marker)); // marked far off, not streamed in
-
-        watch.OnActors([new ActorState(7, Goblin, 34, 2, 0)]); // it ran a few units since the markers were read
-        Assert.True(watch.IsShown(marker));
-
-        watch.OnActors([new ActorState(7, Goblin, 34, 2, 0, ClientOnly: true)]); // a client copy is no goblin
-        Assert.False(watch.IsShown(marker));
+        Assert.True(watch.IsShown(new MarkedActor(Goblin, GoblinWatch.ListedUnits, 0, 0, 1, 10)));
+        Assert.False(watch.IsShown(new MarkedActor(Goblin, GoblinWatch.ListedUnits + 1, 0, 0, 1, 10)));
     }
 
     [Fact]
@@ -81,7 +75,7 @@ public class GoblinWatchTests
         watch.OnMarkers([]);
 
         Assert.Equal(3, log.Count);
-        Assert.Contains("flags 0x0034 30 away streamed no shown no", log[0]);
+        Assert.Contains("flags 0x0034 30 away streamed no shown yes", log[0]);
         Assert.Contains("streamed yes shown yes", log[1]);
         Assert.Equal("GOBLIN none", log[2]);
     }

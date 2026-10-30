@@ -3,12 +3,12 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>
-/// Which treasure goblins the map shows a sighted player, for the Shift+F3 list (user request 2026-10-29: only those). The game
-/// data says how the map shows each goblin (ActorUIData, <see cref="MinimapInfo"/>): most respect the fog of war and the reveal
-/// radius around the player, so they show only near him; the Undercity's and an expansion event's are active by default and show
-/// from anywhere within their range (2048 units). The client's map-marker list holds what the map can show, streamed in or not
-/// (research/dungeon-objectives.md §19), so a reveal-radius goblin counts as shown only while its actor is streamed in around the
-/// player as well. Debug GOBLIN lines say each change (marker, flags, streamed, shown) to check that rule against the map.
+/// Which treasure goblins the Shift+F3 list names. The game data says how the map shows each goblin (ActorUIData,
+/// <see cref="MinimapInfo"/>): most respect the fog of war and the reveal radius around the player; the Undercity's and an
+/// expansion event's are active by default and show from anywhere within their range (2048 units). The client's map-marker list
+/// holds goblins well before their actors stream in (research/map-points.md §4a), so a goblin that respects the reveal radius
+/// lists while it is marked within <see cref="ListedUnits"/> of the player, streamed in or not (user decision 2026-10-30).
+/// Debug GOBLIN lines say each change (marker, flags, streamed, shown).
 /// </summary>
 /// <param name="definitionOf">ActorDefinition classification of a SNO; null when unreadable.</param>
 /// <param name="nameOf">An SNO's name, for the monster family and the log.</param>
@@ -16,6 +16,9 @@ public sealed class GoblinWatch(Func<int, ActorDefinitionInfo?> definitionOf, Fu
 {
     /// <summary>A streamed goblin this close to a marker of its kind is that marker's (goblins run; a poll apart they moved).</summary>
     public const float SameGoblinUnits = 12f;
+
+    /// <summary>How far a marked goblin lists (user decision 2026-10-30): markers were read up to 75 units off with Subo along.</summary>
+    public const float ListedUnits = 75f;
 
     private readonly object _gate = new();
     private readonly Dictionary<int, bool> _isGoblin = [];
@@ -75,7 +78,7 @@ public sealed class GoblinWatch(Func<int, ActorDefinitionInfo?> definitionOf, Fu
     private bool ShownLocked(MarkedActor marker) =>
         definitionOf(marker.ActorSno)?.Minimap is { ActiveByDefault: true } map
             ? map.MaxVisRange <= 0 || Distance(marker.X, marker.Y) <= map.MaxVisRange
-            : Streamed(marker);
+            : Distance(marker.X, marker.Y) <= ListedUnits;
 
     private bool Streamed(MarkedActor marker) => _streamed.Any(a => a.ActorSno == marker.ActorSno && Near(a, marker));
 

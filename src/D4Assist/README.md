@@ -551,12 +551,12 @@ petal (tester 2026-10-31, [dungeon-data](../../research/dungeon-data.md) §4.1c)
   as the map marks them. With two helltides up an object belongs to the one its area's
   region names; without objects Enter says to enter the area. `--debug` logs `HELLTIDE active: …`, `HELLTIDE n object(s)
   among m map markers` and `WAYPOINT zoom a -> b (wheel ±1)`.
-- **Shift+F3** (keyboard, world map only) — the treasure goblins the map shows (user request 2026-10-29), nearest first, as
+- **Shift+F3** (keyboard, world map only) — the treasure goblins the game marks near the player (user request 2026-10-29), nearest first, as
   `name, level area, N meters, direction` with the game's names ("Schatzgoblin", "Goldener Baron", "Portal-Streichbold");
   up/down, Enter (cursor, zooming in as for helltide objects, at the goblin's spot read afresh: it runs) and Escape as in the
   waypoint list; none says „Kein Schatzgoblin auf der Karte.“ A goblin is a monster of the family `Treasure_Goblin` (24
   actors). The map shows most only within the reveal radius around the player (ActorUIData `fMinimapRespectsRevealRadius`),
-  so they list only while marked on the map and streamed in nearby; the Undercity's and an expansion event's
+  and they list while marked within 75 units, streamed in or not (user decision 2026-10-30); the Undercity's and an expansion event's
   (`fMinimapActiveByDefault`, 2048 units) from anywhere in range (`GoblinWatch`). Goblins also get the elite's enemy cue
   (`EnemyClassifier`). `--debug` logs `GOBLIN …` (marker kind and flags, distance, streamed, shown) on each change and
   `GOBLINS n shown among m map markers`.

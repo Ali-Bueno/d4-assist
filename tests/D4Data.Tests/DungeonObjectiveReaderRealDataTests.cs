@@ -1,4 +1,5 @@
 using D4Data.Casc;
+using D4Data.Format;
 using D4Data.Readers;
 using D4Data.Schema;
 
@@ -81,6 +82,22 @@ public class DungeonObjectiveReaderRealDataTests
         var info = new ActorDefinitionReader(store, schema).Read(store.Resolve(schema.SnoGroup("ActorDefinition"), actor));
 
         Assert.Equal(radius, info!.Value.TriggerRadius!.Value, precision: 2);
+    }
+
+    [Theory]
+    [InlineData("MageHalls_Prop_Furniture_Table_Medium_Corner_1x2_01_Arrangement", 0.7f, 1.2f)] // its collision box
+    [InlineData("MageHalls_Prop_Furniture_Table_Medium_01_Dyn", 0.6f, 1.1f)]                    // a default cylinder: its appearance box
+    public void ActorDefinitionReader_ReadsABreakablePropsGroundBox(string actor, float halfX, float halfY)
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+
+        var info = new ActorDefinitionReader(store, schema).Read(store.Resolve(schema.SnoGroup("ActorDefinition"), actor))!.Value;
+
+        Assert.Equal(Conventions.GizmoBreakable, info.GizmoType);
+        Assert.Equal(halfX, info.PropHalfExtents.X, precision: 1);
+        Assert.Equal(halfY, info.PropHalfExtents.Y, precision: 1);
     }
 
     [Fact]

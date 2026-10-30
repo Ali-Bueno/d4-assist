@@ -243,11 +243,12 @@ internal static class Program
         var radarWorld = new DungeonRadarWorld(walkability);
         _ = new RadarBridge(session, radarWorld, radarPlayer, radarSettings, diagnostics: debug, doors);
         // Barrier walls a dungeon raises until its objective is done: walls for the radar and the guide while they stand. Doors the
-        // player can't open yet: walls for the guide only (the radar sounds every closed door).
+        // player can't open yet: walls for the guide only (the radar sounds every closed door). Breakable props: walked around.
         var lockedDoors = new LockedDoors(doors ?? new DoorObstacles(interactables, definitionOf), store.Name, Console.WriteLine);
         var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
-            radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates);
+            radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates,
+            config.BreakablePropsAvoided ? new BreakableProps(store.Name, definitionOf, debug ? Console.WriteLine : null) : null, navigation.SetPropCells);
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 

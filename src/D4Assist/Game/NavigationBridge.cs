@@ -64,6 +64,12 @@ public sealed class NavigationBridge
         lock (_gate) _engine.Guide.SetBlockedCells(cells);
     }
 
+    /// <summary>Breakable props the guide walks around, as 1-unit world cells; an equal set is a no-op (ExplorationGuide.SetPropCells).</summary>
+    public void SetPropCells(IReadOnlySet<(int X, int Y)> cells)
+    {
+        lock (_gate) _engine.Guide.SetPropCells(cells);
+    }
+
     /// <summary>The doors the game keeps shut, for the guide; an equal list is a no-op (ExplorationGuide.SetGates).</summary>
     public void SetGates(IReadOnlyList<GuideGate> gates)
     {

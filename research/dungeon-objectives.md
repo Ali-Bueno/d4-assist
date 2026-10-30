@@ -899,7 +899,18 @@ Tester logs 0.1.23 (act 4) and 0.1.24 (second half of act 5), no `--debug`.
 - **Act 4 Horadric Vault desks** (`CSD_Frac_Conv_HoradricVault`, quest 577819, "lead Donan to his desks"): the guide routed through
   desks in the Gallery. No phase names a desk (only triggers and `NPC_QST_Donan_Combat`); `QST_Conv_Gale_Donan_Desk` is a spot with
   no collision. Likely the runtime-spawned furniture (`MageHalls_Prop_Furniture_*_Arrangement`, shelves at X 11/16/21, Y≈28.6 in
-  `Mage_Halls_E_01`: eType 2, gizmo 48 destroyable, team 1), absent from the voxel walk map. Not confirmed (needs `ACTOR seen` under
-  `--debug`); it joins the open "big destroyables as route walls" decision.
+  `Mage_Halls_E_01`: eType 2, gizmo 48 destroyable, team 1), absent from the voxel walk map. Not confirmed (needs `PROP standing`
+  under `--debug`).
+- **Breakable props as soft walls** (user decision 2026-10-30: "que la guía los rodee", and stop once the player broke one): gizmo
+  type 48 covers 14616 actors (barrels, books, furniture, `Ancients_FleshWebbing_*`, `MageHalls_ControlPoint_*`). Ground box: the
+  furniture arrangements (team 1) carry a real collision box in `ptCollData.aabbCollision` (`Table_Medium_Corner_1x2_01_Arrangement`
+  half (0.7,1.2,0.8)); single `_Dyn` props only a default 0.4-radius collision cylinder and a 0.4 `aabbBounds` placeholder, but a
+  real `aabbAppearanceBoundingBox` (`Table_Medium_01_Dyn` half (0.6,1.1,0.4); barrels 0.2-0.5), centred within ~0.2 of the actor
+  (`ActorDefinitionInfo.PropCenter/PropHalfExtents`). **App rule (unit-tested, not live):** a standing prop's cells cost
+  `RoomPathfinder.PropPenalty` (50 per unit) in the guide's room routes, so they walk around it wherever the room offers a way and
+  through where none does; the bearing doesn't cut across one. Broken: its game record gone after it had one (some props may be
+  client-only from the start), `Gizmo_Has_Been_Operated`, or missing from its spot for 6 polls within 20 units; a broken spot stays
+  broken in that world (`BreakableProps`, `PROP standing|broken (cause)` under `--debug`, config `BreakablePropsAvoided`). Unknown:
+  which signal a broken prop really shows live.
 - **Sub-quest 810088** (`CSD_Hawe_Verge_CorrosiveSwamp_MaggotNest`): its phase 2 names 188 generic `DRLG_Spawner_Maggot_adult` places
   across every tileset, none in `Hawe_Swamp_*`: no lead. The swamp's false "unexplored" exits: [dungeon-data](dungeon-data.md) §4.1d.

@@ -9,6 +9,7 @@
   "CheckForUpdates": true,
   "RadarClosedDoorsEnabled": true,
   "LiveBarriersEnabled": true,
+  "BreakablePropsAvoided": true,
   "PauseCuesInCutscenes": true,
   "PauseCuesInBackground": true,
   "PauseCuesInConversations": true,

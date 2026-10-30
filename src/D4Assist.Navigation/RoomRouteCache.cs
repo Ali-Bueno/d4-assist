@@ -50,13 +50,14 @@ public sealed class RoomRouteCache
     }
 
     /// <summary>BFS path from the player to <paramref name="goal"/> inside the room, and the farthest visible
-    /// point along it. Falls back to the opening's own position when the room has no grid or no path.</summary>
-    public static PathBearing Trace(Room room, (float X, float Y) player, RoomOpening goal, IReadOnlyList<JumpLink>? jumps = null)
+    /// point along it, around <paramref name="props"/> where it can. Falls back to the opening's own position when the room has no grid or no path.</summary>
+    public static PathBearing Trace(
+        Room room, (float X, float Y) player, RoomOpening goal, IReadOnlyList<JumpLink>? jumps = null, BlockedCells? props = null)
     {
         if (room.NavGrid is not { } grid) return new PathBearing(goal.Position, 0f, true);
         if (Doorway(grid, player, goal) is { } beyond) return new PathBearing(beyond, Distance(player, goal.Position), false);
-        if (RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), jumps ?? [], out var path, out var length, out var jump))
-            return Bearing(grid, player, path, length, jump, goal.Position);
+        if (RoomPathfinder.TryFindPath(grid, player, InwardTargets(grid, goal), jumps ?? [], out var path, out var length, out var jump, props))
+            return Bearing(grid, player, path, length, jump, goal.Position, props);
         return new PathBearing(goal.Position, 0f, true);
     }
 
@@ -77,28 +78,29 @@ public sealed class RoomRouteCache
     }
 
     /// <summary>BFS path from the player to the floor within <paramref name="reach"/> of <paramref name="point"/> (an object stands
-    /// on cells of its own), and the farthest visible point along it. Falls back to the point itself when the room has no grid or no path.</summary>
+    /// on cells of its own), and the farthest visible point along it, around <paramref name="props"/> where it can. Falls back to the
+    /// point itself when the room has no grid or no path.</summary>
     public static PathBearing TraceToPoint(
-        Room room, (float X, float Y) player, (float X, float Y) point, float reach, IReadOnlyList<JumpLink>? jumps = null)
+        Room room, (float X, float Y) player, (float X, float Y) point, float reach, IReadOnlyList<JumpLink>? jumps = null, BlockedCells? props = null)
     {
         if (room.NavGrid is { } grid &&
-            RoomPathfinder.TryFindPath(grid, player, FloorWithin(grid, point, reach), jumps ?? [], out var path, out var length, out var jump))
-            return Bearing(grid, player, path, length, jump, point);
+            RoomPathfinder.TryFindPath(grid, player, FloorWithin(grid, point, reach), jumps ?? [], out var path, out var length, out var jump, props))
+            return Bearing(grid, player, path, length, jump, point, props);
         return new PathBearing(point, 0f, true);
     }
 
     // Where to head on a found path: its farthest visible point, or, when the path needs a jump, the farthest visible point
     // before it and, once near, the jump point itself: the line across the gap is no way to walk.
     private static PathBearing Bearing(WalkGrid grid, (float X, float Y) player, List<(float X, float Y)> path, float length,
-        (int Index, (float X, float Y) At)? jump, (float X, float Y) goal)
+        (int Index, (float X, float Y) At)? jump, (float X, float Y) goal, BlockedCells? props)
     {
         if (jump is { } leap)
         {
-            var toward = RoomPathfinder.FarthestVisiblePoint(grid, path.GetRange(0, leap.Index + 1));
+            var toward = RoomPathfinder.FarthestVisiblePoint(grid, path.GetRange(0, leap.Index + 1), props);
             bool near = Distance(player, leap.At) <= RoomPathfinder.JumpReachUnits || Distance(player, toward) < MinBearingDistanceUnits;
             return new PathBearing(near ? leap.At : toward, length, false, leap.At);
         }
-        var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path);
+        var farthest = RoomPathfinder.FarthestVisiblePoint(grid, path, props);
         return new PathBearing(Distance(player, farthest) < MinBearingDistanceUnits ? goal : farthest, length, false);
     }
 

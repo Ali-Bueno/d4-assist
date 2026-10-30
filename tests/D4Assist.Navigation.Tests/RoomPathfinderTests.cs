@@ -133,6 +133,44 @@ public class RoomPathfinderTests
         Assert.True(aim.X < 4f);
     }
 
+    // A 12x20 open room with a row of desks across X 0-7 at Y 9-10: the way round is past their end, X 8-11.
+    private static (WalkGrid Grid, BlockedCells Props) RoomWithDesks(int deskRows = 8)
+    {
+        var props = new BlockedCells(from x in Enumerable.Range(0, deskRows) from y in new[] { 9, 10 } select (x, y));
+        return (new WalkGrid(1f, 0f, 0f, 12, 20, FullyWalkable(12, 20)), props);
+    }
+
+    [Fact]
+    public void A_route_walks_around_breakable_props_where_the_room_offers_a_way()
+    {
+        var (grid, props) = RoomWithDesks();
+
+        Assert.True(RoomPathfinder.TryFindPath(grid, (0.5f, 0.5f), [(0, 19)], [], out var path, out _, out _, props));
+
+        Assert.DoesNotContain(path, p => props.Contains(p.X, p.Y));
+        Assert.Contains(path, p => p.X >= 8f); // past the desks' end
+    }
+
+    [Fact]
+    public void A_route_crosses_props_that_close_the_whole_way()
+    {
+        var (grid, props) = RoomWithDesks(deskRows: 12);
+
+        Assert.True(RoomPathfinder.TryFindPath(grid, (0.5f, 0.5f), [(0, 19)], [], out var path, out _, out _, props));
+        Assert.Contains(path, p => props.Contains(p.X, p.Y));
+    }
+
+    [Fact]
+    public void The_bearing_does_not_cut_across_a_prop_the_route_walks_around()
+    {
+        var (grid, props) = RoomWithDesks();
+        RoomPathfinder.TryFindPath(grid, (0.5f, 0.5f), [(0, 19)], [], out var path, out _, out _, props);
+
+        var bearing = RoomPathfinder.FarthestVisiblePoint(grid, path, props);
+
+        Assert.True(bearing.Y < 9f || bearing.X >= 8f, $"bearing {bearing} aims across the desks");
+    }
+
     private static bool[,] FullyWalkable(int rows, int cols)
     {
         var cells = new bool[rows, cols];

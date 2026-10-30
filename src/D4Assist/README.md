@@ -310,6 +310,13 @@ the wall crosses into regions and never routes through it, src/D4Assist.Navigati
 `DungeonRadarWorld.SetBarriers` (wall cells). The log always says `BARRIER standing …` and `BARRIER gone …`. Config
 `LiveBarriersEnabled` (research/dungeon-objectives.md §13).
 
+`Game/BreakableProps` lays the breakable props (gizmo type 48: desks, shelves, barrels; their collision box, else their appearance
+box, turned by their yaw) on the same grid, for the guide's routes only: `RoomPathfinder` charges `PropPenalty` per unit walked over
+them, so a route walks around a prop wherever its room offers a way and through only where none does (a barricade to break), and its
+bearing doesn't cut across one. A prop is broken once its game record goes after it had one, it is marked operated, or it is missing
+from its spot for 6 polls with the player within 20 units; a broken spot stays broken in that world. `--debug` logs
+`PROP standing …` and `PROP broken (cause) …`. Config `BreakablePropsAvoided` (research/dungeon-objectives.md §30).
+
 `Game/LockedDoors` adds, for the guide's routes only (the radar sounds every closed door), the closed doors the player can't open
 yet: the game won't let them be used (`QuestLocked` or `ScriptDisabled`, e.g. a key door before its key), or the player stood
 within 3 units of the door and walked 20 away with it still closed (tried). A tried door waits until its quest state

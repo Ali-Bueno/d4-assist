@@ -41,6 +41,11 @@ public static class RoomPathfinder
     // Using a jump costs this much more than its length: walking around is preferred when it is about as short.
     private const float JumpExtraCost = 4f;
 
+    /// <summary>The extra cost, per unit walked, of a step onto a breakable prop's cells (a desk, a barrel): a prop is crossed in 1-3
+    /// units and a room spans at most ~128, so the route walks around wherever the room offers a way, and through only where none does
+    /// (a barricade to break).</summary>
+    public const float PropPenalty = 50f;
+
     /// <summary>Finds the shortest cell path from <paramref name="fromWorld"/> to the nearest of
     /// <paramref name="targets"/>. False when unreachable (or off-grid) — caller falls back to a straight line.</summary>
     public static bool TryFindPath(WalkGrid grid, (float X, float Y) fromWorld, IReadOnlyList<(int Row, int Col)> targets,
@@ -49,9 +54,11 @@ public static class RoomPathfinder
 
     /// <summary>As the plain search, but <paramref name="jumps"/> join the floor near one jump point to the floor near the other.
     /// <paramref name="firstJump"/> is the index in <paramref name="path"/> of the cell the path's first jump starts from, and
-    /// the jump point used there; null when the path needs no jump.</summary>
+    /// the jump point used there; null when the path needs no jump. <paramref name="props"/> are the breakable props' cells, walked
+    /// over at <see cref="PropPenalty"/>.</summary>
     public static bool TryFindPath(WalkGrid grid, (float X, float Y) fromWorld, IReadOnlyList<(int Row, int Col)> targets,
-        IReadOnlyList<JumpLink> jumps, out List<(float X, float Y)> path, out float length, out (int Index, (float X, float Y) At)? firstJump)
+        IReadOnlyList<JumpLink> jumps, out List<(float X, float Y)> path, out float length, out (int Index, (float X, float Y) At)? firstJump,
+        BlockedCells? props = null)
     {
         path = [];
         length = 0f;
@@ -83,7 +90,7 @@ public static class RoomPathfinder
                     (!grid.IsWalkable(current.Item1 + dr, current.Item2) || !grid.IsWalkable(current.Item1, current.Item2 + dc)))
                     continue; // no corner-cutting: both orthogonal neighbours of a diagonal step must be open
 
-                var step = (dr != 0 && dc != 0 ? MathF.Sqrt(2f) : 1f) * (1f + WallPenalty(grid.Clearance(next.Item1, next.Item2)));
+                var step = (dr != 0 && dc != 0 ? MathF.Sqrt(2f) : 1f) * (1f + WallPenalty(grid.Clearance(next.Item1, next.Item2)) + PropCost(grid, next, props));
                 if (cost.TryGetValue(next, out var known) && known <= soFar + step) continue;
                 cost[next] = soFar + step;
                 previous[next] = current;
@@ -136,6 +143,13 @@ public static class RoomPathfinder
         return takeoffs;
     }
 
+    private static float PropCost(WalkGrid grid, (int Row, int Col) cell, BlockedCells? props)
+    {
+        if (props is null || props.IsEmpty) return 0f;
+        var (x, y) = grid.CellCenter(cell.Row, cell.Col);
+        return props.Contains(x, y) ? PropPenalty : 0f;
+    }
+
     private static IEnumerable<(int Row, int Col)> FloorNear(WalkGrid grid, (float X, float Y) point)
     {
         var (row, col) = grid.CellAt(point.X, point.Y);
@@ -154,13 +168,15 @@ public static class RoomPathfinder
     /// along a grid axis, so a short fixed look-ahead read as a screen diagonal almost every time).
     /// Scans from the end back toward index 1 and returns the first point with clear sight of
     /// <c>path[0]</c>; falls back to <c>path[1]</c> if nothing beyond it is visible, or <c>path[0]</c>
-    /// itself for a single-point path. The path between must stay within <see cref="BearingSlackUnits"/> of the line.</summary>
-    public static (float X, float Y) FarthestVisiblePoint(WalkGrid grid, List<(float X, float Y)> path)
+    /// itself for a single-point path. The path between must stay within <see cref="BearingSlackUnits"/> of the line, and the line
+    /// crosses no prop of <paramref name="props"/> unless the path itself does.</summary>
+    public static (float X, float Y) FarthestVisiblePoint(WalkGrid grid, List<(float X, float Y)> path, BlockedCells? props = null)
     {
         if (path.Count <= 1) return path.Count == 1 ? path[0] : (0f, 0f);
+        if (props is not null && (props.IsEmpty || path.Any(p => props.Contains(p.X, p.Y)))) props = null;
 
         for (var i = path.Count - 1; i >= 1; i--)
-            if (FollowsPath(path, i) && HasLineOfSight(grid, path[0], path[i])) return path[i];
+            if (FollowsPath(path, i) && HasLineOfSight(grid, path[0], path[i], props)) return path[i];
 
         return path[1];
     }
@@ -183,7 +199,7 @@ public static class RoomPathfinder
 
     // Every sampled cell along the segment must be walkable; a diagonal cut around a corner samples
     // into the blocked interior and correctly fails even though the two endpoints alone would not catch it.
-    private static bool HasLineOfSight(WalkGrid grid, (float X, float Y) from, (float X, float Y) to)
+    private static bool HasLineOfSight(WalkGrid grid, (float X, float Y) from, (float X, float Y) to, BlockedCells? props = null)
     {
         var samples = Math.Max(1, (int)MathF.Ceiling(Distance(from, to) / (grid.Resolution / LineOfSightSamplesPerCell)));
         for (var s = 0; s <= samples; s++)
@@ -191,6 +207,7 @@ public static class RoomPathfinder
             var t = s / (float)samples;
             var cell = grid.CellAt(from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t);
             if (!grid.IsWalkable(cell.Row, cell.Col)) return false;
+            if (props is not null && PropCost(grid, cell, props) > 0f) return false;
         }
         return true;
     }

@@ -223,6 +223,21 @@ public class ActiveQuestsTests
     // Live 2026-10-17, the Light's Watch: the side quest and the dungeon's own quest took turns at one address, and the side
     // quest's third lectern stayed silent while the dungeon's quest held it.
     [Fact]
+    public void A_phase_read_at_a_stray_pair_at_zero_moves_to_the_real_pair_once_it_appears()
+    {
+        // Tester 2026-10-30, the serpent trail (quests 767300, 769422): only {quest, 0} pairs were found at first and stuck for good.
+        var now = DateTime.UtcNow;
+        var memory = new ModuleReader((HubQuest, PortalsPhase));
+        var quests = Create(memory, () => now);
+        Assert.Equal([PortalSno], quests.Update(tracked: [HubQuest], AreaWith(PortalSno)).ActorSnos);
+
+        memory.Add(1, HubQuest, OrbPhase);
+        now += ActiveQuests.PhaseSearchInterval + TimeSpan.FromSeconds(1);
+
+        Assert.Equal([OrbSno], quests.Update(tracked: [HubQuest], AreaWith(PortalSno)).ActorSnos);
+    }
+
+    [Fact]
     public void A_quest_found_in_progress_here_keeps_its_objects_while_another_quest_holds_the_pair()
     {
         var now = DateTime.UtcNow;
@@ -364,6 +379,12 @@ public class ActiveQuestsTests
                 BinaryPrimitives.WriteInt32LittleEndian(_data.AsSpan(0x100 + i * 0x40), pairs[i].Quest);
                 BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(0x104 + i * 0x40), pairs[i].Phase);
             }
+        }
+
+        public void Add(int slot, int quest, uint phase)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(_data.AsSpan(0x100 + slot * 0x40), quest);
+            BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(0x104 + slot * 0x40), phase);
         }
 
         // Another quest's pair takes the first one's place.

@@ -650,10 +650,11 @@ internal static class Program
         var loops = new ActorLoopBridge(
             session, player, selector, store.Name, log: debug ? Console.WriteLine : null, sightings: sightings, usedSignal: used, levelOf: levelOf,
             spots: spots);
+        var questNpcs = new NpcClassifier(definitionOf, store.Name);
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
             sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,
-            selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique);
+            selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique, questNpcs.IsNpc);
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(
@@ -814,7 +815,7 @@ internal static class Program
             foreach (var (marker, quest) in named.Where(n => inProgress.Contains(n.Quest)))
             {
                 var at = new System.Numerics.Vector2(marker.X, marker.Y);
-                var step = questHistory.Last(quest) is { } phase ? questScripts.PhaseObjects(quest).FirstOrDefault(p => p.PhaseUid == phase) : null;
+                var step = questHistory.Last(quest) is { } phase and not ActiveQuests.StrayPhase ? questScripts.PhaseObjects(quest).FirstOrDefault(p => p.PhaseUid == phase) : null;
                 var role = step is null ? StepPlace.Shown : QuestStep.Of(step, marker.ActorSno, at);
                 if (role != StepPlace.NotInStep) places.Add(new QuestMapPlace(quest, NameOf(quest), marker.ActorSno, at, Hidden: role == StepPlace.Hidden));
             }

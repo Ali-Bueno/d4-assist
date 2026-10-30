@@ -93,6 +93,7 @@ public sealed class ObjectiveMemory
     private readonly Func<int, bool?> _carryableWaits;
     private readonly Func<int, float?> _escortRadius;
     private readonly Func<int, bool> _isBoss;
+    private readonly Func<int, bool> _isNpc;
     private volatile bool _bossFight;
 
     /// <summary>True while a boss or unique to kill is among the objective actors read (looping, or silent while invulnerable): a
@@ -125,13 +126,17 @@ public sealed class ObjectiveMemory
     /// for any other actor. A carryable falls silent while another is carried, so it is done only once it left the ground (picked up,
     /// then delivered), and it leads only with empty hands (live 2026-10-16, the Lost Archives' second crate; the same in every
     /// statue, bloodstone and carving dungeon, research/dungeon-objectives.md §14). Null for none.</param>
+    /// <param name="isNpc">True for a friendly NPC (NpcClassifier.IsNpc): a quest place it marks is where it stood, and gives way once it is
+    /// seen elsewhere or gone from it (research/dungeon-objectives.md §30). Null for none.</param>
     /// <param name="escortRadius">For a light the player walks inside to where the quest needs it (SafeZoneClassifier.EscortRadius),
     /// the distance that counts as inside; null for any other actor. Null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
         Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null,
-        Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null, Func<int, bool>? isBoss = null)
+        Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null, Func<int, bool>? isBoss = null,
+        Func<int, bool>? isNpc = null)
     {
+        _isNpc = isNpc ?? (_ => false);
         _isBoss = isBoss ?? (_ => false);
         _carryableWaits = carryableWaits ?? (_ => null);
         _escortRadius = escortRadius ?? (_ => null);
@@ -288,6 +293,7 @@ public sealed class ObjectiveMemory
             _bossFight = seen.Looping.Concat(seen.Silent).Any(a => !a.ClientOnly && _isBoss(a.ActorSno));
             foreach (var objective in _objectives)
                 objective.MissingPolls = Among(objective, seen.Present) ? 0 : objective.MissingPolls + 1;
+            CountNpcPlacesMissing(seen);
             var heard = new HashSet<Objective>();
             foreach (var actor in seen.Looping)
             {
@@ -309,6 +315,7 @@ public sealed class ObjectiveMemory
                 objective.Pending = true;
                 heard.Add(objective);
             }
+            SetAsideNpcPlaces(heard);
             if (_player is not { } here) return;
 
             var done = _objectives.Where(o => o.Pending && !heard.Contains(o) && Distance(o.Position, here) <= ConfirmRadiusUnits && Ended(o, seen)).ToList();
@@ -328,6 +335,29 @@ public sealed class ObjectiveMemory
             // A carryable taken lets the place its step waits on lead again (the Weeping Cairns' ward stone, back to Yorin); any other
             // objective done leaves quest places reached in this phase reached.
             if (done.Count > 0) RearmReached(MaxTimesLeft, places: done.Any(o => _carryableWaits(o.Sno) is not null));
+        }
+    }
+
+    // A quest place an NPC marks is where it stood: it walked off (Tysa ran to Elias, live 2026-10-30), so the place gives way once the NPC
+    // is heard elsewhere, or once the player stands there and no copy of it is listed for a while. Heard again, the NPC itself leads.
+    private void CountNpcPlacesMissing(ObjectiveSighting seen)
+    {
+        foreach (var place in _places.Where(p => _isNpc(p.Sno)))
+            place.MissingPolls = _player is { } here && Distance(here, place.Position) <= ConfirmRadiusUnits
+                && !seen.Present.Any(a => a.ActorSno == place.Sno && Distance(place.Position, (a.X, a.Y)) <= ConfirmRadiusUnits)
+                ? place.MissingPolls + 1 : 0;
+    }
+
+    private void SetAsideNpcPlaces(HashSet<Objective> heard)
+    {
+        foreach (var place in _places.Where(p => p.Pending && _isNpc(p.Sno)))
+        {
+            bool elsewhere = heard.Any(o => o.Sno == place.Sno && Distance(o.Position, place.Position) > PlaceOfActorUnits);
+            if (!elsewhere && place.MissingPolls < MissingPollsForDone) continue;
+            place.Pending = false;
+            place.AtIt = false;
+            place.ActorDone = true;
+            Log(elsewhere ? "done (its NPC is elsewhere)" : "done (its NPC is gone)", place);
         }
     }
 

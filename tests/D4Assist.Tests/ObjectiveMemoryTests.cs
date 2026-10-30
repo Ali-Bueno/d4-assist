@@ -466,6 +466,59 @@ public class ObjectiveMemoryTests
         Assert.Equal((10f, 0f), Assert.Single(memory.Destinations()).Position);
     }
 
+    // Tysa runs off to fight Elias (tester 2026-10-30, CSD_Hawe_Wetland_ZakFortCrypts phase 85): her marker is where she stood.
+    private const int NpcSno = 77;
+
+    private static (FakeFeed Feed, ObjectiveMemory Memory) NewNpcMemory()
+    {
+        var feed = new FakeFeed();
+        return (feed, new ObjectiveMemory(feed, NameOf, isNpc: sno => sno == NpcSno));
+    }
+
+    [Fact]
+    public void A_quest_place_of_an_npc_gives_way_once_the_npc_is_heard_elsewhere()
+    {
+        var (feed, memory) = NewNpcMemory();
+        feed.RaisePlayer(At(0, 0));
+        memory.ObservePlaces([new QuestPlace(NpcSno, 20, 0)]);
+        Assert.Single(memory.Destinations());
+
+        memory.Heard(new ActorState(5, NpcSno, 60, 0, 0, QuestStep: true));
+
+        Assert.Equal((60f, 0f), Assert.Single(memory.Destinations()).Position);
+        memory.ObservePlaces([new QuestPlace(NpcSno, 20, 0)]);
+        Assert.Equal((60f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_quest_place_of_an_npc_gives_way_when_the_player_stands_there_and_no_copy_is_listed()
+    {
+        var (feed, memory) = NewNpcMemory();
+        feed.RaisePlayer(At(15, 0));
+        memory.ObservePlaces([new QuestPlace(NpcSno, 20, 0)]);
+
+        for (int i = 0; i < ObjectiveMemory.MissingPollsForDone - 1; i++) memory.Heard();
+        Assert.Single(memory.Destinations());
+        memory.Heard();
+
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
+    public void A_quest_place_of_an_npc_stays_while_the_npc_stands_there_or_the_player_is_far()
+    {
+        var (feed, memory) = NewNpcMemory();
+        feed.RaisePlayer(At(15, 0));
+        memory.ObservePlaces([new QuestPlace(NpcSno, 20, 0)]);
+        var npc = new ActorState(5, NpcSno, 20, 0, 0);
+        for (int i = 0; i < ObjectiveMemory.MissingPollsForDone * 2; i++) memory.Observe(new ObjectiveSighting([], [], [npc]));
+        Assert.Single(memory.Destinations());
+
+        feed.RaisePlayer(At(-Far, 0));
+        memory.Gone();
+        Assert.Single(memory.Destinations());
+    }
+
     [Fact]
     public void A_place_whose_step_names_an_item_to_carry_not_found_yet_gives_way_once_walked_from_and_leads_again_once_it_is_taken()
     {

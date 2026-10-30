@@ -257,13 +257,18 @@ public sealed class ActiveQuests(
         foreach (var quest in _quests)
         {
             uint? phase = quest.PhaseAddress is { } at ? QuestPhaseLocator.Read(memory, at, quest.Sno, quest.Uids) : null;
-            if (phase is null && Now >= quest.NextSearch)
+            // A phase 0 may be a stray pair: the quest's real one shows up in the module data once another quest's leaves it (research/dungeon-objectives.md §30).
+            if (phase is null or StrayPhase && Now >= quest.NextSearch)
             {
                 var pairs = QuestPhaseLocator.FindCandidates(memory, moduleData, quest.Sno, quest.Uids);
                 LogCandidates(quest.Sno, pairs);
-                quest.PhaseAddress = pairs.Count > 0 ? QuestPhaseLocator.Pick(pairs) : null;
                 quest.NextSearch = Now + PhaseSearchInterval;
-                phase = quest.PhaseAddress is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
+                long? picked = pairs.Count > 0 ? QuestPhaseLocator.Pick(pairs) : null;
+                if (phase is null || (picked is { } best && QuestPhaseLocator.Read(memory, best, quest.Sno, quest.Uids) is not (null or StrayPhase)))
+                {
+                    quest.PhaseAddress = picked;
+                    phase = picked is { } a ? QuestPhaseLocator.Read(memory, a, quest.Sno, quest.Uids) : null;
+                }
             }
             if (phase is { } read) _history.Record(quest.Sno, read);
             if (phase == quest.Phase) continue;
@@ -275,6 +280,9 @@ public sealed class ActiveQuests(
         }
         return changed;
     }
+
+    /// <summary>Phase uid 0 is a real first phase, but also what a leftover pair of the quest holds: it names no step reliably.</summary>
+    public const uint StrayPhase = 0;
 
     private DateTime Now => clock?.Invoke() ?? DateTime.UtcNow;
 

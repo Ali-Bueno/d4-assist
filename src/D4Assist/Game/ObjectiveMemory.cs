@@ -338,7 +338,7 @@ public sealed class ObjectiveMemory
         }
     }
 
-    // A quest place an NPC marks is where it stood: it walked off (Tysa ran to Elias, live 2026-10-30), so the place gives way once the NPC
+    // A quest place an NPC marks is where it stood: it walked off (Tysa ran to Elias, tester 2026-10-29), so the place gives way once the NPC
     // is heard elsewhere, or once the player stands there and no copy of it is listed for a while. Heard again, the NPC itself leads.
     private void CountNpcPlacesMissing(ObjectiveSighting seen)
     {

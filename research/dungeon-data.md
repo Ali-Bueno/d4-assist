@@ -157,6 +157,27 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   through it (blocked, 12 of 16 legs path: the real way is the Cradle dungeon, whose exit lands at (−78.5,−39.9)). Not handled.
 - **DRLG tiles** link every traversal kind but the slide too (`JumpLinkCollector`, 2026-10-28): the Necropolis's tumor platforms
   (ladders) and pocket (duck-under), [dungeon-objectives](dungeon-objectives.md) §12.
+- **Traversals are prefabs** (census of 448 scenes, 2026-10-30): each is one `Traversal_*` marker-set prefab: `Jump_6m_Gizmo`,
+  `DuckUnder_2m`, `RungClimb`/`FreeClimb_5m|8m` (2 exits + Down/Up), `Slide_5m` (slide + exit), `HandOverHand_8–30m`,
+  `Jump_6m_OneWay` (one jump point + its landing exit 5.9 on). Mutual-nearest pairing missed 46 of 297 two-ended prefabs: the
+  Temple of the Deathspeaker's `Ancients_Flooded_SW_POI_CSD_Hawe_Swamp_TempleoftheDeathspeaker` chains four jumps whose ends stand
+  4.1/4.6 apart on a ledge against 4.9 across each gap, and got 0 of 4 (tester 2026-10-29: the guide pointed straight at the last
+  Echoes of Elias). `JumpLinkCollector` now links each prefab's own ends (`MarkerInfo.Prefab`), nearest pairing only outside one.
+- **Floors at different heights merge** in the top-down DRLG walk map: in `Cave_Flooded_FLEX_POI_GrottoEntrance_01` (the Snake
+  Den's entrance, 3 ladders, 2 jumps, a duck-under) 4 of 6 traversals have no surface walk between their exits but a 2D walk of
+  3–26 units, so routes skip the ladders and point across cliffs (tester 2026-10-29). Not handled: needs a 2.5D DRLG map, as §4.1b
+  notes for story areas.
+
+### 4.1d Wall-less tiles: floor islands at the edges (offline, 2026-10-30, `CSD_Hawe_Verge_CorrosiveSwamp` 600744)
+
+- The 14 `Hawe_Swamp_*` tiles have no walls: floor of 17–64 cells touches edges with no exit bit, in scattered islands.
+  `Hawe_Swamp_FLEX_POI_SeaHagFight_01` (64×64, exits N S E, Tysa's clearing at (26,24)): its 2053-cell floor meets the north edge's
+  west half, the south edge's west half and the east edge's south half; the north edge's east half (islands of 49 and 71 cells)
+  and the east edge's north half (the 71-cell island) touch it only on islands.
+- An exit side's floor runs become openings (`OpeningFinder`); one whose far cell holds no tile is a frontier, and the tile
+  graph counts every opening of a tile reachable from all of it. The guide led the tester east to such an island exit
+  ("unexplored", no way there). Now a frontier of the player's room that no walk reaches (jumps included, live barriers
+  ignored) is spent while another opening of the room is walked to (`ExplorationGuide.SpendCutOffFrontiers`).
 
 ### 4.2 Detail voxel grid layout (H, validated on 104 tiles)
 

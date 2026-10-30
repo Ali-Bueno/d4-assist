@@ -21,7 +21,7 @@ public class TraversalPrefabRealDataTests
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
         using var store = new SnoStore(install);
         var schema = TypeSchema.Load(definitions);
-        int sno =store.Resolve(Scenes(store, schema, allLayers: false, includeMap: false).Group, TempleTile);
+        int sno = store.Resolve(Scenes(store, schema, allLayers: false, includeMap: false).Group, TempleTile);
         var links = LinksOf(store, schema, sno);
         Assert.True(new CascTileWalkability(Scenes(store, schema, allLayers: false, includeMap: true)).TryGet(sno, out var grid));
         var south = grid.CellAt(SouthFloor.X, SouthFloor.Y);

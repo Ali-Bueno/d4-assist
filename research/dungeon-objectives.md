@@ -878,3 +878,28 @@ Elias's palace it would not lead "through openings to new areas until I actually
   openings report needs the `GUIDE target` lines. The Throat of Avarice (`CSD_Step_Guulrahn_ThroatOfAvarice`, quest 485695) phase
   284 (00:53:16 → 01:05:30, the guide's mode pressed 8 times) shows one `Trigger_Box` (57,16) in
   `ProtoDun_South_SW_ThroatOfAvarice_MiniBoss`, behind two barrier walls that fell at phases 202/208.
+
+## 30. Acts 4 and 5: an NPC that runs off, stray phase-0 pairs, desks (tester reports + logs + offline, 2026-10-29/30)
+
+Tester logs 0.1.23 (act 4) and 0.1.24 (second half of act 5), no `--debug`.
+
+- **Follow Tysa** (`CSD_Hawe_Wetland_ZakFortCrypts`, quest 567862): phase 85 (22:37:31 → 22:40:40) shows one place, marker 21 of
+  `Protodun_Crypt_FLEX_POI_CSD_Hawe_Wetland_BlackTomb` = `NPC_QST_Taissa_Witch_Combat` (25,9), callback event 84, indicator 2; it
+  hides the player entering `Trigger_Box_Elias_ZakFortCrypts` (any) and `elias_boss_hawz`/`Elias_Hawe_Spawner`. The marker is where
+  she stands with Donan and Lorath; she runs to Elias, and the guide held at the spot until she was heard again near the boss.
+  **App rule (unit-tested, not live):** a quest place an NPC marks gives way once that NPC is heard more than 2 units from it (it
+  leads itself, then from its last seen spot), or once the player stands there and no copy of it is listed for 6 polls
+  (`OBJECTIVE done (its NPC is elsewhere|gone)`). The client's map-marker list showed no quest-NPC markers (kind 10 only).
+- **Stray phase-0 pairs** (the serpent trail, open world): 767300 (uid 2 = burn the incense at `Hawe_Bog_Snake_Altar_Bowl_UnLit_01_Dyn`
+  (−1097,757)) and 769422 (uid 0 = Lorath (−1098,758), uid 94 = the trail's first `Trigger_Sphere_8m` (−1232,722)) were found only at
+  pairs holding 0 (`0x…7B34`, `0x…4484`) while 598875 held the usual slot `0x…D38C`; a pair that reads never searched again, so both
+  read phase 0 all along (21:17 → 22:10) and D-pad left, keeping the map's places to the step, offered none. **App rule (unit-tested,
+  not live):** a phase reading 0 is searched again every `PhaseSearchInterval` and a pair holding another phase wins; D-pad left
+  takes phase 0 as unknown (every marked place of the quest).
+- **Act 4 Horadric Vault desks** (`CSD_Frac_Conv_HoradricVault`, quest 577819, "lead Donan to his desks"): the guide routed through
+  desks in the Gallery. No phase names a desk (only triggers and `NPC_QST_Donan_Combat`); `QST_Conv_Gale_Donan_Desk` is a spot with
+  no collision. Likely the runtime-spawned furniture (`MageHalls_Prop_Furniture_*_Arrangement`, shelves at X 11/16/21, Y≈28.6 in
+  `Mage_Halls_E_01`: eType 2, gizmo 48 destroyable, team 1), absent from the voxel walk map. Not confirmed (needs `ACTOR seen` under
+  `--debug`); it joins the open "big destroyables as route walls" decision.
+- **Sub-quest 810088** (`CSD_Hawe_Verge_CorrosiveSwamp_MaggotNest`): its phase 2 names 188 generic `DRLG_Spawner_Maggot_adult` places
+  across every tileset, none in `Hawe_Swamp_*`: no lead. The swamp's false "unexplored" exits: [dungeon-data](dungeon-data.md) §4.1d.

@@ -269,6 +269,44 @@ public class ExplorationGuideTests
         Assert.True(step.RemainingLength > 55f, $"route {step.RemainingLength} shorter than the walkable path");
     }
 
+    // The player's tile (0,1), entered from the west: its floor touches the East edge only on an island cols 26-31, rows 0-5,
+    // unless joined by a floor strip or a jump (the Corrosive Swamp's sea-hag clearing, 2026-10-29).
+    private static (DungeonMap Map, ExplorationGuide Guide) TileWithAnIslandEast(bool joined)
+    {
+        var cells = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++)
+                cells[r, c] = c <= 20 || (r <= 5 && c >= 26) || (joined && r <= 5);
+        var floor = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++) floor[r, c] = true;
+        var walkability = new FakeTileWalkability()
+            .Add(1, new WalkGrid(1f, 0f, 0f, 32, 32, cells))
+            .Add(2, new WalkGrid(1f, 0f, 0f, 32, 32, floor));
+        var map = Map(Tile(0, 0, E, sno: 2), Tile(0, 1, W | E));
+        Visit(map, (0, 0), (0, 1));
+        return (map, new ExplorationGuide(map, walkability));
+    }
+
+    [Fact]
+    public void An_exit_on_floor_no_walk_reaches_is_no_way_on()
+    {
+        var (_, guide) = TileWithAnIslandEast(joined: false);
+
+        Assert.Equal(GuideStatus.AllExplored, guide.Step(new PlayerInput(Half, 32 + 5, 0)).Status);
+    }
+
+    [Fact]
+    public void An_exit_on_floor_a_walk_or_a_jump_reaches_still_leads()
+    {
+        var (_, walked) = TileWithAnIslandEast(joined: true);
+        var (_, jumped) = TileWithAnIslandEast(joined: false);
+        jumped.SetJumpLinks([new JumpLink((3f, 32 + 20.5f), (3f, 32 + 26.5f))]);
+
+        Assert.Equal(GuideTargetKind.Frontier, walked.Step(new PlayerInput(Half, 32 + 5, 0)).Target?.Kind);
+        Assert.Equal(GuideTargetKind.Frontier, jumped.Step(new PlayerInput(Half, 32 + 5, 0)).Target?.Kind);
+    }
+
     [Fact]
     public void Reset_forgets_dead_exits_and_the_current_target()
     {

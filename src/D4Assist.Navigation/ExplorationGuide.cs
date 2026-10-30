@@ -215,6 +215,7 @@ public sealed class ExplorationGuide
         var here = (player.X, player.Y);
         var start = graph.NodeAt(tile, here)!;
         var routes = TileRoutes.From(start, here);
+        SpendCutOffFrontiers(graph, player);
 
         var objectiveCandidates = TierCandidates(graph, routes, objectives, GuideTargetKind.Objective, _ => true);
         var exploring = Candidates(routes, start).ToList();
@@ -479,6 +480,26 @@ public sealed class ExplorationGuide
             foreach (var hop in node.Hops)
                 if (hop.To is null && TileRoutes.Distance((player.X, player.Y), hop.Opening.Position) <= FrontierArrivalUnits)
                     _spentFrontiers.Add(FrontierId(node, hop.Opening));
+    }
+
+    // An exit of the player's room whose floor no walk reaches (jumps included, barriers ignored) leads nowhere while another way out
+    // is walked to: a wall-less swamp tile's edges hold islands of floor (tester, Corrosive Swamp, 2026-10-29; research/dungeon-data.md §4.1d).
+    private void SpendCutOffFrontiers(TileGraph graph, PlayerInput player)
+    {
+        if (!RoomModel.TryGetRoom(_map, player.X, player.Y, out var room, _walkability) || room.NavGrid is null) return;
+        var tiles = room.Tiles.Select(TileGraph.Key).ToHashSet();
+        var frontiers = graph.Nodes.Where(n => tiles.Contains(TileGraph.Key(n.Tile)))
+            .SelectMany(n => n.Hops.Where(h => h.To is null && !h.Opening.UsedFallback).Select(h => (Id: FrontierId(n, h.Opening), h.Opening)))
+            .Where(f => !_spentFrontiers.Contains(f.Id)).ToList();
+        if (frontiers.Count == 0) return;
+
+        var here = (player.X, player.Y);
+        bool Walked(RoomOpening opening) => !RoomRouteCache.Trace(room, here, opening, _jumps).UsedFallback;
+        var cutOff = frontiers.Where(f => !Walked(f.Opening)).ToList();
+        if (cutOff.Count == 0) return;
+        var cutPositions = cutOff.Select(f => f.Opening.Position).ToHashSet();
+        if (!room.Openings.Any(o => !o.UsedFallback && !cutPositions.Contains(o.Position) && Walked(o))) return;
+        foreach (var f in cutOff) _spentFrontiers.Add(f.Id);
     }
 
     private static string FrontierId(TileNode node, RoomOpening opening) =>

@@ -20,11 +20,11 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
 
     /// <summary>Appends the actor markers of <paramref name="markerSetSno"/> in scene-local coordinates.</summary>
     public void ReadLayer(int markerSetSno, string layer, Matrix4x4 toScene, int depth, List<MarkerInfo> sink) =>
-        Walk(markerSetSno, toScene, depth, (group, sno, type, local) =>
+        Walk(markerSetSno, toScene, depth, (group, sno, type, local, prefab) =>
         {
             if (group != ActorGroup) return;
             var p = local.Translation;
-            sink.Add(new MarkerInfo(layer, type, new SnoRef(sno, store.Name(sno)), [p.X, p.Y, p.Z], null));
+            sink.Add(new MarkerInfo(layer, type, new SnoRef(sno, store.Name(sno)), [p.X, p.Y, p.Z], null, prefab));
         });
 
     /// <summary>Every marker of <paramref name="markerSetSno"/> and its nested prefabs, whatever SNO group it names
@@ -32,7 +32,7 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
     public IReadOnlyList<PlacedMarker> ReadAll(int markerSetSno)
     {
         var sink = new List<PlacedMarker>();
-        Walk(markerSetSno, Matrix4x4.Identity, 0, (group, sno, _, local) => sink.Add(new PlacedMarker(group, sno, local.Translation)));
+        Walk(markerSetSno, Matrix4x4.Identity, 0, (group, sno, _, local, _) => sink.Add(new PlacedMarker(group, sno, local.Translation)));
         return sink;
     }
 
@@ -96,8 +96,10 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
 
     private const string ActorData = "MarkerActorData";
 
-    // Visits every non-prefab marker with its composed transform, expanding nested prefab marker sets.
-    private void Walk(int markerSetSno, Matrix4x4 parent, int depth, Action<int, int, int, Matrix4x4> visit)
+    // Visits every non-prefab marker with its composed transform and the innermost prefab that placed it (null at the top),
+    // expanding nested prefab marker sets.
+    private void Walk(int markerSetSno, Matrix4x4 parent, int depth, Action<int, int, int, Matrix4x4, PrefabPlacement?> visit,
+        PrefabPlacement? prefab = null)
     {
         var meta = store.Meta(MarkerSetGroup, markerSetSno);
         if (meta is null) return;
@@ -113,11 +115,11 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
             var local = LocalMatrix(blob, m) * parent;
             if (group == MarkerSetGroup)
             {
-                if (depth < Conventions.MaxPrefabDepth) Walk(sno, local, depth + 1, visit);
+                if (depth < Conventions.MaxPrefabDepth) Walk(sno, local, depth + 1, visit, new PrefabPlacement(sno, local.Translation));
             }
             else
             {
-                visit(group, sno, blob.I32(m + schema.Offset(Marker, "eType")), local);
+                visit(group, sno, blob.I32(m + schema.Offset(Marker, "eType")), local, prefab);
             }
         }
     }

@@ -23,4 +23,9 @@
     <ProjectReference Include="..\..\src\D4Assist\D4Assist.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Real-data tests find data/definitions.json the same way as D4Data.Tests. -->
+    <Compile Include="..\D4Data.Tests\RealData.cs" Link="RealData.cs" />
+  </ItemGroup>
+
 </Project>

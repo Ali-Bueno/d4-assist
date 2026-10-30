@@ -23,10 +23,13 @@ public static class TraversalKinds
     };
 }
 
+/// <summary>A tile's traversal marker in world units, with the prefab placement that placed it (<see cref="TileActor.Prefab"/>; 0 for none).</summary>
+public readonly record struct TraversalMarker(TraversalKind Kind, Vector3 At, int Prefab = 0);
+
 /// <summary>
 /// The jump links of the loaded tiles, for the guide: each tile's traversal points (Traversal_Gizmo_*: a
 /// jump's two ends, a ladder's foot and top, a duck-under's two sides; in any marker layer: the Philios mindscape's tiles keep them
-/// in "Game" and in "Traversals") paired with their mutual nearest within
+/// in "Game" and in "Traversals") joined within the traversal prefab that placed them, else paired with their mutual nearest within
 /// <see cref="MaxPairUnits"/>. Known offline once a tile loads, before the game streams the points in (live 2026-10-18: one
 /// tile's floor in four islands joined by three pairs 4.9 units apart; the guide had aimed straight across the gaps).
 /// </summary>
@@ -103,17 +106,58 @@ public sealed class JumpLinkCollector
     private static (int, float, float) Key(TileState tile) => (tile.SceneSno, MathF.Round(tile.OriginX), MathF.Round(tile.OriginY));
 
     // Only unrotated tiles, as PortalMemory: every DRLG tile seen so far is unrotated, and a wrong spot would mislead the guide.
-    private List<(TraversalKind Kind, Vector3 At)> InWorld(TileState tile, IReadOnlyList<TileActor> points) =>
+    private List<TraversalMarker> InWorld(TileState tile, IReadOnlyList<TileActor> points) =>
         points.Count == 0 || TileRotation.QuarterTurns(tile.YawDegrees) != 0 ? []
-        : [.. points.Select(p => (Kind: _kindOf(p.ActorSno), At: new Vector3(tile.OriginX, tile.OriginY, 0) + p.Local))
+        : [.. points.Select(p => new TraversalMarker(_kindOf(p.ActorSno), new Vector3(tile.OriginX, tile.OriginY, 0) + p.Local, p.Prefab))
             .Where(p => p.Kind != TraversalKind.None).Distinct()];
 
-    /// <summary>A tile's links: jump points paired (<see cref="Pair"/>), each slide to its nearest exit one way, each climb's top
-    /// exit (nearest the height of its way down) to its bottom one (nearest the height of its way up); a climb with no such exits
-    /// pairs as a jump point (a ladder's foot and top).</summary>
-    public static IReadOnlyList<JumpLink> Links(IReadOnlyList<(TraversalKind Kind, Vector3 At)> points)
+    /// <summary>A tile's links: each traversal prefab's own (<see cref="Traversal"/>), and the points placed outside one, or by a
+    /// prefab of another shape, linked by distance (<see cref="Nearby"/>). Ends of neighbouring traversals can stand nearer than
+    /// their own (the Temple of the Deathspeaker's chain of four jumps: 4.1 and 4.6 apart on one ledge, 4.9 across each gap).</summary>
+    public static IReadOnlyList<JumpLink> Links(IReadOnlyList<TraversalMarker> points)
     {
-        static (float, float) Flat(Vector3 v) => (v.X, v.Y);
+        var links = new List<JumpLink>();
+        var loose = points.Where(p => p.Prefab == 0).ToList();
+        foreach (var prefab in points.Where(p => p.Prefab != 0).GroupBy(p => p.Prefab))
+            if (Traversal([.. prefab]) is { } link) links.Add(link);
+            else loose.AddRange(prefab);
+        links.AddRange(Nearby(loose));
+        return [.. links.Distinct()];
+    }
+
+    // One traversal prefab's link: between its two ends (Traversal_Jump_6m_Gizmo, _DuckUnder_2m_, _HandOverHand_10m_), one way from
+    // its one jump point to the exit it lands at (Traversal_Jump_6m_OneWay) or from a slide to its foot, or a climb's top exit to its
+    // bottom one; null for another shape.
+    private static JumpLink? Traversal(IReadOnlyList<TraversalMarker> points)
+    {
+        List<Vector3> Of(TraversalKind kind) => [.. points.Where(p => p.Kind == kind).Select(p => p.At)];
+        var (jumps, slides, downs, ups, exits) =
+            (Of(TraversalKind.Jump), Of(TraversalKind.Slide), Of(TraversalKind.ClimbDown), Of(TraversalKind.ClimbUp), Of(TraversalKind.Exit));
+        return (jumps.Count, slides.Count, downs.Count, ups.Count, exits.Count) switch
+        {
+            (2, 0, 0, 0, _) => new JumpLink(Flat(jumps[0]), Flat(jumps[1])),
+            (1, 0, 0, 0, 1) => new JumpLink(Flat(jumps[0]), Flat(exits[0]), OneWay: true),
+            (0, 1, 0, 0, 1) => new JumpLink(Flat(slides[0]), Flat(exits[0]), OneWay: true),
+            (0, 0, 1, 1, 2) => Climb(downs[0], ups[0], exits),
+            _ => null,
+        };
+    }
+
+    // A climb's top exit (nearest the height of its way down) to its bottom one (nearest the height of its way up); null when one exit is both.
+    private static JumpLink? Climb(Vector3 down, Vector3 up, IReadOnlyList<Vector3> exits)
+    {
+        var top = exits.MinBy(e => MathF.Abs(e.Z - down.Z));
+        var bottom = exits.MinBy(e => MathF.Abs(e.Z - up.Z));
+        return top == bottom ? null : new JumpLink(Flat(top), Flat(bottom));
+    }
+
+    private static (float X, float Y) Flat(Vector3 v) => (v.X, v.Y);
+
+    /// <summary>Links by distance: jump points paired (<see cref="Pair"/>), each slide to its nearest exit one way, each climb's top
+    /// exit to its bottom one (<see cref="Climb"/>, both within <see cref="ClimbExitUnits"/>); a climb with no such exits pairs as a
+    /// jump point (a ladder's foot and top).</summary>
+    private static List<JumpLink> Nearby(IReadOnlyList<TraversalMarker> points)
+    {
         var exits = points.Where(p => p.Kind == TraversalKind.Exit).Select(p => p.At).ToList();
         var links = new List<JumpLink>();
         var paired = points.Where(p => p.Kind == TraversalKind.Jump).Select(p => p.At).ToList();
@@ -127,11 +171,8 @@ public sealed class JumpLinkCollector
             if (points.Where(p => p.Kind == TraversalKind.ClimbUp && Distance(Flat(p.At), Flat(down)) <= 1f).Select(p => (Vector3?)p.At).FirstOrDefault() is not { } up)
                 continue;
             var near = exits.Where(e => Distance(Flat(e), Flat(down)) <= ClimbExitUnits).ToList();
-            if (near.Count < 2) continue;
-            var top = near.MinBy(e => MathF.Abs(e.Z - down.Z));
-            var bottom = near.MinBy(e => MathF.Abs(e.Z - up.Z));
-            if (top == bottom) continue;
-            links.Add(new JumpLink(Flat(top), Flat(bottom)));
+            if (near.Count < 2 || Climb(down, up, near) is not { } climb) continue;
+            links.Add(climb);
             climbed.Add(down); climbed.Add(up);
         }
         paired.AddRange(points.Where(p => p.Kind is TraversalKind.ClimbUp or TraversalKind.ClimbDown && !climbed.Contains(p.At)).Select(p => p.At));

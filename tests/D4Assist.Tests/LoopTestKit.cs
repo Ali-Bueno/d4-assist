@@ -28,7 +28,7 @@ internal sealed class FakeFeed : IDungeonFeed
     public void RaiseWorld(int worldSno = 0) => WorldChanged?.Invoke(worldSno, "w", false);
     public void RaisePlayer(PlayerState p) => PlayerMoved?.Invoke(p);
     public void RaiseActors(params ActorState[] actors) => ActorsUpdated?.Invoke(actors);
-    public void RaiseTiles() => TilesUpdated?.Invoke([]);
+    public void RaiseTiles(params TileState[] tiles) => TilesUpdated?.Invoke(tiles);
 }
 
 internal static class ObjectiveMemoryTestKit

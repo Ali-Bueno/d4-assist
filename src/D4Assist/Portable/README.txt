@@ -80,6 +80,8 @@ plays when something changes.
 
 One thing: corridors in this game go diagonal a lot, so a corridor right
 between two directions can sound like a wall until you turn a bit toward it.
+Furniture you can break (desks, shelves, barrels) sounds like a wall until you
+break it, and the guide's route walks around it where there's room.
 
 Guide. Press left on the D-pad (or Ctrl+Alt+Shift+G on the keyboard) and a
 ping starts leading you, following the actual path, to the nearest place you

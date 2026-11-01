@@ -521,7 +521,7 @@ internal static class Program
                     if (states is null) return null;
                     string locale = SpeechLanguages.GameLocale(language.Current);
                     lock (cascGate)
-                        return whispers.All.Where(w => w.IsUp(states) && (w.Kind is not (WhisperKind.WorldBoss or WhisperKind.Legion) || mapBounties.Pins.Contains(w.QuestSno)))
+                        return whispers.Listed(states, mapBounties.Pins)
                             .Select(w => new WhisperEvent(whispers.Name(w, locale),
                                 w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
                                     ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,

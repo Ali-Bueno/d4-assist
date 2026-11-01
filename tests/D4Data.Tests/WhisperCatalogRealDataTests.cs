@@ -57,6 +57,36 @@ public class WhisperCatalogRealDataTests
         Assert.False(whisper.IsUp(new Dictionary<int, int>()));
     });
 
+    // Live 2026-11-01, an hour before the boss of 16:00: Dry Steppes and Skovos, the map's table held only the Dry Steppes.
+    [Fact]
+    public void A_world_boss_lists_by_its_pin_and_with_one_held_by_its_regions_state() => WithCatalog((catalog, store) =>
+    {
+        var step = Assert.Single(catalog.All, w => w.QuestName == "Bounty_WE_Tier3_Step_Boss");
+        var skov = Assert.Single(catalog.All, w => w.QuestName == "Bounty_WE_Tier3_Skov_Boss");
+        var hawe = Assert.Single(catalog.All, w => w.QuestName == "Bounty_WE_Tier3_Hawe_Boss");
+        Assert.Equal("WE_Sanc_Skov", store.Name(skov.RegionEventStateSno));
+        var states = new[] { step, skov, hawe }.ToDictionary(w => w.WorldStateSno, w => w.WorldStateValue);
+        states[step.RegionEventStateSno] = 3;
+        states[skov.RegionEventStateSno] = 3;
+        IReadOnlyDictionary<int, int> read = states;
+
+        Assert.Empty(catalog.Listed(read, new HashSet<int>()).Where(w => w.Kind == WhisperKind.WorldBoss)); // the last boss's state, no pin
+        var listed = catalog.Listed(read, new HashSet<int> { step.QuestSno }).Where(w => w.Kind == WhisperKind.WorldBoss).Select(w => w.QuestName);
+        Assert.Equal(["Bounty_WE_Tier3_Skov_Boss", "Bounty_WE_Tier3_Step_Boss"], listed.Order());
+    });
+
+    [Fact]
+    public void A_legion_lists_only_by_its_pin_and_a_plain_whisper_by_its_state() => WithCatalog((catalog, _) =>
+    {
+        var legion = Assert.Single(catalog.All, w => w.QuestName == "Bounty_ZE_Tier2_Kehj_Alcarnus");
+        var plain = catalog.All.First(w => w.Kind == WhisperKind.Whisper);
+        var states = new Dictionary<int, int> { [legion.WorldStateSno] = legion.WorldStateValue, [plain.WorldStateSno] = plain.WorldStateValue };
+
+        Assert.DoesNotContain(catalog.Listed(states, new HashSet<int>()), w => w.QuestSno == legion.QuestSno);
+        Assert.Contains(catalog.Listed(states, new HashSet<int>()), w => w.QuestSno == plain.QuestSno);
+        Assert.Contains(catalog.Listed(states, new HashSet<int> { legion.QuestSno }), w => w.QuestSno == legion.QuestSno);
+    });
+
     [Fact]
     public void Whispers_have_the_games_names() => WithCatalog((catalog, store) =>
     {

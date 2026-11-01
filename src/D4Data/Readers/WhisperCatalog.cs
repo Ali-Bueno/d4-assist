@@ -11,7 +11,8 @@ public enum WhisperKind { Whisper, Dungeon, WorldBoss, Legion }
 /// <summary>A whisper on the map: its quest, what it pays in grim favors (BountyDefinitions.dwBountyPoints), the world state and value that put
 /// it up, its spot (QuestDefinition.vecStartLocation) and its subzone's internal name ("Hawe_Crossway"; null when it names none).</summary>
 public sealed record Whisper(
-    int QuestSno, string QuestName, WhisperKind Kind, int Favors, int WorldStateSno, int WorldStateValue, int WorldSno, Vector3 Position, string? Subzone)
+    int QuestSno, string QuestName, WhisperKind Kind, int Favors, int WorldStateSno, int WorldStateValue, int WorldSno, Vector3 Position, string? Subzone,
+    int RegionEventStateSno = 0)
 {
     /// <summary>Whether the whisper is up in the rotation: its world state holds its value. A world boss's and a legion's hold it at every place,
     /// all the time (live 2026-11-01), so for them this names where one can rise; the map's bounty table says where one does (MapBountyTableReader).</summary>
@@ -32,6 +33,21 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
     private IReadOnlyList<Whisper>? _all;
 
     public IReadOnlyList<Whisper> All => _all ??= Read();
+
+    /// <summary>The whispers to list now. A plain one while its world state puts it up. A legion only where the open map holds its pin
+    /// (<paramref name="pins"/>, MapBountyTableReader). A world boss likewise, and, once one has a pin, also where its region's
+    /// <c>WE_Sanc_&lt;region&gt;</c> is set: of the two of 15:00 for 16:00 (live 2026-11-01), Dry Steppes and Skovos, the map's table held only the
+    /// first. That state alone won't do: it stays on the last boss until the next one's hour before (research/map-points.md §4b).</summary>
+    public IReadOnlyList<Whisper> Listed(IReadOnlyDictionary<int, int> worldStates, IReadOnlySet<int> pins)
+    {
+        bool bossHeld = All.Any(w => w.Kind == WhisperKind.WorldBoss && pins.Contains(w.QuestSno));
+        return [.. All.Where(w => w.IsUp(worldStates) && w.Kind switch
+        {
+            WhisperKind.Legion => pins.Contains(w.QuestSno),
+            WhisperKind.WorldBoss => pins.Contains(w.QuestSno) || (bossHeld && worldStates.GetValueOrDefault(w.RegionEventStateSno) != 0),
+            _ => true,
+        })];
+    }
 
     /// <summary>The quest's name in <paramref name="locale"/>, else its internal name.</summary>
     public string Name(Whisper whisper, string locale) => store.Text(locale, $"Quest_{whisper.QuestName}", "Name") ?? whisper.QuestName;
@@ -60,10 +76,17 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
                 if (position == Vector3.Zero || !float.IsFinite(position.X)) continue;
                 whispers.Add(new Whisper(questSno, questName, kind, favors.GetValueOrDefault(table.U32(bounty + schema.Offset(Bounty, "gbidBountyDefinition"))),
                     table.I32(bounty + schema.Offset(Bounty, "snoWorldState")), table.I32(bounty + schema.Offset(Bounty, "nValue")), quest.I32(world), position,
-                    store.Name(table.I32(bounty + schema.Offset(Bounty, "snoBountySubzone")))));
+                    store.Name(table.I32(bounty + schema.Offset(Bounty, "snoBountySubzone"))), kind == WhisperKind.WorldBoss ? RegionEventState(questName) : 0));
             }
         }
         return [.. whispers.DistinctBy(w => w.QuestSno)];
+    }
+
+    // "Bounty_WE_Tier3_Skov_Boss" -> the world state WE_Sanc_Skov; 0 when there is none.
+    private int RegionEventState(string quest)
+    {
+        string state = "WE_Sanc_" + quest.Split('_')[3];
+        return store.EntriesWithPrefix(schema.SnoGroup("WorldStateDefinition"), state).Where(e => e.Name == state).Select(e => e.Id).FirstOrDefault();
     }
 
     // By the quest's name; null for PvP, which shares the world events' groups.

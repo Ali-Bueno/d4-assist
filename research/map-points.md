@@ -129,6 +129,22 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
 - **Open (L):** the reveal radius itself (`flMinimapRevealRadius`, not found in `globals`), and whether the game's map draws
   a goblin as far off as its marker is read, with and without Subo.
 
+## 4b. Whispers (game data + live world states, build 3.2.3, 2026-11-01)
+
+- **Table (H):** the whispers stand in the Global `bounties` beside the helltide's (§4): groups under `Bounty_Unlock_{BaseGame,X1,X2}_OW_Whispers`,
+  `..._Dungeons`, `..._WorldEventsAndPvp`. `BountyData` = {snoQuest, snoWorldState, nValue, eBountyType, snoBountySubzone, gbidBountyDefinition}. Spot and
+  name come from the quest (`vecStartLocation`, `Quest_<name>`.Name: "Ernte: Caldeum", "Weltboss", "Legionsereignis"). All 721 kept lie in the open world.
+  `WhisperCatalog`. Left out: PvP, `..._Breadcrumb`, `S07_*`, `Condition_And_Season*`, LNY and quests with `arSeasons`.
+- **Grim favors (H):** GameBalance `BountyDefinitions` (`BountyDefinitionEntry.dwBountyPoints`), by `gbidBountyDefinition`, the hash of the lowercased
+  entry name (h*33+c): Culling, Assassinate, LocalEvent_Tier1 1; Harvest, Ritual, ZoneEvent, LocalEvent_Tier2 3; Dungeon, WorldBoss 5. Whispers 470x1, 88x3;
+  dungeons 144x5; world bosses 7x5; legions 12x3. In-game payout not compared yet.
+- **What is up (M, live 2026-11-01):** a whisper is up while its world state holds its value (`Bounty_OWC_Tier1_Frac_TaigaW` = 2 puts up `Bounty_OWC_Frac_TaigaW_02`). 60 plain
+  whispers read up, one area per region (Step_South, Frac_TaigaW, Hawe_Crossway, Kehj_Oasis, Scos_HighForest...). **World bosses' and legions' states read 1 at every
+  place at once**, so they say where one can rise, not where one does; the list offers them all (user decision 2026-11-01). Not checked yet against the game's map, nor what a finished whisper does to its state.
+- **Rotation (M, dumps of 2026-10-27):** whisper states change per region at no fixed clock: 17:10 Skovos, 17:19 Fractured Peaks, 17:56 Hawezar + Kehjistan, 18:00 Nahantu. No hourly rule like the helltide's.
+- **End time (open):** `BountyDataMessage {tHeader, snoBounty +16, snoRewardItem +20, dwEndTime +24}` exists in the definitions. A whole-memory scan with the map closed found, for the 10 whispers looked at, only
+  the static table (quest SNO beside its state and value) and quest-file copies. Next: scan with the map open. Until found, no minutes are spoken (user decision: never estimated).
+
 ## 5. Open questions
 
 - Which of these the live map actually shows, and how it marks locked waypoints (unlocked ones: `PlayerSavedData.

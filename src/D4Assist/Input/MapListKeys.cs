@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace D4Assist.Input;
 
-/// <summary>The keys of the map's lists: Shift+F1 opens the waypoint list, Shift+F2 the helltide list and Shift+F3 the treasure
+/// <summary>The keys of the map's lists: Shift+F1 opens the waypoint list, Shift+F2 the events menu and Shift+F3 the treasure
 /// goblins' while the map shows, the arrows, Enter and Escape work the open list.</summary>
 public interface IMapListKeys
 {
@@ -13,7 +13,7 @@ public interface IMapListKeys
     void SetListKeys(bool active);
 
     event Action? OpenPressed;
-    event Action? OpenHelltidePressed;
+    event Action? OpenEventsPressed;
     event Action? OpenGoblinsPressed;
     event Action? UpPressed;
     event Action? DownPressed;
@@ -32,7 +32,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
     private const uint ModShift = 0x4, ModNoRepeat = 0x4000;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetOpenKey = 0x8001, WmSetListKeys = 0x8002;
     private const uint VkF1 = 0x70, VkF2 = 0x71, VkF3 = 0x72, VkUp = 0x26, VkDown = 0x28, VkReturn = 0x0D, VkEscape = 0x1B;
-    private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204, OpenHelltideId = 205, OpenGoblinsId = 206;
+    private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204, OpenEventsId = 205, OpenGoblinsId = 206;
 
     private static readonly (int Id, uint Key)[] ListKeys = [(UpId, VkUp), (DownId, VkDown), (EnterId, VkReturn), (EscapeId, VkEscape)];
 
@@ -44,7 +44,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
     public MapListKeys(Action<string>? log = null) => _log = log;
 
     public event Action? OpenPressed;
-    public event Action? OpenHelltidePressed;
+    public event Action? OpenEventsPressed;
     public event Action? OpenGoblinsPressed;
     public event Action? UpPressed;
     public event Action? DownPressed;
@@ -83,13 +83,13 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
                     if (openKey)
                     {
                         Register(OpenId, ModShift | ModNoRepeat, VkF1, "Shift+F1");
-                        Register(OpenHelltideId, ModShift | ModNoRepeat, VkF2, "Shift+F2");
+                        Register(OpenEventsId, ModShift | ModNoRepeat, VkF2, "Shift+F2");
                         Register(OpenGoblinsId, ModShift | ModNoRepeat, VkF3, "Shift+F3");
                     }
                     else
                     {
                         UnregisterHotKey(IntPtr.Zero, OpenId);
-                        UnregisterHotKey(IntPtr.Zero, OpenHelltideId);
+                        UnregisterHotKey(IntPtr.Zero, OpenEventsId);
                         UnregisterHotKey(IntPtr.Zero, OpenGoblinsId);
                     }
                     break;
@@ -105,7 +105,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
             }
         }
         UnregisterHotKey(IntPtr.Zero, OpenId);
-        UnregisterHotKey(IntPtr.Zero, OpenHelltideId);
+        UnregisterHotKey(IntPtr.Zero, OpenEventsId);
         UnregisterHotKey(IntPtr.Zero, OpenGoblinsId);
         foreach (var (id, _) in ListKeys) UnregisterHotKey(IntPtr.Zero, id);
     }
@@ -120,7 +120,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
         var handler = id switch
         {
             OpenId => OpenPressed,
-            OpenHelltideId => OpenHelltidePressed,
+            OpenEventsId => OpenEventsPressed,
             OpenGoblinsId => OpenGoblinsPressed,
             UpId => UpPressed,
             DownId => DownPressed,

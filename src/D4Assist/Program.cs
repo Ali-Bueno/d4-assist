@@ -467,6 +467,7 @@ internal static class Program
         {
             var zones = new ZoneCatalog(store, schema);
             var bounties = new HelltideBountyCatalog(store, schema);
+            var whispers = new WhisperCatalog(store, schema);
             HelltidePlace MarkerPlaceOfLocked(MarkedActor m)
             {
                 lock (cascGate) return MarkerPlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current));
@@ -502,6 +503,20 @@ internal static class Program
                                 b.HasTurn(states.GetValueOrDefault(bounties.BountySubzoneSno)))
                             .Select(b => (bounties.Name(b, SpeechLanguages.GameLocale(language.Current)), (double)b.Position.X, (double)b.Position.Y))
                             .ToList();
+                },
+                readWhispers: () =>
+                {
+                    IReadOnlyDictionary<int, int>? states = null;
+                    session.Query(r => states = r.ReadWorldStates());
+                    if (states is null) return null;
+                    string locale = SpeechLanguages.GameLocale(language.Current);
+                    lock (cascGate)
+                        return whispers.All.Where(w => w.IsUp(states))
+                            .Select(w => new WhisperEvent(whispers.Name(w, locale),
+                                w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
+                                    ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
+                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors))
+                            .ToList();
                 });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
@@ -509,7 +524,7 @@ internal static class Program
             session.MenusRead += waypointList.OnMenus;
             waypointList.Start();
             mapKeys.Start();
-            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the helltide, Shift+F3 the treasure goblins.");
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the events (helltide, whispers), Shift+F3 the treasure goblins.");
         }
 
         session.WorldChanged += (sno, name, isDungeon) =>

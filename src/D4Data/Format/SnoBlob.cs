@@ -91,6 +91,14 @@ public sealed class SnoBlob(byte[] bytes, int baseOffset = 0)
     }
 
     /// <summary>The raw bytes of a DT_VARIABLEARRAY of bytes whose descriptor is at <paramref name="off"/>.</summary>
+    /// <summary>A zero-terminated ASCII string held inline in a field of <paramref name="size"/> bytes.</summary>
+    public string InlineString(int off, int size)
+    {
+        var span = Span(off, size);
+        int end = span.IndexOf((byte)0);
+        return System.Text.Encoding.ASCII.GetString(end < 0 ? span : span[..end]);
+    }
+
     public ReadOnlySpan<byte> ByteArray(int off)
     {
         var (data, size) = ArrayDescriptor(off);

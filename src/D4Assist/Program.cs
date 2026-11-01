@@ -468,6 +468,16 @@ internal static class Program
             var zones = new ZoneCatalog(store, schema);
             var bounties = new HelltideBountyCatalog(store, schema);
             var whispers = new WhisperCatalog(store, schema);
+            var whisperQuests = new Lazy<IReadOnlySet<int>>(() =>
+            {
+                lock (cascGate) return whispers.All.Select(w => w.QuestSno).ToHashSet(); // any pin says the table is where it was: no full scan between events
+            });
+            var mapBounties = new MapBountyWatch(() =>
+            {
+                IReadOnlySet<int>? pins = null;
+                session.Query(r => pins = r.ReadMapBountyPins(whisperQuests.Value));
+                return pins;
+            }, debug ? Console.WriteLine : null);
             HelltidePlace MarkerPlaceOfLocked(MarkedActor m)
             {
                 lock (cascGate) return MarkerPlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current));
@@ -511,7 +521,7 @@ internal static class Program
                     if (states is null) return null;
                     string locale = SpeechLanguages.GameLocale(language.Current);
                     lock (cascGate)
-                        return whispers.All.Where(w => w.IsUp(states))
+                        return whispers.All.Where(w => w.IsUp(states) && (w.Kind is not (WhisperKind.WorldBoss or WhisperKind.Legion) || mapBounties.Pins.Contains(w.QuestSno)))
                             .Select(w => new WhisperEvent(whispers.Name(w, locale),
                                 w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
                                     ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
@@ -522,6 +532,7 @@ internal static class Program
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;
             session.MenusRead += waypointList.OnMenus;
+            session.MenusRead += mapBounties.OnMenus;
             waypointList.Start();
             mapKeys.Start();
             Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the events (helltide, whispers), Shift+F3 the treasure goblins.");

@@ -14,7 +14,7 @@ public sealed record Whisper(
     int QuestSno, string QuestName, WhisperKind Kind, int Favors, int WorldStateSno, int WorldStateValue, int WorldSno, Vector3 Position, string? Subzone)
 {
     /// <summary>Whether the whisper is up in the rotation: its world state holds its value. A world boss's and a legion's hold it at every place,
-    /// all the time (live 2026-11-01), so for them this names where one can rise, not where one does.</summary>
+    /// all the time (live 2026-11-01), so for them this names where one can rise; the map's bounty table says where one does (MapBountyTableReader).</summary>
     public bool IsUp(IReadOnlyDictionary<int, int> worldStates) => worldStates.GetValueOrDefault(WorldStateSno) == WorldStateValue;
 }
 

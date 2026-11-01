@@ -404,7 +404,7 @@ internal static class Program
             lock (cascGate) return dpo.QuestSnos(world).Count > 0 && dpo.ActorSnos(world).Count == 0;
         }, debug ? Console.WriteLine : null);
         session.MapMarkersRead += monsters.OnMarkers;
-        var awaitedAreas = new AwaitedAreaDestination(debug ? Console.WriteLine : null);
+        var awaitedAreas = new AwaitedAreaDestination(store.Name, debug ? Console.WriteLine : null);
         session.MapMarkersRead += awaitedAreas.OnMarkers;
         session.WorldChanged += (_, _, _) => awaitedAreas.Reset();
         if (guidePing is not null && config.ExplorationGuideEnabled)

@@ -340,6 +340,21 @@ public class ActiveQuestsTests
     }
 
     [Fact]
+    public void A_read_step_awaits_the_level_area_it_names_and_an_unread_one_none()
+    {
+        const int Quest = 2625608, BossArea = 2682147;
+        var enter = new QuestPhaseObjects(28, [], new HashSet<int>(), [], EnteredLevelAreas: new HashSet<int> { BossArea });
+        var memory = new ModuleReader((Quest, 28u));
+        var quests = new ActiveQuests(memory, memory.Regions(), q => q == Quest ? [enter] : [], null);
+
+        Assert.Empty(quests.AwaitedLevelAreas);
+        quests.Update(tracked: [Quest], Nowhere);
+        quests.Update(tracked: [Quest], Nowhere);
+
+        Assert.Equal([BossArea], quests.AwaitedLevelAreas);
+    }
+
+    [Fact]
     public void A_blueprint_marker_names_a_kind_and_no_place_of_its_own()
     {
         var blueprint = new Blueprint(7, []);

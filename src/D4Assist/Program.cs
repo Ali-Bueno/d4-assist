@@ -404,6 +404,9 @@ internal static class Program
             lock (cascGate) return dpo.QuestSnos(world).Count > 0 && dpo.ActorSnos(world).Count == 0;
         }, debug ? Console.WriteLine : null);
         session.MapMarkersRead += monsters.OnMarkers;
+        var awaitedAreas = new AwaitedAreaDestination(debug ? Console.WriteLine : null);
+        session.MapMarkersRead += awaitedAreas.OnMarkers;
+        session.WorldChanged += (_, _, _) => awaitedAreas.Reset();
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
@@ -413,8 +416,9 @@ internal static class Program
                 objectives is null ? null : () =>
                 {
                     bool elsewhere = false;
-                    session.Query(r => elsewhere = r.QuestStepElsewhere);
-                    return [.. ward.Destinations(), .. objectives.Destinations(), .. portals!.ObjectiveDestinations(),
+                    IReadOnlySet<int> areas = new HashSet<int>();
+                    session.Query(r => { elsewhere = r.QuestStepElsewhere; areas = r.AwaitedLevelAreas; });
+                    return [.. ward.Destinations(), .. objectives.Destinations(), .. awaitedAreas.Destinations(areas), .. portals!.ObjectiveDestinations(),
                         .. elsewhere ? portals.WayOutDestinations() : []];
                 },
                 objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },

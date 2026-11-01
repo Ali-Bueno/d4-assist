@@ -127,6 +127,11 @@ public sealed class ActiveQuests(
     /// the wing but the one in). A quest tracked from elsewhere that never had a step here doesn't count.</summary>
     public bool StepElsewhere => _owned.Length == 0 && _stepWasHere.Any(q => !StepIsHere(q));
 
+    /// <summary>The level areas the read phases of the quests whose step is here wait for the player to enter.</summary>
+    public IReadOnlySet<int> AwaitedLevelAreas =>
+        _quests.Where(q => q.Phase is not null && StepIsHere(q.Sno)).SelectMany(q => q.Current)
+            .SelectMany(p => p.EnteredLevelAreas ?? Enumerable.Empty<int>()).ToHashSet();
+
     private readonly HashSet<int> _stepWasHere = [];
 
     private string _loggedSteps = "";

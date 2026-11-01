@@ -30,10 +30,12 @@ public sealed record BlueprintMarker(Blueprint Frame, PlacedMarker Marker);
 /// said (38,69) and (48,81)). They name a kind of object, and a place once the blueprint's shift is known. Null for none.</param>
 /// <param name="HiddenMarkers">The markers only callbacks the game doesn't show name (eIndicatorType 3): "In Rathmas Fußstapfen"
 /// phase 12, find the untouched forests, shows the trigger at the Rathmic statue and hides two on the way there. Null for none.</param>
+/// <param name="EnteredLevelAreas">The level areas the phase waits for the player to enter (eEventType 50): S15_Triad_A_Labyrinth phase 28
+/// names no object, only the boss's area S15_Triad_A_Cave_04_Boss_QST, and the next phase names the boss. Null for none.</param>
 public sealed record QuestPhaseObjects(
     uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
     IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<BlueprintMarker>? KindMarkers = null,
-    IReadOnlySet<PlacedMarker>? HiddenMarkers = null);
+    IReadOnlySet<PlacedMarker>? HiddenMarkers = null, IReadOnlySet<int>? EnteredLevelAreas = null);
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
@@ -46,7 +48,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private const string WorldDefinition = "WorldDefinition", SubzoneDefinition = "SubzoneDefinition";
     private const string MessageMap = "ScriptMessageMap", Filter = "ScriptMessageMapFilter";
     private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle", QuestParam = "ScriptEventParamQuest";
-    private const string ActorGroupParam = "ScriptEventParamActorGroup";
+    private const string ActorGroupParam = "ScriptEventParamActorGroup", LevelAreaParam = "ScriptEventParamLevelArea";
 
     private readonly Dictionary<int, IReadOnlyList<PlacedMarker>> _cache = [];
     private readonly Dictionary<int, IReadOnlyList<QuestPhaseObjects>> _phaseCache = [];
@@ -82,6 +84,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         var subQuests = SubQuests(quest, questSno).ToList();
         var worlds = CallbackWorlds(quest).ToList();
         var groups = ActorGroups(quest).ToList();
+        var entered = EnteredLevelAreas(quest).ToList();
         return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
@@ -96,6 +99,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 .Select(m => (m.Hidden, At: Land(m.MarkerSet, m.Marker!) ?? new Landing([m.Marker!], []))).ToList();
             var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => GroupLandings(g.Group)).ToList();
             var hidden = landed.Where(m => m.Hidden).SelectMany(m => m.At.World.Concat(m.At.InScenes.Select(s => s.Marker))).ToHashSet();
+            var areas = entered.Where(e => e.PhaseUid == uid).Select(e => e.LevelArea).ToHashSet();
             return new QuestPhaseObjects(uid,
                 [.. landed.SelectMany(m => m.At.World), .. overlays.SelectMany(o => o.World).Distinct()],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
@@ -103,7 +107,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
-                hidden.Count > 0 ? hidden : null);
+                hidden.Count > 0 ? hidden : null,
+                areas.Count > 0 ? areas : null);
         })];
     }
 
@@ -410,6 +415,17 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     }
 
     private const int HiddenIndicator = 3;
+
+    private const int EnterLevelAreaEvent = 50;
+
+    // The level areas a callback waits for the player to enter; the same parameter on another event only narrows that event down.
+    private IEnumerable<(uint PhaseUid, int LevelArea)> EnteredLevelAreas(SnoBlob quest)
+    {
+        int eventType = schema.Offset(Callback, "tScriptMessageMap") + schema.Offset(MessageMap, "eEventType");
+        return Params(quest).Where(p => p.Type == LevelAreaParam && quest.I32(p.Callback + eventType) == EnterLevelAreaEvent)
+            .Select(p => (p.PhaseUid, LevelArea: quest.I32(p.Param + schema.Offset(LevelAreaParam, "snoLevelArea"))))
+            .Where(a => a.LevelArea > 0);
+    }
 
     private IEnumerable<(uint PhaseUid, int Quest)> SubQuests(SnoBlob quest, int questSno) =>
         Params(quest).Where(p => p.Type == QuestParam)

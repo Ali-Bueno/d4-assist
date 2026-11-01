@@ -28,6 +28,15 @@ public class MapBountyTableReaderTests
         BitConverter.TryWriteBytes(bytes.AsSpan(offset + 0x50), (uint)new DateTimeOffset(end).ToUnixTimeSeconds());
     }
 
+    private static void WriteEvent(byte[] bytes, int offset, float x, float y, DateTime warmup, DateTime start, DateTime third)
+    {
+        BitConverter.TryWriteBytes(bytes.AsSpan(offset), x);
+        BitConverter.TryWriteBytes(bytes.AsSpan(offset + 4), y);
+        BitConverter.TryWriteBytes(bytes.AsSpan(offset + 12), new DateTimeOffset(warmup).ToUnixTimeSeconds());
+        BitConverter.TryWriteBytes(bytes.AsSpan(offset + 20), new DateTimeOffset(start).ToUnixTimeSeconds());
+        BitConverter.TryWriteBytes(bytes.AsSpan(offset + 28), new DateTimeOffset(third).ToUnixTimeSeconds());
+    }
+
     [Fact]
     public void It_finds_the_pins_by_their_record_not_any_mention_of_the_quest()
     {
@@ -57,6 +66,7 @@ public class MapBountyTableReaderTests
         memory.Inner.AddRegion(0x10000, Heap(), HeapType, HeapProtection);
         var bytes = Heap((0x104, Carrowcrest));
         WriteEnd(bytes, 0x400, Carrowcrest, Now.AddMinutes(5));
+        WriteEvent(bytes, 0x600, 1f, 2f, Now.AddMinutes(-5), Now.AddMinutes(5), Now.AddMinutes(8));
         memory.Inner.AddRegion(0x20000, bytes, HeapType, HeapProtection);
         var reader = new MapBountyTableReader(memory, () => Now);
         Assert.Contains(Carrowcrest, reader.Read(new HashSet<int> { Carrowcrest }).Pins);
@@ -109,6 +119,55 @@ public class MapBountyTableReaderTests
         var held = new MapBountyTableReader(memory, () => Now).Read(new HashSet<int> { Carrowcrest });
 
         Assert.Equal(Now.AddMinutes(40), held.Ends[Carrowcrest]);
+    }
+
+    [Fact]
+    public void It_reads_an_events_spot_and_times()
+    {
+        var bytes = new byte[0x1000];
+        var start = Now.AddMinutes(56);
+        WriteEvent(bytes, 0x200, -2072f, -600f, start.AddHours(-1), start, start.AddMinutes(2));
+        var memory = new FakeMemoryReader();
+        memory.AddRegion(0x10000, bytes, HeapType, HeapProtection);
+
+        var held = new MapBountyTableReader(memory, () => Now).Read(new HashSet<int> { Carrowcrest });
+
+        var found = Assert.Single(held.Events);
+        Assert.Equal((-2072f, -600f), (found.X, found.Y));
+        Assert.Equal((start.AddHours(-1), start, start.AddMinutes(2)), (found.Warmup, found.Start, found.Third));
+    }
+
+    [Fact]
+    public void Times_that_make_no_event_are_not_taken_for_one()
+    {
+        var bytes = new byte[0x1000];
+        WriteEvent(bytes, 0x100, 1f, 2f, Now, Now.AddHours(5), Now.AddHours(5)); // warmup too long before
+        WriteEvent(bytes, 0x200, 1f, 2f, Now, Now.AddMinutes(10), Now.AddMinutes(5)); // third before the start
+        WriteEvent(bytes, 0x300, float.NaN, 2f, Now, Now.AddMinutes(10), Now.AddMinutes(13)); // no spot
+        var memory = new FakeMemoryReader();
+        memory.AddRegion(0x10000, bytes, HeapType, HeapProtection);
+
+        Assert.Empty(new MapBountyTableReader(memory, () => Now).Read(new HashSet<int> { Carrowcrest }).Events);
+    }
+
+    [Fact]
+    public void Every_few_minutes_a_read_looks_through_the_whole_heap_again()
+    {
+        var memory = new SpyReader();
+        memory.Inner.AddRegion(0x10000, Heap(), HeapType, HeapProtection);
+        var bytes = Heap((0x104, Carrowcrest));
+        WriteEnd(bytes, 0x400, Carrowcrest, Now.AddMinutes(30));
+        WriteEvent(bytes, 0x600, 1f, 2f, Now.AddMinutes(-5), Now.AddMinutes(5), Now.AddMinutes(8));
+        memory.Inner.AddRegion(0x20000, bytes, HeapType, HeapProtection);
+        var clock = Now;
+        var reader = new MapBountyTableReader(memory, () => clock);
+        reader.Read(new HashSet<int> { Carrowcrest });
+
+        memory.Reads.Clear();
+        clock += MapBountyTableReader.FullScanInterval;
+        reader.Read(new HashSet<int> { Carrowcrest });
+
+        Assert.Contains(memory.Reads, a => a < 0x20000);
     }
 
     private sealed class SpyReader : D4Memory.Scan.IMemoryReader

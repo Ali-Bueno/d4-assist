@@ -72,5 +72,5 @@ public sealed class WaypointList
 public sealed record HelltidePlace(string Name, string? Region, string? Area);
 
 /// <summary>A whisper of the map's events menu: its name and region in the current language (null when unknown), its spot and world, the grim
-/// favors it pays, the minutes it has left as of the asking (null when the game's end time isn't known), and whether it is a legion or a world boss, which the menu lists apart.</summary>
-public sealed record WhisperEvent(string Name, string? Region, double X, double Y, int WorldSno, int Favors, Func<int?>? MinutesLeft = null, bool IsEvent = false);
+/// favors it pays, the minutes it has left and until it starts as of the asking (null when not known or not coming), and whether it is a legion or a world boss, which the menu lists apart.</summary>
+public sealed record WhisperEvent(string Name, string? Region, double X, double Y, int WorldSno, int Favors, Func<int?>? MinutesLeft = null, bool IsEvent = false, Func<int?>? MinutesToStart = null);

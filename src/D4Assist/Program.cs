@@ -521,12 +521,18 @@ internal static class Program
                     if (states is null) return null;
                     string locale = SpeechLanguages.GameLocale(language.Current);
                     lock (cascGate)
-                        return whispers.Listed(states, mapBounties.Pins)
+                    {
+                        var held = whispers.EventsUp(mapBounties.Pins, w => mapBounties.EventIsUp(w.Position.X, w.Position.Y));
+                        return whispers.Listed(states, held)
                             .Select(w => new WhisperEvent(whispers.Name(w, locale),
                                 w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
                                     ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
-                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors, () => mapBounties.MinutesLeft(w.QuestSno), w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion))
+                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors,
+                                // A legion's bounty object ends at the daily reset, 10:00 UTC+1 (live 2026-11-01), which says nothing of the legion.
+                                w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion ? null : () => mapBounties.MinutesLeft(w.QuestSno), w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion,
+                                w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion ? () => whispers.MinutesToStart(w, o => mapBounties.MinutesToStart(o.Position.X, o.Position.Y)) : null))
                             .ToList();
+                    }
                 });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;

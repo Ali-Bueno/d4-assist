@@ -8,7 +8,7 @@ public class MapBountyWatchTests
     private static readonly string[] MapOpen = [MenuScreens.MainMenu, MenuScreens.Map];
 
     private static MapBounties Held(int quest, params (int Quest, DateTime End)[] ends) =>
-        new(new HashSet<int> { quest }, ends.ToDictionary(e => e.Quest, e => e.End));
+        new(new HashSet<int> { quest }, ends.ToDictionary(e => e.Quest, e => e.End), []);
 
     private sealed class Fixture
     {
@@ -111,5 +111,38 @@ public class MapBountyWatchTests
         f.Watch.OnMenus(MapOpen);
         f.Finish();
         Assert.Equal(90, f.Watch.MinutesLeft(7));
+    }
+
+    [Fact]
+    public void An_event_shows_from_its_warmup_counts_down_to_its_start_and_goes_after_its_third_time()
+    {
+        var f = new Fixture();
+        var start = f.Now.AddMinutes(30);
+        f.Result = Held(7) with { Events = [new MapEvent(-2072f, -600f, f.Now.AddMinutes(-30), start, start.AddMinutes(2))] };
+        f.Watch.OnMenus(MapOpen);
+        f.Finish();
+
+        Assert.True(f.Watch.EventIsUp(-2070f, -598f)); // the quest's own spot, a little off
+        Assert.Equal(30, f.Watch.MinutesToStart(-2070f, -598f));
+        Assert.False(f.Watch.EventIsUp(0f, 0f));
+        Assert.Null(f.Watch.MinutesToStart(0f, 0f));
+
+        f.Now = start.AddSeconds(30);
+        Assert.Null(f.Watch.MinutesToStart(-2072f, -600f));
+        Assert.True(f.Watch.EventIsUp(-2072f, -600f));
+
+        f.Now = start.AddMinutes(3);
+        Assert.False(f.Watch.EventIsUp(-2072f, -600f));
+    }
+
+    [Fact]
+    public void An_event_not_yet_at_its_warmup_is_not_up()
+    {
+        var f = new Fixture();
+        f.Result = Held(7) with { Events = [new MapEvent(5f, 5f, f.Now.AddMinutes(10), f.Now.AddMinutes(20), f.Now.AddMinutes(23))] };
+        f.Watch.OnMenus(MapOpen);
+        f.Finish();
+
+        Assert.False(f.Watch.EventIsUp(5f, 5f));
     }
 }

@@ -16,6 +16,21 @@ public class WhisperCatalogRealDataTests
         test(new WhisperCatalog(store, TypeSchema.Load(definitions)), store);
     }
 
+    [Theory] // The game's event objects, live 2026-11-01 (research/map-points.md §4b)
+    [InlineData(323f, -424f, WhisperKind.Legion)]
+    [InlineData(2754f, -1399f, WhisperKind.Legion)]
+    [InlineData(-498f, 212f, WhisperKind.Legion)]
+    [InlineData(1448f, -327f, WhisperKind.Legion)]
+    [InlineData(-629f, -1159f, WhisperKind.Legion)]
+    [InlineData(2405f, -193f, WhisperKind.Legion)]
+    [InlineData(-2072f, -600f, WhisperKind.WorldBoss)]
+    public void An_event_objects_spot_is_its_quests(float x, float y, WhisperKind kind) => WithCatalog((catalog, _) =>
+    {
+        var nearest = catalog.All.Where(w => w.Kind == kind).MinBy(w => MathF.Pow(w.Position.X - x, 2) + MathF.Pow(w.Position.Y - y, 2))!;
+        float distance = MathF.Sqrt(MathF.Pow(nearest.Position.X - x, 2) + MathF.Pow(nearest.Position.Y - y, 2));
+        Assert.True(distance < 5, $"nearest {nearest.QuestName} at ({nearest.Position.X},{nearest.Position.Y}), {distance} off");
+    });
+
     [Fact]
     public void Each_kind_pays_its_grim_favors_from_the_bounty_definitions() => WithCatalog((catalog, _) =>
     {
@@ -73,6 +88,32 @@ public class WhisperCatalogRealDataTests
         Assert.Empty(catalog.Listed(read, new HashSet<int>()).Where(w => w.Kind == WhisperKind.WorldBoss)); // the last boss's state, no pin
         var listed = catalog.Listed(read, new HashSet<int> { step.QuestSno }).Where(w => w.Kind == WhisperKind.WorldBoss).Select(w => w.QuestName);
         Assert.Equal(["Bounty_WE_Tier3_Skov_Boss", "Bounty_WE_Tier3_Step_Boss"], listed.Order());
+    });
+
+    [Fact]
+    public void A_world_boss_without_an_event_of_its_own_starts_with_the_other_and_a_legion_does_not() => WithCatalog((catalog, _) =>
+    {
+        var scos = Assert.Single(catalog.All, w => w.QuestName == "Bounty_WE_Tier3_Scos_Boss");
+        var skov = Assert.Single(catalog.All, w => w.QuestName == "Bounty_WE_Tier3_Skov_Boss");
+        var legion = Assert.Single(catalog.All, w => w.QuestName == "Bounty_ZE_Tier2_Step_SteppesOverrun");
+        int? OfEvent(Whisper w) => w.QuestSno == scos.QuestSno ? 38 : null;
+
+        Assert.Equal(38, catalog.MinutesToStart(scos, OfEvent));
+        Assert.Equal(38, catalog.MinutesToStart(skov, OfEvent));
+        Assert.Null(catalog.MinutesToStart(legion, OfEvent));
+        Assert.Null(catalog.MinutesToStart(skov, _ => null));
+    });
+
+    [Fact]
+    public void A_legion_is_up_by_its_event_alone_and_a_world_boss_also_by_its_pin() => WithCatalog((catalog, _) =>
+    {
+        var coming = Assert.Single(catalog.All, w => w.QuestName == "Bounty_ZE_Tier2_Step_SteppesOverrun");
+        var past = Assert.Single(catalog.All, w => w.QuestName == "Bounty_ZE_Tier2_Naha_Chakhir");
+        var boss = Assert.Single(catalog.All, w => w.QuestName == "Bounty_WE_Tier3_Scos_Boss");
+
+        var up = catalog.EventsUp(new HashSet<int> { past.QuestSno, boss.QuestSno }, w => w.QuestSno == coming.QuestSno);
+
+        Assert.Equal(new HashSet<int> { coming.QuestSno, boss.QuestSno }, up);
     });
 
     [Fact]

@@ -239,6 +239,7 @@ public sealed class WaypointListBridge(
         var parts = new List<string>();
         if (whisper.Region is { } region) parts.Add(region);
         parts.Add(whisper.Favors == 1 ? text.OneFavor : string.Format(text.FavorsFormat, whisper.Favors));
+        if (whisper.MinutesToStart?.Invoke() is { } start) parts.Add(start == 1 ? text.StartsInOneMinute : string.Format(text.StartsInFormat, start));
         if (whisper.MinutesLeft?.Invoke() is { } minutes) parts.Add(minutes == 1 ? text.OneMinuteLeft : string.Format(text.MinutesLeftFormat, minutes));
         return string.Join(", ", parts);
     }

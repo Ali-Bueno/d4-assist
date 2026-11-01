@@ -510,6 +510,30 @@ public class WaypointListBridgeTests
     }
 
     [Fact]
+    public void A_coming_event_says_when_it_starts_and_nothing_after_it_has()
+    {
+        int? minutes = 58;
+        var boss = new WhisperEvent("World Boss", "Scosglen", 681.64, -410.26, OpenWorld, 5, IsEvent: true, MinutesToStart: () => minutes);
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [boss]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Down();
+        keys.Enter();
+        Assert.Contains("World Boss, Scosglen, 5 Grim Favors, starts in 58 minutes", speech.Last);
+        keys.Escape();
+
+        minutes = 1;
+        keys.Enter();
+        Assert.Contains("5 Grim Favors, starts in 1 minute,", speech.Last);
+        keys.Escape();
+
+        minutes = null;
+        keys.Enter();
+        Assert.DoesNotContain("starts in", speech.Last);
+    }
+
+    [Fact]
     public void A_whispers_minutes_are_those_of_the_moment_it_is_said_not_of_the_lists_opening()
     {
         int minutes = 2;

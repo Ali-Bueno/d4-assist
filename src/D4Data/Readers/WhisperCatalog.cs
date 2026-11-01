@@ -49,6 +49,22 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
         })];
     }
 
+    /// <summary>The legions and world bosses up now, for <see cref="Listed"/>: where the client holds an event object (<paramref name="eventUp"/>, from its warmup until
+    /// shortly after its start). The map's pins don't do for a legion: they also keep past legions' places (live 2026-11-01 18:46: Aqueducts and Chakhir beside the
+    /// coming Dry Steppes, and not the coming Skovos one). A world boss's pin still counts: it goes when the boss falls (16:00:56, research/map-points.md §4b).</summary>
+    public IReadOnlySet<int> EventsUp(IReadOnlySet<int> pins, Func<Whisper, bool> eventUp) =>
+        All.Where(w => w.Kind switch
+        {
+            WhisperKind.Legion => eventUp(w),
+            WhisperKind.WorldBoss => eventUp(w) || pins.Contains(w.QuestSno),
+            _ => false,
+        }).Select(w => w.QuestSno).ToHashSet();
+
+    /// <summary>The minutes until a whisper's event starts, by <paramref name="ofEvent"/> at its own spot. World bosses rise together, and the client may hold an event
+    /// object for only one of them (19:30 on 2026-11-01: Scosglen, not Skovos), so a world boss without its own takes another's; null for anything else without one.</summary>
+    public int? MinutesToStart(Whisper whisper, Func<Whisper, int?> ofEvent) =>
+        ofEvent(whisper) ?? (whisper.Kind == WhisperKind.WorldBoss ? All.Where(w => w.Kind == WhisperKind.WorldBoss).Select(ofEvent).FirstOrDefault(m => m is not null) : null);
+
     /// <summary>The quest's name in <paramref name="locale"/>, else its internal name.</summary>
     public string Name(Whisper whisper, string locale) => store.Text(locale, $"Quest_{whisper.QuestName}", "Name") ?? whisper.QuestName;
 

@@ -65,6 +65,8 @@ public sealed class LoopTargetSelector
     private readonly Dictionary<ObjectiveReason, LoopTarget> _npcObjectiveTargets;
     // A boss or unique to kill: tracked for the guide, sounded by the enemy cue.
     private readonly LoopTarget _enemyKillTarget;
+    // A quest's switch used again and again: never silenced by use.
+    private readonly LoopTarget _multiUseQuestSwitch;
     private readonly CarryGoals? _carry;
     private readonly SoulSplitBody? _soulBody;
     private readonly InteractableClassifier? _interactables;
@@ -95,6 +97,7 @@ public sealed class LoopTargetSelector
         _objectiveTargets = Enum.GetValues<ObjectiveReason>().ToDictionary(reason => reason, reason => ObjectiveTarget(reason, gizmo: true));
         _npcObjectiveTargets = Enum.GetValues<ObjectiveReason>().ToDictionary(reason => reason, reason => ObjectiveTarget(reason, gizmo: false));
         _enemyKillTarget = _npcObjectiveTargets[ObjectiveReason.KillTarget] with { EnemyCue = true };
+        _multiUseQuestSwitch = _objectiveTargets[ObjectiveReason.Quest] with { StopsWhenUsed = false, Reusable = true };
     }
 
     /// <summary>The actors the current world's objective names (its DPO, or the quest named after the world).</summary>
@@ -120,6 +123,9 @@ public sealed class LoopTargetSelector
                 // A vessel the barrier names keeps its reusable loop: the game's used mark stays from an earlier barrier or attempt
                 // (live 2026-10-24: Cain's vessel, named a second time, went silent as "used" at once).
                 : _objectives.IsWardBreaker(actor.ActorSno) ? _objectiveTargets[ObjectiveReason.WardBreaker]
+                // A lights-out brazier the step names stays heard once lit: the step waits on all of them, and the lit signal is unknown
+                // (tester 2026-10-31, the Tomb of Akarat's Eru trial; research/dungeon-objectives.md §17).
+                : _objectives.IsMultiUseSwitch(actor.ActorSno) ? _multiUseQuestSwitch
                 : ObjectiveFor(actor, ObjectiveReason.Quest, gizmo: !actor.Talkable);
         if (_carry?.IsHeld(actor) == true) return null;
         if (_objectives?.Classify(actor.ActorSno, _worldDpoActors) is { } reason)

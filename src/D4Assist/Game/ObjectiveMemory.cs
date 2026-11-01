@@ -34,6 +34,11 @@ public sealed class ObjectiveMemory
     /// <summary>Close enough to use an object or talk to an NPC, past the edge of its own footprint.</summary>
     public const float InteractUnits = 3f;
 
+    /// <summary>Close enough to hit a structure past its own footprint: a hatred tumor (half 0.6) stands inside a skirt of its breakable
+    /// pieces reaching 1.8-2.8 units out, and arriving at 3.6 left the skirt or a flesh web between the player and it (tester
+    /// 2026-10-31, research/dungeon-objectives.md §12).</summary>
+    public const float MeleeUnits = 1.5f;
+
     /// <summary>Guide tiers: the tracked quest's step leads before the dungeon's own objectives.</summary>
     public const int QuestTier = 0, DungeonTier = 1;
 
@@ -88,6 +93,7 @@ public sealed class ObjectiveMemory
     private readonly Func<int, string?> _nameOf;
     private readonly Func<int, float?> _triggerRadius;
     private readonly Func<int, float?> _footprint;
+    private readonly Func<int, bool> _toBreak;
     private readonly Func<int, bool?> _takesHeld;
     private readonly Func<int, (float X, float Y), bool> _locked;
     private readonly Func<int, bool?> _carryableWaits;
@@ -130,13 +136,16 @@ public sealed class ObjectiveMemory
     /// seen elsewhere or gone from it (research/dungeon-objectives.md §30). Null for none.</param>
     /// <param name="escortRadius">For a light the player walks inside to where the quest needs it (SafeZoneClassifier.EscortRadius),
     /// the distance that counts as inside; null for any other actor. Null for none.</param>
+    /// <param name="toBreak">True for a structure broken by attacking it (ObjectiveClassifier.IsStructure): reached within
+    /// <see cref="MeleeUnits"/> of its edge. Null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
         Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null,
         Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null, Func<int, bool>? isBoss = null,
-        Func<int, bool>? isNpc = null)
+        Func<int, bool>? isNpc = null, Func<int, bool>? toBreak = null)
     {
         _isNpc = isNpc ?? (_ => false);
+        _toBreak = toBreak ?? (_ => false);
         _isBoss = isBoss ?? (_ => false);
         _carryableWaits = carryableWaits ?? (_ => null);
         _escortRadius = escortRadius ?? (_ => null);
@@ -500,7 +509,7 @@ public sealed class ObjectiveMemory
     }
 
     // How close counts as there: inside a trigger, else within reach of the object's edge.
-    private float Reach(int sno) => _triggerRadius(sno) ?? (_footprint(sno) ?? 0) + InteractUnits;
+    private float Reach(int sno) => _triggerRadius(sno) ?? (_footprint(sno) ?? 0) + (_toBreak(sno) ? MeleeUnits : InteractUnits);
 
     private string NameOf(int sno) => _nameOf(sno) ?? sno.ToString();
 

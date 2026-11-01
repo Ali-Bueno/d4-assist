@@ -390,6 +390,19 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
   joined only by those traversals, which the guide's links left out (jumps only): `TraceToPoint` found no path and the guide
   pointed straight through the wall. Now every traversal kind but the one-way slide links (`JumpLinkCollector`); offline the
   three get routes over the ladder or duck-under point. The map's third tumor point (15.7,23.7,8) is no marker of these scenes.
+- **Arrival short of the tumor (offline, 2026-10-31; tester on 0.1.26: "spots where you can see them but not attack them", the
+  Demon-room one only once most of the clutter was smashed):** every route from the main floor ends on the tumor's own floor (the
+  ladders and the duck-under are used), but 2.9–3.6 units from its centre: reach was half 0.6 + `InteractUnits` 3, and the search
+  stops at the first cell inside it. The tumor spawns with its pieces (Skirt half 1.83, Base 1.51×1.40, Core 1.04×0.94, gizmo 48),
+  and all 105 breakables the tile places are flesh webbing and slime; the east platform's (15.7,55.7,8) arrival had the
+  `…ExitRight_01` web between it and the tumor, its ladder (17–20,50) wrapped in `…ExitRight_02`/`…ExitRight_01B`. Likely the
+  "Demonic Memorial" (level area 488896) is the east wing and the "Angelic Memorial" (561398) the west one (~65 %, from where their
+  triggers and `*Entrance*` webs lie). **App rule (unit-tested, not live):** a structure to break is reached within
+  `ObjectiveMemory.MeleeUnits` (1.5) of its edge, so the ping leads on through the skirt or web and the arrival chime waits.
+- **Open (2.5D):** the overlook gallery (Z 12.5) and the floor below touch in the flat walk map at (80,56)–(86,52): from the main
+  floor the route to the gallery tumor (87.1,34.4,12) climbs that wall instead of the ladder, and from the overlook entrance routes
+  to the others take the ladder backwards and drop off at (80,58). The tile has `m_cellBytes` surfaces (6,688 voxels,
+  `SceneReader.SurfaceVoxels`) that `SurfacePathfinder` could search, as the Snake Den's ladders need ([dungeon-data](dungeon-data.md) §4.1c).
 
 ## 13. Barrier walls and the targets that open them (offline + live, 2026-10-01)
 
@@ -915,3 +928,38 @@ Tester logs 0.1.23 (act 4) and 0.1.24 (second half of act 5), no `--debug`.
   2026-10-30; the tester asked whether the other cues matched where no walk goes). Room descriptions don't count props.
 - **Sub-quest 810088** (`CSD_Hawe_Verge_CorrosiveSwamp_MaggotNest`): its phase 2 names 188 generic `DRLG_Spawner_Maggot_adult` places
   across every tileset, none in `Hawe_Swamp_*`: no lead. The swamp's false "unexplored" exits: [dungeon-data](dungeon-data.md) §4.1d.
+
+## 31. Vessel of Hatred: a tunnel blocked by a story prop, a door opened from the far side, lights-out braziers (tester report, offline, 2026-10-31)
+
+Tester report (0.1.26, VoH campaign; the log of the second half was overwritten, the first half's has no `--debug`).
+
+- **Durance of Hate, second visit** (`CSD_Naha_Teganze_DuranceOfHate_02` 1583521, quest `QST_Naha_LingeringHatred2_01` 1590964; tester:
+  after Eru says the old way is blocked, "the guide tried leading me right through something I couldn't walk through"). The world
+  reuses the first visit's tunnel tile `CSD_Naha_Lingering_DuranceOfHate_01_NS_POI_BossTunnel`, whose second marker layer
+  (`CSD_Naha_Teganze_DuranceOfHate`) places `Hatred_Prop_Blocker_Tubes_Akarat_01_Multistage` 2053482 at about (17.3,21.4) with the
+  `QST_Naha_Teganze_Durance_OldNeyrelleRoomTrigger` 1631055 (17.0,20.9) and the shadow barrier `DRLGKit_fxKit_harmless_barrierWall_shadow_01`
+  (16.6,20.5); `Hatred_Prop_Blocker_Tubes_01_Multistage` 1783763 stands at (36.3,24.3). The blockers are no gizmos (the sibling is
+  eType 1, team 19), so neither `BarrierObstacles` (`*barrierWall*`) nor `BreakableProps` (gizmo 48) takes them, and the walk map
+  reads the tunnel as floor. Phases: 5 Eru + the old-room trigger, 26 Eru at the Mephisto boss room (46,38), 29 three
+  `QST_Naha_LingeringHatred2_demon_*_unique` + the barrier, 53 Akarat's spirit (43,31), 56/23/102 triggers, 105 Eru, 116 Neyrelle.
+  Phase 5's trigger stands at the first blocker (the "way is blocked" talk); the second blocker, 19 units east, lies on the way on.
+  Both tubes are eType 1, team 19, ground box half (1.875, 3.75): 3.75 × 7.5 units across the tunnel. **App rule (unit-tested, not
+  live):** a structure no quest names (hostile non-gizmo `*_Multistage`, `ObjectiveClassifier.IsStructure`) is a breakable prop
+  (`BreakableProps`, ground box from `ActorDefinitionInfo.PropHalfExtents`): the guide walks round it where the room offers a way, the
+  radar reads it as a wall, until its game record goes. A quest-named one stays an objective to break (tumors, §12).
+- **Dedicant's Cache** (`CSD_Naha_Teganze_AkaratsApostles` 1897953, quest `QST_Naha_TeganzePlateau_01` 1478607): phase 188 names the
+  door `DRLG_Blocker_TombOfAkarat_With_Lock_Dyn` 1964501 (gizmo door) at (7,15) in `Cave_Teg_NS_POI_HoldoutTunnel_01`, a `Trigger_Box`
+  at (14,16) in `Cave_Teg_S_Arena_AkaratsApostles` beyond it, and Neyrelle. The shown callback (event 52) is Neyrelle entering that
+  trigger; the phase ends on the door's use (event 32). 191 names nothing, 196 signs and the same box, 207 Neyrelle (16,16). The
+  guide likely led to the locked door as the box's gate (`GuideGate`) and stayed on it after the door opened by script; which
+  (the door's open signal, the box, the signs) needs a `--debug` log (`DOOR`, `OBJECTIVE`, `GUIDE target` lines).
+- **Tomb of Akarat braziers** (`CSD_Naha_FiveHills_TombOfAkarat01` 1579814, quest `QST_Naha_FiveHills_04` 1478621, phase 71): the phase
+  names `QST_Naha_TombOfAkarat_EruTrial_Brazier` 1957286 (switch, multi-use, §17) 372 times (93 arena tiles × 4, one actor group
+  3879775415 per puzzle at (6,2), (0,8), (−6,2), (0,−4)) and waits for the sub-quest `…_EruTrial_LightsOut` 1807947 (event 41), whose
+  rules are script events: the data has no lit/unlit state. The phase doesn't change when one is lit, yet each brazier fell silent
+  once used: the quest step's loop stops on use. **App rule (unit-tested, not live):** a multi-use switch the step names keeps its
+  loop once used (`LoopTargetSelector`, reusable: silent only while the game doesn't let the player use it). The lit signal is still
+  unknown: a `--debug` run there logs the `SWITCH` lines.
+- **Dungeons with no step of their own:** the quests read name nothing in `CSD_Naha_Teganze_AkaratsApostles_02`, `_Library`,
+  `_Holdout`, `CSD_Naha_FiveHills_TombOfAkarat01_02`, `_03`, `_MephistoArena`; the guide explores and then leads to the boss room
+  (tester: "works pretty well").

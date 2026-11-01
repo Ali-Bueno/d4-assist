@@ -18,7 +18,8 @@ public sealed partial record AppStrings(
     string GuideToMonstersFormat,
     string DodgeFormat,
     string MarkedWarning,
-    string VesselUsedFormat)
+    string VesselUsedFormat,
+    string EntranceGuideFormat, string EntranceReached)
 {
     public static readonly AppStrings Spanish = new(
         "Diablo 4 Assist activo", "Esperando a Diablo IV", "Entrando en mazmorra", "Saliendo de la mazmorra",
@@ -60,7 +61,8 @@ public sealed partial record AppStrings(
         "Todo explorado. Quedan {0} monstruos en el mapa, te llevo.",
         "Esquiva: {0}",
         "Marcado: la explosión te sigue",
-        "{0} activado. Ahora entra en el escudo.");
+        "{0} activado. Ahora entra en el escudo.",
+        "Entrada: {0}, {1} metros.", "Has llegado a la entrada.");
 
     public static readonly AppStrings English = new(
         "Diablo 4 Assist active", "Waiting for Diablo IV", "Entering dungeon", "Leaving dungeon",
@@ -102,7 +104,8 @@ public sealed partial record AppStrings(
         "All explored. {0} monsters left on the map, leading there.",
         "Dodge: {0}",
         "Marked: the burst follows you",
-        "{0} activated. Now into the barrier.");
+        "{0} activated. Now into the barrier.",
+        "Entrance: {0}, {1} meters.", "Entrance reached.");
 
     public static AppStrings For(Navigation.SpeechLanguage language) => language switch
     {

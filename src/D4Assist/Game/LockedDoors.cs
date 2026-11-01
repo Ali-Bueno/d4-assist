@@ -3,6 +3,9 @@ using D4Assist.Navigation;
 
 namespace D4Assist.Game;
 
+/// <summary>A locked door's 1-unit world cells and the height of its base.</summary>
+public sealed record DoorWall(IReadOnlySet<(int X, int Y)> Cells, float Z);
+
 /// <summary>
 /// Closed doors the player can't open yet, as walls for the guide's routes: doorways are baked walkable (research/dungeon-objectives.md
 /// §6), so without them the guide leads through a key door before its key is found (§21). A door is locked while the game won't let
@@ -67,6 +70,13 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
             }
             return _doors.Values.Where(d => d.GameLocked || d.Tried).SelectMany(d => d.Footprint.Cells).ToHashSet();
         }
+    }
+
+    /// <summary>Every locked door's 1-unit cells and the height it stands at, for paths over floors at several heights (OverworldPaths).</summary>
+    public IReadOnlyList<DoorWall> Walls()
+    {
+        lock (_gate)
+            return [.. _doors.Values.Where(d => d.GameLocked || d.Tried).Select(d => new DoorWall(d.Footprint.Cells.ToHashSet(), d.Footprint.Door.Z))];
     }
 
     /// <summary>The doors the game itself keeps shut now (not merely tried), for the guide: an objective past one leads to it.</summary>

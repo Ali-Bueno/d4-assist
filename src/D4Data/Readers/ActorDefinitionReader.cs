@@ -16,9 +16,11 @@ namespace D4Data.Readers;
 /// narrower half-extent); null for other actors or an unknown shape (research/dungeon-objectives.md §10).</param>
 /// <param name="MonsterRarity">ActorMonsterData.eOverriddenMonsterRarity (Conventions.MonsterRarity*); none for ordinary monsters.</param>
 /// <param name="MultiUseSwitch">SwitchGizmoData.fSwitchCanOperateMultipleTimes: a switch used again and again (levers, braziers).</param>
-/// <param name="PropCenter">A breakable prop's ground box centre, actor-local (<see cref="PropHalfExtents"/>); zero for other actors.</param>
-/// <param name="PropHalfExtents">A breakable prop's box: its collision box, else its appearance box (single props carry only a default
-/// collision cylinder: MageHalls_Prop_Furniture_Table_Medium_01_Dyn's appearance is 1.2 x 2.2 units); zero for other actors.</param>
+/// <param name="PropCenter">A breakable prop's or structure's ground box centre, actor-local (<see cref="PropHalfExtents"/>); zero for
+/// other actors.</param>
+/// <param name="PropHalfExtents">A breakable prop's or structure's box: its collision box, else its appearance box (single props carry
+/// only a default collision cylinder: MageHalls_Prop_Furniture_Table_Medium_01_Dyn's appearance is 1.2 x 2.2 units); zero for other
+/// actors. A structure is a hostile non-gizmo actor named *_Multistage (Conventions.StructureNameToken).</param>
 public readonly record struct ActorDefinitionInfo(
     int EType, int GizmoType, Vector3 BoundsCenter = default, Vector3 BoundsHalfExtents = default,
     int DefaultTeam = 0, bool IsNpc = false, int MonsterFamilySno = -1, IReadOnlyList<int>? AcceptedCarryables = null,
@@ -65,14 +67,18 @@ public sealed class ActorDefinitionReader(SnoStore store, TypeSchema schema)
             info = trigger with { TriggerRadius = TriggerRadius(meta!) };
         if (info is { GizmoType: Conventions.GizmoSwitch } lever)
             info = lever with { MultiUseSwitch = MultiUse(meta!) };
-        if (info is { GizmoType: Conventions.GizmoBreakable } prop)
+        if (info is { GizmoType: Conventions.GizmoBreakable } prop || IsStructure(actorSno, info))
         {
             var (center, half) = PropBox(meta!);
-            info = prop with { PropCenter = center, PropHalfExtents = half };
+            info = info!.Value with { PropCenter = center, PropHalfExtents = half };
         }
         _cache[actorSno] = info;
         return info;
     }
+
+    private bool IsStructure(int actorSno, ActorDefinitionInfo? info) =>
+        info is { GizmoType: < 0, DefaultTeam: Conventions.HostileTeam }
+        && store.Name(actorSno)?.Contains(Conventions.StructureNameToken, StringComparison.OrdinalIgnoreCase) == true;
 
     // ptCollData's collision box where it has one (the furniture arrangements), else the appearance box.
     private (Vector3 Center, Vector3 Half) PropBox(SnoBlob meta)

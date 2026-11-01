@@ -118,7 +118,9 @@ or a locked door opens, the guide takes you through it first, before going back 
 In every kind of dungeon you get everything: normal ones, campaign, expansion, Nightmare, the Undercity and the Pit. In
 fixed story areas like Tristram or the hells you get the radar and the sounds, but no room announcements. In the open
 world just the nearby sounds, because the game's navigation assist already does a good job there. In both, left on the
-D-pad leads you to the places your quest marks on the map, along a path the app finds (over jumps and slides too).
+D-pad leads you to the places your quest marks on the map, along a path the app finds (over jumps and slides too), and
+around doors that are still shut. After the quest places it offers the entrances of dungeons and cellars within 150 meters:
+handy when the game's navigation assist says you've arrived but the door is below a ledge or behind a rock.
 
 ## Settings and shortcuts
 

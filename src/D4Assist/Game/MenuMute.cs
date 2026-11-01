@@ -21,6 +21,12 @@ public sealed class MenuMute(Action<bool> setMuted, Action<string>? log = null, 
 
     public bool AnyOpen { get; private set; }
 
+    /// <summary>The screens read open at the last poll, comma-separated; empty when none.</summary>
+    public string OpenScreens
+    {
+        get { lock (_gate) return _last is { } open ? string.Join(", ", open) : ""; }
+    }
+
     public void OnScreens(IReadOnlyList<string> open)
     {
         lock (_gate)

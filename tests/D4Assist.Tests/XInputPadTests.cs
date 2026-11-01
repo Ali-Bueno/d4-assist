@@ -77,6 +77,27 @@ public class XInputPadTests
     }
 
     [Fact]
+    public void The_first_buttons_of_each_connection_are_logged_once()
+    {
+        ushort?[] slots = [0, null, null, null];
+        var lines = new List<string>();
+        using var pad = new XInputPad(i => slots[i], lines.Add, () => 0);
+
+        pad.PollOnce();
+        slots[0] = 0x1000;
+        pad.PollOnce();
+        slots[0] = XInputPad.DpadLeftMask;
+        pad.PollOnce();
+        slots[0] = null;
+        pad.PollOnce();
+        slots[0] = 0x0004;
+        pad.PollOnce();
+
+        Assert.Equal(["Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first buttons 0x1000.", "Pad: XInput slot 0 disconnected.",
+            "Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first buttons 0x0004."], lines);
+    }
+
+    [Fact]
     public void Other_buttons_and_disconnects_do_not_fire_and_a_reconnect_starts_clean()
     {
         ushort?[] slots = [0x1000, null, XInputPad.DpadLeftMask, null];

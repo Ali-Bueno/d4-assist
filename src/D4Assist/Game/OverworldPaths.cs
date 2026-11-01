@@ -34,8 +34,15 @@ public sealed class OverworldPaths(
     private readonly Dictionary<int, IReadOnlyList<Vector3>?> _scenes = [];
     private readonly Dictionary<int, IReadOnlyList<TraversalPoint>> _traversals = [];
 
+    /// <summary>A closed door bars the floor within this height of its base: floors stacked in one column lie farther apart
+    /// (BreakableProps.SameFloorUnits).</summary>
+    public const float DoorFloorUnits = BreakableProps.SameFloorUnits;
+
     /// <summary>The route's points (SurfacePathfinder.Find), or null when there is none or the walk is too long.</summary>
-    public IReadOnlyList<Vector2>? Find(string worldName, Vector3 from, Vector2 to)
+    /// <param name="doors">Closed doors the player can't open yet (LockedDoors.Walls): their floor is no way. The Darkened Way's
+    /// invisible doors stand on the straight way from Lilith's petal down to the Ancient City (tester 2026-10-31,
+    /// research/dungeon-data.md §4.1c).</param>
+    public IReadOnlyList<Vector2>? Find(string worldName, Vector3 from, Vector2 to, IReadOnlyList<DoorWall>? doors = null)
     {
         var start = new Vector2(from.X, from.Y);
         if (Vector2.Distance(start, to) > MaxDistanceUnits) return null;
@@ -57,7 +64,16 @@ public sealed class OverworldPaths(
         if (worldTraversals is not null)
             foreach (var p in worldTraversals(worldName))
                 if (p.Local.X >= minX && p.Local.X <= maxX && p.Local.Y >= minY && p.Local.Y <= maxY) ends.Add((p.Local, p.Slide));
+        if (doors is { Count: > 0 }) voxels.RemoveAll(v => Barred(doors, v));
         return SurfacePathfinder.Find(voxels, start, to, from.Z, Links(ends));
+    }
+
+    private static bool Barred(IReadOnlyList<DoorWall> doors, Vector3 voxel)
+    {
+        var cell = ((int)MathF.Floor(voxel.X), (int)MathF.Floor(voxel.Y));
+        foreach (var door in doors)
+            if (MathF.Abs(voxel.Z - door.Z) <= DoorFloorUnits && door.Cells.Contains(cell)) return true;
+        return false;
     }
 
     /// <summary>Every two traversal ends within JumpLinkCollector.MaxPairUnits, a slide one way down (not nearest-only pairing:

@@ -6,11 +6,16 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Breakable props (gizmo type 48: desks, shelves, barrels) the static walk map calls floor, for the guide to walk around
-/// (research/dungeon-objectives.md §30). One stands until the game breaks it: its game record gone after it had one, marked operated,
-/// or missing from its spot while the player is near; a spot broken once stays broken in this world.
+/// (research/dungeon-objectives.md §30), and structures no quest names (the Durance of Hate's blocker tubes, §31). One stands until
+/// the game breaks it: its game record gone after it had one, marked operated, or missing from its spot while the player is near; a
+/// spot broken once stays broken in this world.
 /// </summary>
-public sealed class BreakableProps(Func<int, string?> nameOf, Func<int, ActorDefinitionInfo?> definition, Action<string>? log = null)
+/// <param name="isProp">True for an actor SNO walked around while it stands; null for the breakable props (gizmo 48) only.</param>
+public sealed class BreakableProps(
+    Func<int, string?> nameOf, Func<int, ActorDefinitionInfo?> definition, Action<string>? log = null, Func<int, bool>? isProp = null)
 {
+    private readonly Func<int, bool> _isProp = isProp ?? (sno => definition(sno) is { GizmoType: Conventions.GizmoBreakable });
+
     /// <summary>Within this distance of a prop's spot the client lists it if it still stands, as for barriers.</summary>
     public const float ConfirmRadiusUnits = BarrierObstacles.ConfirmRadiusUnits;
 
@@ -39,7 +44,7 @@ public sealed class BreakableProps(Func<int, string?> nameOf, Func<int, ActorDef
         var listed = new HashSet<(int X, int Y)>();
         foreach (var actor in actors)
         {
-            if (definition(actor.ActorSno) is not { GizmoType: Conventions.GizmoBreakable } info) continue;
+            if (!_isProp(actor.ActorSno) || definition(actor.ActorSno) is not { } info) continue;
             var key = Key(actor.X, actor.Y);
             if (_broken.Contains(key)) continue;
             if (_standing.TryGetValue(key, out var prop) && prop.Sno == actor.ActorSno)

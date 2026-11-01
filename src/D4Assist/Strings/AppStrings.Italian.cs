@@ -62,5 +62,7 @@ public sealed partial record AppStrings
         GuideToMonstersFormat: "Tutto esplorato. Ancora {0} mostri sulla mappa, ti ci porto.",
         DodgeFormat: "Schiva: {0}",
         MarkedWarning: "Marcato: l'esplosione ti segue",
-        VesselUsedFormat: "{0} attivato. Ora entra nella barriera.");
+        VesselUsedFormat: "{0} attivato. Ora entra nella barriera.",
+        EntranceGuideFormat: "Ingresso: {0}, {1} metri.",
+        EntranceReached: "Ingresso raggiunto.");
 }

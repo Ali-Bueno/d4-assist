@@ -13,7 +13,10 @@ namespace D4Assist.Game;
 /// quest marker.</summary>
 /// <param name="GameMarker">The game's own quest marker (Symbol_Quest_Proxy, MarkerLocation): offered before quest objects.</param>
 /// <param name="Hidden">Named only by a step the game doesn't show (QuestPhaseObjects.HiddenMarkers): offered after the shown ones.</param>
-public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false, bool Hidden = false);
+/// <param name="Entrance">A dungeon or cellar entrance near the player, not a quest's: offered after every quest place, named
+/// after the dungeon.</param>
+public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false, bool Hidden = false,
+    bool Entrance = false);
 
 /// <summary>Where a map marker stands in a quest's current step.</summary>
 public enum StepPlace { NotInStep, Shown, Hidden }
@@ -38,7 +41,8 @@ public static class QuestStep
 /// Eye). D-pad left there leads to the nearest marked quest place and speaks its quest and
 /// distance; each further press moves on to the next nearest, and a press after the last switches the guide off. It leads
 /// along the path (PathFollower), finds a new path when the player strays, and ends at the place, on a world change, or
-/// when the player gets far away (a teleport).
+/// when the player gets far away (a teleport). After the quest places come the dungeon entrances near the player: the game's
+/// navigation assist ends beside a dungeon, below a ledge or behind a rock from its door (tester 2026-10-31, the Sunken Ruins).
 /// </summary>
 public sealed class QuestPathBridge
 {
@@ -70,8 +74,13 @@ public sealed class QuestPathBridge
     /// nearest, reached at once, and the next press started over with it (live 2026-10-19).</summary>
     public const float HereUnits = 8f;
 
+    /// <summary>Dungeon entrances this near are offered: where the game's navigation assist leaves the player, the dungeon it led to
+    /// is within a few tens of units, and a farther entrance is another dungeon's.</summary>
+    public const float EntranceRangeUnits = 150f;
+
     private readonly Func<string, bool> _leadsIn;
     private readonly Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> _questPlaces;
+    private readonly Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>> _entrances;
     private readonly Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> _findPath;
     private readonly GuidePingPlayer _ping;
     private readonly ISpeechSink _speech;
@@ -104,15 +113,19 @@ public sealed class QuestPathBridge
     /// <param name="log">Debug sink for start, path and stop lines; null when not debugging.</param>
     /// <param name="clock">Time since start; null for a stopwatch.</param>
     /// <param name="routeActive">True while a quest route leads (QuestRouteBridge.IsActive): D-pad left then mutes that route only.</param>
+    /// <param name="entrances">The dungeon entrances of a world (by name) within a distance of a spot, named in the current language;
+    /// null for none.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
         LanguageSetting? language = null, IGuideTogglePad? pad = null, Action<Action>? runInBackground = null,
-        Action<string>? log = null, Func<TimeSpan>? clock = null, Func<bool>? routeActive = null)
+        Action<string>? log = null, Func<TimeSpan>? clock = null, Func<bool>? routeActive = null,
+        Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null)
     {
         _routeActive = routeActive ?? (() => false);
         _leadsIn = leadsIn;
         _questPlaces = questPlaces;
+        _entrances = entrances ?? ((_, _, _) => []);
         _findPath = findPath;
         _ping = ping;
         _speech = speech;
@@ -170,7 +183,7 @@ public sealed class QuestPathBridge
             }
             if (places.Count == 0)
             {
-                Log($"PATH no quest place among {_markers.Count} map markers");
+                Log($"PATH no quest place among {_markers.Count} map markers, no dungeon entrance within {EntranceRangeUnits:F0}");
                 _speech.Speak(strings.NoQuestPlace, interrupt: true);
                 return;
             }
@@ -178,11 +191,14 @@ public sealed class QuestPathBridge
         }
     }
 
-    // The marked quest places in reach, the game's own quest markers first, hidden steps last, else nearest first, one per spot.
+    // The marked quest places in reach, the game's own quest markers first, hidden steps last, else nearest first, then the
+    // dungeon entrances near the player, nearest first; one per spot.
     private List<QuestMapPlace> Places(Vector2 here)
     {
         var places = new List<QuestMapPlace>();
-        foreach (var place in _questPlaces(_markers).OrderBy(p => !p.GameMarker).ThenBy(p => p.Hidden).ThenBy(p => Vector2.Distance(here, p.Position)))
+        var quests = _questPlaces(_markers).OrderBy(p => !p.GameMarker).ThenBy(p => p.Hidden).ThenBy(p => Vector2.Distance(here, p.Position));
+        IEnumerable<QuestMapPlace> entrances = _world is { } world ? _entrances(world, here, EntranceRangeUnits).OrderBy(p => Vector2.Distance(here, p.Position)) : [];
+        foreach (var place in quests.Concat(entrances))
             if (Vector2.Distance(here, place.Position) is > HereUnits and <= MaxDistanceUnits
                 && !places.Any(p => Vector2.Distance(p.Position, place.Position) <= SamePlaceUnits))
                 places.Add(place);
@@ -198,7 +214,7 @@ public sealed class QuestPathBridge
         float distance = Vector2.Distance(here, place.Position);
         Log($"PATH to {place.QuestName} (quest {place.QuestSno}) at ({place.Position.X:F1},{place.Position.Y:F1}), {distance:F0} units ({reason})");
         var strings = AppStrings.For(_language.Current);
-        string text = string.Format(strings.PathGuideFormat, place.QuestName, MathF.Round(distance));
+        string text = string.Format(place.Entrance ? strings.EntranceGuideFormat : strings.PathGuideFormat, place.QuestName, MathF.Round(distance));
         _speech.Speak(count > 1 ? $"{text} {string.Format(strings.PlaceCountFormat, number, count)}" : text, interrupt: true);
         if (_player is { } player) FindPath(player);
     }
@@ -254,7 +270,8 @@ public sealed class QuestPathBridge
         {
             Log($"PATH reached {place.QuestName} at ({here.X:F1},{here.Y:F1})");
             _ping.PlayArrived();
-            _speech.Speak(AppStrings.For(_language.Current).PathEnd, interrupt: false);
+            var strings = AppStrings.For(_language.Current);
+            _speech.Speak(place.Entrance ? strings.EntranceReached : strings.PathEnd, interrupt: false);
             Stop();
             return;
         }

@@ -14,7 +14,7 @@ public class ObjectiveTests
         PlainPropSno = 13, PrisonerDoorSno = 14, UnreadableSno = 15, BloodPetalsSno = 16, BonfireSno = 17, OtherReceptacleSno = 18,
         QuestNoteSno = 19, TownNoteSno = 20, HearthSno = 21, BeaconSno = 22, EnticementIconSno = 23, SkillOrbSno = 24, AkaratOrbSno = 25, AkaratPillarSno = 26, VesselSno = 27,
         TumorSno = 28, MummySno = 29, TumorPieceSno = 30, PlainMonsterSno = 31, CloneGateSno = 32, DpoTriggerSno = 33, SoulMarkerSno = 34, SoulRaiserSno = 35, SoulBeamSno = 36,
-        ChainStationSno = 37, CapturePointSno = 38;
+        ChainStationSno = 37, CapturePointSno = 38, BrazierSno = 39;
     private const int WorldA = 100, WorldB = 200;
 
     private static readonly Dictionary<int, (string Name, ActorDefinitionInfo Info)> Actors = new()
@@ -56,6 +56,7 @@ public class ObjectiveTests
         [SoulBeamSno] = ("vfx_Rathmos_harmless_persistentCylindrical_SoulSplit_rune_lightbeams_02", new(Prop, NotGizmo)),
         [ChainStationSno] = ("inarius_chainStation", new(Gizmo, Conventions.GizmoChargeable)),
         [CapturePointSno] = ("Ancient_CapturePoint_Obelisk_01_Dyn", new(Gizmo, Conventions.GizmoChargeable)),
+        [BrazierSno] = ("QST_Naha_TombOfAkarat_EruTrial_Brazier", new(Gizmo, Conventions.GizmoSwitch, MultiUseSwitch: true)),
     };
 
     // Actors some quest names (DungeonObjectiveReader.ActorsNamedByAnyQuest): the hatred tumor, not the mausoleum's mummies;
@@ -268,6 +269,21 @@ public class ObjectiveTests
 
         Assert.True(vessel.Reusable);
         Assert.False(vessel.StopsWhenUsed);
+    }
+
+    [Fact]
+    public void Selector_ALightsOutBrazierTheStepNamesKeepsItsLoopOnceLit()
+    {
+        // Tester 2026-10-31, the Tomb of Akarat: the step waits on all four braziers, but each fell silent once lit.
+        var selector = Selector();
+        selector.SetWorld(WorldB, isDungeon: true);
+
+        var brazier = selector.Select(Placed(BrazierSno) with { QuestStep = true, Operated = true })!;
+
+        Assert.Equal(SoundCue.QuestObjective, brazier.Cue);
+        Assert.False(brazier.StopsWhenUsed);
+        Assert.True(brazier.Reusable);
+        Assert.True(selector.Select(Placed(QuestSwitchSno) with { QuestStep = true })!.StopsWhenUsed); // a one-use switch still stops
     }
 
     [Fact]

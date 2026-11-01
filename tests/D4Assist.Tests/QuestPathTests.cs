@@ -50,11 +50,12 @@ public class QuestPathTests
         // The path the search returns: straight from the player to the place in 5-unit steps, unless set.
         public Func<Vector3, Vector2, IReadOnlyList<Vector2>?> Path = (from, to) => Straight(new(from.X, from.Y), to);
 
-        public Rig(string world = World)
+        public Rig(string world = World, IReadOnlyList<QuestMapPlace>? entrances = null, Action<float>? askedRange = null)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             Bridge = new QuestPathBridge(Feed, w => w is World or StoryArea, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
-                Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock);
+                Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock,
+                entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; });
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
         }
@@ -234,6 +235,35 @@ public class QuestPathTests
         Assert.False(rig.Bridge.TakesPad);
         rig.Pad.Press();
         Assert.Empty(rig.Speech.Texts);
+    }
+
+    [Fact]
+    public void A_dungeon_entrance_near_the_player_comes_after_the_quest_places_and_names_the_dungeon()
+    {
+        var ruins = KedBardu + new Vector2(40, 30);
+        var rig = new Rig(entrances: [new QuestMapPlace(0, "Sunken Ruins", 0, ruins, Entrance: true)]);
+        rig.Move(KedBardu);
+
+        rig.Pad.Press();
+        rig.Pad.Press();
+        rig.Pad.Press();
+
+        Assert.Equal("Entrance: Sunken Ruins, 50 meters. 3 of 3.", rig.Speech.Texts.Last());
+        Assert.Equal(ruins, rig.Searches[^1].To);
+        foreach (var p in Straight(KedBardu, ruins)) rig.Move(p);
+        Assert.Equal(English.EntranceReached, rig.Speech.Texts.Last());
+    }
+
+    [Fact]
+    public void Entrances_farther_than_the_range_are_not_asked_for()
+    {
+        float asked = 0;
+        var rig = new Rig(entrances: [], askedRange: r => asked = r);
+        rig.Move(KedBardu);
+
+        rig.Pad.Press();
+
+        Assert.Equal(QuestPathBridge.EntranceRangeUnits, asked);
     }
 
     [Fact]

@@ -62,5 +62,7 @@ public sealed partial record AppStrings
         GuideToMonstersFormat: "Всё исследовано. На карте осталось монстров: {0}, веду к ним.",
         DodgeFormat: "Уклонись: {0}",
         MarkedWarning: "Метка: взрыв следует за тобой",
-        VesselUsedFormat: "{0} активирован. Теперь войди в барьер.");
+        VesselUsedFormat: "{0} активирован. Теперь войди в барьер.",
+        EntranceGuideFormat: "Вход: {0}, {1} метров.",
+        EntranceReached: "Вход достигнут.");
 }

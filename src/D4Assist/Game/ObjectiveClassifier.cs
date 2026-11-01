@@ -51,7 +51,7 @@ public sealed class ObjectiveClassifier(
     // Structures broken by attacking them are hostile monster-type actors named *_Multistage (walls, barricades, totems; 184 in
     // build 3.2.2). The 10 a quest names must go for the story to go on: the hatred tumors of the Ancient Mausoleum
     // (Frac_Cursed_Tumor_01_Corner_2x2_01_Multistage), cracked walls, cocoons, a demon gate (research/dungeon-objectives.md §12).
-    private const string DestructibleToken = "_Multistage";
+    private const string DestructibleToken = Conventions.StructureNameToken;
 
     // Door gizmos used to summon a dungeon's boss (SilentMonolith_DYN, FrozenMonolith_DYN, the Grinning Labyrinth's), each beside
     // its boss spawner; not every DPO names them (research/dungeon-objectives.md §15).
@@ -70,7 +70,7 @@ public sealed class ObjectiveClassifier(
     // The world-independent part of the answer, cached per actor SNO.
     private readonly record struct Traits(
         ObjectiveReason? Fixed, bool IsMonster, bool IsGizmo, bool IsDoor, bool IsCarryable, bool IsBossOrUnique, IReadOnlyList<int>? Accepts,
-        bool IsTrigger);
+        bool IsTrigger, bool IsMultiUseSwitch);
 
     // Filled from several poll threads (timer ticks overlap); no lock is held while classifying, which takes the CASC gate.
     private readonly ConcurrentDictionary<int, Traits?> _traits = new();
@@ -116,6 +116,9 @@ public sealed class ObjectiveClassifier(
     /// <summary>True when the receptacle <paramref name="receptacleSno"/> takes the carryable <paramref name="carryableSno"/>.</summary>
     public bool Accepts(int receptacleSno, int carryableSno) => TraitsOf(receptacleSno)?.Accepts?.Contains(carryableSno) == true;
 
+    /// <summary>True for a switch the game lets the player use again and again (levers, the braziers of a lights-out puzzle).</summary>
+    public bool IsMultiUseSwitch(int actorSno) => TraitsOf(actorSno)?.IsMultiUseSwitch == true;
+
     /// <summary>True for door gizmos (doors, blockers, cages, monoliths).</summary>
     public bool IsDoor(int actorSno) => TraitsOf(actorSno)?.IsDoor == true;
 
@@ -129,7 +132,7 @@ public sealed class ObjectiveClassifier(
         Traits? traits = definition(actorSno) is { } info
             ? new Traits(FixedReason(actorSno, info), info.EType == Conventions.ActorTypeMonster, info.GizmoType >= 0,
                 info.GizmoType == Conventions.GizmoDoor, info.GizmoType == Conventions.GizmoCarryable, IsBossOrUnique(info),
-                info.AcceptedCarryables, info.GizmoType == Conventions.GizmoTrigger)
+                info.AcceptedCarryables, info.GizmoType == Conventions.GizmoTrigger, info.MultiUseSwitch)
             : null;
         return _traits[actorSno] = traits;
     }

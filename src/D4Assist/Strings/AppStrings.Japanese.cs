@@ -62,5 +62,7 @@ public sealed partial record AppStrings
         GuideToMonstersFormat: "すべて探索済み。マップにモンスターが残り{0}体、案内します。",
         DodgeFormat: "回避：{0}",
         MarkedWarning: "マーク：爆発が追ってくる",
-        VesselUsedFormat: "{0}を起動。障壁の中へ。");
+        VesselUsedFormat: "{0}を起動。障壁の中へ。",
+        EntranceGuideFormat: "入口：{0}、{1}メートル。",
+        EntranceReached: "入口に到着しました。");
 }

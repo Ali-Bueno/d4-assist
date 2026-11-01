@@ -465,11 +465,17 @@ scenes' compressed `m_cellBytes` with their heights) and `D4Assist.Navigation/Su
 map: a step joins two floors only when their heights differ by at most 1 unit, so a cliff's top and foot stay apart; a step
 near an edge costs more. Traversals join the floors they split: every two traversal ends the chunks place
 (`Traversal_Gizmo_*`, `MarkerLocation_TraversalExit`, any marker layer) within 8 units are a link, a slide one way down
-(`SurfaceLink`, [dungeon-data](../../research/dungeon-data.md) §4.1c).
+(`SurfaceLink`, [dungeon-data](../../research/dungeon-data.md) §4.1c). Locked doors (`LockedDoors.Walls`: game-locked or tried)
+bar the floor within 2 units of their base height: the Darkened Way's invisible doors stood on the straight way down from Lilith's
+petal (tester 2026-10-31, [dungeon-data](../../research/dungeon-data.md) §4.1c).
 
 - **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
   desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
+- After the quest places come the dungeon and cellar entrances within 150 units (`DungeonEntranceCatalog`: the map's portal
+  markers of dungeon type or named `*Cellar*`, not hidden; 534 in the open world in 3.2.4), nearest first, spoken "Entrada:
+  <dungeon>, N metros." and, on arrival, "Has llegado a la entrada." (tester 2026-10-31: the game's navigation assist ended
+  beside the Sunken Ruins with the way in blocked).
 - The ping aims 8 units ahead of the player's spot on the path (`PathFollower`), so a path point passed aside never
   pulls back. More than 12 units off the path, a new path is searched from where the player stands, at most every 3 s.
   With no path it says "No encuentro un camino; te indico la dirección." and points straight at the place.

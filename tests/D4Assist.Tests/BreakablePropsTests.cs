@@ -35,6 +35,18 @@ public class BreakablePropsTests
     }
 
     [Fact]
+    public void A_structure_the_caller_counts_is_walked_around_until_its_game_record_goes()
+    {
+        // Tester 2026-10-31: the Durance of Hate's Hatred_Prop_Blocker_Tubes_Akarat_01_Multistage, a hostile non-gizmo structure.
+        var props = new BreakableProps(sno => Actors.TryGetValue(sno, out var a) ? a.Name : null,
+            sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, isProp: sno => sno == StatueSno);
+        var statue = new ActorState(9, StatueSno, 20, 20, 0);
+
+        Assert.Equal(DoorObstacles.Footprint(statue, TableCenter, TableHalf).Cells.ToHashSet(), props.Update([Table, statue], At(15, 20)));
+        Assert.Empty(props.Update([statue with { ClientOnly = true }], At(15, 20)));
+    }
+
+    [Fact]
     public void A_prop_on_another_floor_is_left_out_until_the_player_reaches_it()
     {
         var props = Props();

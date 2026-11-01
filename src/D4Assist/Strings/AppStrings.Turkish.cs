@@ -62,5 +62,7 @@ public sealed partial record AppStrings
         GuideToMonstersFormat: "Her yer keşfedildi. Haritada {0} canavar kaldı, seni götürüyorum.",
         DodgeFormat: "Kaç: {0}",
         MarkedWarning: "İşaretlendin: patlama seni takip ediyor",
-        VesselUsedFormat: "{0} etkinleştirildi. Şimdi bariyere gir.");
+        VesselUsedFormat: "{0} etkinleştirildi. Şimdi bariyere gir.",
+        EntranceGuideFormat: "Giriş: {0}, {1} metre.",
+        EntranceReached: "Girişe ulaşıldı.");
 }

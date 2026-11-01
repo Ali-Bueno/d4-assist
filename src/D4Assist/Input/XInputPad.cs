@@ -38,6 +38,8 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     private readonly PressHold[] _buttons = [.. Enumerable.Range(0, MaxUsers).Select(_ => new PressHold())];
     private readonly Func<long> _nowMs = () => Environment.TickCount64;
     private readonly bool[] _connected = new bool[MaxUsers];
+    // Logged once per connection: a pad that connects but never reports a button (seen on a ROG Xbox Ally) is told from one that works.
+    private readonly bool[] _buttonsSeen = new bool[MaxUsers];
     private Timer? _timer;
 
     public event Action? DpadLeftPressed;
@@ -83,12 +85,18 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
             if (buttons.HasValue != _connected[slot])
             {
                 _connected[slot] = buttons.HasValue;
+                _buttonsSeen[slot] = false;
                 _log?.Invoke($"Pad: XInput slot {slot} {(buttons.HasValue ? "connected" : "disconnected")}.");
             }
             if (buttons is not { } b)
             {
                 _buttons[slot].Reset(); // a disconnected slot clears, so a reconnect starts from a clean edge
                 continue;
+            }
+            if (b != 0 && !_buttonsSeen[slot])
+            {
+                _buttonsSeen[slot] = true;
+                _log?.Invoke($"Pad: XInput slot {slot} first buttons 0x{b:X4}.");
             }
             var edge = _buttons[slot].Sample((b & DpadLeftMask) != 0, _nowMs());
             if (edge == PressHold.Edge.Pressed) DpadLeftPressed?.Invoke();

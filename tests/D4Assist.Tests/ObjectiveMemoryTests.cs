@@ -723,6 +723,19 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_structure_to_break_is_reached_only_within_melee_reach_of_its_edge()
+    {
+        // Tester 2026-10-31, the Necropolis: arriving 3.6 from a tumor (half 0.6) left its skirt of pieces or a web in between.
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, footprint: _ => 0.6f, toBreak: sno => sno == AltarSno);
+        feed.RaisePlayer(At(0, 0));
+        memory.Heard(Altar(30, 0), Lever(-30, 0));
+
+        Assert.Equal(0.6f + ObjectiveMemory.MeleeUnits, memory.Destinations().Single(d => d.Position == (30, 0)).Radius, precision: 3);
+        Assert.Equal(0.6f + ObjectiveMemory.InteractUnits, memory.Destinations().Single(d => d.Position == (-30, 0)).Radius, precision: 3);
+    }
+
+    [Fact]
     public void A_placed_gizmo_heard_is_the_same_objective_and_unheard_ones_drop_when_the_phase_moves_on()
     {
         var (feed, memory) = NewMemory();

@@ -26,16 +26,19 @@ public sealed class GameWindowFocus : IDisposable
 
     public void PollOnce() => _gate.Set(CueMute.GameInBackground, !_isGameForeground());
 
-    public static bool IsGameForeground()
+    public static bool IsGameForeground() => ForegroundProcessName() == ProcessLocator.ProcessName;
+
+    /// <summary>The process name of the foreground window, or null when there is none or it is gone.</summary>
+    public static string? ForegroundProcessName()
     {
         GetWindowThreadProcessId(GetForegroundWindow(), out uint processId);
-        if (processId == 0) return false;
+        if (processId == 0) return null;
         try
         {
             using var process = Process.GetProcessById((int)processId);
-            return process.ProcessName == ProcessLocator.ProcessName;
+            return process.ProcessName;
         }
-        catch (Exception e) when (e is ArgumentException or InvalidOperationException) { return false; } // process gone meanwhile
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException) { return null; } // process gone meanwhile
     }
 
     public void Dispose() => _timer?.Dispose();

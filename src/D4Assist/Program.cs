@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
 using D4Assist.Audio;
@@ -157,6 +158,7 @@ internal static class Program
             quest => { lock (cascGate) return questScripts.PhaseObjects(quest); };
         var dpo = new DungeonObjectiveReader(store, schema);
         Func<int, ActorDefinitionInfo?> definitionOf = sno => { lock (cascGate) return actorDefinitions.Read(sno); };
+        Func<int, bool> namedByAnyQuest = sno => { lock (cascGate) return dpo.ActorsNamedByAnyQuest().Contains(sno); };
         var portalRule = new PortalClassifier(definitionOf, store.Name);
         // What tiles place in their gameplay marker layers, known before it streams in (research/dungeon-objectives.md §18): the
         // portals (PortalMemory) and the other gizmos a quest phase may name by SNO alone (the Labyrinth's levers).
@@ -243,13 +245,16 @@ internal static class Program
         var radarWorld = new DungeonRadarWorld(walkability);
         _ = new RadarBridge(session, radarWorld, radarPlayer, radarSettings, diagnostics: debug, doors);
         // Barrier walls a dungeon raises until its objective is done: walls for the radar and the guide while they stand. Doors the
-        // player can't open yet: walls for the guide only (the radar sounds every closed door). Breakable props: walked around by the
-        // guide, walls to the radar until broken.
+        // player can't open yet: walls for the guide only (the radar sounds every closed door). Breakable props, and structures no
+        // quest asks to break: walked around by the guide, walls to the radar until broken.
         var lockedDoors = new LockedDoors(doors ?? new DoorObstacles(interactables, definitionOf), store.Name, Console.WriteLine);
+        Func<int, bool> walkedAround = sno => definitionOf(sno) is { } prop
+            && (prop.GizmoType == Conventions.GizmoBreakable
+                || (ObjectiveClassifier.IsStructure(store.Name(sno), prop) && !namedByAnyQuest(sno)));
         var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
             radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates,
-            config.BreakablePropsAvoided ? new BreakableProps(store.Name, definitionOf, debug ? Console.WriteLine : null) : null,
+            config.BreakablePropsAvoided ? new BreakableProps(store.Name, definitionOf, debug ? Console.WriteLine : null, walkedAround) : null,
             cells => { navigation.SetPropCells(cells); radarWorld.SetProps(cells); });
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
@@ -368,12 +373,13 @@ internal static class Program
         hotkeys.WalletKeyPressed += wallet.Announce;
         // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
         // The pad is read whatever window has the focus: in another game, or with Diablo IV closed, its D-pad isn't ours.
+        // A swallowed press is always logged with its reason: presses are rare, and a tester's pad that "does nothing" needs it.
         var pad = xboxPad is not null && sonyPad is not null
             ? new CombinedPad([
                 new GatedPad(
                     new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => !GameWindowFocus.IsGameForeground(),
-                        debug ? () => Console.WriteLine("GUIDE toggle ignored: game not in the foreground") : null),
-                    () => menus?.AnyOpen ?? false, debug ? () => Console.WriteLine("GUIDE toggle ignored: menu open") : null),
+                        () => Console.WriteLine($"Guide toggle ignored: game not in the foreground ({GameWindowFocus.ForegroundProcessName() ?? "no window"} is).")),
+                    () => menus?.AnyOpen ?? false, () => Console.WriteLine($"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
                 hotkeys])
             : null;
         if (pad is not null)
@@ -430,8 +436,9 @@ internal static class Program
                     }
                     return QuestMapPlaces(markers, owned, FindPhases, questHistory, store, questScripts, language, cascGate, debug ? Console.WriteLine : null);
                 },
-                paths.Find,
-                guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true);
+                (world, from, to) => paths.Find(world, from, to, lockedDoors.Walls()),
+                guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
+                entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate));
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -657,7 +664,8 @@ internal static class Program
         var objectiveMemory = new ObjectiveMemory(
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
             sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,
-            selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique, questNpcs.IsNpc);
+            selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique, questNpcs.IsNpc,
+            sno => definitionOf(sno) is { } info && ObjectiveClassifier.IsStructure(store.Name(sno), info));
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(
@@ -893,6 +901,23 @@ internal static class Program
         try { return store.Resolve(group, name); }
         catch (ArgumentException) { return null; }
     }
+
+    // The dungeon and cellar entrances of a world within a distance of a spot, as places D-pad left leads to, named in the spoken language.
+    private static Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>> NearbyEntrances(
+        DungeonEntranceCatalog catalog, SnoStore store, TypeSchema schema, LanguageSetting language, object cascGate) =>
+        (worldName, here, range) =>
+        {
+            lock (cascGate)
+            {
+                int world = WorldSnoOrNone(store, schema, worldName);
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                return
+                [
+                    .. catalog.All.Where(e => e.WorldSno == world && Vector2.Distance(here, new Vector2(e.Position.X, e.Position.Y)) <= range)
+                        .Select(e => new QuestMapPlace(0, catalog.Name(e, locale), 0, new Vector2(e.Position.X, e.Position.Y), Entrance: true)),
+                ];
+            }
+        };
 
     private static int WorldSnoOrNone(SnoStore store, TypeSchema schema, string worldName)
     {

@@ -100,6 +100,23 @@ public class DungeonObjectiveReaderRealDataTests
         Assert.Equal(halfY, info.PropHalfExtents.Y, precision: 1);
     }
 
+    [Theory]
+    [InlineData("Hatred_Prop_Blocker_Tubes_Akarat_01_Multistage")] // the Durance of Hate's second visit (§31)
+    [InlineData("Hatred_Prop_Blocker_Tubes_01_Multistage")]
+    public void ActorDefinitionReader_ReadsAStructuresGroundBox(string actor)
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+
+        var info = new ActorDefinitionReader(store, schema).Read(store.Resolve(schema.SnoGroup("ActorDefinition"), actor))!.Value;
+
+        Assert.True(info.GizmoType < 0);
+        Assert.Equal(Conventions.HostileTeam, info.DefaultTeam);
+        Assert.Equal(1.875f, info.PropHalfExtents.X, precision: 2); // 3.75 x 7.5 units: a tunnel's width (build 3.2.4)
+        Assert.Equal(3.75f, info.PropHalfExtents.Y, precision: 2);
+    }
+
     [Fact]
     public void ActorDefinitionReader_ReadsTheCarryablesAReceptacleTakes()
     {

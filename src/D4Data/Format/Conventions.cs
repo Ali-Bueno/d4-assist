@@ -57,6 +57,9 @@ public static class Conventions
     public const int GizmoQuestSwitch = 100;        // QuestSwitchGizmoData
     public const int GizmoQuestChest = 105;         // QuestChestGizmoData
 
+    // Hostile monster-type structures broken by attacking them carry this in their name (184 actors: walls, barricades, tumors).
+    public const string StructureNameToken = "_Multistage";
+
     // Recursion guard for marker sets nested as prefabs; observed data nests 1-2 levels.
     public const int MaxPrefabDepth = 4;
 

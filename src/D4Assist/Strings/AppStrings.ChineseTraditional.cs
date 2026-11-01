@@ -62,5 +62,7 @@ public sealed partial record AppStrings
         GuideToMonstersFormat: "全部探索完畢。地圖上還有{0}個怪物，正在帶你過去。",
         DodgeFormat: "躲避：{0}",
         MarkedWarning: "被標記：爆炸會跟著你",
-        VesselUsedFormat: "{0}已啟動。現在進入屏障。");
+        VesselUsedFormat: "{0}已啟動。現在進入屏障。",
+        EntranceGuideFormat: "入口：{0}，{1}公尺。",
+        EntranceReached: "已到達入口。");
 }

@@ -155,6 +155,15 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
 - **A locked gate is floor** (same replay): `Ancients_Ruins_Blocker_Door` (−103.7,19.9), in `Frac_Underworld (ShortcutToLake_Gate)`,
   is the only overland link from the upper ruins to the Mourning Shore and stood locked through quest 486210; the path leads
   through it (blocked, 12 of 16 legs path: the real way is the Cradle dungeon, whose exit lands at (−78.5,−39.9)). Not handled.
+- **Invisible doors on the straight way** (tester 2026-10-31, 0.1.26 log, quest 486210): phase 260 shows one `Trigger_Sphere_8m`
+  (−128,48), before the Ancient City's entrance door, while the player stands at Lilith's petal (−128,73), Z −3. A ramp runs straight
+  down to it along x≈−128 (Z −3.5 at y 65, −6.5 at the door spot, −7.5 at y 56), under `DesignKit_InvisibleDoor` (gizmo door, aabb
+  4×4×4) at (−127.5,59.5) and three more at y 53–59, which the log read locked all phase. The path (27–39 units from the petal, the
+  blocker door or (−120,72)) ran through them; with their footprints removed it goes round (90–112 units: east to (−105,60), south
+  to (−110,29), the free-climb down at (−123.4,30.8)), the way the tester walked for 14 minutes. **App rule (unit-tested, not live):**
+  story-area and open-world paths drop the surface voxels under every locked door (`LockedDoors.Walls`: game-locked or tried) within
+  2 units of the door's base height (`OverworldPaths.DoorFloorUnits`), so a door bars only its own floor. The gate above
+  (−103.7,19.9) is barred the same way while it reads locked.
 - **DRLG tiles** link every traversal kind but the slide too (`JumpLinkCollector`, 2026-10-28): the Necropolis's tumor platforms
   (ladders) and pocket (duck-under), [dungeon-objectives](dungeon-objectives.md) §12.
 - **Traversals are prefabs** (census of 448 scenes, 2026-10-30): each is one `Traversal_*` marker-set prefab: `Jump_6m_Gizmo`,

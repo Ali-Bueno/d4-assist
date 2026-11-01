@@ -525,7 +525,7 @@ internal static class Program
                             .Select(w => new WhisperEvent(whispers.Name(w, locale),
                                 w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
                                     ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
-                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors))
+                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors, IsEvent: w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion))
                             .ToList();
                 });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
@@ -535,7 +535,7 @@ internal static class Program
             session.MenusRead += mapBounties.OnMenus;
             waypointList.Start();
             mapKeys.Start();
-            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the events (helltide, whispers), Shift+F3 the treasure goblins.");
+            Console.WriteLine($"Waypoint list: {allWaypoints.Count} waypoints in the game data; Shift+F1 on the world map, Shift+F2 the events menu (helltide, whispers, events), Shift+F3 the treasure goblins.");
         }
 
         session.WorldChanged += (sno, name, isDungeon) =>

@@ -13,8 +13,8 @@ namespace D4Assist.Game;
 /// the list, Escape closes it. Everything it says also goes to the braille display (ISpeechSink.Output, user request
 /// 2026-10-25). Only waypoints the player's saved data lists as activated are ever offered; when that list is unreadable the
 /// list says so instead of guessing.
-/// Shift+F2 opens the events menu (user request 2026-11-01): the helltide and the whispers. Escape goes back a level; in the menu it closes.
-/// The whispers list nearest first with the grim favors each pays and, while readable, the minutes it has left; Enter zooms the map out when
+/// Shift+F2 opens the events menu (user request 2026-11-01): the helltide, the whispers and the events (legions and world bosses). Escape goes back
+/// a level; in the menu it closes. The whispers and the events list nearest first with the grim favors each pays and, while readable, the minutes it has left; Enter zooms the map out when
 /// that brings the whisper into view and puts the cursor on it (research/map-points.md §4b).
 /// The helltide entry lists the helltides the server has active (the session's world states, ActiveHelltides; user request 2026-10-27),
 /// each with the minutes it has left (user request 2026-10-27); Enter opens the same list as Shift+F1 over that helltide's objects the map marks
@@ -175,16 +175,16 @@ public sealed class WaypointListBridge(
     private EventStrings EventText => EventStrings.For(language.Current);
 
     // Without a source of whispers the menu holds the helltide alone.
-    private int MenuCount => readWhispers is null ? 1 : 2;
+    private int MenuCount => readWhispers is null ? 1 : 3;
 
     private string MenuText() =>
-        $"{(_menuIndex == 0 ? EventText.Helltide : EventText.Whispers)}, {string.Format(HelltideStrings.For(language.Current).PositionFormat, _menuIndex + 1, MenuCount)}";
+        $"{_menuIndex switch { 0 => EventText.Helltide, 1 => EventText.Whispers, _ => EventText.Events }}, {string.Format(HelltideStrings.For(language.Current).PositionFormat, _menuIndex + 1, MenuCount)}";
 
     // A menu entry with nothing to show says so and the menu stays.
     private void ChooseMenu()
     {
         if (_menuIndex == 0) OpenHelltide();
-        else OpenWhispers();
+        else OpenWhispers(events: _menuIndex == 2);
     }
 
     private void OpenHelltide()
@@ -206,7 +206,7 @@ public sealed class WaypointListBridge(
         speech.Output($"{text.RegionsOpened} {RegionText()}", interrupt: true);
     }
 
-    private void OpenWhispers()
+    private void OpenWhispers(bool events)
     {
         var text = EventText;
         if (readWhispers!() is not { } whispers)
@@ -216,9 +216,10 @@ public sealed class WaypointListBridge(
             return;
         }
         log?.Invoke($"WHISPERS {whispers.Count} up");
+        whispers = [.. whispers.Where(w => w.IsEvent == events)];
         if (whispers.Count == 0)
         {
-            speech.Output(text.NoWhispers, interrupt: true);
+            speech.Output(events ? text.NoEvents : text.NoWhispers, interrupt: true);
             return;
         }
         // Their spots lie in the open world: from inside a dungeon the player's own spot says nothing, so the map's center counts.
@@ -227,7 +228,7 @@ public sealed class WaypointListBridge(
             : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
         _list.Open(WaypointList.Build(whispers.Select(w => (w.Name, (string?)WhisperDetails(w, text), w.X, w.Y)), fromX, fromY));
         _mode = Mode.Whispers;
-        speech.Output($"{string.Format(text.WhispersOpenedFormat, _list.Count)} {EntryText()}", interrupt: true);
+        speech.Output($"{string.Format(events ? text.EventsOpenedFormat : text.WhispersOpenedFormat, _list.Count)} {EntryText()}", interrupt: true);
     }
 
     // Said after a whisper's name, where a waypoint says its region.

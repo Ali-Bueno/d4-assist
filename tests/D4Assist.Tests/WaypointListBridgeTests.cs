@@ -439,21 +439,57 @@ public class WaypointListBridgeTests
         var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, helltides: [HelltideRegion.Hawezar], readWhispers: () => [NearWhisper]);
 
         keys.OpenEvents();
-        Assert.Equal("Events: Helltide, 1 of 2.", speech.Last);
+        Assert.Equal("Events menu: Helltide, 1 of 3.", speech.Last);
         Assert.True(keys.ListKeys);
         keys.Up();
-        Assert.Equal("Helltide, 1 of 2.", speech.Last);
+        Assert.Equal("Helltide, 1 of 3.", speech.Last);
         keys.Down();
-        Assert.Equal("Whispers, 2 of 2.", speech.Last);
+        Assert.Equal("Whispers, 2 of 3.", speech.Last);
         keys.Down();
-        Assert.Equal("Whispers, 2 of 2.", speech.Last);
+        Assert.Equal("Events, 3 of 3.", speech.Last);
+        keys.Down();
+        Assert.Equal("Events, 3 of 3.", speech.Last);
+        keys.Up();
         keys.Up();
         keys.Enter();
         Assert.StartsWith("Helltide: Hawezar", speech.Last);
         keys.Escape();
-        Assert.Equal("Events: Helltide, 1 of 2.", speech.Last);
+        Assert.Equal("Events menu: Helltide, 1 of 3.", speech.Last);
         keys.Escape();
         Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Legions_and_world_bosses_list_apart_from_the_whispers()
+    {
+        var boss = new WhisperEvent("World Boss", "Dry Steppes", 700, -400, OpenWorld, 5, IsEvent: true);
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [NearWhisper, boss]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        Assert.StartsWith("1 whispers by distance. Harvest: Caldeum", speech.Last);
+        keys.Escape();
+        Assert.Equal("Events menu: Whispers, 2 of 3.", speech.Last);
+        keys.Down();
+        keys.Enter();
+        Assert.StartsWith("1 events by distance. World Boss, Dry Steppes, 5 Grim Favors", speech.Last);
+        keys.Escape();
+        Assert.Equal("Events menu: Events, 3 of 3.", speech.Last);
+    }
+
+    [Fact]
+    public void No_event_listed_says_they_show_shortly_before_they_start_and_keeps_the_menu()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [NearWhisper]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Down();
+        keys.Enter();
+
+        Assert.Equal("No events right now. They show shortly before they start.", speech.Last);
+        Assert.True(keys.ListKeys);
     }
 
     [Fact]
@@ -470,7 +506,7 @@ public class WaypointListBridgeTests
         keys.Down();
         Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 12 minutes left, 510 meters", speech.Last);
         keys.Escape();
-        Assert.Equal("Events: Whispers, 2 of 2.", speech.Last); // back on the entry it came from
+        Assert.Equal("Events menu: Whispers, 2 of 3.", speech.Last); // back on the entry it came from
     }
 
     [Fact]
@@ -538,7 +574,7 @@ public class WaypointListBridgeTests
         keys2.OpenEvents();
         keys2.Down();
         keys2.Enter();
-        Assert.Equal("Can't read which whispers are up.", speech2.Last);
+        Assert.Equal("Can't read what is up.", speech2.Last);
         Assert.True(keys2.ListKeys);
     }
 

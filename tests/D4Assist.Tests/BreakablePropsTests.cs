@@ -7,7 +7,7 @@ namespace D4Assist.Tests;
 
 public class BreakablePropsTests
 {
-    private const int Gizmo = 2, NotGizmo = -1, TableSno = 1, StatueSno = 3;
+    private const int Gizmo = 2, NotGizmo = -1, TableSno = 1, StoolSno = 2, StatueSno = 3;
 
     // MageHalls_Prop_Furniture_Table_Medium_Corner_1x2_01_Arrangement: collision box centre (0, 0, 0.8), half-extents (0.7, 1.2, 0.8).
     private static readonly Vector3 TableCenter = new(0, 0, 0.8f), TableHalf = new(0.7f, 1.2f, 0.8f);
@@ -16,6 +16,7 @@ public class BreakablePropsTests
     {
         [TableSno] = ("MageHalls_Prop_Furniture_Table_Medium_Corner_1x2_01_Arrangement",
             new(Gizmo, Conventions.GizmoBreakable, PropCenter: TableCenter, PropHalfExtents: TableHalf)),
+        [StoolSno] = ("MageHalls_Stool", new(Gizmo, Conventions.GizmoBreakable, PropCenter: TableCenter, PropHalfExtents: TableHalf)),
         [StatueSno] = ("MageHalls_Statue", new(Gizmo, NotGizmo, PropCenter: TableCenter, PropHalfExtents: TableHalf)),
     };
 
@@ -92,6 +93,24 @@ public class BreakablePropsTests
         Assert.NotEmpty(props.Update([], At(11, -40))); // 68 units away: the client dropped it
         for (var poll = 1; poll < ObjectiveMemory.MissingPollsForDone; poll++) Assert.NotEmpty(props.Update([], At(5, 28)));
         Assert.Empty(props.Update([], At(5, 28)));
+    }
+
+    [Fact]
+    public void Two_kinds_of_prop_rounding_to_one_spot_both_stand_without_replacing_each_other()
+    {
+        // Live: Cave_Ice_Stalagmites_Small 04 at (44.5,-77.2) and 05 at (44.5,-76.9) took turns every poll.
+        var lines = new List<string>();
+        var props = new BreakableProps(sno => Actors[sno].Name, sno => Actors[sno].Info, lines.Add);
+        ActorState[] both = [new ActorState(7, TableSno, 44.5f, -77.2f, 0), new ActorState(8, StoolSno, 44.5f, -76.9f, 0)];
+
+        props.Update(both, At(40, -77));
+        var cells = props.Update(both, At(40, -77));
+
+        Assert.Equal(2, lines.Count);
+        Assert.NotEmpty(cells);
+        props.Update([both[0] with { Operated = true }, both[1]], At(40, -77));
+        Assert.Contains(lines, l => l.StartsWith("PROP broken") && l.Contains("Table"));
+        Assert.DoesNotContain(lines, l => l.StartsWith("PROP broken") && l.Contains("Stool"));
     }
 
     [Fact]

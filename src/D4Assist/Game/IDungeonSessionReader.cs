@@ -66,8 +66,8 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The world map's center and zoom; null when unreadable. Meaningful while the map is open.</summary>
     MapView? ReadMapView() => null;
 
-    /// <summary>The ones of the quests the open world map holds a bounty pin for (MapBountyTableReader); slow, so off the poll threads.</summary>
-    IReadOnlySet<int>? ReadMapBountyPins(IReadOnlySet<int> quests) => null;
+    /// <summary>The bounty pins of the quests the open world map holds, and their ends (MapBountyTableReader); slow, so off the poll threads.</summary>
+    MapBounties? ReadMapBounties(IReadOnlySet<int> quests) => null;
 
     /// <summary>The session's world states, {WorldState SNO → value}; null when unreadable.</summary>
     IReadOnlyDictionary<int, int>? ReadWorldStates() => null;

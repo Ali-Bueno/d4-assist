@@ -7,10 +7,13 @@ public class MapBountyWatchTests
 {
     private static readonly string[] MapOpen = [MenuScreens.MainMenu, MenuScreens.Map];
 
+    private static MapBounties Held(int quest, params (int Quest, DateTime End)[] ends) =>
+        new(new HashSet<int> { quest }, ends.ToDictionary(e => e.Quest, e => e.End));
+
     private sealed class Fixture
     {
         public int Reads;
-        public IReadOnlySet<int>? Result = new HashSet<int> { 7 };
+        public MapBounties? Result = Held(7);
         public DateTime Now = new(2026, 11, 1, 14, 0, 0);
         public Action? Pending;
         public readonly MapBountyWatch Watch;
@@ -74,5 +77,39 @@ public class MapBountyWatchTests
         f.Watch.OnMenus(MapOpen);
         f.Finish();
         Assert.Contains(7, f.Watch.Pins);
+    }
+
+    [Fact]
+    public void The_minutes_left_round_up_and_end_with_the_bounty()
+    {
+        var f = new Fixture();
+        f.Result = Held(7, (7, f.Now.AddMinutes(56)));
+        f.Watch.OnMenus(MapOpen);
+        f.Finish();
+
+        Assert.Equal(56, f.Watch.MinutesLeft(7));
+        f.Now = f.Now.AddSeconds(30);
+        Assert.Equal(56, f.Watch.MinutesLeft(7));
+        f.Now = f.Now.AddMinutes(55);
+        Assert.Equal(1, f.Watch.MinutesLeft(7));
+        f.Now = f.Now.AddSeconds(30);
+        Assert.Null(f.Watch.MinutesLeft(7));
+        Assert.Null(f.Watch.MinutesLeft(8)); // a legion: no end known
+    }
+
+    [Fact]
+    public void An_end_stays_known_with_the_map_closed_and_a_later_read_updates_it()
+    {
+        var f = new Fixture();
+        f.Result = Held(7, (7, f.Now.AddMinutes(30)));
+        f.Watch.OnMenus(MapOpen);
+        f.Finish();
+        f.Watch.OnMenus([]);
+        Assert.Equal(30, f.Watch.MinutesLeft(7));
+
+        f.Result = Held(7, (7, f.Now.AddMinutes(90)));
+        f.Watch.OnMenus(MapOpen);
+        f.Finish();
+        Assert.Equal(90, f.Watch.MinutesLeft(7));
     }
 }

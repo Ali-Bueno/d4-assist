@@ -474,9 +474,9 @@ internal static class Program
             });
             var mapBounties = new MapBountyWatch(() =>
             {
-                IReadOnlySet<int>? pins = null;
-                session.Query(r => pins = r.ReadMapBountyPins(whisperQuests.Value));
-                return pins;
+                D4Memory.Ui.MapBounties? held = null;
+                session.Query(r => held = r.ReadMapBounties(whisperQuests.Value));
+                return held;
             }, debug ? Console.WriteLine : null);
             HelltidePlace MarkerPlaceOfLocked(MarkedActor m)
             {
@@ -525,7 +525,7 @@ internal static class Program
                             .Select(w => new WhisperEvent(whispers.Name(w, locale),
                                 w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
                                     ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
-                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors, IsEvent: w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion))
+                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors, () => mapBounties.MinutesLeft(w.QuestSno), w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion))
                             .ToList();
                 });
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();

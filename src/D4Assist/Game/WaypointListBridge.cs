@@ -63,6 +63,7 @@ public sealed class WaypointListBridge(
     private Mode _mode;
     private IReadOnlyList<HelltideRegion> _regions = [];
     private int _regionIndex, _menuIndex;
+    private IReadOnlyDictionary<(string Name, double X, double Y), WhisperEvent> _whispers = new Dictionary<(string, double, double), WhisperEvent>();
 
     // What the open list holds: waypoints (Shift+F1); the events menu and from it the active helltides, one helltide's objects or
     // the whispers (Shift+F2); the treasure goblins the map shows (Shift+F3).
@@ -226,6 +227,7 @@ public sealed class WaypointListBridge(
         int world = currentWorld();
         var (fromX, fromY) = _player is { } p && whispers.Any(w => w.WorldSno == world) ? (p.X, p.Y)
             : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
+        _whispers = whispers.DistinctBy(w => (w.Name, w.X, w.Y)).ToDictionary(w => (w.Name, w.X, w.Y));
         _list.Open(WaypointList.Build(whispers.Select(w => (w.Name, (string?)WhisperDetails(w, text), w.X, w.Y)), fromX, fromY));
         _mode = Mode.Whispers;
         speech.Output($"{string.Format(events ? text.EventsOpenedFormat : text.WhispersOpenedFormat, _list.Count)} {EntryText()}", interrupt: true);
@@ -237,7 +239,7 @@ public sealed class WaypointListBridge(
         var parts = new List<string>();
         if (whisper.Region is { } region) parts.Add(region);
         parts.Add(whisper.Favors == 1 ? text.OneFavor : string.Format(text.FavorsFormat, whisper.Favors));
-        if (whisper.MinutesLeft is { } minutes) parts.Add(string.Format(text.MinutesLeftFormat, minutes));
+        if (whisper.MinutesLeft?.Invoke() is { } minutes) parts.Add(minutes == 1 ? text.OneMinuteLeft : string.Format(text.MinutesLeftFormat, minutes));
         return string.Join(", ", parts);
     }
 
@@ -519,7 +521,9 @@ public sealed class WaypointListBridge(
         var entry = _list.Current!;
         string direction = NavigationPhrases.For(language.Current).Direction(entry.Direction, directionStyle);
         // A hub that is its own region (Die Torhalle) says its name once.
-        string label = entry.Region is { } region && region != entry.Name ? $"{entry.Name}, {region}" : entry.Name;
+        // A whisper's details are said anew: the list can stay open for minutes while its time runs.
+        string? details = _mode == Mode.Whispers && _whispers.TryGetValue((entry.Name, entry.X, entry.Y), out var whisper) ? WhisperDetails(whisper, EventText) : entry.Region;
+        string label = details is { } region && region != entry.Name ? $"{entry.Name}, {region}" : entry.Name;
         return string.Format(Text.EntryFormat, label, Math.Round(entry.Distance), direction, _list.Index + 1, _list.Count);
     }
 }

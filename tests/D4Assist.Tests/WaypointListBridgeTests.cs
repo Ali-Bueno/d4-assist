@@ -431,7 +431,7 @@ public class WaypointListBridgeTests
     }
 
     private static readonly WhisperEvent NearWhisper = new("Harvest: Caldeum", "Kehjistan", 700, -410, OpenWorld, 3);
-    private static readonly WhisperEvent FarWhisper = new("Lut Bahadur", null, 681.64, 100, OpenWorld, 1, MinutesLeft: 12);
+    private static readonly WhisperEvent FarWhisper = new("Lut Bahadur", null, 681.64, 100, OpenWorld, 1, MinutesLeft: () => 12);
 
     [Fact]
     public void Shift_F2_opens_the_events_menu_and_up_and_down_move_through_it()
@@ -507,6 +507,24 @@ public class WaypointListBridgeTests
         Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 12 minutes left, 510 meters", speech.Last);
         keys.Escape();
         Assert.Equal("Events menu: Whispers, 2 of 3.", speech.Last); // back on the entry it came from
+    }
+
+    [Fact]
+    public void A_whispers_minutes_are_those_of_the_moment_it_is_said_not_of_the_lists_opening()
+    {
+        int minutes = 2;
+        WhisperEvent ticking = FarWhisper with { MinutesLeft = () => minutes };
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [NearWhisper, ticking]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        keys.Down();
+        Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 2 minutes left", speech.Last);
+        minutes = 1;
+        keys.Up();
+        keys.Down();
+        Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 1 minute left", speech.Last);
     }
 
     [Fact]

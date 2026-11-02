@@ -963,3 +963,19 @@ Tester report (0.1.26, VoH campaign; the log of the second half was overwritten,
 - **Dungeons with no step of their own:** the quests read name nothing in `CSD_Naha_Teganze_AkaratsApostles_02`, `_Library`,
   `_Holdout`, `CSD_Naha_FiveHills_TombOfAkarat01_02`, `_03`, `_MephistoArena`; the guide explores and then leads to the boss room
   (tester: "works pretty well").
+
+## 32. Steps that only await a level area (PR #3 live, 2026-11-01; review fixes the same day)
+
+- **The case:** `S15_Triad_A_Labyrinth` phase 28 names no object; it waits for the player to enter `S15_Triad_A_Cave_04_Boss_QST`,
+  a dead-end tile `Cave_Lava_S_Arena_01` (no `BossRoom` in its name) that counted as seen from its doorway, so the guide said all
+  explored with the player never inside. The map marked the Summoner there (kind 8), listed only near it (seen 57 units off, gone
+  86 off), so what was marked stays known in this world. Phase 160 in Diablo's arena stays read after the area is entered, until
+  the hidden quest `S15_TriadA_Boss_Intro`'s four trigger boxes and sphere (marked on a line from the arrival portal) signal
+  `S15_TriadA_Intro_Complete`; the straight route to the character missed them and the fight never began.
+- **App rule** (`QuestPhaseObjects.EnteredLevelAreas`, `AwaitedAreaDestination`): the map's quest characters (kind 8) and the
+  area's triggers lead, else the monsters listed now; portals and the player's own marker never. A place the player reached leads
+  no more. Live-confirmed: the Summoner, and Diablo's fight began over the intro triggers.
+- **Review fixes (not live-tested):** the monsters lead once every character and trigger is reached (a captive reached by the
+  door left the boss unled); a character is one destination by an id of its own, followed within 20 units between marker reads,
+  not one per 8-unit spot (an escort walking through left a trail). Kind 8 is any NPC on the map, ambient ones included: an awaited
+  area with townsfolk would lead to each.

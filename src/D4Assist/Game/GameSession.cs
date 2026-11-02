@@ -111,6 +111,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>Rewrites each actor poll before it is raised (HoradricWard: only the vessel the barrier names sounds); null for none.</summary>
     public Func<IReadOnlyList<ActorState>, IReadOnlyList<ActorState>>? ActorRewrite { get; set; }
 
+    /// <summary>Keeps a map marker of the world entered, by its name (LevelAreaWorlds.InWorld); null keeps every marker.</summary>
+    public Func<MarkedActor, string, bool>? MarkerInWorld { get; set; }
+
     public GameSession(
         IWorldNameSource feed, IWorldClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?> openSession, IReadOnlySet<int> sceneSnos,
@@ -375,7 +378,12 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             }
             if (QuestMoved(session)) Deliver(lease, () => Raise("quest moved on", QuestMovedOn, h => h()));
             if (session.ReadQuestPlaces() is { } places) Deliver(lease, () => Raise("quest places", QuestPlacesRead, h => h(places)));
-            if (session.ReadMapMarkers() is { } marks) Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
+            if (session.ReadMapMarkers() is { } listed)
+            {
+                // The map keeps a dungeon's markers after the player leaves it, in that dungeon's own coordinates (2026-11-01).
+                IReadOnlyList<MarkedActor> marks = MarkerInWorld is { } inWorld && CurrentWorld?.Name is { } world ? [.. listed.Where(m => inWorld(m, world))] : listed;
+                Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
+            }
             if (session.ReadQuestActorSnos() is { } named) Deliver(lease, () => Raise("quest actors", QuestActorsNamed, h => h(named)));
             if (session.ReadCinematic() is { } cinematic) Deliver(lease, () => Raise("cinematic", CinematicRead, h => h(cinematic)));
             if (session.ReadLife() is { } life) Deliver(lease, () => Raise("life", LifeRead, h => h(life)));

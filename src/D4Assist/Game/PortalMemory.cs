@@ -273,12 +273,13 @@ public sealed class PortalMemory
     // A floor of a tower holds two entrance tiles, one with the portal the player came up by and one with the portal on up
     // (live 2026-10-29, S15_CountessTower: ProtoDun_Crypt_N_Entrance_01 at (0,0) and (32,-32); the guide, taking both for the
     // way in, led back to the arrival once the floor was explored). Once a portal on an entrance tile is known to be the way in
-    // (the player came or went through it), the others the entrance rule alone marked lead on.
+    // (the player came or went through it), the others the entrance rule alone marked lead on; one beside it is the same way in.
     private void SeparateEntrances()
     {
         var onEntrances = _portals.Where(p => p.OnEntranceTile && !p.Absent).ToList();
-        if (onEntrances.Count < 2 || !onEntrances.Any(p => p.Used && !p.WayInGuess)) return;
-        foreach (var portal in onEntrances.Where(p => p.WayInGuess))
+        var waysIn = onEntrances.Where(p => p.Used && !p.WayInGuess).ToList();
+        if (onEntrances.Count < 2 || waysIn.Count == 0) return;
+        foreach (var portal in onEntrances.Where(p => p.WayInGuess && waysIn.All(w => Distance(w.Position, p.Position) > UsedRadiusUnits)))
         {
             (portal.Used, portal.WayInGuess) = (false, false);
             _log?.Invoke($"PORTAL on another entrance tile: {portal.Name} at ({portal.Position.X:F1},{portal.Position.Y:F1}) leads on");

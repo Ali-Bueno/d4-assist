@@ -8,9 +8,18 @@ namespace D4Assist.Game;
 /// asks only for what the last read found. An end or an event stays known with the map closed: it is a time, right until it passes.
 /// </summary>
 /// <param name="read">One read of the table; null while no session is open.</param>
-public sealed class MapBountyWatch(Func<MapBounties?> read, Action<string>? log = null, Action<Action>? run = null, Func<DateTime>? now = null)
+/// <param name="canRead">True where the map shows the world's bounties (the open world); elsewhere the map is a dungeon's or a story area's and holds none.</param>
+public sealed class MapBountyWatch(
+    Func<MapBounties?> read, Action<string>? log = null, Action<Action>? run = null, Func<DateTime>? now = null, Func<bool>? canRead = null)
 {
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
+
+    /// <summary>The pins of a read this recent stand for the map just opened until its own read lands: a world boss listed only by its pin
+    /// would otherwise drop out for the read's 10 s.</summary>
+    public static readonly TimeSpan PinsKeptFor = TimeSpan.FromMinutes(5);
+
+    /// <summary>An end or an event this long past is forgotten.</summary>
+    public static readonly TimeSpan KeptAfter = TimeSpan.FromHours(1);
 
     /// <summary>An event object and its quest name the same spot to within this (live 2026-11-01: five of five under 5 units).</summary>
     public const float SameSpotUnits = 5f;
@@ -18,14 +27,20 @@ public sealed class MapBountyWatch(Func<MapBounties?> read, Action<string>? log 
     private readonly object _gate = new();
     private readonly Dictionary<int, DateTime> _ends = [];
     private readonly HashSet<MapEvent> _events = [];
-    private bool _busy, _open;
-    private DateTime _last;
+    private bool _busy, _open, _readSinceOpen;
+    private DateTime _last, _pinsRead;
     private IReadOnlySet<int> _pins = new HashSet<int>();
 
-    /// <summary>The pins of the last read since the map opened; empty before it is done, and with the map closed.</summary>
+    /// <summary>The pins of the last read: since the map opened, or one up to <see cref="PinsKeptFor"/> before it.</summary>
     public IReadOnlySet<int> Pins
     {
         get { lock (_gate) return _pins; }
+    }
+
+    /// <summary>True while the first read since the map opened runs.</summary>
+    public bool Reading
+    {
+        get { lock (_gate) return _busy && !_readSinceOpen; }
     }
 
     /// <summary>The whole minutes a quest's bounty has left, rounded up; null when its end isn't known or has passed.</summary>
@@ -64,8 +79,12 @@ public sealed class MapBountyWatch(Func<MapBounties?> read, Action<string>? log 
             if (mapOpen == _open && (!mapOpen || time - _last < Interval)) return;
             bool opened = mapOpen && !_open;
             _open = mapOpen;
-            if (!mapOpen || opened) _pins = new HashSet<int>();
-            if (!mapOpen || _busy) return;
+            if (opened)
+            {
+                _readSinceOpen = false;
+                if (time - _pinsRead > PinsKeptFor) _pins = new HashSet<int>();
+            }
+            if (!mapOpen || _busy || canRead?.Invoke() == false) return;
             (_busy, _last) = (true, time);
         }
         (run ?? (work => Task.Run(work)))(ReadOnce);
@@ -91,12 +110,15 @@ public sealed class MapBountyWatch(Func<MapBounties?> read, Action<string>? log 
         {
             _busy = false;
             if (held is null) return;
+            var forget = Now() - KeptAfter;
+            foreach (var quest in _ends.Where(e => e.Value < forget).Select(e => e.Key).ToList()) _ends.Remove(quest);
+            _events.RemoveWhere(e => e.Third < forget);
             foreach (var (quest, end) in held.Ends) _ends[quest] = end;
             foreach (var found in held.Events)
                 if (_events.Add(found)) log?.Invoke($"MAP EVENT at ({found.X:F0},{found.Y:F0}): warmup {found.Warmup:HH:mm:ss}, start {found.Start:HH:mm:ss}, third {found.Third:HH:mm:ss} UTC");
             if (!_open) return;
             if (!held.Pins.SetEquals(_pins)) log?.Invoke($"MAP BOUNTIES {held.Pins.Count} held, {held.Ends.Count} with an end: {string.Join(", ", held.Pins)}");
-            _pins = held.Pins;
+            (_pins, _pinsRead, _readSinceOpen) = (held.Pins, Now(), true);
         }
     }
 }

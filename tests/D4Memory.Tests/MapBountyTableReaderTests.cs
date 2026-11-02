@@ -77,6 +77,31 @@ public class MapBountyTableReaderTests
         Assert.DoesNotContain(memory.Reads, a => a < 0x20000);
     }
 
+    // The agent's review of PR #3: with no event about (most of the time) every read was a whole-heap scan, and each world's new
+    // session started from nothing.
+    [Fact]
+    public void With_no_event_known_the_whole_heap_waits_for_the_event_interval_across_readers()
+    {
+        var memory = new SpyReader();
+        memory.Inner.AddRegion(0x10000, Heap(), HeapType, HeapProtection);
+        var bytes = Heap((0x104, Carrowcrest));
+        WriteEnd(bytes, 0x400, Carrowcrest, Now.AddMinutes(30));
+        memory.Inner.AddRegion(0x20000, bytes, HeapType, HeapProtection);
+        var quests = new HashSet<int> { Carrowcrest };
+        var now = Now;
+        var scans = new MapBountyScanMemory();
+        new MapBountyTableReader(memory, () => now, scans).Read(quests);
+
+        memory.Reads.Clear();
+        now += TimeSpan.FromMinutes(1);
+        Assert.Contains(Carrowcrest, new MapBountyTableReader(memory, () => now, scans).Read(quests).Pins); // another world's session
+        Assert.DoesNotContain(memory.Reads, a => a < 0x20000);
+
+        now += MapBountyTableReader.EventScanInterval;
+        new MapBountyTableReader(memory, () => now, scans).Read(quests);
+        Assert.Contains(memory.Reads, a => a < 0x20000); // in case a legion came
+    }
+
     [Fact]
     public void It_reads_a_quests_end_beside_its_sno()
     {

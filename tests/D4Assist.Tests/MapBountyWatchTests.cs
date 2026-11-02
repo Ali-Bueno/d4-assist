@@ -16,13 +16,14 @@ public class MapBountyWatchTests
         public MapBounties? Result = Held(7);
         public DateTime Now = new(2026, 11, 1, 14, 0, 0);
         public Action? Pending;
+        public bool OpenWorld = true;
         public readonly MapBountyWatch Watch;
-        public Fixture() => Watch = new MapBountyWatch(() => { Reads++; return Result; }, run: work => Pending = work, now: () => Now);
+        public Fixture() => Watch = new MapBountyWatch(() => { Reads++; return Result; }, run: work => Pending = work, now: () => Now, canRead: () => OpenWorld);
         public void Finish() { Pending?.Invoke(); Pending = null; }
     }
 
     [Fact]
-    public void The_map_opening_starts_a_read_whose_pins_stay_until_it_closes()
+    public void The_map_opening_starts_a_read_while_which_it_says_it_is_reading()
     {
         var f = new Fixture();
         f.Watch.OnMenus([MenuScreens.MainMenu]);
@@ -30,11 +31,41 @@ public class MapBountyWatchTests
 
         f.Watch.OnMenus(MapOpen);
         Assert.Empty(f.Watch.Pins); // not done yet
+        Assert.True(f.Watch.Reading);
         f.Finish();
         Assert.Contains(7, f.Watch.Pins);
+        Assert.False(f.Watch.Reading);
+    }
 
+    // The agent's review of PR #3: a world boss listed only by its pin dropped out for the 10 s of each opening's read.
+    [Fact]
+    public void A_recent_reads_pins_stand_for_a_map_opened_again_until_its_own_read_lands()
+    {
+        var f = new Fixture();
+        f.Watch.OnMenus(MapOpen);
+        f.Finish();
         f.Watch.OnMenus([]);
-        Assert.Empty(f.Watch.Pins);
+
+        f.Now += MapBountyWatch.PinsKeptFor / 2;
+        f.Watch.OnMenus(MapOpen);
+        Assert.Contains(7, f.Watch.Pins);
+        f.Finish();
+        f.Watch.OnMenus([]);
+
+        f.Now += MapBountyWatch.PinsKeptFor * 2;
+        f.Watch.OnMenus(MapOpen);
+        Assert.Empty(f.Watch.Pins); // too old to stand for this one
+    }
+
+    [Fact]
+    public void A_dungeons_map_holds_no_bounties_and_is_not_read()
+    {
+        var f = new Fixture { OpenWorld = false };
+
+        f.Watch.OnMenus(MapOpen);
+
+        Assert.Null(f.Pending);
+        Assert.False(f.Watch.Reading); // an empty list there is no answer still to come
     }
 
     [Fact]

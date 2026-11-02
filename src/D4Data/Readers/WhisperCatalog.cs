@@ -36,8 +36,8 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
 
     /// <summary>The whispers to list now. A plain one while its world state puts it up. A legion only where the open map holds its pin
     /// (<paramref name="pins"/>, MapBountyTableReader). A world boss likewise, and, once one has a pin, also where its region's
-    /// <c>WE_Sanc_&lt;region&gt;</c> is set: of the two of 15:00 for 16:00 (live 2026-11-01), Dry Steppes and Skovos, the map's table held only the
-    /// first. That state alone won't do: it stays on the last boss until the next one's hour before (research/map-points.md §4b).</summary>
+    /// <c>WE_Sanc_&lt;region&gt;</c> is set: the table may pin one of its two places only, and the state alone stays on the last boss
+    /// (research/map-points.md §4b).</summary>
     public IReadOnlyList<Whisper> Listed(IReadOnlyDictionary<int, int> worldStates, IReadOnlySet<int> pins)
     {
         bool bossHeld = All.Any(w => w.Kind == WhisperKind.WorldBoss && pins.Contains(w.QuestSno));
@@ -49,9 +49,9 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
         })];
     }
 
-    /// <summary>The legions and world bosses up now, for <see cref="Listed"/>: where the client holds an event object (<paramref name="eventUp"/>, from its warmup until
-    /// shortly after its start). The map's pins don't do for a legion: they also keep past legions' places (live 2026-11-01 18:46: Aqueducts and Chakhir beside the
-    /// coming Dry Steppes, and not the coming Skovos one). A world boss's pin still counts: it goes when the boss falls (16:00:56, research/map-points.md §4b).</summary>
+    /// <summary>The legions and world bosses up now, for <see cref="Listed"/>: where the client holds an event object (<paramref name="eventUp"/>, from its
+    /// warmup until shortly after its start). A legion's pins keep past places and miss coming ones; a world boss's pin counts, as it goes when the boss
+    /// falls (research/map-points.md §4b).</summary>
     public IReadOnlySet<int> EventsUp(IReadOnlySet<int> pins, Func<Whisper, bool> eventUp) =>
         All.Where(w => w.Kind switch
         {
@@ -101,7 +101,8 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
     // "Bounty_WE_Tier3_Skov_Boss" -> the world state WE_Sanc_Skov; 0 when there is none.
     private int RegionEventState(string quest)
     {
-        string state = "WE_Sanc_" + quest.Split('_')[3];
+        if (quest.Split('_') is not { Length: > 3 } parts) return 0;
+        string state = "WE_Sanc_" + parts[3];
         return store.EntriesWithPrefix(schema.SnoGroup("WorldStateDefinition"), state).Where(e => e.Name == state).Select(e => e.Id).FirstOrDefault();
     }
 
@@ -126,8 +127,10 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
             p => schema.TypeName(file.U32(TypeAt(p))) is { } t ? schema.Size(t) : null);
         if (contents?.Where(c => schema.TypeName(file.U32(TypeAt(c))) == DefinitionTable).Select(c => (int?)c).FirstOrDefault() is not { } content)
             return favors;
+        // The name runs up to the header's gbid field, which the file leaves at -1: the id is hashed from the name.
+        int nameBytes = schema.Offset(Header, "gbid") - schema.Offset(Header, "szName");
         foreach (int entry in file.Array(content + schema.Offset(DefinitionTable, "tEntries"), schema.Size(Definition)))
-            favors[Gbid(file.InlineString(entry + schema.Offset(Definition, "tHeader") + schema.Offset(Header, "szName"), schema.Offset(Header, "gbid")))] =
+            favors[Gbid(file.InlineString(entry + schema.Offset(Definition, "tHeader") + schema.Offset(Header, "szName"), nameBytes))] =
                 file.I32(entry + schema.Offset(Definition, "dwBountyPoints"));
         return favors;
     }

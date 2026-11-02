@@ -539,7 +539,16 @@ a dungeon's markers after the player leaves it.
   (`ISpeechSink.Output`: PRISM's speech + braille; user request 2026-10-25). `Input/MapListKeys` registers Shift+F1 only while
   `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs
   `WAYPOINTS …` and `WAYPOINT jump <name> -> (x,y) …`. research/client-memory.md §4.
-- **Shift+F2** (keyboard, world map only) — the helltide list (user request 2026-10-25; with the waypoint list). First the
+- **Shift+F2** (keyboard, world map only) — the events menu (user request 2026-11-01): Helltide, Whispers, Events (legions and
+  world bosses); Enter opens an entry, Escape goes back a level. Whispers list nearest first with region, grim favors and minutes
+  left; events with the minutes to their start (`WhisperCatalog`, `MapBountyWatch` over `MapBountyTableReader`, research/map-points.md
+  §4b). The map's bounty table is read in the background as the map opens and every minute while it stays open, in the open world
+  only (a dungeon's map holds none); the heap is scanned whole only when nothing is where it was, every 2 minutes while no event is
+  known and every 5 otherwise, and where it was is kept across worlds (`MapBountyScanMemory`). An empty events list while that
+  first read runs says to try again in a moment; a read up to 5 minutes old stands in until it lands. Shift+F1 to Shift+F3 held
+  by another program are taken with Ctrl added (Ctrl+Shift+F2), said once a run (tester 2026-11-01: another program held
+  Shift+F2). A key whose read fails says it can't read and the app goes on. The Helltide entry is the helltide list
+  (user request 2026-10-25; with the waypoint list). First the
   helltides the server has active, from anywhere (user request 2026-10-27): the session's world states `UberSubzone` (base
   game, 1 Scosglen … 5 Dry Steppes) and `UberSubzone_Expansions` (1 Nahantu, 2 Skovos), read through `WorldStateReader`
   (`ActiveHelltides`), each as `region, N minutes left` (the base game's end five minutes before the hour before build 3.3, on the hour after;

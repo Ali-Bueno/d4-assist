@@ -620,6 +620,45 @@ public class WaypointListBridgeTests
         Assert.True(keys2.ListKeys);
     }
 
+    // The agent's review of PR #3: "no events" was said while the map's first read still ran.
+    [Fact]
+    public void No_event_yet_while_the_map_is_still_read_says_so()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [], eventsReading: () => true);
+        keys.OpenEvents();
+        keys.Down();
+        keys.Down();
+        keys.Enter();
+
+        Assert.Equal("Still reading the map's events; try again in a few seconds.", speech.Last);
+    }
+
+    // Tester 2026-11-01: another program held Shift+F2.
+    [Fact]
+    public void A_key_another_program_holds_is_said_with_the_one_to_use()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide);
+
+        keys.Taken("Shift+F2", "Ctrl+Shift+F2", true);
+        Assert.Equal("Another program holds Shift+F2; use Ctrl+Shift+F2.", speech.Last);
+
+        keys.Taken("Shift+F2", "Ctrl+Shift+F2", false);
+        Assert.Equal("Other programs hold Shift+F2 and Ctrl+Shift+F2; that list can't be opened.", speech.Last);
+    }
+
+    // Same review: a read that throws in a key's handler ended the app.
+    [Fact]
+    public void A_key_whose_read_fails_says_so_instead_of_throwing()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => throw new InvalidDataException("schema"));
+        keys.OpenEvents();
+        keys.Down();
+
+        keys.Enter();
+
+        Assert.Equal("Can't read what is up.", speech.Last);
+    }
+
     [Fact]
     public void Without_a_source_of_whispers_the_menu_holds_the_helltide_alone()
     {
@@ -633,7 +672,7 @@ public class WaypointListBridgeTests
         int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
         Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
         Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null,
-        Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null)
+        Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
@@ -642,7 +681,7 @@ public class WaypointListBridgeTests
             Catalog, w => w.LevelAreaName, _ => activated, readView ?? (() => view ?? FarOut), () => world, speech,
             new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
             helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { },
-            bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace, readWhispers: readWhispers);
+            bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace, readWhispers: readWhispers, eventsReading: eventsReading);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
@@ -661,6 +700,9 @@ public class WaypointListBridgeTests
         public event Action? DownPressed;
         public event Action? EnterPressed;
         public event Action? EscapePressed;
+        public event Action<string, string, bool>? OpenKeyTaken;
+
+        public void Taken(string key, string instead, bool taken) => OpenKeyTaken?.Invoke(key, instead, taken);
 
         // A key reaches the app only while it is registered, as with RegisterHotKey.
         public void Open() { if (OpenKey) OpenPressed?.Invoke(); }

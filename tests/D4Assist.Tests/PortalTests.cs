@@ -181,6 +181,30 @@ public class PortalTests
     }
 
     [Fact]
+    public void Two_entrance_tiles_without_a_seen_arrival_both_stay_the_way_in()
+    {
+        // Started mid-floor: neither portal is known to be the way in, so neither may be taken for the way on (an exit out).
+        var (feed, memory) = NewMemory(tilePortals: true);
+        feed.RaisePlayer(TilePortalAt.X + 200, TilePortalAt.Y + 200);
+        var entrance = HubTile with { Name = "ProtoDun_Crypt_N_Entrance_01" };
+
+        feed.RaiseTiles(entrance, entrance with { OriginX = 32 });
+
+        Assert.All(memory.Destinations(), d => Assert.Equal(1, d.Tier));
+    }
+
+    [Fact]
+    public void One_entrance_tile_keeps_its_portal_the_way_in_after_an_arrival_beside_it()
+    {
+        var (feed, memory) = NewMemory(tilePortals: true);
+        feed.RaisePlayer(TilePortalAt.X, TilePortalAt.Y + 5);
+
+        feed.RaiseTiles(HubTile with { Name = "ProtoDun_Crypt_N_Entrance_01" });
+
+        Assert.Equal(1, Assert.Single(memory.Destinations()).Tier);
+    }
+
+    [Fact]
     public void Restored_tiles_tell_the_boss_room_too()
     {
         var boss = new BossRoomDestination(new Feed(), _ => []);

@@ -535,7 +535,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     private MapBountyTableReader? _mapBounties;
 
-    public MapBounties? ReadMapBounties(IReadOnlySet<int> quests) => (_mapBounties ??= new MapBountyTableReader(_process)).Read(quests);
+    public MapBounties? ReadMapBounties(IReadOnlySet<int> quests, MapBountyScanMemory memory) =>
+        (_mapBounties ??= new MapBountyTableReader(_process, remembered: memory)).Read(quests);
 
     public IReadOnlyDictionary<int, int>? ReadWorldStates()
     {

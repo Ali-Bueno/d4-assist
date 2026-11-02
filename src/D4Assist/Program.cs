@@ -212,6 +212,8 @@ internal static class Program
             vessel => speech.Speak(VesselShown(vessel), interrupt: true),
             vessel => speech.Speak(string.Format(AppStrings.For(language.Current).VesselUsedFormat, VesselShown(vessel)), interrupt: true));
         session.ActorRewrite = ward.Apply;
+        var levelAreaWorlds = new LevelAreaWorlds(store.Name, name => WorldSnoOrNone(store, schema, name) != GameSession.NoWorldSno);
+        session.MarkerInWorld = (marker, world) => { lock (cascGate) return levelAreaWorlds.InWorld(marker.LevelAreaSno, world); };
         session.WorldChanged += (_, _, _) => ward.Reset();
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -434,14 +436,11 @@ internal static class Program
         if (guidePing is not null && routesEnabled)
         {
             var paths = OverworldPaths.FromGameData(store, schema, cascGate);
-            var levelAreaWorlds = new LevelAreaWorlds(store.Name, name => WorldSnoOrNone(store, schema, name) != GameSession.NoWorldSno);
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
                 session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
                 markers =>
                 {
-                    if (session.CurrentWorld?.Name is { } world)
-                        lock (cascGate) markers = [.. markers.Where(m => levelAreaWorlds.InWorld(m.LevelAreaSno, world))];
                     IReadOnlyList<int>? owned = null;
                     session.Query(r => owned = r.ReadOwnedQuests());
                     IReadOnlyDictionary<int, uint>? FindPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests)
@@ -478,14 +477,15 @@ internal static class Program
             var whispers = new WhisperCatalog(store, schema);
             var whisperQuests = new Lazy<IReadOnlySet<int>>(() =>
             {
-                lock (cascGate) return whispers.All.Select(w => w.QuestSno).ToHashSet(); // any pin says the table is where it was: no full scan between events
+                lock (cascGate) return whispers.All.Select(w => w.QuestSno).ToHashSet();
             });
+            var bountyScans = new D4Memory.Ui.MapBountyScanMemory(); // where the table was, across the worlds' sessions
             var mapBounties = new MapBountyWatch(() =>
             {
                 D4Memory.Ui.MapBounties? held = null;
-                session.Query(r => held = r.ReadMapBounties(whisperQuests.Value));
+                session.Query(r => held = r.ReadMapBounties(whisperQuests.Value, bountyScans));
                 return held;
-            }, debug ? Console.WriteLine : null);
+            }, debug ? Console.WriteLine : null, canRead: () => session.CurrentWorldKind == WorldKind.Overworld);
             HelltidePlace MarkerPlaceOfLocked(MarkedActor m)
             {
                 lock (cascGate) return MarkerPlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current));
@@ -532,16 +532,21 @@ internal static class Program
                     {
                         var held = whispers.EventsUp(mapBounties.Pins, w => mapBounties.EventIsUp(w.Position.X, w.Position.Y));
                         return whispers.Listed(states, held)
-                            .Select(w => new WhisperEvent(whispers.Name(w, locale),
-                                w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
-                                    ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
-                                w.Position.X, w.Position.Y, w.WorldSno, w.Favors,
-                                // A legion's bounty object ends at the daily reset, 10:00 UTC+1 (live 2026-11-01), which says nothing of the legion.
-                                w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion ? null : () => mapBounties.MinutesLeft(w.QuestSno), w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion,
-                                w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion ? () => whispers.MinutesToStart(w, o => mapBounties.MinutesToStart(o.Position.X, o.Position.Y)) : null))
+                            .Select(w =>
+                            {
+                                bool isEvent = w.Kind is WhisperKind.WorldBoss or WhisperKind.Legion;
+                                return new WhisperEvent(whispers.Name(w, locale),
+                                    w.Subzone is { } subzone && HelltideRegionOf(subzone) is { } region
+                                        ? HelltideRegionName(region, allWaypoints, town => waypointCatalog.Zone(town, locale)) : null,
+                                    w.Position.X, w.Position.Y, w.WorldSno, w.Favors,
+                                    // A legion's bounty object ends at the daily reset, 10:00 UTC+1 (live 2026-11-01), which says nothing of the legion.
+                                    isEvent ? null : () => mapBounties.MinutesLeft(w.QuestSno), isEvent,
+                                    isEvent ? () => whispers.MinutesToStart(w, o => mapBounties.MinutesToStart(o.Position.X, o.Position.Y)) : null);
+                            })
                             .ToList();
                     }
-                });
+                },
+                eventsReading: () => mapBounties.Reading);
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;

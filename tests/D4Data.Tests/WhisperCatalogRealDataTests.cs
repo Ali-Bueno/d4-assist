@@ -85,7 +85,7 @@ public class WhisperCatalogRealDataTests
         states[skov.RegionEventStateSno] = 3;
         IReadOnlyDictionary<int, int> read = states;
 
-        Assert.Empty(catalog.Listed(read, new HashSet<int>()).Where(w => w.Kind == WhisperKind.WorldBoss)); // the last boss's state, no pin
+        Assert.DoesNotContain(catalog.Listed(read, new HashSet<int>()), w => w.Kind == WhisperKind.WorldBoss); // the last boss's state, no pin
         var listed = catalog.Listed(read, new HashSet<int> { step.QuestSno }).Where(w => w.Kind == WhisperKind.WorldBoss).Select(w => w.QuestName);
         Assert.Equal(["Bounty_WE_Tier3_Skov_Boss", "Bounty_WE_Tier3_Step_Boss"], listed.Order());
     });

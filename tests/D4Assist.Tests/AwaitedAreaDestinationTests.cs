@@ -115,6 +115,30 @@ public class AwaitedAreaDestinationTests
         Assert.Equal(3, places.Destinations(Awaited).Count);
     }
 
+    // The agent's review of PR #3: each spot an escort walked through became a destination of its own.
+    [Fact]
+    public void A_character_walking_through_the_area_is_one_place_where_it_stands_now()
+    {
+        var places = Create();
+        places.OnMarkers([Boss]);
+        places.OnMarkers([Boss with { X = Boss.X + 10 }]);
+        places.OnMarkers([Boss with { X = Boss.X + 20 }]);
+
+        Assert.Equal((Boss.X + 20, Boss.Y), Assert.Single(places.Destinations(Awaited)).Position);
+    }
+
+    // Same review: a character reached by the door left nothing to lead to, though the map marked the boss.
+    [Fact]
+    public void Once_the_characters_are_reached_the_monster_leads()
+    {
+        var places = Create();
+        var monster = Boss with { ActorSno = 7, X = 0, Y = 0, Kind = MapMarkerReader.KindBoss };
+        places.OnMarkers([monster, Boss, Player(-555, -464)]);
+        places.OnMarkers([monster, Boss, Player(-500, -464)]);
+
+        Assert.Equal((0f, 0f), Assert.Single(places.Destinations(Awaited)).Position);
+    }
+
     [Fact]
     public void A_new_world_forgets_the_markers()
     {

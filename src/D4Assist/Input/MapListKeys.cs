@@ -19,17 +19,22 @@ public interface IMapListKeys
     event Action? DownPressed;
     event Action? EnterPressed;
     event Action? EscapePressed;
+
+    /// <summary>Once a run, an opening key another program holds (tester 2026-11-01: Shift+F2): the key, the one tried instead
+    /// (Ctrl added), and whether that one is this app's now.</summary>
+    event Action<string, string, bool>? OpenKeyTaken;
 }
 
 /// <summary>
 /// <see cref="IMapListKeys"/> with Win32 RegisterHotKey on a private message-loop thread (as <see cref="GlobalHotkeys"/>).
 /// A registered key goes to this app alone, so each is registered only while it means something here: Shift+F1 to Shift+F3
-/// while the map is open, the list keys while a list is.
+/// while the map is open and something listens to it, the list keys while a list is. An opening key another program holds is
+/// taken with Ctrl added.
 /// </summary>
 public sealed class MapListKeys : IMapListKeys, IDisposable
 {
-    // winuser.h: MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; VK_F1 to VK_F3, VK_UP, VK_DOWN, VK_RETURN, VK_ESCAPE.
-    private const uint ModShift = 0x4, ModNoRepeat = 0x4000;
+    // winuser.h: MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; VK_F1 to VK_F3, VK_UP, VK_DOWN, VK_RETURN, VK_ESCAPE.
+    private const uint ModControl = 0x2, ModShift = 0x4, ModNoRepeat = 0x4000;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetOpenKey = 0x8001, WmSetListKeys = 0x8002;
     private const uint VkF1 = 0x70, VkF2 = 0x71, VkF3 = 0x72, VkUp = 0x26, VkDown = 0x28, VkReturn = 0x0D, VkEscape = 0x1B;
     private const int OpenId = 200, UpId = 201, DownId = 202, EnterId = 203, EscapeId = 204, OpenEventsId = 205, OpenGoblinsId = 206;
@@ -50,6 +55,7 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
     public event Action? DownPressed;
     public event Action? EnterPressed;
     public event Action? EscapePressed;
+    public event Action<string, string, bool>? OpenKeyTaken;
 
     public void Start()
     {
@@ -82,9 +88,9 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
                     openKey = message.WParam != 0;
                     if (openKey)
                     {
-                        Register(OpenId, ModShift | ModNoRepeat, VkF1, "Shift+F1");
-                        Register(OpenEventsId, ModShift | ModNoRepeat, VkF2, "Shift+F2");
-                        Register(OpenGoblinsId, ModShift | ModNoRepeat, VkF3, "Shift+F3");
+                        if (OpenPressed is not null) RegisterOpen(OpenId, VkF1, "Shift+F1");
+                        if (OpenEventsPressed is not null) RegisterOpen(OpenEventsId, VkF2, "Shift+F2");
+                        if (OpenGoblinsPressed is not null) RegisterOpen(OpenGoblinsId, VkF3, "Shift+F3");
                     }
                     else
                     {
@@ -118,6 +124,17 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
         if (!RegisterHotKey(IntPtr.Zero, id, modifiers, key) && _taken.Add(name)) _log?.Invoke($"WAYPOINTS {name} is taken by another program.");
     }
 
+    // Unregistered by id whichever of the two was taken.
+    private void RegisterOpen(int id, uint key, string name)
+    {
+        if (RegisterHotKey(IntPtr.Zero, id, ModShift | ModNoRepeat, key)) return;
+        string instead = "Ctrl+" + name;
+        bool taken = RegisterHotKey(IntPtr.Zero, id, ModControl | ModShift | ModNoRepeat, key);
+        if (!_taken.Add(name)) return;
+        _log?.Invoke($"WAYPOINTS {name} is taken by another program; {instead} {(taken ? "instead" : "is taken too")}.");
+        OpenKeyTaken?.Invoke(name, instead, taken);
+    }
+
     private void Raise(int id)
     {
         var handler = id switch
@@ -131,7 +148,9 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
             EscapeId => EscapePressed,
             _ => null,
         };
-        handler?.Invoke();
+        // A handler reads the game; one that throws must not end the app on this thread.
+        try { handler?.Invoke(); }
+        catch (Exception e) { _log?.Invoke($"WAYPOINTS key {id} failed: {e}"); }
     }
 
     public void Dispose()

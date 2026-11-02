@@ -45,6 +45,7 @@ namespace D4Assist.Game;
 /// <param name="goblinPlace">A map marker as a treasure goblin the map shows the player now (GoblinWatch: name, level area, area),
 /// null for any other marker; null for no goblin list (Shift+F3, user request 2026-10-29).</param>
 /// <param name="readWhispers">The whispers up now; null when the world states are unreadable. Null for no whispers' entry in the events menu.</param>
+/// <param name="eventsReading">True while the map's first read since it opened still runs (MapBountyWatch.Reading): no event listed yet is no answer.</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
@@ -52,7 +53,7 @@ public sealed class WaypointListBridge(
     Func<MarkedActor, HelltidePlace?>? helltidePlace = null, Func<IReadOnlyList<HelltideRegion>?>? readHelltides = null,
     Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null, bool helltideEndsEarly = false,
     Func<HelltideRegion, IReadOnlyList<(string Name, double X, double Y)>>? bountiesOf = null,
-    Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null)
+    Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
@@ -82,14 +83,27 @@ public sealed class WaypointListBridge(
     /// <summary>Hooks the keys; call once.</summary>
     public void Start()
     {
-        keys.OpenPressed += Open;
-        if (helltidePlace is not null) keys.OpenEventsPressed += OpenEvents;
-        if (goblinPlace is not null) keys.OpenGoblinsPressed += OpenGoblins;
-        keys.UpPressed += () => Move(_list.Previous, -1);
-        keys.DownPressed += () => Move(_list.Next, 1);
-        keys.EnterPressed += Choose;
-        keys.EscapePressed += Back;
+        keys.OpenPressed += Guarded(Open);
+        if (helltidePlace is not null) keys.OpenEventsPressed += Guarded(OpenEvents);
+        if (goblinPlace is not null) keys.OpenGoblinsPressed += Guarded(OpenGoblins);
+        keys.UpPressed += Guarded(() => Move(_list.Previous, -1));
+        keys.DownPressed += Guarded(() => Move(_list.Next, 1));
+        keys.EnterPressed += Guarded(Choose);
+        keys.EscapePressed += Guarded(Back);
+        keys.OpenKeyTaken += (key, instead, taken) =>
+            speech.Output(string.Format(taken ? EventText.KeyTakenFormat : EventText.KeysTakenFormat, key, instead), interrupt: false);
     }
+
+    // A key reads the game and its data: one that fails after a game update says so and leaves the list as it was.
+    private Action Guarded(Action key) => () =>
+    {
+        try { key(); }
+        catch (Exception e)
+        {
+            log?.Invoke($"WAYPOINTS key failed: {e}");
+            speech.Output(EventText.Unreadable, interrupt: true);
+        }
+    };
 
     /// <summary>Closes the list and forgets the player's spot: both belong to the world left.</summary>
     public void OnWorldChanged()
@@ -220,7 +234,7 @@ public sealed class WaypointListBridge(
         whispers = [.. whispers.Where(w => w.IsEvent == events)];
         if (whispers.Count == 0)
         {
-            speech.Output(events ? text.NoEvents : text.NoWhispers, interrupt: true);
+            speech.Output(!events ? text.NoWhispers : eventsReading?.Invoke() == true ? text.EventsReading : text.NoEvents, interrupt: true);
             return;
         }
         // Their spots lie in the open world: from inside a dungeon the player's own spot says nothing, so the map's center counts.
@@ -386,8 +400,10 @@ public sealed class WaypointListBridge(
             }
             // Helltide objects and goblins are small icons the cursor can point at only zoomed in.
             float farthestZoom = _mode switch { Mode.Objects or Mode.Goblins => HelltideMaxZoom, Mode.Whispers => WhisperMaxZoom, _ => MapProjection.MaxZoom };
-            // A whisper may lie anywhere: zooming out brings it into view when the map is only zoomed in too far.
-            if (_mode == Mode.Whispers && MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is null)
+            // A whisper may lie anywhere: zooming out brings it into view when the map is only zoomed in too far; one out of view
+            // even zoomed out all the way leaves the zoom alone and says its direction (below).
+            if (_mode == Mode.Whispers && MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is null
+                && MapProjection.ToClient(view with { Zoom = WhisperMaxZoom }, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not null)
                 view = ZoomOut(entry, view, size);
             if (view.Zoom > farthestZoom)
             {

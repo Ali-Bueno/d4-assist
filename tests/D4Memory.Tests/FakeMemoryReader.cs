@@ -9,7 +9,7 @@ public sealed class FakeMemoryReader : IMemoryReader
 
     public void AddRegion(long address, byte[] data, uint type = 0, uint protection = 0) => _regions.Add((address, data, type, protection));
 
-    public IReadOnlyList<MemoryRegion> Regions() => _regions.Select(r => new MemoryRegion(r.Address, r.Data.Length, r.Type, Protection: r.Protection)).ToList();
+    public IReadOnlyList<MemoryRegion> Regions() => _regions.Select(r => new MemoryRegion(r.Address, r.Data.Length, r.Type, AllocationBase: r.Address, Protection: r.Protection)).ToList();
 
     public bool TryRead(long address, byte[] buffer, int count)
     {

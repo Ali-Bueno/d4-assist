@@ -60,6 +60,14 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
 - **Projection checked on the gifts (H, screenshot at zoom 1100, 1920×1080):** all nine gifts, drawn as small white dots in the
   helltide's red area, lay within 1–2 px of `MapProjection.ToClient`. The game said a gift under the cursor at zoom 1100, not
   at 1934 or 3046 (the two farthest steps): there the dots are no hover target.
+- **A target next to the player (tester log 2026-11-01, ROG Xbox Ally at 1280×720, 0.1.29):** a tortured gift 30 units
+  from the player sat 13 px from the map's middle (the player's icon) at zoom 1134; the game said the gift, then the cursor
+  "bounced right back" to the player, sometimes not. The pixel distance between two points is d · 732 / zoom (at 1080 px),
+  so the cursor's target now stays 48 px (1080) from the player's icon: the wheel zooms on (1100 → 417.6 → 125.6) while
+  that helps. The same log: 300 ms after a notch the map still read 1967 on its way to 1934, and 1134 for 1100: the map
+  eases to a new zoom, slower at a handheld's frame rate, so each notch now waits until two reads 50 ms apart agree
+  (`WaypointListBridge.Settled`). Not live-tested; whether the game's cursor snaps to the nearer icon or the pad's next
+  input hands the map back to the gamepad's centred reticle is not known.
 - **The map shows the world boss's countdown** at its top left ("Weltboss: 17 Min. 9 Sek."); the HUD shows the helltide's
   ("Höllenflut: 5:57").
 - **Area names (H):** `SubzoneDefinition.snoTerritory` names the helltide's area: `Territory_Hawe_Wetland` "Auen von Fethis",

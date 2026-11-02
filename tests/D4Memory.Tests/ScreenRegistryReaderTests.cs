@@ -86,6 +86,74 @@ public class ScreenRegistryReaderTests
     }
 
     [Fact]
+    public void Locate_names_the_allocation_that_held_the_registry()
+    {
+        var memory = new FakeMemoryReader();
+        var table = new byte[0x1000];
+        Entry(table, 0x100, MenuScreens.MainMenu, RecordRegion);
+        memory.AddRegion(TableRegion, table, Private, ReadWrite);
+        memory.AddRegion(RecordRegion, Record(open: false), Private, ReadWrite);
+
+        var result = ScreenRegistryReader.Locate(memory, [MenuScreens.MainMenu], Module, null, null, CancellationToken.None);
+
+        Assert.Equal(RecordRegion, result.Records[MenuScreens.MainMenu]);
+        Assert.Equal([TableRegion], result.Homes);
+        Assert.False(result.FromHomes);
+    }
+
+    // Tester 2026-11-01, a handheld: whole-heap scans grew past a minute; the registry stays where it was found.
+    [Fact]
+    public void Locate_reads_only_the_homes_when_they_hold_every_name()
+    {
+        var inner = new FakeMemoryReader();
+        var table = new byte[0x1000];
+        Entry(table, 0x100, MenuScreens.MainMenu, RecordRegion);
+        inner.AddRegion(LaterRegion, new byte[0x1000], Private, ReadWrite); // the rest of the heap, first by address
+        inner.AddRegion(TableRegion, table, Private, ReadWrite);
+        inner.AddRegion(RecordRegion, Record(open: false), Private, ReadWrite);
+        var memory = new SpyReader(inner);
+
+        var result = ScreenRegistryReader.Locate(memory, [MenuScreens.MainMenu], Module, null, new HashSet<long> { TableRegion },
+            CancellationToken.None);
+
+        Assert.True(result.FromHomes);
+        Assert.Equal(RecordRegion, result.Records[MenuScreens.MainMenu]);
+        Assert.DoesNotContain(LaterRegion, memory.ReadAddresses);
+    }
+
+    [Fact]
+    public void Locate_scans_the_rest_of_the_heap_for_a_name_the_homes_lack()
+    {
+        var memory = new FakeMemoryReader();
+        var table = new byte[0x1000];
+        Entry(table, 0x100, MenuScreens.MainMenu, RecordRegion);
+        memory.AddRegion(LaterRegion, new byte[0x1000], Private, ReadWrite); // an old home, empty now
+        memory.AddRegion(TableRegion, table, Private, ReadWrite);
+        memory.AddRegion(RecordRegion, Record(open: false), Private, ReadWrite);
+
+        var result = ScreenRegistryReader.Locate(memory, [MenuScreens.MainMenu], Module, null, new HashSet<long> { LaterRegion },
+            CancellationToken.None);
+
+        Assert.False(result.FromHomes);
+        Assert.Equal(RecordRegion, result.Records[MenuScreens.MainMenu]);
+    }
+
+    [Fact]
+    public void A_cancelled_Locate_reads_nothing()
+    {
+        var inner = new FakeMemoryReader();
+        var table = new byte[0x1000];
+        Entry(table, 0x100, MenuScreens.MainMenu, RecordRegion);
+        inner.AddRegion(TableRegion, table, Private, ReadWrite);
+        var memory = new SpyReader(inner);
+
+        var result = ScreenRegistryReader.Locate(memory, [MenuScreens.MainMenu], Module, null, null, new CancellationToken(canceled: true));
+
+        Assert.Empty(result.Records);
+        Assert.Empty(memory.ReadAddresses);
+    }
+
+    [Fact]
     public void TryReadOpen_ReportsTheFlagAndRejectsAForeignRecord()
     {
         var memory = new FakeMemoryReader();

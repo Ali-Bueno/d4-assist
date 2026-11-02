@@ -279,7 +279,11 @@ room announcements. A closed door does not register as an obstacle yet.
   character panel, main menu, signs, Horadric shipments, vendor, artisans, stash (seen live), every other side panel and the
   full menus opened on purpose. `--debug` logs `MENU open: <screen>`. `MenuScreenTracker` locates the screen
   records by a background scan and retries after a miss; every scan logs `MENU located N/M screens in T ms` (no `--debug`
-  needed: after a return to character select a tester's log showed only the self-check failure). After the NPC interaction menu (`screen_InteractPopup`) closes,
+  needed: after a return to character select a tester's log showed only the self-check failure), `where they were` when the
+  allocations an earlier scan found the registry in held every screen (those are read first, the rest of the heap only for
+  screens still missing), and `MENU scan dropped after T ms` when a world change or a long-open menu made it pointless (it is
+  cancelled then). On a handheld whole-heap scans grew from 0.6 s to over a minute in an hour of play and the menus were
+  lost after a world change (tester 2026-11-01). After the NPC interaction menu (`screen_InteractPopup`) closes,
   the mute holds 3 s more: a scene picked there can open with music 1.7 s before its conversation shows up (live
   2026-09-30). The conversation mute takes over if one starts.
 
@@ -515,10 +519,11 @@ a dungeon's markers after the player leaves it.
   product)|disconnected`, and per connection `first input` (any state change, sticks included) and `first buttons 0x…`: a
   ROG Xbox Ally's slot 0 connected and reported neither in a whole prologue, tester 2026-11-01); the game still receives every press. PlayStation pads never reach XInput, so
   `Input/HidPad` reads their HID input reports, and every other gamepad's hat switch (`HatSwitch`, via `HidP_GetUsageValue`):
-  in the Xbox full screen experience XInput gives a background app no buttons, while an Xbox pad's HID side still reports
-  (ROG Xbox Ally, tester 2026-11-01: desktop mode worked). Shared, read-only handles; rescans every 3 s for pads plugged in
-  later; samples each pad's last state every 16 ms; logs `Pad: … connected (hat min-max)`, `first D-pad left`, a pad with no
-  hat switch, or why it can't open one and `Input/CombinedPad` drops a second copy of the same
+  in the Xbox full screen experience XInput gives a background app no buttons (ROG Xbox Ally, tester 2026-11-01: desktop mode
+  worked), and the Ally's HID side (0x0B05:0x1B4C, hat 1-8) connected there but never reported D-pad left (0.1.29, tester
+  2026-11-01). Shared, read-only handles; rescans every 3 s for pads plugged in later; samples each pad's last state every
+  16 ms; logs `Pad: … connected (hat min-max)`, per connection `first report: N bytes, id N, hat N|none` and `hat moved to N` (a hat that never
+  moves vs a pad that sends nothing), `first D-pad left`, a pad with no hat switch, or why it can't open one and `Input/CombinedPad` drops a second copy of the same
   press within 200 ms (Steam Input / DS4Windows also expose the pad as a virtual Xbox pad). Not saved to `d4assist.json`.
 - **Ctrl+Alt+Shift+1..8** (keyboard, while the game is in front) — sound examples, e.g. for a video without a fight's noise (user request
   2026-09-29): the name is spoken, then 1 exit, 2 open floor, 3 wall, 4 door, 5 unexplored exit (radar cues, once per

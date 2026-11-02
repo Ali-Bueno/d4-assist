@@ -114,14 +114,14 @@ public class WaypointListBridgeTests
         var view = new MapView(681.64f, -410.26f, MapProjection.MaxZoom);
         var (bridge, keys, speech, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide);
         mouse.Scrolled = notches => view = view with { Zoom = view.Zoom == MapProjection.MaxZoom ? 1934f : 1100f };
-        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 781, -410, 0, 1, 11)]);
 
         keys.OpenHelltide();
         keys.Enter();
 
         Assert.Equal([1, 1], mouse.Notches);
         Assert.Equal(1100f, view.Zoom);
-        Assert.Equal(MapProjection.ToClient(view, 700, -410, 1920, 1080), mouse.Moved);
+        Assert.Equal(MapProjection.ToClient(view, 781, -410, 1920, 1080), mouse.Moved);
         Assert.StartsWith("Cursor on Tortured Gift of Mysteries", speech.Last);
         Assert.False(keys.ListKeys);
     }
@@ -132,7 +132,7 @@ public class WaypointListBridgeTests
         var view = new MapView(681.64f, -410.26f, 1934f);
         var (bridge, keys, _, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide);
         mouse.Scrolled = notches => view = view with { Zoom = notches > 0 ? MapProjection.MaxZoom : 1100f };
-        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 781, -410, 0, 1, 11)]);
 
         keys.OpenHelltide();
         keys.Enter();
@@ -140,6 +140,64 @@ public class WaypointListBridgeTests
         Assert.Equal([1, -1], mouse.Notches);
         Assert.Equal(1100f, view.Zoom);
         Assert.NotNull(mouse.Moved);
+    }
+
+    // Tester 2026-11-01 (720p): a gift 30 units off lay 13 px from the player's icon at zoom 1134, and the game's cursor went
+    // back to the player. The wheel zooms on until they part (the steps below 1100 are 417.6 and 125.6).
+    [Fact]
+    public void A_target_under_the_players_icon_zooms_in_until_they_part()
+    {
+        var view = new MapView(681.64f, -410.26f, 1100f);
+        var (bridge, keys, speech, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide);
+        mouse.Scrolled = notches => view = view with { Zoom = view.Zoom == 1100f ? 417.6f : 125.6f };
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]); // 18 units off
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Equal([1, 1], mouse.Notches);
+        Assert.Equal(MapProjection.ToClient(view, 700, -410, 1920, 1080), mouse.Moved);
+        Assert.StartsWith("Cursor on Tortured Gift of Mysteries", speech.Last);
+    }
+
+    [Fact]
+    public void A_target_no_zoom_can_part_from_the_player_is_pointed_at_as_it_is()
+    {
+        var view = new MapView(681.64f, -410.26f, 1100f);
+        var (bridge, keys, _, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 684, -410, 0, 1, 11)]); // 2 units off: the player stands at it
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Empty(mouse.Notches);
+        Assert.Equal(MapProjection.ToClient(view, 684, -410, 1920, 1080), mouse.Moved);
+    }
+
+    // On a handheld the map still read 1967 on its way to 1934 300 ms after a notch (tester 2026-11-01).
+    [Fact]
+    public void Each_notch_waits_until_the_map_has_eased_to_its_new_zoom()
+    {
+        var view = new MapView(681.64f, -410.26f, MapProjection.MaxZoom);
+        var easing = new Queue<float>();
+        var (bridge, keys, _, mouse) = Create([GeaKul], readView: () =>
+        {
+            if (easing.Count > 0) view = view with { Zoom = easing.Dequeue() };
+            return view;
+        }, helltidePlace: Helltide);
+        mouse.Scrolled = _ =>
+        {
+            float[] steps = view.Zoom > 2000f ? [MapProjection.MaxZoom, 2400f, 1967f, 1940f, 1934f] : [1700f, 1134f, 1104f, 1100f];
+            foreach (float step in steps) easing.Enqueue(step);
+        };
+        bridge.OnMapMarkers([new MarkedActor(Gift, 781, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Equal([1, 1], mouse.Notches);
+        Assert.Equal(1100f, view.Zoom);
+        Assert.Equal(MapProjection.ToClient(view, 781, -410, 1920, 1080), mouse.Moved);
     }
 
     [Fact]
@@ -554,7 +612,7 @@ public class WaypointListBridgeTests
     [Fact]
     public void Enter_puts_the_cursor_on_a_whisper_in_view_without_touching_the_zoom()
     {
-        var view = new MapView(681.64f, -410.26f, 1100f);
+        var view = new MapView(681.64f, -410.26f, 200f); // close enough in that the whisper lies clear of the player's icon
         var (_, keys, speech, mouse) = Create([GeaKul], view: view, helltidePlace: Helltide, readWhispers: () => [NearWhisper]);
 
         keys.OpenEvents();

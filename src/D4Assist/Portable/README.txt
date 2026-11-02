@@ -182,9 +182,8 @@ you can learn them: exit, open floor, wall, door, unexplored exit, quest
 sound, guide ping and arrival.
 
 Left on the D-pad turns the guide on and off in dungeons (Xbox controllers,
-PlayStation's DualSense or DualShock 4, and other gamepads, including the ROG
-Xbox Ally in its full screen mode); it acts when you let go of the
-button, and holding it for a second switches between objectives and exploring
+PlayStation's DualSense or DualShock 4, and other gamepads); it acts when you
+let go of the button, and holding it for a second switches between objectives and exploring
 instead. Outside dungeons it leads to the
 nearest place your quest marks on the map and says the quest and how far;
 press it again for the next place, and after the last one it turns off. In the
@@ -227,6 +226,12 @@ If you open the program in the middle of a dungeon, the first room it
 announces is called the entrance even if it isn't. I've tried to give a sound
 to everything that needs one, but some things might still be missing it. If
 you find one, let me know.
+
+On a ROG Xbox Ally in the Xbox full screen experience, the handheld's own
+buttons don't reach the program, so left on its D-pad does nothing (an
+external controller works, and so does the handheld in desktop mode). Map one
+of its back buttons to Ctrl+Alt+Shift+G instead, and another to
+Ctrl+Alt+Shift+E if you want to switch the guide's mode.
 
 
 If something's not working

@@ -152,6 +152,10 @@ If you open the program in the middle of a dungeon, the first room it announces 
 I've tried to give a sound to everything that needs one, but some things might still be missing it. If you find one, let
 me know.
 
+On a ROG Xbox Ally in the Xbox full screen experience, the handheld's own buttons don't reach the program, so left on its
+D-pad does nothing (an external controller works, and so does the handheld in desktop mode). Map one of its back buttons
+to Ctrl+Alt+Shift+G instead, and another to Ctrl+Alt+Shift+E if you want to switch the guide's mode.
+
 ## If something's not working
 
 The program saves a log next to it, `d4assist-log.txt` (and the one before as `d4assist-log.old.txt`). Close the

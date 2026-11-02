@@ -22,7 +22,8 @@ namespace D4Assist.Game;
 /// the player is in the helltide's area outside a town (live 2026-10-25, Hawezar), so without them the list asks to go there.
 /// The helltide's bounties the map marks from anywhere list at once: the Blood Maiden ("Tötet die Blutjungfrau", user request
 /// 2026-10-27) and the others up in the rotation (cultists, rituals, tortured gifts…, user request 2026-10-29).
-/// Enter on an object zooms the map in with the wheel until the cursor can point at it (user request 2026-10-27). Without
+/// Enter on an object zooms the map in with the wheel until the cursor can point at it (user request 2026-10-27), and on while
+/// any target lies under the player's own icon (tester 2026-11-01). Without
 /// readable world states the helltide entry opens the objects at once.
 /// </summary>
 /// <param name="waypoints">Every waypoint of the game (WaypointCatalog.All).</param>
@@ -77,8 +78,16 @@ public sealed class WaypointListBridge(
     // How far out the game still names a whisper under the cursor is not measured yet: no limit until the live test says otherwise.
     private const float WhisperMaxZoom = MapProjection.MaxZoom;
 
-    // The wheel zooms the map a step per notch (3046 → 1934 → 1100 …); the map takes a moment to settle on the new zoom.
-    private const int MaxZoomSteps = 4, ZoomSettleMs = 300;
+    // The wheel zooms the map a step per notch (3046 → 1934 → 1100 …), easing over several frames: on a handheld it still read
+    // 1967 on its way to 1934 300 ms after a notch (tester 2026-11-01). Each notch waits until two reads in a row agree.
+    private const int MaxZoomSteps = 4, ZoomPollMs = 50, ZoomSettleMs = 1000;
+    private const float SettledWithin = 1f;
+
+    // The cursor's target stays this far (pixels at 1080 px) from the player's own icon: a tortured gift 30 units off lay 13 px
+    // from it (zoom 1134, 720p) and the game's cursor went back to the player (tester 2026-11-01). The closest zoom step is
+    // 125.6 (research/client-memory.md, world map view); a target nearer than that step can part is pointed at as it is.
+    private const double PlayerIconClearance = 48;
+    private const float ClosestZoom = 125.6f;
 
     /// <summary>Hooks the keys; call once.</summary>
     public void Start()
@@ -415,6 +424,7 @@ public sealed class WaypointListBridge(
                 }
                 view = zoomed;
             }
+            view = ClearOfPlayer(entry, view, size);
             if (MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not { } pixel)
             {
                 log?.Invoke($"WAYPOINT {entry.Name} off the map view (center {view.CenterX:F0},{view.CenterY:F0} zoom {view.Zoom:F0})");
@@ -471,25 +481,72 @@ public sealed class WaypointListBridge(
         return zoomed;
     }
 
+    // A target next to the player shares its icon on the map: the wheel zooms in until they lie PlayerIconClearance apart, and
+    // back out a step should the target leave the view.
+    private MapView ClearOfPlayer(WaypointEntry entry, MapView view, (int Width, int Height) size)
+    {
+        if (_player is not { } player) return view;
+        double apart = Math.Sqrt(Math.Pow(entry.X - player.X, 2) + Math.Pow(entry.Y - player.Y, 2));
+        bool Clear(MapView v) => apart * MapProjection.ScaleAtReference / v.Zoom >= PlayerIconClearance;
+        bool InView(MapView v) => MapProjection.ToClient(v, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not null;
+        if (Clear(view) || !Clear(view with { Zoom = ClosestZoom }) || !InView(view)) return view;
+        log?.Invoke($"WAYPOINT {entry.Name}: {apart:F0} units from the player, under its icon at zoom {view.Zoom:F0}");
+        Zoom(entry, view, size, inward: true, v => Clear(v) || !InView(v) || v.Zoom <= ClosestZoom + SettledWithin, out var zoomed);
+        if (!InView(zoomed)) Zoom(entry, zoomed, size, inward: false, InView, out zoomed);
+        return zoomed;
+    }
+
     private bool Zoom(WaypointEntry entry, MapView view, (int Width, int Height) size, bool inward, Func<MapView, bool> done, out MapView zoomed)
     {
         zoomed = view;
         if (done(view)) return true;
         int notch = inward ? 1 : -1;
         bool reversed = false;
+        int unchanged = 0;
         for (int step = 0; step < MaxZoomSteps; step++)
         {
-            if (MapProjection.ToClient(zoomed, entry.X, entry.Y, size.Width, size.Height, TargetInset) is { } pixel) mouse.MoveTo(pixel.X, pixel.Y);
-            if (!mouse.Scroll(notch)) return false;
-            (wait ?? Thread.Sleep)(ZoomSettleMs);
-            if (readMapView() is not { } next) return false;
+            // On the target, in case the map zooms about the cursor; else on the map's middle, away from its bars.
+            if ((MapProjection.ToClient(zoomed, entry.X, entry.Y, size.Width, size.Height, TargetInset)
+                    ?? MapProjection.ToClient(zoomed, zoomed.CenterX, zoomed.CenterY, size.Width, size.Height)) is { } pixel)
+                mouse.MoveTo(pixel.X, pixel.Y);
+            if (!mouse.Scroll(notch))
+            {
+                log?.Invoke($"WAYPOINT zoom stopped at {zoomed.Zoom:F0}: the game is not in front");
+                return false;
+            }
+            if (Settled(zoomed) is not { } next)
+            {
+                log?.Invoke($"WAYPOINT zoom stopped at {zoomed.Zoom:F0}: the map is unreadable");
+                return false;
+            }
             log?.Invoke($"WAYPOINT zoom {zoomed.Zoom:F0} -> {next.Zoom:F0} (wheel {notch:+0;-0})");
+            // A notch the map ignored twice running won't be taken (the closest or farthest step, or a cursor off the map).
+            if (next == zoomed && ++unchanged == 2) break;
+            if (next != zoomed) unchanged = 0;
             bool wrongWay = inward ? next.Zoom > zoomed.Zoom : next.Zoom < zoomed.Zoom;
             if (wrongWay && !reversed) (notch, reversed) = (-notch, true);
             zoomed = next;
             if (done(zoomed)) return true;
         }
+        log?.Invoke($"WAYPOINT zoom gave up at {zoomed.Zoom:F0}");
         return false;
+    }
+
+    // The view once the map has eased to the zoom a notch asked for: two reads in a row that agree on a changed view, or the last
+    // read when the time is up; null when the map is unreadable.
+    private MapView? Settled(MapView before)
+    {
+        MapView? last = null;
+        for (int waited = 0; waited < ZoomSettleMs; waited += ZoomPollMs)
+        {
+            (wait ?? Thread.Sleep)(ZoomPollMs);
+            if (readMapView() is not { } now) return null;
+            if (now != before && last is { } previous && Math.Abs(now.Zoom - previous.Zoom) < SettledWithin
+                && Math.Abs(now.CenterX - previous.CenterX) < SettledWithin && Math.Abs(now.CenterY - previous.CenterY) < SettledWithin)
+                return now;
+            last = now;
+        }
+        return last;
     }
 
     // Even zoomed out all the way the map shows only ~1400 units above and below its center (live 2026-10-19: Farobru from

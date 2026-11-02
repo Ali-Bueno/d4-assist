@@ -7,7 +7,9 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Reads the watched menu screens' open flags each poll; locates their records with a background scan, once per
-/// game process, again when a record stops validating, and on every world change (<see cref="Relocate"/>).
+/// game process, again when a record stops validating, and on every world change (<see cref="Relocate"/>). A scan looks first
+/// where the registry was found before and drops one a relocation made pointless: on a handheld a whole-heap scan grew from
+/// 0.6 s to over a minute in an hour of play, and none located the menus again after a world change (tester 2026-11-01).
 /// A record counts as open only after it has been seen closed: a real menu toggles its record, while a stale one left by a
 /// character switch reads open from the moment it is located (live 2026-10-04: <c>screen_Hall_Of_Fallen_Heroes</c> for
 /// 6 minutes, muting every cue). Such a record never mutes, and a scan that skips it looks for the screen's live record at once.
@@ -37,6 +39,9 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
     // Records read open before ever closing: scans skip them. A screen in _suspectNames is looked for again without waiting.
     private HashSet<long> _suspects = [];
     private HashSet<string> _suspectNames = [];
+    // Allocations the registry was found in: the next scans look there first.
+    private HashSet<long> _homes = [];
+    private CancellationTokenSource? _scanCancel;
 
     /// <summary>The scan opens its own handle so it outlives the world session that triggered it.</summary>
     public static MenuScreenTracker ForLiveProcess(Action<string>? log = null)
@@ -54,6 +59,7 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
             (_records, _needsScan, _nextScanAt, _retryDelay, _generation, _openSince, _openVerified) =
                 ([], true, TimeSpan.Zero, FirstRetryDelay, _generation + 1, null, false);
             (_proven, _suspects, _suspectNames) = ([], [], []);
+            _scanCancel?.Cancel();
         }
     }
 
@@ -66,7 +72,8 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
             if (module != _module) // new game process
             {
                 (_module, _records, _needsScan, _nextScanAt, _retryDelay) = (module, [], true, TimeSpan.Zero, FirstRetryDelay);
-                (_proven, _suspects, _suspectNames) = ([], [], []);
+                (_proven, _suspects, _suspectNames, _homes) = ([], [], [], []);
+                _scanCancel?.Cancel();
             }
             records = [.. _records]; // a finishing scan adds to the dictionary
         }
@@ -115,6 +122,7 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         _openVerified = true;
         log?.Invoke($"MENU open for {VerifyOpenAfter.TotalSeconds:F0} s: locating the screens again");
         (_records, _needsScan, _nextScanAt, _retryDelay, _generation) = ([], true, TimeSpan.Zero, FirstRetryDelay, _generation + 1);
+        _scanCancel?.Cancel();
     }
 
     private void TryStartScanLocked()
@@ -127,18 +135,26 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         _scanning = true;
         if (missingDue) _needsScan = false;
         _suspectNames = [];
-        var (module, generation, exclude) = (_module, _generation, _suspects.ToHashSet());
-        Task.Run(() => Scan(names, exclude, missingDue, module, generation));
+        var (module, generation, exclude, homes) = (_module, _generation, _suspects.ToHashSet(), _homes.ToHashSet());
+        var cancel = _scanCancel = new CancellationTokenSource();
+        Task.Run(() => Scan(names, exclude, homes, missingDue, module, generation, cancel));
     }
 
-    private void Scan(List<string> names, HashSet<long> exclude, bool missingScan, ModuleRange module, int generation)
+    private void Scan(List<string> names, HashSet<long> exclude, HashSet<long> homes, bool missingScan, ModuleRange module, int generation,
+        CancellationTokenSource cancel)
     {
         var started = clock();
         Dictionary<string, long> found = [];
+        bool fromHomes = false;
         try
         {
             var reader = openScanReader();
-            try { found = ScreenRegistryReader.Locate(reader, names, module, exclude); }
+            try
+            {
+                var result = ScreenRegistryReader.Locate(reader, names, module, exclude, homes, cancel.Token);
+                (found, fromHomes) = (result.Records, result.FromHomes);
+                lock (_gate) if (module == _module) _homes.UnionWith(result.Homes);
+            }
             finally { (reader as IDisposable)?.Dispose(); }
         }
         catch (InvalidOperationException) { } // game process not running; retried on the next failure
@@ -147,8 +163,15 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         lock (_gate)
         {
             _scanning = false;
+            if (_scanCancel == cancel) _scanCancel = null;
+            cancel.Dispose();
             if (module != _module) return; // the process changed while scanning
-            if (generation != _generation) { _needsScan = true; return; } // relocated meanwhile: these records may be the old ones
+            if (generation != _generation) // relocated meanwhile: these records may be the old ones
+            {
+                _needsScan = true;
+                log?.Invoke($"MENU scan dropped after {(clock() - started).TotalMilliseconds:F0} ms: the screens are being located again");
+                return;
+            }
             if (missingScan) // a search for a suspect's live record alone leaves the retry pace alone
             {
                 var now = clock();
@@ -160,7 +183,7 @@ public sealed class MenuScreenTracker(Func<IMemoryReader> openScanReader, Func<T
         }
         var missing = names.Where(n => !found.ContainsKey(n)).Select(Short).ToList();
         log?.Invoke($"MENU located {found.Count}/{names.Count} screens in {(clock() - started).TotalMilliseconds:F0} ms" +
-            (missing.Count > 0 ? $"; missing {string.Join(" ", missing)}" : ""));
+            (fromHomes ? " where they were" : "") + (missing.Count > 0 ? $"; missing {string.Join(" ", missing)}" : ""));
     }
 
     private static string Short(string name) => name.Replace(ScreenPrefix, "");

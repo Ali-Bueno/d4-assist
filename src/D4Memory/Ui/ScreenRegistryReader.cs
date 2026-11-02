@@ -91,6 +91,10 @@ public static class MenuScreens
 }
 
 /// <summary>Finds the heap screen registry by scan and reads each screen's open flag (research/client-memory.md §5).</summary>
+/// <summary>A scan's finds: name to record address, the allocations whose registry entries held them, and whether those of an
+/// earlier scan held them all.</summary>
+public sealed record LocateResult(Dictionary<string, long> Records, IReadOnlySet<long> Homes, bool FromHomes);
+
 public static class ScreenRegistryReader
 {
     // Registry entry {u64 next, u32 key, u32 padding, u64 value}: the key is the name hash, the value points to the screen
@@ -130,35 +134,59 @@ public static class ScreenRegistryReader
     /// (research/client-memory.md §5); the first found wins, so the caller passes the records it already distrusts.</remarks>
     /// <param name="exclude">Record addresses never returned.</param>
     public static Dictionary<string, long> Locate(
-        IMemoryReader memory, IReadOnlyCollection<string> names, ModuleRange module, IReadOnlySet<long>? exclude = null)
+        IMemoryReader memory, IReadOnlyCollection<string> names, ModuleRange module, IReadOnlySet<long>? exclude = null) =>
+        Locate(memory, names, module, exclude, homes: null, CancellationToken.None).Records;
+
+    /// <summary>Like <see cref="Locate(IMemoryReader, IReadOnlyCollection{string}, ModuleRange, IReadOnlySet{long}?)"/>, looking
+    /// first in the allocations a registry was found in before, and the rest of the heap only for the names still missing.</summary>
+    /// <param name="homes">Allocation bases of earlier finds (<see cref="LocateResult.Homes"/>); null to scan the whole heap.</param>
+    /// <param name="cancel">Ends the scan early with what it found so far.</param>
+    public static LocateResult Locate(IMemoryReader memory, IReadOnlyCollection<string> names, ModuleRange module,
+        IReadOnlySet<long>? exclude, IReadOnlySet<long>? homes, CancellationToken cancel)
     {
         var found = new ConcurrentDictionary<string, long>();
+        var foundIn = new ConcurrentDictionary<long, byte>();
         var keys = names.ToDictionary(Hash);
         var filter = new bool[1 << FilterBits];
         foreach (uint key in keys.Keys) filter[key & FilterMask] = true;
-        var regions = memory.Regions().Where(r => r.Type == HeapType && r.Protection == HeapProtection);
-        var options = new ParallelOptions { MaxDegreeOfParallelism = ScanThreads };
-        Parallel.ForEach(regions, options, () => new byte[RegionWindows.DefaultWindowBytes], (region, loop, buffer) =>
+        var regions = memory.Regions().Where(r => r.Type == HeapType && r.Protection == HeapProtection).ToList();
+        bool fromHomes = false;
+        if (homes is { Count: > 0 })
         {
-            foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
+            ScanRegions(regions.Where(r => homes.Contains(r.AllocationBase)));
+            fromHomes = found.Count == keys.Count;
+            regions.RemoveAll(r => homes.Contains(r.AllocationBase));
+        }
+        if (!fromHomes) ScanRegions(regions);
+        return new LocateResult(new Dictionary<string, long>(found), foundIn.Keys.ToHashSet(), fromHomes);
+
+        void ScanRegions(IEnumerable<MemoryRegion> scanned)
+        {
+            if (found.Count == keys.Count || cancel.IsCancellationRequested) return;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = ScanThreads };
+            Parallel.ForEach(scanned, options, () => new byte[RegionWindows.DefaultWindowBytes], (region, loop, buffer) =>
             {
-                if (loop.IsStopped) break;
-                FindInWindow(memory, module, keys, filter, exclude, found, address, data.Span);
-                if (found.Count == keys.Count) { loop.Stop(); break; }
-            }
-            return buffer;
-        }, _ => { });
-        return new Dictionary<string, long>(found);
+                foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
+                {
+                    if (loop.IsStopped || cancel.IsCancellationRequested) { loop.Stop(); break; }
+                    if (FindInWindow(memory, module, keys, filter, exclude, found, address, data.Span)) foundIn.TryAdd(region.AllocationBase, 0);
+                    if (found.Count == keys.Count) { loop.Stop(); break; }
+                }
+                return buffer;
+            }, _ => { });
+        }
     }
 
-    private static void FindInWindow(
+    // True when the window held a record found now.
+    private static bool FindInWindow(
         IMemoryReader memory, ModuleRange module, Dictionary<uint, string> keys, bool[] filter, IReadOnlySet<long>? exclude,
         ConcurrentDictionary<string, long> found, long address, ReadOnlySpan<byte> data)
     {
         int first = (int)((EntryAlignment - address % EntryAlignment) % EntryAlignment);
-        if (first >= data.Length) return;
+        if (first >= data.Length) return false;
         var slots = MemoryMarshal.Cast<byte, ulong>(data[first..][..((data.Length - first) & ~(EntryAlignment - 1))]);
         var word = new byte[sizeof(long)];
+        bool any = false;
         for (int i = 0; i < slots.Length; i++)
         {
             uint key = (uint)slots[i]; // entries are 8-aligned, so a key is the low (little-endian) half of an aligned slot
@@ -166,8 +194,9 @@ public static class ScreenRegistryReader
             long entry = address + first + (long)i * EntryAlignment - KeyOffsetInEntry;
             if (!memory.TryRead(entry + ValueOffsetInEntry, word, sizeof(long))) continue;
             long record = BinaryPrimitives.ReadInt64LittleEndian(word);
-            if (exclude?.Contains(record) != true && TryReadOpen(memory, record, module) is not null) found.TryAdd(name, record);
+            if (exclude?.Contains(record) != true && TryReadOpen(memory, record, module) is not null) any |= found.TryAdd(name, record);
         }
+        return any;
     }
 
     /// <summary>Open (true) or closed (false); null when the record is unreadable or no longer looks like a screen record.</summary>

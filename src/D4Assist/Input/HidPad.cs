@@ -19,7 +19,8 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
     {
         public string Name { get; } = name;
         public volatile bool Left;
-        public bool LeftSeen;
+        public bool LeftSeen, ReportSeen, HatMoved;
+        public long? FirstHat;
         public PressHold Button { get; } = new();
     }
 
@@ -126,7 +127,10 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
         int read;
         while ((read = HidDevices.Read(handle, report)) > 0)
         {
-            bool? left = sony is { } model ? SonyPadReport.IsDpadLeft(report.AsSpan(0, read), model, device.IsBluetooth) : hat!.IsLeft(report, read);
+            long? hatValue = hat?.Value(report, read);
+            if (hat is not null) NoteReport(pad, report, read, hatValue);
+            bool? left = sony is { } model ? SonyPadReport.IsDpadLeft(report.AsSpan(0, read), model, device.IsBluetooth)
+                : hatValue is { } value ? hat!.IsLeft(value) : null;
             if (left is not { } now) continue;
             pad.Left = now;
             if (!now || pad.LeftSeen) continue;
@@ -141,6 +145,24 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
         }
         handle.Dispose();
         hat?.Dispose();
+    }
+
+    // Once per connection: a pad whose hat never moves is told from one whose reports lack it and one that sends nothing (the
+    // ROG Xbox Ally's in the Xbox full screen experience, tester 2026-11-01).
+    private void NoteReport(Pad pad, byte[] report, int length, long? hat)
+    {
+        if (!pad.ReportSeen)
+        {
+            pad.ReportSeen = true;
+            _log($"Pad: {pad.Name} first report: {length} bytes, id {report[0]}, hat {(hat is { } h ? h.ToString() : "none")}.");
+        }
+        if (hat is not { } value) return;
+        if (pad.FirstHat is not { } first) pad.FirstHat = value;
+        else if (!pad.HatMoved && value != first)
+        {
+            pad.HatMoved = true;
+            _log($"Pad: {pad.Name} hat moved to {value}.");
+        }
     }
 
     public void Dispose()

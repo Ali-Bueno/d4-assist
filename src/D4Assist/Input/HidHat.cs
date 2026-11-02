@@ -9,9 +9,11 @@ public sealed class HidHat(IntPtr preparsed, int reportLength, ushort linkCollec
     public int LogicalMin { get; } = logicalMin;
     public int LogicalMax { get; } = logicalMax;
 
-    /// <summary>True while the report's hat points left; null for a report without the hat.</summary>
-    public bool? IsLeft(byte[] report, int length) =>
-        HidDevices.HatValue(this, report, length) is { } value ? HatSwitch.IsLeft(value, LogicalMin, LogicalMax) : null;
+    /// <summary>The report's hat value; null for a report without the hat.</summary>
+    public long? Value(byte[] report, int length) => HidDevices.HatValue(this, report, length);
+
+    /// <summary>True while a hat value points left.</summary>
+    public bool IsLeft(long value) => HatSwitch.IsLeft(value, LogicalMin, LogicalMax);
 
     public void Dispose()
     {

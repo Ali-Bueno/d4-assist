@@ -39,7 +39,7 @@ public static class RoomPathfinder
     public const float JumpReachUnits = 2.5f;
 
     // Using a jump costs this much more than its length: walking around is preferred when it is about as short.
-    private const float JumpExtraCost = 4f;
+    internal const float JumpExtraCost = 4f;
 
     /// <summary>The extra cost, per unit walked, of a step onto a breakable prop's cells (a desk, a barrel): a prop is crossed in 1-3
     /// units and a room spans at most ~128, so the route walks around wherever the room offers a way, and through only where none does

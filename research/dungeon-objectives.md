@@ -399,6 +399,32 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
   "Demonic Memorial" (level area 488896) is the east wing and the "Angelic Memorial" (561398) the west one (~65 %, from where their
   triggers and `*Entrance*` webs lie). **App rule (unit-tested, not live):** a structure to break is reached within
   `ObjectiveMemory.MeleeUnits` (1.5) of its edge, so the ping leads on through the skirt or web and the arrival chime waits.
+- **Tester log 0.1.27 `--debug` (2026-11-01, chamber placed at (−64,−32): world = offline + (−64,−32)):** "almost always leading
+  me nowhere for the tumors off the angelic and demonic memorial rooms". The two platform tumors took 15 and 20 minutes. Three
+  causes:
+  - **Tumors unlisted away from them.** The west platform's tumor (−45.5,−26.1,8) entered the actor list at 5.7–8.3 units and left
+    it at 8.5–12, each time under a new RActor id (new slot and generation), for 4 minutes; the north-west one (−48.3,23.7,8) the
+    same at ~29 units from the junction at (−19.5,27.9). Missing for 6 polls within 15 units read done, the guide switched to an
+    unvisited tile, and back on the next sighting ("done" / "looping again" every few seconds). **App rule (unit-tested, not
+    live):** a structure to break reads done only when its remains (a copy without a game record) stand on its spot, or when it
+    goes missing with the player within its reach; a ranged kill from afar is done by its remains.
+  - **Ladders wrapped in webs that open only when their tumor dies.** `Ancients_FleshWebbing_ExitLeft_01/_02`,
+    `_ExitRight_01/_01B/_02`, `_DemonicEntrance_01/_02`, `_OverLookStart_01/_02` vanished ("its game record gone") in the same
+    poll as their tumor (19:34:37, 19:35:31, 19:50:08, 19:55:13); no web broke otherwise, while `_Slime_*` blobs broke under
+    attacks (60 times). `ExitLeft_02` (138 cells) is centred 1.1 units from the west ladder's foot (−42,−19.7) and `ExitRight_02`
+    (216 cells) on the north-west ladder: the guide routed up both ladders through the web (the props' soft cost, no other way
+    inside the room), and the player stood against it at (−41.5,−15.2) for 4 minutes. They reached the west tumor on foot from
+    the south tile (−2,−2) at (−45.3,−42.5), the north-west one from the north (−52,59.8). **No game-data flag marks these webs:**
+    their `DestroyableObjectGizmoData` (`eWreckableStrength` 1, `snoRequiredPower` −1, `eMinimumMonsterRarity` 0, every other
+    field) equals the barrels', slime blobs' and barricades'; over all 14,616 gizmo-48 actors `eWreckableStrength` is 1 but for
+    13. Their appearance boxes also overreach (`DemonicEntrance_01` covers its tumor, which the player hit standing inside it), so
+    they can't be walls. **App rule (unit-tested, not live):** a traversal whose end has no free floor within 2.5 units under the
+    standing props is buried; its tile splits into floor regions, joined by its traversals at a soft cost (`PropPenalty` per unit of
+    prop to free floor), so the guide goes round through the next tiles and over the ladder only where nothing else reaches the
+    platform (src/D4Assist.Navigation/README.md "Traversals in the graph"). The gallery's jump (landing inside `OverLookStart_01`)
+    and the duck-under keep free floor within reach and stay open, as they were in play.
+  - **Props taking turns (0.1.27 only):** `ExitLeft_02` and `Slime_01` rounded to one spot (−43,−19) and replaced each other every
+    poll (326,907 `PROP standing` lines, 30 MB); fixed in 0.1.28 (9f78bc5, keyed by spot and kind).
 - **Open (2.5D):** the overlook gallery (Z 12.5) and the floor below touch in the flat walk map at (80,56)–(86,52): from the main
   floor the route to the gallery tumor (87.1,34.4,12) climbs that wall instead of the ladder, and from the overlook entrance routes
   to the others take the ladder backwards and drop off at (80,58). The tile has `m_cellBytes` surfaces (6,688 voxels,

@@ -30,11 +30,13 @@ internal sealed class TileRegions
 
     public bool IsSplit => _labels is not null;
 
-    public static TileRegions Build(MapTile tile, ITileWalkability? walkability, BlockedCells blocked)
+    /// <param name="split">Split into floor regions even with no barrier on it: a standing prop buries one of its traversals
+    /// (<see cref="BuriedTraversals"/>), so its islands are joined only through the tile graph.</param>
+    public static TileRegions Build(MapTile tile, ITileWalkability? walkability, BlockedCells blocked, bool split = false)
     {
-        if (blocked.IsEmpty || walkability is null || !walkability.TryGet(tile.Input.SceneSno, out var grid)) return new(tile, 1);
+        if ((blocked.IsEmpty && !split) || walkability is null || !walkability.TryGet(tile.Input.SceneSno, out var grid)) return new(tile, 1);
         var turns = TileRotation.QuarterTurns(tile.Input.YawDegrees);
-        if (turns < 0 || blocked.Mask(tile, grid, turns) is not { } open) return new(tile, 1);
+        if (turns < 0 || (blocked.Mask(tile, grid, turns) ?? (split ? grid : null)) is not { } open) return new(tile, 1);
         var (labels, count) = Label(open);
         return new(tile, count, grid, open, labels, turns);
     }

@@ -94,6 +94,12 @@ compared by content (a fresh equal set is free); a different one rebuilds the gr
 door unlocked, a wall gone), the next step notes what the player could reach with the old set (tiles, and dead exits by id):
 exploring then picks only targets past it while any is left, so the guide goes on through the door instead of back to nearer
 corners (tester, Derelict Lodge, 2026-10-16); with none left, nearest-first again.
+Traversals in the graph: in a split tile each jump link (`SetJumpLinks`) joining two of its regions is a hop (`TileHop.Traversal`,
+its use costs `RoomPathfinder.JumpExtraCost`). A traversal whose end has no free floor within `JumpReachUnits` under the props
+(`SetPropCells`) is buried (`BuriedTraversals`): its tile is split into its floor regions even with no barrier, and the hop costs
+`PropPenalty` per unit of prop walked to free floor, so the guide goes round through other tiles where they reach the far region,
+and over the traversal where nothing else does (the Necropolis's platform ladders wrapped in flesh webs that open only when the
+tumor dies, tester log 2026-11-01, research/dungeon-objectives.md §12). The room route still decides the steps inside a room.
 
 ## D2R correspondence
 

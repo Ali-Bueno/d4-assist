@@ -111,7 +111,18 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
 
     public bool IsAvailable => _library != 0;
 
-    public void Start() => _timer ??= new Timer(_ => PollOnce(), null, 0, PollIntervalMs);
+    // A timer tick runs while the last one still polls when a slot is slow to answer (seen at connect): PressHold and the per-slot
+    // state take one poll at a time.
+    public void Start() => _timer ??= new Timer(_ => PollAlone(), null, 0, PollIntervalMs);
+
+    private int _polling;
+
+    private void PollAlone()
+    {
+        if (Interlocked.Exchange(ref _polling, 1) == 1) return;
+        try { PollOnce(); }
+        finally { Interlocked.Exchange(ref _polling, 0); }
+    }
 
     /// <summary>Samples every slot once and raises an event for each slot whose D-pad left was just pressed or held.</summary>
     public void PollOnce()

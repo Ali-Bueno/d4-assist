@@ -3,8 +3,8 @@ using Microsoft.Win32.SafeHandles;
 
 namespace D4Assist.Input;
 
-/// <summary>A HID device's path and vendor/product ids.</summary>
-public readonly record struct HidDeviceInfo(string Path, ushort VendorId, ushort ProductId)
+/// <summary>A HID device's path, vendor/product ids, and whether its top collection is a gamepad or joystick.</summary>
+public readonly record struct HidDeviceInfo(string Path, ushort VendorId, ushort ProductId, bool IsGameController = false)
 {
     // Classic Bluetooth HID service UUID: it is part of the path of a Bluetooth-connected pad.
     private const string BluetoothHidService = "00001124-0000-1000-8000-00805f9b34fb";
@@ -18,7 +18,8 @@ internal static class HidDevices
     private const uint DigcfPresent = 0x2, DigcfDeviceInterface = 0x10;
     private const uint GenericRead = 0x80000000, NoAccess = 0;
     private const uint FileShareReadWrite = 0x1 | 0x2, OpenExisting = 3;
-    private const ushort GenericDesktopPage = 0x01, GamepadUsage = 0x05;
+    private const ushort GenericDesktopPage = 0x01, JoystickUsage = 0x04, GamepadUsage = 0x05;
+    private const int HidpInput = 0;
     private static readonly IntPtr InvalidSet = new(-1);
 
     /// <summary>Device paths of every present HID interface.</summary>
@@ -38,14 +39,46 @@ internal static class HidDevices
         return paths;
     }
 
-    /// <summary>Vendor and product ids, queried without read access (so it works on devices other programs hold).</summary>
+    /// <summary>Vendor and product ids and the collection's kind, queried without read access (so it works on devices other programs
+    /// hold, and keyboards and mice are never opened to read).</summary>
     public static HidDeviceInfo? Describe(string path)
     {
         using var handle = CreateFileW(path, NoAccess, FileShareReadWrite, IntPtr.Zero, OpenExisting, 0, IntPtr.Zero);
         if (handle.IsInvalid) return null;
         var attributes = new HiddAttributes { Size = Marshal.SizeOf<HiddAttributes>() };
-        return HidD_GetAttributes(handle, ref attributes) ? new HidDeviceInfo(path, attributes.VendorId, attributes.ProductId) : null;
+        if (!HidD_GetAttributes(handle, ref attributes)) return null;
+        bool controller = false;
+        if (HidD_GetPreparsedData(handle, out var preparsed))
+        {
+            controller = HidP_GetCaps(preparsed, out var caps) == HidpStatusSuccess
+                && caps.UsagePage == GenericDesktopPage && caps.Usage is GamepadUsage or JoystickUsage;
+            HidD_FreePreparsedData(preparsed);
+        }
+        return new HidDeviceInfo(path, attributes.VendorId, attributes.ProductId, controller);
     }
+
+    /// <summary>The hat switch of a gamepad or joystick collection opened for reading; null when it has none.</summary>
+    public static HidHat? OpenHat(SafeFileHandle device)
+    {
+        if (!HidD_GetPreparsedData(device, out var preparsed)) return null;
+        var hats = new HidpValueCaps[4];
+        ushort count = (ushort)hats.Length;
+        if (HidP_GetCaps(preparsed, out var caps) == HidpStatusSuccess
+            && HidP_GetSpecificValueCaps(HidpInput, GenericDesktopPage, 0, HatSwitch.Usage, hats, ref count, preparsed) == HidpStatusSuccess && count > 0)
+            return new HidHat(preparsed, caps.InputReportByteLength, hats[0].LinkCollection, hats[0].LogicalMin, hats[0].LogicalMax);
+        HidD_FreePreparsedData(preparsed);
+        return null;
+    }
+
+    /// <summary>The hat's value in one input report; null for a report that doesn't carry it (another report id).</summary>
+    internal static long? HatValue(HidHat hat, byte[] report, int length)
+    {
+        if (length != hat.ReportLength) return null;
+        return HidP_GetUsageValue(HidpInput, GenericDesktopPage, hat.LinkCollection, HatSwitch.Usage, out uint value, hat.Preparsed, report, (uint)length)
+            == HidpStatusSuccess ? value : null;
+    }
+
+    internal static void Free(IntPtr preparsed) => HidD_FreePreparsedData(preparsed);
 
     /// <summary>Opens a device to read its reports alongside the game; invalid on failure (see Marshal.GetLastPInvokeError).</summary>
     public static SafeFileHandle OpenForReading(string path) =>
@@ -127,6 +160,23 @@ internal static class HidDevices
 
     [DllImport("hid.dll")]
     private static extern int HidP_GetCaps(IntPtr preparsedData, out HidpCaps capabilities);
+
+    // HIDP_VALUE_CAPS (hidpi.h), 72 bytes: only the fields read here.
+    [StructLayout(LayoutKind.Explicit, Size = 72)]
+    private struct HidpValueCaps
+    {
+        [FieldOffset(6)] public ushort LinkCollection;
+        [FieldOffset(40)] public int LogicalMin;
+        [FieldOffset(44)] public int LogicalMax;
+    }
+
+    [DllImport("hid.dll")]
+    private static extern int HidP_GetSpecificValueCaps(
+        int reportType, ushort usagePage, ushort linkCollection, ushort usage, [Out] HidpValueCaps[] valueCaps, ref ushort valueCapsLength, IntPtr preparsedData);
+
+    [DllImport("hid.dll")]
+    private static extern int HidP_GetUsageValue(
+        int reportType, ushort usagePage, ushort linkCollection, ushort usage, out uint usageValue, IntPtr preparsedData, byte[] report, uint reportLength);
 
     [DllImport("setupapi.dll", SetLastError = true)]
     private static extern IntPtr SetupDiGetClassDevsW(ref Guid classGuid, IntPtr enumerator, IntPtr parent, uint flags);

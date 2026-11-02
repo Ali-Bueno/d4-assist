@@ -327,7 +327,7 @@ public sealed class ObjectiveMemory
             SetAsideNpcPlaces(heard);
             if (_player is not { } here) return;
 
-            var done = _objectives.Where(o => o.Pending && !heard.Contains(o) && Distance(o.Position, here) <= ConfirmRadiusUnits && Ended(o, seen)).ToList();
+            var done = _objectives.Where(o => o.Pending && !heard.Contains(o) && Distance(o.Position, here) <= ConfirmRadiusUnits && Ended(o, seen, here)).ToList();
             foreach (var objective in done)
             {
                 objective.Pending = false;
@@ -373,10 +373,17 @@ public sealed class ObjectiveMemory
     // Heard earlier: silent now, or missing for MissingPollsForDone polls. Not heard yet: its actor there is silent (used), or a
     // tile's copy the map doesn't mark has no actor. A door's or a trigger's copy loops as something else or not at all: it waits
     // for the phase. A carryable: once no copy lies on the ground there (the one in the player's hands has no game record).
-    private bool Ended(Objective objective, ObjectiveSighting seen) =>
+    private bool Ended(Objective objective, ObjectiveSighting seen, (float X, float Y) here) =>
         _carryableWaits(objective.Sno) is not null ? !Stands(objective, [.. seen.Present.Where(a => !a.ClientOnly)])
-        : !objective.PlacedOnly ? Among(objective, seen.Silent) || objective.MissingPolls >= MissingPollsForDone
+        : !objective.PlacedOnly ? Among(objective, seen.Silent) || (objective.MissingPolls >= MissingPollsForDone && (!_toBreak(objective.Sno) || Broken(objective, seen, here)))
         : Stands(objective, seen.Silent) || (!objective.Marked && !Stands(objective, seen.Present));
+
+    // A structure the client stops listing is broken only where that says so: its remains (a copy without a game record) stand on
+    // its spot, or the player stands at it. Hatred tumors on the Necropolis's platforms dropped out of the list 9-12 units off and
+    // came back under a new id, over and over (tester log 2026-11-01, research/dungeon-objectives.md §12).
+    private static bool Broken(Objective objective, ObjectiveSighting seen, (float X, float Y) here) =>
+        Distance(objective.Position, here) <= objective.Radius
+        || (objective.ClientOnly == false && Stands(objective, [.. seen.Present.Where(a => a.ClientOnly)]));
 
     // A quest place this close to an objective heard is that objective's spot: the place is a marker, the actor stands about there
     // (ActiveQuests.MarkerReach).

@@ -7,7 +7,9 @@ internal sealed class TileNode(MapTile tile)
     public List<TileHop> Hops { get; } = [];
 }
 
-internal readonly record struct TileHop(RoomOpening Opening, TileNode? To);
+/// <param name="Extra">Cost on top of the walk to the opening: a traversal's use and the props buried around it.</param>
+/// <param name="Traversal">A traversal between two floor regions of one tile; <see cref="Opening"/> sits where it lands.</param>
+internal readonly record struct TileHop(RoomOpening Opening, TileNode? To, float Extra = 0f, bool Traversal = false);
 
 /// <summary>
 /// The known tiles as a graph: nodes are tiles, edges are their exit openings (real walkable gaps, via
@@ -15,8 +17,8 @@ internal readonly record struct TileHop(RoomOpening Opening, TileNode? To);
 /// other where that tile has floor at it: a big preset room's mask can omit the sides its neighbours open into. Touching tiles of one room (RoomModel) are linked without an exit bit, because preset
 /// rooms' live exit masks can omit their internal sides (research/client-memory.md §1), but only where both walk maps
 /// have floor at their shared edge: the Skovos docks are one room, water parts two of its tiles, and the guide led to the
-/// far one across it (live 2026-10-17). A tile that live barriers split is one node per floor region (TileRegions),
-/// joined only where its floor meets the crossing.
+/// far one across it (live 2026-10-17). A tile that live barriers split, or one a standing prop buries a traversal of, is one
+/// node per floor region (TileRegions), joined where its floor meets the crossing and by its traversals.
 /// </summary>
 internal sealed class TileGraph
 {
@@ -34,11 +36,18 @@ internal sealed class TileGraph
 
     public static (int, int) Key(MapTile tile) => (tile.CellX, tile.CellY);
 
-    public static TileGraph Build(DungeonMap map, ITileWalkability? walkability, BlockedCells? blocked = null)
+    /// <param name="traversals">The loaded tiles' traversals: those joining two regions of a split tile become hops, and a tile
+    /// holding a buried one's end is split into its floor regions. Null for none.</param>
+    public static TileGraph Build(
+        DungeonMap map, ITileWalkability? walkability, BlockedCells? blocked = null, IReadOnlyList<GraphTraversal>? traversals = null)
     {
         blocked ??= BlockedCells.None;
+        traversals ??= [];
+        var buriedTiles = traversals.Where(t => t.Buried)
+            .SelectMany(t => new[] { map.TileAt(t.Link.A.X, t.Link.A.Y), map.TileAt(t.Link.B.X, t.Link.B.Y) })
+            .OfType<MapTile>().Select(Key).ToHashSet();
         var graph = new TileGraph();
-        foreach (var tile in map.Tiles) graph._tiles[Key(tile)] = TileRegions.Build(tile, walkability, blocked);
+        foreach (var tile in map.Tiles) graph._tiles[Key(tile)] = TileRegions.Build(tile, walkability, blocked, buriedTiles.Contains(Key(tile)));
 
         foreach (var near in graph._tiles.Values)
             foreach (var opening in OpeningFinder.Find(map, [near.Tile], [near.Tile], walkability, blocked))
@@ -69,8 +78,29 @@ internal sealed class TileGraph
                     if (near != far && RoomModel.Adjacent(near.Tile, far.Tile) && FloorMeets(near.Tile, far.Tile, walkability))
                         foreach (var (from, to, crossing) in Contacts(near, far, SharedEdge(near.Tile, far.Tile)))
                             if (!from.Hops.Any(h => h.To == to)) from.Hops.Add(new TileHop(crossing, to));
+
+        foreach (var traversal in traversals) graph.Join(map, traversal);
         return graph;
     }
+
+    // A traversal between two regions of a split tile: without it a ladder's platform would be reached only through other tiles.
+    private void Join(DungeonMap map, GraphTraversal traversal)
+    {
+        var (a, b) = (traversal.Link.A, traversal.Link.B);
+        if (map.TileAt(a.X, a.Y) is not { } tile || map.TileAt(b.X, b.Y) is not { } other || Key(tile) != Key(other)
+            || _tiles[Key(tile)] is not { IsSplit: true } regions) return;
+        var (from, to) = (regions.At(a), regions.At(b));
+        if (from == to) return;
+        float extra = RoomPathfinder.JumpExtraCost + traversal.PropCost;
+        from.Hops.Add(new TileHop(new RoomOpening(Facing(a, b), b, Unexplored: false), to, extra, Traversal: true));
+        if (!traversal.Link.OneWay) to.Hops.Add(new TileHop(new RoomOpening(Facing(b, a), a, Unexplored: false), from, extra, Traversal: true));
+    }
+
+    // The side a leap from one end towards the other crosses (world axes, ExitMaskBits: north is -X, east +Y).
+    private static ExitSide Facing((float X, float Y) from, (float X, float Y) to) =>
+        MathF.Abs(to.X - from.X) >= MathF.Abs(to.Y - from.Y)
+            ? to.X < from.X ? ExitSide.North : ExitSide.South
+            : to.Y > from.Y ? ExitSide.East : ExitSide.West;
 
     // The nodes a crossing joins (far null: a frontier). Unsplit tiles meet across the whole crossing; with a split side each
     // cell along it pairs the regions on either side, a barrier cell pairs nothing, and every pair crosses at its own part.

@@ -736,6 +736,39 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_structure_to_break_the_client_stops_listing_away_from_it_still_leads()
+    {
+        // Tester log 2026-11-01, the Necropolis: a platform tumor dropped out of the list 9-12 units off and came back under a new id.
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, footprint: _ => 0.6f, toBreak: sno => sno == AltarSno);
+        feed.RaisePlayer(At(1, 0));
+        memory.Heard(Altar(11, 0));
+
+        memory.Gone();
+        Assert.Single(memory.Destinations());
+
+        memory.Heard(Altar(11, 0, id: 9)); // back under a new id
+        feed.RaisePlayer(At(10, 0));
+        memory.Gone();
+        Assert.Empty(memory.Destinations()); // gone with the player at it
+    }
+
+    [Fact]
+    public void A_structure_to_break_whose_remains_stand_on_its_spot_is_done_from_afar()
+    {
+        // A destroyed tumor stays listed without its game record (live 2026-10-01); a ranged attack breaks it from 14 units.
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, footprint: _ => 0.6f, toBreak: sno => sno == AltarSno);
+        feed.RaisePlayer(At(1, 0));
+        memory.Heard(Altar(15, 0));
+
+        var remains = Altar(15, 0, id: 5) with { ClientOnly = true };
+        for (int i = 0; i < ObjectiveMemory.MissingPollsForDone; i++) memory.Observe(new ObjectiveSighting([], [], [remains]));
+
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
     public void A_placed_gizmo_heard_is_the_same_objective_and_unheard_ones_drop_when_the_phase_moves_on()
     {
         var (feed, memory) = NewMemory();

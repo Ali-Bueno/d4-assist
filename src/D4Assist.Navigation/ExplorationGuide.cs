@@ -218,14 +218,31 @@ public sealed class ExplorationGuide
 
     private TileGraph CurrentGraph()
     {
-        if (_graph is null || _graphVersion != _map.Version || _graphBlocked != _blockedVersion)
+        var traversals = CurrentTraversals();
+        if (_graph is null || _graphVersion != _map.Version || _graphBlocked != _blockedVersion || !ReferenceEquals(_graphTraversals, traversals))
         {
-            _graph = TileGraph.Build(_map, _walkability, _blocked);
+            _graph = TileGraph.Build(_map, _walkability, _blocked, traversals);
             _graphVersion = _map.Version;
             _graphBlocked = _blockedVersion;
+            _graphTraversals = traversals;
         }
         return _graph;
     }
+
+    // The jump links with the props buried around their ends; a new list only when a cost changes, so a prop broken elsewhere
+    // keeps the graph.
+    private IReadOnlyList<GraphTraversal> CurrentTraversals()
+    {
+        if (_traversalsKey == (_map.Version, _jumpsVersion, _propsVersion)) return _traversals;
+        _traversalsKey = (_map.Version, _jumpsVersion, _propsVersion);
+        var now = BuriedTraversals.Of(_map, _walkability, _jumps, _props);
+        if (!now.SequenceEqual(_traversals)) _traversals = now;
+        return _traversals;
+    }
+
+    private IReadOnlyList<GraphTraversal> _traversals = [];
+    private IReadOnlyList<GraphTraversal>? _graphTraversals;
+    private (int Map, int Jumps, int Props) _traversalsKey = (-1, -1, -1);
 
     private GuideStep Compute(
         TileGraph graph, MapTile tile, PlayerInput player, bool exitMissing, IReadOnlyList<GuideDestination> destinations,
@@ -473,7 +490,9 @@ public sealed class ExplorationGuide
         var hop = hops.FirstOrDefault(h => h.To is null || !roomTiles.Contains(TileGraph.Key(h.To.Tile))) ?? hops[^1];
         if (room is null) return hop.Opening.Position;
 
-        var trace = RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening, _jumps, _props);
+        var trace = hop.Traversal
+            ? RoomRouteCache.TraceToPoint(room, (player.X, player.Y), hop.Opening.Position, RoomPathfinder.JumpReachUnits, _jumps, _props)
+            : RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening, _jumps, _props);
         remaining = trace.UsedFallback ? total : trace.Length + (total - hop.LengthSoFar);
         jumpAt = trace.JumpAt;
         return trace.Point;

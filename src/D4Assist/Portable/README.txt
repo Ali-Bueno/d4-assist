@@ -182,7 +182,8 @@ you can learn them: exit, open floor, wall, door, unexplored exit, quest
 sound, guide ping and arrival.
 
 Left on the D-pad turns the guide on and off in dungeons (Xbox controllers,
-and PlayStation's DualSense or DualShock 4); it acts when you let go of the
+PlayStation's DualSense or DualShock 4, and other gamepads, including the ROG
+Xbox Ally in its full screen mode); it acts when you let go of the
 button, and holding it for a second switches between objectives and exploring
 instead. Outside dungeons it leads to the
 nearest place your quest marks on the map and says the quest and how far;

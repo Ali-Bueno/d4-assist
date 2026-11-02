@@ -1,7 +1,7 @@
 namespace D4Assist.Navigation;
 
 /// <summary>One crossing on a route: the opening taken, the tile entered (null for a frontier) and the length walked up to it.</summary>
-internal sealed record RouteHop(RoomOpening Opening, TileNode? To, float LengthSoFar);
+internal sealed record RouteHop(RoomOpening Opening, TileNode? To, float LengthSoFar, bool Traversal = false);
 
 /// <summary>
 /// Shortest route lengths from the player's tile over a <see cref="TileGraph"/> (Dijkstra). Legs are straight
@@ -36,7 +36,7 @@ internal sealed class TileRoutes
             foreach (var hop in node.Hops)
             {
                 if (hop.To is not { } next) continue;
-                var length = here.Length + Distance(here.At, hop.Opening.Position);
+                var length = here.Length + Distance(here.At, hop.Opening.Position) + hop.Extra;
                 if (routes._arrivals.TryGetValue(next, out var known) && known.Length <= length) continue;
                 routes._arrivals[next] = new Arrival(length, hop.Opening.Position, node, hop);
                 queue.Enqueue(next, length);
@@ -50,7 +50,7 @@ internal sealed class TileRoutes
     {
         var hops = new List<RouteHop>();
         for (var arrival = _arrivals[node]; arrival.Via is { } via; arrival = _arrivals[arrival.From!])
-            hops.Add(new RouteHop(via.Opening, via.To, arrival.Length));
+            hops.Add(new RouteHop(via.Opening, via.To, arrival.Length, via.Traversal));
         hops.Reverse();
         return hops;
     }

@@ -364,9 +364,10 @@ internal static class Program
         }
         ApplySound(liveSound.Current);
         liveSound.Changed += ApplySound;
-        // Xbox pads through XInput, PlayStation pads (which XInput never sees) through HID.
+        // Xbox pads through XInput; PlayStation pads (which XInput never sees) and every other pad's hat switch through HID, which an
+        // Xbox pad's D-pad also reaches when XInput gives a background app no buttons (the Xbox full screen experience).
         using var xboxPad = guidePing is not null ? new XInputPad(Console.WriteLine) : null;
-        using var sonyPad = guidePing is not null ? new SonyHidPad(Console.WriteLine) : null;
+        using var hidPad = guidePing is not null ? new HidPad(Console.WriteLine) : null;
         // Ctrl+Alt+Shift+G toggles the guide for keyboard players; the digits play the sound examples (below). Only while the
         // game is in front: the settings and exit keys (TrayApp) are the only ones that work everywhere.
         using var hotkeys = new GlobalHotkeys(SoundDemo.ExampleCount, GameWindowFocus.IsGameForeground, config.WalletKeyEnabled);
@@ -381,10 +382,10 @@ internal static class Program
         // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
         // The pad is read whatever window has the focus: in another game, or with Diablo IV closed, its D-pad isn't ours.
         // A swallowed press is always logged with its reason: presses are rare, and a tester's pad that "does nothing" needs it.
-        var pad = xboxPad is not null && sonyPad is not null
+        var pad = xboxPad is not null && hidPad is not null
             ? new CombinedPad([
                 new GatedPad(
-                    new GatedPad(new CombinedPad([xboxPad, sonyPad]), () => !GameWindowFocus.IsGameForeground(),
+                    new GatedPad(new CombinedPad([xboxPad, hidPad]), () => !GameWindowFocus.IsGameForeground(),
                         () => Console.WriteLine($"Guide toggle ignored: game not in the foreground ({GameWindowFocus.ForegroundProcessName() ?? "no window"} is).")),
                     () => menus?.AnyOpen ?? false, () => Console.WriteLine($"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
                 hotkeys])
@@ -395,7 +396,7 @@ internal static class Program
             pad.DpadLeftHeld += () => Console.WriteLine("Guide mode pressed.");
             // Where each press came from, before the gates: a handheld's pad (ROG Xbox Ally) from a button mapped to the keys.
             xboxPad!.DpadLeftPressed += () => Console.WriteLine("Pad: XInput D-pad left.");
-            sonyPad!.DpadLeftPressed += () => Console.WriteLine("Pad: PlayStation D-pad left.");
+            hidPad!.DpadLeftPressed += () => Console.WriteLine("Pad: HID D-pad left.");
             ((IGuideTogglePad)hotkeys).DpadLeftPressed += () => Console.WriteLine("Keys: Ctrl+Alt+Shift+G.");
         }
         QuestRouteBridge? routeBridge = null;
@@ -458,7 +459,7 @@ internal static class Program
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
-        sonyPad?.Start();
+        hidPad?.Start();
 
         // Sound examples on Ctrl+Alt+Shift+1..8, to show the cues without a fight's noise.
         var demo = new SoundDemo(

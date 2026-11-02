@@ -1,0 +1,24 @@
+**Diablo 4 Assist 0.1.29** fixes the guide to the tumors in the Necropolis of the First Born, and lets the D-pad switch the guide on a ROG Xbox Ally in its full screen mode.
+
+**Updating:** with 0.1.7 or newer, the program offers this version itself when it starts (or from the tray icon's menu, "Check for updates"). From an older version, close the program and copy only the new `D4Assist.exe` over the old one; the zip's `d4assist.json` would reset your settings.
+
+### Fixed
+- **Necropolis of the First Born, the tumors off the Angelic and Demonic memorials**: the game stops listing the tumors on the side platforms a few steps away from them, and the program took that for the tumor being destroyed, so the guide jumped to another place and back every few seconds. A tumor now counts as destroyed only once you stand at it, or once its remains are there.
+- **Same dungeon, the ladders up to those platforms**: they are wrapped in flesh webs that only open when the tumor dies, and the guide sent you up the ladder into the web. A ladder buried under something standing now gives way to the way round through the next rooms, which is how you get onto those platforms; the guide takes the ladder again once the web is gone, or when there is no other way.
+- **ROG Xbox Ally in its full screen mode** (the Xbox full screen experience): there Windows gives the controller's buttons only to the game, so the D-pad did nothing, while desktop mode worked. The program now also reads the D-pad of any controller Windows lists as a gamepad, which should reach the Ally's own controller in that mode. Other gamepads that are neither Xbox nor PlayStation work the same way.
+
+### Still to look at
+- None of this has been tried in the game yet. On the Ally, in full screen mode: run the program with `--debug`, press left on the D-pad in a dungeon and send me `d4assist-log.txt`. It should say `Pad: HID gamepad 0x0B05:0x1B4C connected` and `first D-pad left`. If neither line is there, desktop mode stays the way to go, or an Ally back button mapped to Ctrl+Alt+Shift+G in Armoury Crate.
+- An external controller in Xbox mode may still do nothing in the Ally's full screen mode; its DualShock 4 mode works.
+- If you replay the Necropolis, run the program with `--debug` and send me `d4assist-log.txt` and `d4assist-log.old.txt` from the program's folder before you start another session (only the last two are kept).
+
+---
+
+**En español:** la 0.1.29 arregla la guía hacia los tumores de la Necrópolis del Primogénito y deja que la cruceta encienda la guía en un ROG Xbox Ally en su modo de pantalla completa. Si tienes la 0.1.7 o posterior, el programa te ofrece esta versión solo al iniciar (o desde el menú del icono de la bandeja, "Buscar actualizaciones"). Desde una versión anterior, cierra el programa y copia solo el nuevo `D4Assist.exe` encima del anterior.
+
+Arreglado:
+- **Necrópolis del Primogénito, los tumores junto a los memoriales angelical y demoníaco**: el juego deja de listar los tumores de las plataformas laterales a pocos pasos de ellos, y el programa lo tomaba por un tumor destruido: la guía saltaba a otro sitio y volvía cada pocos segundos. Ahora un tumor cuenta como destruido solo cuando estás junto a él, o cuando sus restos están ahí.
+- **La misma mazmorra, las escaleras a esas plataformas**: están envueltas en telarañas de carne que solo se abren al morir el tumor, y la guía te mandaba escalera arriba contra la telaraña. Una escalera enterrada bajo algo en pie cede ahora el paso al rodeo por las salas de al lado, que es por donde se entra a esas plataformas; la guía vuelve a usar la escalera cuando la telaraña desaparece, o cuando no hay otro camino.
+- **ROG Xbox Ally en pantalla completa** (la experiencia de pantalla completa de Xbox): ahí Windows solo le da los botones del mando al juego, así que la cruceta no hacía nada, mientras que en modo escritorio sí funcionaba. El programa ahora también lee la cruceta de cualquier mando que Windows liste como gamepad, lo que debería llegar al mando propio del Ally en ese modo. Otros mandos que no son ni Xbox ni PlayStation funcionan igual.
+
+Pendiente: nada de esto se ha probado aún en el juego. En el Ally, en pantalla completa: ejecuta el programa con `--debug`, pulsa la cruceta izquierda en una mazmorra y mándame `d4assist-log.txt`; debería decir `Pad: HID gamepad 0x0B05:0x1B4C connected` y `first D-pad left`. Si no sale ninguna de las dos líneas, sigue siendo mejor el modo escritorio, o un botón trasero del Ally asignado a Ctrl+Alt+Shift+G en Armoury Crate. Un mando externo en modo Xbox puede seguir sin hacer nada en la pantalla completa del Ally; en modo DualShock 4 funciona. Si repites la Necrópolis, ejecuta el programa con `--debug` y mándame `d4assist-log.txt` y `d4assist-log.old.txt` de la carpeta del programa antes de empezar otra sesión (solo se guardan las dos últimas).

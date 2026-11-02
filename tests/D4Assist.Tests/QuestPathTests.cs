@@ -47,6 +47,7 @@ public class QuestPathTests
         public double Now;
         public TimeSpan Clock;
         public List<(string World, Vector3 From, Vector2 To)> Searches = [];
+        public int Walls;
         // The path the search returns: straight from the player to the place in 5-unit steps, unless set.
         public Func<Vector3, Vector2, IReadOnlyList<Vector2>?> Path = (from, to) => Straight(new(from.X, from.Y), to);
 
@@ -55,7 +56,7 @@ public class QuestPathTests
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             Bridge = new QuestPathBridge(Feed, w => w is World or StoryArea, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
                 Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock,
-                entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; });
+                entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; }, wallsVersion: () => Walls);
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
         }
@@ -295,6 +296,25 @@ public class QuestPathTests
         Assert.Equal(new Vector3(astray, 0), rig.Searches[1].From);
         rig.Move(astray);
         Assert.Equal(2, rig.Searches.Count); // on the new path
+    }
+
+    // The Darkened Way (tester 2026-11-01): a door listed locked only once the player came near leaves the path found before it
+    // running through the door.
+    [Fact]
+    public void A_door_locking_after_the_path_was_found_finds_a_new_one()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        rig.Walls++;
+        rig.Move(KedBardu);
+        Assert.Single(rig.Searches); // the last search was a moment ago
+
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(KedBardu);
+        rig.Move(KedBardu);
+
+        Assert.Equal(2, rig.Searches.Count);
     }
 
     [Fact]

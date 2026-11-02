@@ -89,6 +89,7 @@ public sealed class QuestPathBridge
     private readonly Action<string>? _log;
     private readonly Func<TimeSpan> _clock;
     private readonly Func<bool> _routeActive;
+    private readonly Func<int> _wallsVersion;
     // Feed events arrive on different poll threads, the path on a worker.
     private readonly object _gate = new();
     private string? _world;
@@ -100,6 +101,7 @@ public sealed class QuestPathBridge
     private bool _pathFound;
     private int _request;
     private TimeSpan _lastPath;
+    private int _pathWalls;
     private TimeSpan _lastAimLog;
 
     /// <summary>True where D-pad left leads to quest places: the exploration guide then leaves the press to it.</summary>
@@ -115,14 +117,17 @@ public sealed class QuestPathBridge
     /// <param name="routeActive">True while a quest route leads (QuestRouteBridge.IsActive): D-pad left then mutes that route only.</param>
     /// <param name="entrances">The dungeon entrances of a world (by name) within a distance of a spot, named in the current language;
     /// null for none.</param>
+    /// <param name="wallsVersion">Changes when a locked door starts or stops being a wall (LockedDoors.Version): the path is found
+    /// again; null for never.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
         LanguageSetting? language = null, IGuideTogglePad? pad = null, Action<Action>? runInBackground = null,
         Action<string>? log = null, Func<TimeSpan>? clock = null, Func<bool>? routeActive = null,
-        Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null)
+        Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null, Func<int>? wallsVersion = null)
     {
         _routeActive = routeActive ?? (() => false);
+        _wallsVersion = wallsVersion ?? (() => 0);
         _leadsIn = leadsIn;
         _questPlaces = questPlaces;
         _entrances = entrances ?? ((_, _, _) => []);
@@ -224,6 +229,7 @@ public sealed class QuestPathBridge
         if (_active is not { } place || _world is not { } world) return;
         int request = ++_request;
         _lastPath = _clock();
+        _pathWalls = _wallsVersion();
         var from = new Vector2(player.X, player.Y);
         _runInBackground(() =>
         {
@@ -282,6 +288,11 @@ public sealed class QuestPathBridge
         {
             Log($"PATH off the path at ({here.X:F1},{here.Y:F1}), {off:F0} units, finding a new one");
             FindPath(player); // the ping keeps following the old path meanwhile
+        }
+        else if (_wallsVersion() != _pathWalls && _clock() - _lastPath >= RepathInterval)
+        {
+            Log("PATH doors changed, finding a new one"); // a door listed locked only once the player came near
+            FindPath(player);
         }
         if (_clock() - _lastAimLog >= AimLogInterval)
         {

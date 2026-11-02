@@ -77,7 +77,7 @@ public class XInputPadTests
     }
 
     [Fact]
-    public void The_first_buttons_of_each_connection_are_logged_once()
+    public void The_first_input_and_buttons_of_each_connection_are_logged_once()
     {
         ushort?[] slots = [0, null, null, null];
         var lines = new List<string>();
@@ -93,8 +93,8 @@ public class XInputPadTests
         slots[0] = 0x0004;
         pad.PollOnce();
 
-        Assert.Equal(["Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first buttons 0x1000.", "Pad: XInput slot 0 disconnected.",
-            "Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first buttons 0x0004."], lines);
+        Assert.Equal(["Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first input.", "Pad: XInput slot 0 first buttons 0x1000.",
+            "Pad: XInput slot 0 disconnected.", "Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first buttons 0x0004."], lines);
     }
 
     [Fact]

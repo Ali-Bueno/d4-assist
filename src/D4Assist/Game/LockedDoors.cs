@@ -30,6 +30,10 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
         public bool GameLocked { get; set; }
         public bool AtIt { get; set; }
         public bool Tried { get; set; }
+        /// <summary>Listed once on the player's floor: only those wall the one-floor walk map (a door below a ledge isn't on it).</summary>
+        public bool SeenOnFloor { get; set; }
+        /// <summary>On the player's floor when last listed.</summary>
+        public bool OnFloor { get; set; }
         /// <summary>The door's quest state when last read, and when the player tried it.</summary>
         public (bool, bool, bool) State { get; set; }
         public (bool, bool, bool) TriedState { get; set; }
@@ -37,42 +41,53 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
 
     private readonly object _gate = new();
     private readonly Dictionary<(int X, int Y), Door> _doors = [];
+    private HashSet<(int X, int Y)> _listed = [];
 
-    /// <summary>The cells every locked door covers, after this actor poll.</summary>
+    /// <summary>Changes whenever a door starts or stops being a wall: a path found before it may lead through a door now shut.</summary>
+    public int Version { get { lock (_gate) return _version; } }
+    private int _version;
+
+    /// <summary>The cells every locked door on the player's floor covers, after this actor poll.</summary>
     public IReadOnlySet<(int X, int Y)> Update(IReadOnlyList<ActorState> actors, PlayerState player)
     {
         lock (_gate)
         {
             var listed = new HashSet<(int X, int Y)>();
-            // Two copies on one spot, one usable (a cinematic's, live 2026-10-22: the Sightless Eye's mural): the usable one counts.
-            foreach (var copies in doors.Closed(actors, player.Z).GroupBy(f => Key(f.Door)))
+            // Every floor's doors: paths over several heights need the Darkened Way's invisible doors below the petal while the
+            // player is up at the gate (tester 2026-11-01, research/dungeon-data.md §4.1c). Two copies on one spot, one usable (a
+            // cinematic's, live 2026-10-22: the Sightless Eye's mural): the usable one counts.
+            foreach (var copies in doors.ClosedOnAnyFloor(actors, player.Z).GroupBy(f => Key(f.Footprint.Door)))
             {
-                var footprint = copies.FirstOrDefault(f => !f.Door.Unusable) ?? copies.First();
+                var (footprint, floor) = copies.FirstOrDefault(f => !f.Footprint.Door.Unusable, copies.First());
                 var key = copies.Key;
                 listed.Add(key);
                 if (!_doors.TryGetValue(key, out var door)) _doors[key] = door = new Door(footprint.Door.ActorSno, footprint);
                 door.Footprint = footprint;
+                door.OnFloor = floor;
+                door.SeenOnFloor |= floor;
                 Observe(door, footprint.Door);
             }
+            _listed = listed;
             var here = new Vector2(player.X, player.Y);
             foreach (var (key, door) in _doors.ToList())
             {
-                // Listed closed on another floor still stands; listed open, or missing where the client lists doors, is open.
+                // Listed open, or missing where the client lists doors, is open.
                 var actor = actors.FirstOrDefault(a => a.ActorSno == door.Sno && Vector2.Distance(new(a.X, a.Y), door.Spot) <= SameSpotUnits);
                 bool open = actor is not null ? actor.StateChanged || actor.GizmoStateSet : !listed.Contains(key) && Vector2.Distance(here, door.Spot) <= ListedWithinUnits;
                 if (open)
                 {
                     _doors.Remove(key);
-                    if (door.GameLocked || door.Tried) Log("open", door);
+                    if (door.GameLocked || door.Tried) Changed("open", door);
                     continue;
                 }
-                Track(door, here);
+                if (door.OnFloor) Track(door, here); // walking over a door on the floor below doesn't try it
             }
-            return _doors.Values.Where(d => d.GameLocked || d.Tried).SelectMany(d => d.Footprint.Cells).ToHashSet();
+            return _doors.Values.Where(d => (d.GameLocked || d.Tried) && d.SeenOnFloor).SelectMany(d => d.Footprint.Cells).ToHashSet();
         }
     }
 
-    /// <summary>Every locked door's 1-unit cells and the height it stands at, for paths over floors at several heights (OverworldPaths).</summary>
+    /// <summary>Every locked door's 1-unit cells and the height it stands at, on every floor, for paths over floors at several
+    /// heights (OverworldPaths).</summary>
     public IReadOnlyList<DoorWall> Walls()
     {
         lock (_gate)
@@ -83,7 +98,7 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
     public IReadOnlyList<GuideGate> Gates()
     {
         lock (_gate)
-            return [.. _doors.Where(d => d.Value.GameLocked).OrderBy(d => d.Key).Select(d =>
+            return [.. _doors.Where(d => d.Value.GameLocked && d.Value.SeenOnFloor).OrderBy(d => d.Key).Select(d =>
                 new GuideGate($"{d.Key.X},{d.Key.Y}", (d.Value.Spot.X, d.Value.Spot.Y), d.Value.Footprint.Cells.ToHashSet()))];
     }
 
@@ -101,19 +116,21 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
             foreach (var door in _doors.Values.Where(d => d.Tried))
             {
                 door.Tried = false;
-                Log("re-armed", door);
+                Changed("re-armed", door);
             }
     }
 
     /// <summary>A quest phase moved on: a door unlocked or opened by script while the player was out of its listing range would
-    /// stay a wall for good, so every door leads again; one still locked locks again once the client lists it.</summary>
+    /// stay a wall for good, so every door leads again; one still locked locks again once the client lists it. A door listed now
+    /// keeps the game's own lock, read every poll.</summary>
     public void QuestMovedOn()
     {
         lock (_gate)
-            foreach (var door in _doors.Values.Where(d => d.Tried || d.GameLocked))
+            foreach (var (key, door) in _doors.Where(d => d.Value.Tried || (d.Value.GameLocked && !_listed.Contains(d.Key))))
             {
-                (door.Tried, door.GameLocked) = (false, false);
-                Log("re-armed (quest moved on)", door);
+                door.Tried = false;
+                door.GameLocked &= _listed.Contains(key);
+                Changed("re-armed (quest moved on)", door);
             }
     }
 
@@ -123,7 +140,9 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
         lock (_gate)
         {
             _doors.Clear();
+            _listed = [];
             _namedSnos = new HashSet<int>();
+            _version++;
         }
     }
 
@@ -139,7 +158,7 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
             foreach (var door in _doors.Values.Where(d => d.Tried && snos.Contains(d.Sno) && !_namedSnos.Contains(d.Sno)))
             {
                 door.Tried = false;
-                Log("re-armed (named by the quest)", door);
+                Changed("re-armed (named by the quest)", door);
             }
             _namedSnos = snos;
         }
@@ -151,12 +170,12 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
         if (door.GameLocked != actor.Unusable)
         {
             door.GameLocked = actor.Unusable;
-            Log(actor.Unusable ? "locked" : "unlocked", door);
+            Changed(actor.Unusable ? "locked" : "unlocked", door);
         }
         door.State = (actor.Unusable, actor.QuestStep, actor.NamedByQuest);
         if (!door.Tried || door.State == door.TriedState) return;
         door.Tried = false;
-        Log("re-armed (quest changed)", door);
+        Changed("re-armed (quest changed)", door);
     }
 
     // Stood at it (within reach of its width) and walked away with it still closed: it doesn't open yet.
@@ -170,12 +189,15 @@ public sealed class LockedDoors(DoorObstacles doors, Func<int, string?> nameOf, 
             door.AtIt = false;
             door.Tried = true;
             door.TriedState = door.State;
-            Log("tried", door);
+            Changed("tried", door);
         }
     }
 
-    private void Log(string what, Door door) =>
+    private void Changed(string what, Door door)
+    {
+        _version++;
         log?.Invoke($"DOOR {what}: {nameOf(door.Sno) ?? door.Sno.ToString()} at ({door.Spot.X:F1},{door.Spot.Y:F1})");
+    }
 
     private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
     {

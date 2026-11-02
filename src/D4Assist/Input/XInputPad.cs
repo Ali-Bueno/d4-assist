@@ -20,7 +20,11 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     // Same order as D2R (input_direction.cpp:117).
     private static readonly string[] LibraryCandidates = ["xinput1_4.dll", "xinput9_1_0.dll"];
 
+    // The undocumented XInputGetCapabilitiesEx of xinput1_4 (export ordinal 108, as SDL reads it): the pad's USB vendor and product.
+    private const int CapabilitiesExOrdinal = 108;
+
     private delegate int XInputGetStateFn(uint userIndex, out XInputState state);
+    private delegate int XInputGetCapabilitiesExFn(uint one, uint userIndex, uint flags, out XInputCapabilitiesEx capabilities);
 
     // XINPUT_STATE: dwPacketNumber, then XINPUT_GAMEPAD (wButtons, 2 triggers, 4 thumb axes).
     [StructLayout(LayoutKind.Sequential)]
@@ -32,14 +36,35 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
         public short ThumbLX, ThumbLY, ThumbRX, ThumbRY;
     }
 
-    private readonly Func<int, ushort?> _readButtons;
+    // XINPUT_CAPABILITIES (type, subtype, flags, XINPUT_GAMEPAD, XINPUT_VIBRATION), then vendor, product, version and two unknowns.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XInputCapabilitiesEx
+    {
+        public byte Type, SubType;
+        public ushort Flags;
+        public ushort Buttons;
+        public byte LeftTrigger, RightTrigger;
+        public short ThumbLX, ThumbLY, ThumbRX, ThumbRY;
+        public ushort LeftMotor, RightMotor;
+        public ushort VendorId, ProductId, VersionNumber, Unknown1;
+        public uint Unknown2;
+    }
+
+    /// <summary>One slot's sample: the buttons, and the packet number XInput moves on with any change of the pad's state.</summary>
+    private readonly record struct Reading(ushort Buttons, uint Packet);
+
+    private readonly Func<int, Reading?> _read;
+    private readonly Func<int, string?> _describe = _ => null;
     private readonly Action<string>? _log;
     private nint _library;
     private readonly PressHold[] _buttons = [.. Enumerable.Range(0, MaxUsers).Select(_ => new PressHold())];
     private readonly Func<long> _nowMs = () => Environment.TickCount64;
     private readonly bool[] _connected = new bool[MaxUsers];
-    // Logged once per connection: a pad that connects but never reports a button (seen on a ROG Xbox Ally) is told from one that works.
+    // Logged once per connection: a pad that connects but never reports a button (seen on a ROG Xbox Ally) is told from one that
+    // works, and one whose sticks move from one that sends nothing at all.
     private readonly bool[] _buttonsSeen = new bool[MaxUsers];
+    private readonly bool[] _inputSeen = new bool[MaxUsers];
+    private readonly uint[] _firstPacket = new uint[MaxUsers];
     private Timer? _timer;
 
     public event Action? DpadLeftPressed;
@@ -50,27 +75,39 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     public XInputPad(Action<string>? log = null)
     {
         _log = log;
-        _readButtons = _ => null;
+        _read = _ => null;
         foreach (var name in LibraryCandidates)
         {
             if (!NativeLibrary.TryLoad(name, out var library)) continue;
             if (!NativeLibrary.TryGetExport(library, "XInputGetState", out var export)) { NativeLibrary.Free(library); continue; }
             var getState = Marshal.GetDelegateForFunctionPointer<XInputGetStateFn>(export);
             _library = library;
-            _readButtons = slot => getState((uint)slot, out var state) == ErrorSuccess ? state.Buttons : null;
+            _read = slot => getState((uint)slot, out var state) == ErrorSuccess ? new Reading(state.Buttons, state.PacketNumber) : null;
+            var capabilities = GetProcAddress(library, CapabilitiesExOrdinal);
+            if (capabilities != 0)
+            {
+                var getCapabilities = Marshal.GetDelegateForFunctionPointer<XInputGetCapabilitiesExFn>(capabilities);
+                _describe = slot => getCapabilities(1, (uint)slot, 0, out var c) == ErrorSuccess
+                    ? $"type {c.Type}, subtype {c.SubType}, flags 0x{c.Flags:X4}, vendor 0x{c.VendorId:X4}, product 0x{c.ProductId:X4}" : null;
+            }
             log?.Invoke($"Pad: XInput loaded from {name}.");
             return;
         }
         log?.Invoke("Pad: XInput unavailable; Xbox pads can't toggle the guide.");
     }
 
-    /// <summary>Tests: <paramref name="readButtons"/> returns a slot's button bits, or null when it is disconnected.</summary>
+    /// <summary>Tests: <paramref name="readButtons"/> returns a slot's button bits, or null when it is disconnected; its state
+    /// changes with the buttons only.</summary>
     /// <param name="nowMs">Milliseconds clock; null for the system's.</param>
     public XInputPad(Func<int, ushort?> readButtons, Action<string>? log = null, Func<long>? nowMs = null)
     {
-        (_readButtons, _log) = (readButtons, log);
+        _read = slot => readButtons(slot) is { } b ? new Reading(b, b) : null;
+        _log = log;
         if (nowMs is not null) _nowMs = nowMs;
     }
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern nint GetProcAddress(nint module, nint ordinal);
 
     public bool IsAvailable => _library != 0;
 
@@ -81,17 +118,25 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     {
         for (int slot = 0; slot < MaxUsers; slot++)
         {
-            var buttons = _readButtons(slot);
-            if (buttons.HasValue != _connected[slot])
+            var reading = _read(slot);
+            if (reading.HasValue != _connected[slot])
             {
-                _connected[slot] = buttons.HasValue;
-                _buttonsSeen[slot] = false;
-                _log?.Invoke($"Pad: XInput slot {slot} {(buttons.HasValue ? "connected" : "disconnected")}.");
+                _connected[slot] = reading.HasValue;
+                (_buttonsSeen[slot], _inputSeen[slot]) = (false, false);
+                string? device = null;
+                if (reading is { } first) (_firstPacket[slot], device) = (first.Packet, _describe(slot));
+                _log?.Invoke($"Pad: XInput slot {slot} {(reading.HasValue ? "connected" : "disconnected")}{(device is null ? "" : $" ({device})")}.");
             }
-            if (buttons is not { } b)
+            if (reading is not { } r)
             {
                 _buttons[slot].Reset(); // a disconnected slot clears, so a reconnect starts from a clean edge
                 continue;
+            }
+            ushort b = r.Buttons;
+            if (r.Packet != _firstPacket[slot] && !_inputSeen[slot])
+            {
+                _inputSeen[slot] = true;
+                _log?.Invoke($"Pad: XInput slot {slot} first input.");
             }
             if (b != 0 && !_buttonsSeen[slot])
             {

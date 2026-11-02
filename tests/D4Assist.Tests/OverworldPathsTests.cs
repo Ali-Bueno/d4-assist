@@ -55,6 +55,19 @@ public class OverworldPathsTests
         Assert.All(shut, p => Assert.False(p.X is >= 40 and < 44 && p.Y is >= 46 and < 50));
     }
 
+    // The Darkened Way's invisible doors, read a hair off the half units, lay a cell apart across the ramp (tester 2026-11-01).
+    [Fact]
+    public void Two_locked_doors_a_cell_apart_leave_no_way_between_them()
+    {
+        var from = new Vector3(10, 48, 0);
+        DoorWall Cells(int y0, int y1) => new(Enumerable.Range(40, 4).SelectMany(x => Enumerable.Range(y0, y1 - y0 + 1).Select(y => (x, y))).ToHashSet(), 0);
+
+        var shut = Paths().Find("W", from, new Vector2(80, 48), [Cells(46, 47), Cells(49, 49)]);
+
+        Assert.NotNull(shut);
+        Assert.True(Length(new(from.X, from.Y), shut) > 120f);
+    }
+
     [Fact]
     public void A_door_on_another_floor_bars_only_that_floor()
     {

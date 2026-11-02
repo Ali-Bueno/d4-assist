@@ -441,8 +441,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         if (r.AcdId == RActorRecord.NoAcd || !_readsFlags(r.ActorSno)) return null;
         var values = flags.Values(r.AcdId);
         if (values.TryGetValue(AcdFlagReader.ConversationIconQuest, out uint quest) && _offersLogged.Add((r.ActorSno, quest)))
-            Console.WriteLine($"Quest conversation: actor {r.ActorSno} offers quest {quest}" +
-                $"{(_activeQuests?.Owned.Contains((int)quest) == true ? " (followed)" : "")}.");
+            Console.WriteLine(quest == uint.MaxValue // the icon's quest cleared (-1) once the talk is done
+                ? $"Quest conversation: actor {r.ActorSno} offers no quest now."
+                : $"Quest conversation: actor {r.ActorSno} offers quest {quest}{(_activeQuests?.Owned.Contains((int)quest) == true ? " (followed)" : "")}.");
         if (values.ContainsKey(AcdFlagReader.BuffVisualEffect))
         {
             // One key per effect it shows, followed by the effect's SNO (ActorFilter.BuffFlagPrefix).

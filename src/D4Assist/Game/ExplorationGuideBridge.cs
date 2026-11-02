@@ -38,6 +38,8 @@ public sealed class ExplorationGuideBridge
     private readonly Action<string>? _log;
     private readonly GuideSwitch _switch;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly Func<TimeSpan> _now;
+    private TimeSpan _enteredAt;
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
     private PlayerInput? _player;
@@ -56,6 +58,10 @@ public sealed class ExplorationGuideBridge
     private string? _heightToldFor;
     // The player asked to explore past the objectives (D-pad left held).
     private bool _exploring;
+
+    /// <summary>A world's map read this soon after arriving is still loading: no one explores a dungeon this fast (tester 2026-11-01,
+    /// the Monastery Halls: "all explored" and a re-arm at the entrance, a frontier 50 ms later).</summary>
+    public static readonly TimeSpan MapSettles = TimeSpan.FromSeconds(3);
 
     // An objective is reached inside its radius and on its floor: a height gap up to this (or the radius, if larger) is the
     // same floor. Live 2026-10-01: the Rathma temple's trigger lay 23 units below the walkway the player stood on.
@@ -83,8 +89,9 @@ public sealed class ExplorationGuideBridge
         GuidePingPlayer ping, ISpeechSink speech, Func<bool> beaconActive, Action<string>? log = null, IGuideTogglePad? pad = null,
         bool guideInDungeons = false, LanguageSetting? language = null, Func<IReadOnlyList<GuideDestination>>? destinations = null,
         Func<IReadOnlyList<GuideDestination>>? objectives = null, Action<bool>? rearmObjectives = null, Func<bool>? routeActive = null,
-        Func<bool>? bossFight = null)
+        Func<bool>? bossFight = null, Func<TimeSpan>? clock = null)
     {
+        _now = clock ?? (() => _clock.Elapsed);
         _bossFight = bossFight ?? (() => false);
         _routeActive = routeActive ?? (() => false);
         _language = language ?? new LanguageSetting();
@@ -161,6 +168,7 @@ public sealed class ExplorationGuideBridge
 
     private void Reset()
     {
+        _enteredAt = _now();
         _player = null;
         _loggedTargetId = null;
         _announcedAllExplored = false;
@@ -227,6 +235,7 @@ public sealed class ExplorationGuideBridge
             case GuideStatus.AllExplored:
                 _ping.Silence();
                 _loggedTargetId = null;
+                if (_now() - _enteredAt < MapSettles) break; // the map is still loading, not explored
                 if (RearmWhenAllExplored(step)) { Update(); return; }
                 if (_announcedAllExplored) break;
                 _announcedAllExplored = true;

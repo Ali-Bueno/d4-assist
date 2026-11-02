@@ -1,6 +1,8 @@
 using System.Numerics;
 using D4Assist.Navigation;
+using D4Data.Casc;
 using D4Data.Readers;
+using D4Data.Schema;
 
 namespace D4Assist.Game;
 
@@ -29,6 +31,60 @@ public sealed class OverworldPaths(
     public const float MaxDistanceUnits = 1500f;
 
     private const float ChunkUnits = 96f;
+
+    // A traversal's gizmos (Traversal_Gizmo_Jump, _DuckUnder, _Slide...) and the spots it lands at (research/dungeon-data.md §4.1c).
+    private const string TraversalGizmoPrefix = "Traversal_Gizmo_";
+    private const string TraversalSlideName = "Traversal_Gizmo_Slide";
+    private const string TraversalExitName = "MarkerLocation_TraversalExit";
+    private const string MarkerSetType = "MarkerSetDefinition", ActorDefinitionType = "ActorDefinition";
+
+    /// <summary>Paths over the game data's scene surfaces and traversals; every game-data read holds <paramref name="gate"/>.</summary>
+    public static OverworldPaths FromGameData(SnoStore store, TypeSchema schema, object gate)
+    {
+        var worlds = new WorldReader(store, schema);
+        var scenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false);
+        // Traversals sit in any marker layer ("Game", "Traversals"), as the jumps of JumpLinkCollector.
+        var traversals = new TileActorReader(
+            new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false),
+            sno => IsTraversal(store.Name(sno)));
+        var chunks = new Dictionary<string, IReadOnlyList<SceneChunkInfo>>();
+        // A world's own marker layers ("Frac_Underworld (QST_Frac_Underworld_02_JumpTraversal)") place traversals in world space.
+        var markers = new MarkerReader(store, schema);
+        int markerSets = schema.SnoGroup(MarkerSetType), actors = schema.SnoGroup(ActorDefinitionType);
+        var worldTraversals = new Dictionary<string, IReadOnlyList<TraversalPoint>>();
+        return new OverworldPaths(
+            worldName =>
+            {
+                lock (gate)
+                {
+                    if (chunks.TryGetValue(worldName, out var known)) return known;
+                    int? world;
+                    try { world = store.Resolve(worlds.Group, worldName); }
+                    catch (ArgumentException) { world = null; }
+                    return chunks[worldName] = world is null ? [] : worlds.Read(world.Value).Chunks;
+                }
+            },
+            scene => { lock (gate) return scenes.SurfaceVoxels(scene); },
+            scene =>
+            {
+                lock (gate)
+                    return [.. traversals.In(scene).Select(t => new TraversalPoint(t.Local, store.Name(t.ActorSno) == TraversalSlideName))];
+            },
+            worldName =>
+            {
+                lock (gate)
+                {
+                    if (worldTraversals.TryGetValue(worldName, out var known)) return known;
+                    return worldTraversals[worldName] = [.. store.EntriesWithPrefix(markerSets, worldName + " (")
+                        .SelectMany(set => markers.ReadAll(set.Id))
+                        .Where(m => m.Group == actors && IsTraversal(store.Name(m.Sno)))
+                        .Select(m => new TraversalPoint(m.Position, store.Name(m.Sno) == TraversalSlideName))];
+                }
+            });
+    }
+
+    private static bool IsTraversal(string? name) =>
+        name is not null && (name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) || name == TraversalExitName);
 
     private readonly object _gate = new();
     private readonly Dictionary<int, IReadOnlyList<Vector3>?> _scenes = [];
@@ -64,16 +120,29 @@ public sealed class OverworldPaths(
         if (worldTraversals is not null)
             foreach (var p in worldTraversals(worldName))
                 if (p.Local.X >= minX && p.Local.X <= maxX && p.Local.Y >= minY && p.Local.Y <= maxY) ends.Add((p.Local, p.Slide));
-        if (doors is { Count: > 0 }) voxels.RemoveAll(v => Barred(doors, v));
+        if (doors is { Count: > 0 })
+        {
+            var barred = BarredCells(doors);
+            voxels.RemoveAll(v => barred.TryGetValue(((int)MathF.Floor(v.X), (int)MathF.Floor(v.Y)), out var floors)
+                && floors.Exists(z => MathF.Abs(v.Z - z) <= DoorFloorUnits));
+        }
         return SurfacePathfinder.Find(voxels, start, to, from.Z, Links(ends));
     }
 
-    private static bool Barred(IReadOnlyList<DoorWall> doors, Vector3 voxel)
+    /// <summary>Each door's cells and one cell round them, by the heights of the doors there: the player's body doesn't pass a
+    /// cell from a door, and the Darkened Way's invisible doors stand a cell apart across the ramp they shut (tester 2026-11-01).</summary>
+    private static Dictionary<(int X, int Y), List<float>> BarredCells(IReadOnlyList<DoorWall> doors)
     {
-        var cell = ((int)MathF.Floor(voxel.X), (int)MathF.Floor(voxel.Y));
+        var barred = new Dictionary<(int X, int Y), List<float>>();
         foreach (var door in doors)
-            if (MathF.Abs(voxel.Z - door.Z) <= DoorFloorUnits && door.Cells.Contains(cell)) return true;
-        return false;
+            foreach (var (x, y) in door.Cells)
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (!barred.TryGetValue((x + dx, y + dy), out var floors)) barred[(x + dx, y + dy)] = floors = [];
+                        if (!floors.Contains(door.Z)) floors.Add(door.Z);
+                    }
+        return barred;
     }
 
     /// <summary>Every two traversal ends within JumpLinkCollector.MaxPairUnits, a slide one way down (not nearest-only pairing:

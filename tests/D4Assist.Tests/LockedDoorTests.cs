@@ -174,6 +174,7 @@ public class LockedDoorTests
 
         var locked = Doors();
         locked.Update([KeyLocked], At(20, 20.5f));
+        locked.Update([], At(80, 20.5f));
         locked.QuestMovedOn();
         Assert.Empty(locked.Update([], At(80, 20.5f)));
     }
@@ -183,8 +184,52 @@ public class LockedDoorTests
     {
         var doors = Doors();
         doors.Update([KeyLocked], At(20, 20.5f));
+        doors.Update([], At(80, 20.5f));
         doors.QuestMovedOn();
 
         Assert.Equal(Footprint(), doors.Update([KeyLocked], At(20, 20.5f)));
+    }
+
+    // The Darkened Way (tester 2026-11-01): the invisible doors below Lilith's petal, listed locked while the player stood up at the
+    // gate, were no walls from the phase change on until the player came down to their floor, and the path ran through them.
+    private static readonly ActorState KeyLockedBelow = KeyLocked with { Z = -8 };
+
+    [Fact]
+    public void A_listed_door_keeps_the_games_lock_when_the_quest_moves_on()
+    {
+        var log = new List<string>();
+        var doors = new LockedDoors(new DoorObstacles(new InteractableClassifier(Info, NameOf), Info), NameOf, log.Add);
+        doors.Update([KeyLockedBelow], At(20, 20.5f));
+        log.Clear();
+
+        doors.QuestMovedOn();
+
+        Assert.Single(doors.Walls());
+        Assert.Empty(log); // no re-arm and lock again on every phase
+    }
+
+    [Fact]
+    public void A_locked_door_on_another_floor_walls_the_paths_but_not_the_players_floor()
+    {
+        var doors = Doors();
+        int before = doors.Version;
+
+        Assert.Empty(doors.Update([KeyLockedBelow], At(20, 20.5f)));
+
+        var wall = Assert.Single(doors.Walls());
+        Assert.Equal(-8, wall.Z);
+        Assert.Equal(Footprint(), wall.Cells);
+        Assert.Empty(doors.Gates());
+        Assert.NotEqual(before, doors.Version); // a path found before leads through it
+    }
+
+    [Fact]
+    public void Walking_over_a_door_on_the_floor_below_never_tries_it()
+    {
+        var doors = Doors();
+        doors.Update([Door with { Z = -8 }], AtTheDoor);
+        doors.Update([Door with { Z = -8 }], Away);
+
+        Assert.Empty(doors.Walls());
     }
 }

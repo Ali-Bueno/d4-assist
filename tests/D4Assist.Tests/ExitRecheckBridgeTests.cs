@@ -40,13 +40,14 @@ public class ExitRecheckBridgeTests
         public List<string> Log = [];
         public List<GuideDestination> Destinations = [];
         public LanguageSetting Language = new();
+        private TimeSpan _clock;
 
         public Rig(string world = "X1_Undercity_Test")
         {
             var ping = new GuidePingPlayer(new AudioMixer(), () => 0, autoTick: false);
             _ = new ExplorationGuideBridge(
                 Feed, (_, missing, _, _) => { Asked.Add(missing); return Step; }, ping, Speech, () => Beacon, Log.Add, language: Language,
-                destinations: () => Destinations);
+                destinations: () => Destinations, clock: () => _clock += ExplorationGuideBridge.MapSettles);
             Feed.RaiseWorld(world);
         }
     }

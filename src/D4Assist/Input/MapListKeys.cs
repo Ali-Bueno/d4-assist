@@ -105,9 +105,12 @@ public sealed class MapListKeys : IMapListKeys, IDisposable
         foreach (var (id, _) in ListKeys) UnregisterHotKey(IntPtr.Zero, id);
     }
 
+    // Keys found taken: said once a run, not at every opening of the map (tester 2026-11-01: Shift+F2, 14 times).
+    private readonly HashSet<string> _taken = [];
+
     private void Register(int id, uint modifiers, uint key, string name)
     {
-        if (!RegisterHotKey(IntPtr.Zero, id, modifiers, key)) _log?.Invoke($"WAYPOINTS {name} is taken by another program.");
+        if (!RegisterHotKey(IntPtr.Zero, id, modifiers, key) && _taken.Add(name)) _log?.Invoke($"WAYPOINTS {name} is taken by another program.");
     }
 
     private void Raise(int id)

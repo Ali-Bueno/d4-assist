@@ -386,6 +386,10 @@ internal static class Program
         {
             pad.DpadLeftPressed += () => Console.WriteLine("Guide toggle pressed."); // rare; tells a silent pad from a silent guide
             pad.DpadLeftHeld += () => Console.WriteLine("Guide mode pressed.");
+            // Where each press came from, before the gates: a handheld's pad (ROG Xbox Ally) from a button mapped to the keys.
+            xboxPad!.DpadLeftPressed += () => Console.WriteLine("Pad: XInput D-pad left.");
+            sonyPad!.DpadLeftPressed += () => Console.WriteLine("Pad: PlayStation D-pad left.");
+            ((IGuideTogglePad)hotkeys).DpadLeftPressed += () => Console.WriteLine("Keys: Ctrl+Alt+Shift+G.");
         }
         QuestRouteBridge? routeBridge = null;
         QuestPathBridge? pathBridge = null;
@@ -420,12 +424,15 @@ internal static class Program
         if (routeBridge is not null) session.QuestMovedOn += routeBridge.OnQuestMovedOn;
         if (guidePing is not null && routesEnabled)
         {
-            var paths = NewOverworldPaths(store, schema, cascGate);
+            var paths = OverworldPaths.FromGameData(store, schema, cascGate);
+            var levelAreaWorlds = new LevelAreaWorlds(store.Name, name => WorldSnoOrNone(store, schema, name) != GameSession.NoWorldSno);
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
                 session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
                 markers =>
                 {
+                    if (session.CurrentWorld?.Name is { } world)
+                        lock (cascGate) markers = [.. markers.Where(m => levelAreaWorlds.InWorld(m.LevelAreaSno, world))];
                     IReadOnlyList<int>? owned = null;
                     session.Query(r => owned = r.ReadOwnedQuests());
                     IReadOnlyDictionary<int, uint>? FindPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests)
@@ -438,7 +445,8 @@ internal static class Program
                 },
                 (world, from, to) => paths.Find(world, from, to, lockedDoors.Walls()),
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
-                entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate));
+                entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate),
+                wallsVersion: () => lockedDoors.Version);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -841,60 +849,11 @@ internal static class Program
     private const int QuestSymbolMarkerKind = 12;
     private const float QuestSymbolNamingUnits = 60f;
 
-    // A traversal's gizmos (Traversal_Gizmo_Jump, _DuckUnder, _Slide...) and the spots it lands at (research/dungeon-data.md §4.1c).
-    private const string TraversalGizmoPrefix = "Traversal_Gizmo_";
-    private const string TraversalSlideName = "Traversal_Gizmo_Slide";
-    private const string TraversalExitName = "MarkerLocation_TraversalExit";
-
-    // Paths over the offline scene surfaces of the open world and the story areas; every game-data read holds the CASC gate.
     // Above every radar cue (RadarCueKindExtensions.Priority): a warning is never the voice stolen.
     private const int TelegraphPriority = 100;
 
     // ActorDefinition.eType of a projectile (the Horadric guardian's wave wall, tornadoes, chakram).
     private const int ProjectileActorType = 10;
-
-    private static OverworldPaths NewOverworldPaths(SnoStore store, TypeSchema schema, object cascGate)
-    {
-        var worlds = new WorldReader(store, schema);
-        var scenes = new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: false, includeMap: false);
-        // Traversals sit in any marker layer ("Game", "Traversals"), as the jumps of JumpLinkCollector.
-        var traversals = new TileActorReader(
-            new SceneReader(store, schema, new MarkerReader(store, schema), new NavGridReader(schema), allLayers: true, includeMap: false),
-            sno => store.Name(sno) is { } name && (name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) || name == TraversalExitName));
-        var chunks = new Dictionary<string, IReadOnlyList<SceneChunkInfo>>();
-        // A world's own marker layers ("Frac_Underworld (QST_Frac_Underworld_02_JumpTraversal)") place traversals in world space.
-        var markers = new MarkerReader(store, schema);
-        int markerSets = schema.SnoGroup(MarkerSetType), actors = schema.SnoGroup(ActorDefinitionType);
-        var worldTraversals = new Dictionary<string, IReadOnlyList<TraversalPoint>>();
-        return new OverworldPaths(
-            worldName =>
-            {
-                lock (cascGate)
-                {
-                    if (chunks.TryGetValue(worldName, out var known)) return known;
-                    var world = SnoOrNull(store, worlds.Group, worldName);
-                    return chunks[worldName] = world is null ? [] : worlds.Read(world.Value).Chunks;
-                }
-            },
-            scene => { lock (cascGate) return scenes.SurfaceVoxels(scene); },
-            scene =>
-            {
-                lock (cascGate)
-                    return [.. traversals.In(scene).Select(t => new TraversalPoint(t.Local, store.Name(t.ActorSno) == TraversalSlideName))];
-            },
-            worldName =>
-            {
-                lock (cascGate)
-                {
-                    if (worldTraversals.TryGetValue(worldName, out var known)) return known;
-                    return worldTraversals[worldName] = [.. store.EntriesWithPrefix(markerSets, worldName + " (")
-                        .SelectMany(set => markers.ReadAll(set.Id))
-                        .Where(m => m.Group == actors && store.Name(m.Sno) is { } name
-                            && (name.StartsWith(TraversalGizmoPrefix, StringComparison.Ordinal) || name == TraversalExitName))
-                        .Select(m => new TraversalPoint(m.Position, store.Name(m.Sno) == TraversalSlideName))];
-                }
-            });
-    }
 
     private static int? SnoOrNull(SnoStore store, int group, string name)
     {

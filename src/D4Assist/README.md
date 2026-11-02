@@ -322,10 +322,12 @@ yet: the game won't let them be used (`QuestLocked` or `ScriptDisabled`, e.g. a 
 within 3 units of the door and walked 20 away with it still closed (tried). A tried door waits until its quest state
 (`Unusable`, `QuestStep`, `NamedByQuest`) changes or the guide is switched on; any locked door is open once seen open, or missing
 within 15 units of its spot, and stays a wall while the client drops it far away. An objective at a locked door never leads
-(`ObjectiveMemory`). When a followed quest moves on from a known phase (`GameSession.QuestMovedOn`), every locked or tried door
-leads again and every barrier not listed now stops blocking: a boss room's door opens by script once the objective is done,
-often while the player is too far for the client to list it (research/dungeon-objectives.md §22); one still locked locks again
-once listed. The log always says `DOOR locked|unlocked|tried|re-armed|open …`. When a barrier or locked door falls, the
+(`ObjectiveMemory`). When a followed quest moves on from a known phase (`GameSession.QuestMovedOn`), every tried door and every locked door
+not listed now leads again (a listed one keeps the game's own lock, read every poll) and every barrier not listed now stops
+blocking: a boss room's door opens by script once the objective is done, often while the player is too far for the client to list
+it (research/dungeon-objectives.md §22); one still locked locks again once listed. Doors are read on every floor (a door's lock
+counts wherever it stands, as the paths over several heights need), but only one listed on the player's floor walls the guide's
+one-floor map or is tried. The log always says `DOOR locked|unlocked|tried|re-armed|open …`. When a barrier or locked door falls, the
 guide explores the ground it held back first (src/D4Assist.Navigation/README.md).
 
 ## Cutscenes
@@ -401,7 +403,8 @@ while on, a change of goal is spoken once, and a new floor starts exploring with
 It mutes while an unused portal is in sight (`PortalMemory.FreshInSight`: its
 beacon takes over) unless an objective still leads, stops on a world change, and when every reachable part is visited leads to the portals seen earlier:
 the reachable unused ones, or else the ones already used ("Todo explorado. Te llevo a un portal." / "... al portal por el que
-llegaste."). Reaching the last of them, or having none, it stays silent and speaks "Todo explorado." once per dungeon (`interrupt=false`). `--debug` logs one `GUIDE` line per target change and per toggle.
+llegaste."). Reaching the last of them, or having none, it stays silent and speaks "Todo explorado." once per dungeon (`interrupt=false`);
+never in the first 3 s of a world, while its map still loads (`ExplorationGuideBridge.MapSettles`, tester 2026-11-01). `--debug` logs one `GUIDE` line per target change and per toggle.
 Each target reached plays the arrival chime (a target reached while the beacon leads never chimes late). Once a
 Undercity boss-room tile (`*_FLEX_POI_BossRoom_Undercity`) loads, the guide stays off until the world changes:
 the last warp lands there and the run timer no longer matters (user request, 2026-09-28).
@@ -466,8 +469,11 @@ map: a step joins two floors only when their heights differ by at most 1 unit, s
 near an edge costs more. Traversals join the floors they split: every two traversal ends the chunks place
 (`Traversal_Gizmo_*`, `MarkerLocation_TraversalExit`, any marker layer) within 8 units are a link, a slide one way down
 (`SurfaceLink`, [dungeon-data](../../research/dungeon-data.md) §4.1c). Locked doors (`LockedDoors.Walls`: game-locked or tried)
-bar the floor within 2 units of their base height: the Darkened Way's invisible doors stood on the straight way down from Lilith's
-petal (tester 2026-10-31, [dungeon-data](../../research/dungeon-data.md) §4.1c).
+bar the floor within 2 units of their base height, on their cells and one cell round them: the Darkened Way's invisible doors stood
+on the straight way down from Lilith's petal, a cell apart (testers 2026-10-31 and 2026-11-01,
+[dungeon-data](../../research/dungeon-data.md) §4.1c). A door locking or unlocking finds the path again (`PATH doors changed`).
+Map markers in another world's level area (its name begins with that world's, `LevelAreaWorlds`) are no places: the map keeps
+a dungeon's markers after the player leaves it.
 
 - **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
@@ -497,8 +503,11 @@ petal (tester 2026-10-31, [dungeon-data](../../research/dungeon-data.md) §4.1c)
   2026-10-28; logs `Guide mode pressed.`, `--debug` `GUIDE mode explore|objectives`). Ignored while a game menu is open
   (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`),
   and while Diablo IV isn't the foreground window (another game, or the game closed: the pad is read globally);
-  every press past that gate logs `Guide toggle pressed.`. `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
-  D2R mod's `input_direction.cpp`; logs `Pad: XInput loaded from …` and `Pad: XInput slot N connected|disconnected`); the game still receives every press. PlayStation pads never reach XInput, so
+  every press past that gate logs `Guide toggle pressed.`, and each raw press its source first (`Pad: XInput D-pad left.`,
+  `Pad: PlayStation D-pad left.`, `Keys: Ctrl+Alt+Shift+G.`). `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
+  D2R mod's `input_direction.cpp`; logs `Pad: XInput loaded from …`, `Pad: XInput slot N connected (type, subtype, flags, vendor,
+  product)|disconnected`, and per connection `first input` (any state change, sticks included) and `first buttons 0x…`: a
+  ROG Xbox Ally's slot 0 connected and reported neither in a whole prologue, tester 2026-11-01); the game still receives every press. PlayStation pads never reach XInput, so
   `Input/SonyHidPad` reads their HID input reports (shared, read-only handle; rescans every 3 s for pads plugged in
   later; logs `Pad: … connected` or why it can't open one) and `Input/CombinedPad` drops a second copy of the same
   press within 200 ms (Steam Input / DS4Windows also expose the pad as a virtual Xbox pad). Not saved to `d4assist.json`.

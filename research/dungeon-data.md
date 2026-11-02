@@ -164,6 +164,15 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   story-area and open-world paths drop the surface voxels under every locked door (`LockedDoors.Walls`: game-locked or tried) within
   2 units of the door's base height (`OverworldPaths.DoorFloorUnits`), so a door bars only its own floor. The gate above
   (−103.7,19.9) is barred the same way while it reads locked.
+  **0.1.27 still led down the ramp** (tester 2026-11-01, `--debug`, pressed right after opening the gate at (−141,74)), for
+  two reasons, both replayed offline (`DarkenedWayDoorsRealDataTests`): (1) phase 260 re-armed every locked door
+  (`LockedDoors.QuestMovedOn`) and a door relocked only once listed on the player's floor, so with the player up at the gate
+  (Z 1.2, the doors at −6.8/−9.1) the path at 14:40:42 had no doors (50 units, the ramp; with them 123, the free-climb); now a
+  door's lock is read on every floor and a door listed at a phase change keeps it. (2) The doors stand 5 apart with a 4×4 box
+  (`DesignKit_InvisibleDoor`: centre (2,2,2), half (2,2,2), so the box runs from the actor +4 in X and Y); read a hair off the
+  half units they lay 4 cells each and leave column −129, on the ramp, between them: the paths at 14:41:16 and 14:41:41
+  (34 and 25 units) ran down it with the upper row locked. Paths now bar one cell round each door too. The ramp (x −129..−125,
+  y 57..67) drops from Z −2 to −8; Z per cell from `SceneReader.SurfaceVoxels`.
 - **DRLG tiles** link every traversal kind but the slide too (`JumpLinkCollector`, 2026-10-28): the Necropolis's tumor platforms
   (ladders) and pocket (duck-under), [dungeon-objectives](dungeon-objectives.md) §12.
 - **Traversals are prefabs** (census of 448 scenes, 2026-10-30): each is one `Traversal_*` marker-set prefab: `Jump_6m_Gizmo`,

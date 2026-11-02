@@ -344,7 +344,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
             var session = lease.Reader;
             var player = session.ReadPlayer();
             if (player is null) { HandleSessionLost(lease); return; } // process likely exited
-            if (player.IsWorldUnloaded) return;
+            _playerOffWorld = player.IsWorldUnloaded;
+            if (_playerOffWorld) return;
             Deliver(lease, () => Raise("player", PlayerMoved, h => h(player)));
             if (session.ReadConversation() is { } talk) Deliver(lease, () => Raise("conversation", ConversationRead, h => h(talk)));
             if (session.ReadMenus() is { } menus) Deliver(lease, () => Raise("menus", MenusRead, h => h(menus)));
@@ -355,6 +356,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>Runs one actor-pool read; an unavailable pool is skipped silently (the reader logs it once).</summary>
     public void PollActorsOnce() => Guarded("actors", ref _actorsBusy, ReadActorsOnce);
 
+    // Set by the player poll, read by the actor poll on another timer.
+    private volatile bool _playerOffWorld;
+
     private void ReadActorsOnce()
     {
         SessionLease? lease;
@@ -363,7 +367,8 @@ public sealed class GameSession : IDungeonFeed, IDisposable
         try
         {
             var session = lease.Reader;
-            if (session.ReadActors() is { } read)
+            // The pool reads junk with the player's record: at a disconnect, gizmo names at the origin were taken for doors (2026-11-01).
+            if (!_playerOffWorld && session.ReadActors() is { } read)
             {
                 var actors = ActorRewrite?.Invoke(read) ?? read;
                 Deliver(lease, () => Raise("actors", ActorsUpdated, h => h(actors)));

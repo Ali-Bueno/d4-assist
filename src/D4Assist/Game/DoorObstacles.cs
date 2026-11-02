@@ -20,15 +20,18 @@ public sealed class DoorObstacles(InteractableClassifier doors, Func<int, ActorD
     private const float WidthPad = CellSize;
 
     /// <summary>The doors that are closed (never used, not in the open state) and on the player's floor.</summary>
-    public IReadOnlyList<DoorFootprint> Closed(IEnumerable<ActorState> actors, float playerZ)
+    public IReadOnlyList<DoorFootprint> Closed(IEnumerable<ActorState> actors, float playerZ) =>
+        [.. ClosedOnAnyFloor(actors, playerZ).Where(d => d.OnPlayerFloor).Select(d => d.Footprint)];
+
+    /// <summary>The doors that are closed on every floor, each with whether it stands on the player's.</summary>
+    public IReadOnlyList<(DoorFootprint Footprint, bool OnPlayerFloor)> ClosedOnAnyFloor(IEnumerable<ActorState> actors, float playerZ)
     {
-        var result = new List<DoorFootprint>();
+        var result = new List<(DoorFootprint, bool)>();
         foreach (var actor in actors)
         {
             if (actor.StateChanged || actor.GizmoStateSet || doors.Classify(actor.ActorSno)?.Kind != InteractableKind.Door) continue;
             if (definition(actor.ActorSno) is not { } info || info.BoundsHalfExtents.X <= 0 || info.BoundsHalfExtents.Y <= 0) continue;
-            if (!OnPlayerFloor(actor, info, playerZ)) continue;
-            result.Add(Footprint(actor, info.BoundsCenter, info.BoundsHalfExtents));
+            result.Add((Footprint(actor, info.BoundsCenter, info.BoundsHalfExtents), OnPlayerFloor(actor, info, playerZ)));
         }
         return result;
     }

@@ -55,13 +55,17 @@ public class ExplorationGuideBridgeTests
         public IReadOnlyList<GuideDestination>? AskedObjectives;
         public int Rearms;
         public bool RouteActive;
+        // Each reading moves past the map's settling time, unless a test holds the clock at the arrival.
+        public bool Settled = true;
+        public TimeSpan Clock;
 
         public Rig(bool guideInDungeons = false)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             _ = new ExplorationGuideBridge(
                 Feed, (_, _, _, objectives) => { AskedObjectives = objectives; return Step; }, Ping, Speech, () => BeaconActive, Log.Add, Pad,
-                guideInDungeons, destinations: () => Destinations, objectives: () => Objectives, rearmObjectives: _ => Rearms++, routeActive: () => RouteActive);
+                guideInDungeons, destinations: () => Destinations, objectives: () => Objectives, rearmObjectives: _ => Rearms++, routeActive: () => RouteActive,
+                clock: () => Settled ? Clock += ExplorationGuideBridge.MapSettles : Clock);
             Feed.RaiseWorld();
         }
 
@@ -202,6 +206,21 @@ public class ExplorationGuideBridgeTests
         Assert.Equal((0, 0), rig.Hear());
         Assert.Equal([(NavigationPhrases.Spanish.AllExplored, false)], rig.Speech.Spoken);
         Assert.Equal("Todo explorado.", NavigationPhrases.Spanish.AllExplored);
+    }
+
+    // Tester 2026-11-01, the Monastery Halls: at the entrance the first step read all explored, a frontier came 50 ms later.
+    [Fact]
+    public void All_explored_right_after_arriving_is_a_map_still_loading()
+    {
+        var rig = new Rig { Step = GuideStep.AllExplored, Settled = false };
+        rig.Feed.RaiseWorld();
+
+        rig.Feed.RaisePlayer();
+        Assert.Empty(rig.Speech.Spoken);
+
+        rig.Clock += ExplorationGuideBridge.MapSettles;
+        rig.Feed.RaisePlayer();
+        Assert.Single(rig.Speech.Spoken);
     }
 
     [Fact]

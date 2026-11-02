@@ -47,8 +47,9 @@ public sealed record MarkedActor(int ActorSno, float X, float Y, float Z, int Le
 /// <summary>The local player's live position, as exposed to the app.</summary>
 public sealed record PlayerState(float X, float Y, float Z, int SceneSno)
 {
-    /// <summary>The static record reads exactly (0,0,0) while a world unloads (live 2026-09-28, dungeon → Limbo): not a real position.</summary>
-    public bool IsWorldUnloaded => X == 0 && Y == 0 && Z == 0;
+    /// <summary>Not a real position: the static record reads (0,0,0) while a world unloads (live 2026-09-28, dungeon → Limbo), and
+    /// freed memory (0xCDCDCDCD, -4.3e8 on each axis) as the game disconnects (tester 2026-11-01).</summary>
+    public bool IsWorldUnloaded => !ActorFilter.InWorld(new(X, Y, Z));
 }
 
 /// <summary>

@@ -419,6 +419,9 @@ other side panel and the full menus opened on purpose. A side panel is a `<name>
 `ActionBar` family is the skill assignment, not the HUD bar: its screens stay closed in play. Left out too:
 screens seen open during normal play (Chat, SocialNotifications, ConversationSubtitle, GenericSkillTreeTest,
 StoreDetails_v2, Mailbox_Right, and after a character switch InGameLogout, WorldTiers, FollowerSwap, ModalRenameLoadout).
+`screen_WorldTiers` is watched since 2026-11-01: it is the difficulty statue's menu (`Gizmo_World_Tier_Select`, gizmo 103,
+in Kyovashad at (−1440.4,153.5)), where D-pad left switched the guide (tester); its open read after a character switch was a
+stale record, which the seen-closed rule below keeps from muting. Not yet seen open live.
 - The open flag is one byte: real toggles change only it (`0xE7010100` ↔ `0xE7010101`, `0` ↔ `1`), and all 292 records
   held 0 or 1 in play. During a character switch freed records read junk (`0xFFFFFFFF`, `0x876747B5`), so any other value
   makes the record invalid. **But a stale record can still validate** (live 2026-10-04): after a character switch,

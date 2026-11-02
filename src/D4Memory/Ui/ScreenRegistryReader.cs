@@ -68,9 +68,12 @@ public static class MenuScreens
 
     // Full screens the player opens on purpose, not yet opened live either. Left out: screens seen open during normal play
     // (Chat, SocialNotifications, ConversationSubtitle, GenericSkillTreeTest, StoreDetails_v2, Mailbox_Right, InGameLogout,
-    // WorldTiers, FollowerSwap, ModalRenameLoadout, 2026-09-30), and HUD, tooltips, tutorials, popups, front end and debug.
+    // FollowerSwap, ModalRenameLoadout, 2026-09-30), and HUD, tooltips, tutorials, popups, front end and debug.
+    // WorldTiers, the difficulty statue's menu (Gizmo_World_Tier_Select; tester 2026-11-01: D-pad left there switched the guide),
+    // read open only after a character switch, a stale record (§5) that never mutes before it reads closed.
     private static readonly string[] OtherMenus =
     [
+        "screen_WorldTiers",
         "screen_Achievements", "screen_BrightnessDialog", "screen_BugReport", "screen_BuildViewer", "screen_CampaignProgress",
         "screen_ChallengeRift", "screen_ChallengeRiftLeaderboards", "screen_Clan", "screen_ClanProfile",
         "screen_ClanProfileWithApplication", "screen_ClanProfileWithInvite", "screen_ClanProfileWithPendingApplication",

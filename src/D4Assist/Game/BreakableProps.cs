@@ -32,22 +32,23 @@ public sealed class BreakableProps(
         public int MissingPolls { get; set; }
     }
 
-    // Keyed by spot, not id: an actor dropped and listed again comes back under a new id.
-    private readonly Dictionary<(int X, int Y), Prop> _standing = [];
-    private readonly HashSet<(int X, int Y)> _broken = [];
+    // Keyed by spot and kind, not id: an actor dropped and listed again comes back under a new id, and two
+    // different props can round to one spot (stalagmite clusters), which must not take turns replacing each other.
+    private readonly Dictionary<(int X, int Y, int Sno), Prop> _standing = [];
+    private readonly HashSet<(int X, int Y, int Sno)> _broken = [];
     private IReadOnlySet<(int X, int Y)> _cells = new HashSet<(int X, int Y)>();
     private bool _changed;
 
     /// <summary>The cells every standing prop covers, after this actor poll.</summary>
     public IReadOnlySet<(int X, int Y)> Update(IReadOnlyList<ActorState> actors, PlayerState player)
     {
-        var listed = new HashSet<(int X, int Y)>();
+        var listed = new HashSet<(int X, int Y, int Sno)>();
         foreach (var actor in actors)
         {
             if (!_isProp(actor.ActorSno) || definition(actor.ActorSno) is not { } info) continue;
-            var key = Key(actor.X, actor.Y);
+            var key = Key(actor);
             if (_broken.Contains(key)) continue;
-            if (_standing.TryGetValue(key, out var prop) && prop.Sno == actor.ActorSno)
+            if (_standing.TryGetValue(key, out var prop))
             {
                 if (actor.Operated || (prop.HadRecord && actor.ClientOnly)) { Break(key, prop, actor.Operated ? "operated" : "its game record gone"); continue; }
                 prop.HadRecord |= !actor.ClientOnly;
@@ -82,7 +83,7 @@ public sealed class BreakableProps(
         _cells = new HashSet<(int X, int Y)>();
     }
 
-    private void Break((int X, int Y) key, Prop prop, string cause)
+    private void Break((int X, int Y, int Sno) key, Prop prop, string cause)
     {
         _standing.Remove(key);
         _broken.Add(key);
@@ -93,5 +94,5 @@ public sealed class BreakableProps(
     private static bool OnPlayerFloor(ActorState prop, ActorDefinitionInfo info, float playerZ) =>
         MathF.Abs(playerZ - (prop.Z + info.PropCenter.Z - info.PropHalfExtents.Z)) <= SameFloorUnits;
 
-    private static (int X, int Y) Key(float x, float y) => ((int)MathF.Round(x), (int)MathF.Round(y));
+    private static (int X, int Y, int Sno) Key(ActorState actor) => ((int)MathF.Round(actor.X), (int)MathF.Round(actor.Y), actor.ActorSno);
 }

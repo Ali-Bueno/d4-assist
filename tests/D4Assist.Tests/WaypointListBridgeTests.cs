@@ -188,6 +188,8 @@ public class WaypointListBridgeTests
         Assert.Equal("The map shows the objects of the helltide in Hawezar only once you enter its area, outside towns.", speech.Last);
         Assert.True(keys.ListKeys);
         Assert.Null(mouse.Moved);
+        keys.Escape(); // back to the events menu
+        Assert.True(keys.ListKeys);
         keys.Escape();
         Assert.False(keys.ListKeys);
     }
@@ -216,7 +218,7 @@ public class WaypointListBridgeTests
         keys.OpenHelltide();
 
         Assert.Equal("No helltide right now. The next one starts in 23 minutes.", speech.Last);
-        Assert.False(keys.ListKeys);
+        Assert.True(keys.ListKeys); // the events menu stays for the whispers
     }
 
     // Patch 3.3.0: an expansion's helltide rises on the half hour beside the base game's; each takes the objects in its region.
@@ -246,7 +248,7 @@ public class WaypointListBridgeTests
 
         keys.OpenHelltide();
 
-        Assert.False(keys.ListKeys);
+        Assert.True(keys.ListKeys); // the events menu stays for the whispers
         Assert.StartsWith("No helltide objects on the map.", speech.Last);
     }
 
@@ -361,10 +363,277 @@ public class WaypointListBridgeTests
         Assert.False(keys.OpenKey);
     }
 
+    // Treasure goblins the map shows (GoblinWatch decides which; here every goblin marker counts as shown).
+    private const int Goblin = 384484, GoldGoblin = 2170341;
+
+    private static HelltidePlace? GoblinPlace(MarkedActor marker) => marker.ActorSno switch
+    {
+        Goblin => new HelltidePlace("Treasure Goblin", "Lichtschwund", "Auen von Fethis, Hawezar"),
+        GoldGoblin => new HelltidePlace("Gilded Goblin", null, "Auen von Fethis, Hawezar"),
+        _ => null,
+    };
+
+    [Fact]
+    public void Shift_F3_lists_the_treasure_goblins_the_map_shows_nearest_first_with_where_they_run()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], view: new MapView(681.64f, -410.26f, 1100f), goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([
+            new MarkedActor(Cultist, 690, -410, 0, 1, 10),
+            new MarkedActor(GoldGoblin, 681.64f, -450, 0, 1, 10),
+            new MarkedActor(Goblin, 700, -410, 0, 1, 10),
+        ]);
+
+        keys.OpenGoblins();
+
+        Assert.StartsWith("Treasure goblins on the map: 2. Treasure Goblin, Lichtschwund, 18 meters", speech.Last);
+        Assert.True(speech.Brailled);
+        keys.Down();
+        Assert.StartsWith("Gilded Goblin, Auen von Fethis, Hawezar, 40 meters", speech.Last);
+    }
+
+    [Fact]
+    public void Without_a_goblin_on_the_map_Shift_F3_says_so_and_opens_nothing()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([new MarkedActor(Cultist, 690, -410, 0, 1, 10)]);
+
+        keys.OpenGoblins();
+
+        Assert.Equal("No treasure goblin on the map.", speech.Last);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Enter_points_at_where_the_goblin_runs_now()
+    {
+        var view = new MapView(681.64f, -410.26f, 1100f);
+        var (bridge, keys, speech, mouse) = Create([GeaKul], view: view, goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([new MarkedActor(Goblin, 700, -410, 0, 1, 10)]);
+        keys.OpenGoblins();
+
+        bridge.OnMapMarkers([new MarkedActor(Goblin, 710, -400, 0, 1, 10)]); // it ran on
+
+        keys.Enter();
+        Assert.Equal(MapProjection.ToClient(view, 710, -400, 1920, 1080), mouse.Moved);
+        Assert.StartsWith("Cursor on Treasure Goblin", speech.Last);
+    }
+
+    [Fact]
+    public void Shift_F3_works_only_while_the_map_shows()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], goblinPlace: GoblinPlace);
+        bridge.OnMapMarkers([new MarkedActor(Goblin, 700, -410, 0, 1, 10)]);
+        bridge.OnMenus([MenuScreens.MainMenu]);
+
+        keys.OpenGoblins();
+
+        Assert.Null(speech.Last);
+    }
+
+    private static readonly WhisperEvent NearWhisper = new("Harvest: Caldeum", "Kehjistan", 700, -410, OpenWorld, 3);
+    private static readonly WhisperEvent FarWhisper = new("Lut Bahadur", null, 681.64, 100, OpenWorld, 1, MinutesLeft: () => 12);
+
+    [Fact]
+    public void Shift_F2_opens_the_events_menu_and_up_and_down_move_through_it()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, helltides: [HelltideRegion.Hawezar], readWhispers: () => [NearWhisper]);
+
+        keys.OpenEvents();
+        Assert.Equal("Events menu: Helltide, 1 of 3.", speech.Last);
+        Assert.True(keys.ListKeys);
+        keys.Up();
+        Assert.Equal("Helltide, 1 of 3.", speech.Last);
+        keys.Down();
+        Assert.Equal("Whispers, 2 of 3.", speech.Last);
+        keys.Down();
+        Assert.Equal("Events, 3 of 3.", speech.Last);
+        keys.Down();
+        Assert.Equal("Events, 3 of 3.", speech.Last);
+        keys.Up();
+        keys.Up();
+        keys.Enter();
+        Assert.StartsWith("Helltide: Hawezar", speech.Last);
+        keys.Escape();
+        Assert.Equal("Events menu: Helltide, 1 of 3.", speech.Last);
+        keys.Escape();
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Legions_and_world_bosses_list_apart_from_the_whispers()
+    {
+        var boss = new WhisperEvent("World Boss", "Dry Steppes", 700, -400, OpenWorld, 5, IsEvent: true);
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [NearWhisper, boss]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        Assert.StartsWith("1 whispers by distance. Harvest: Caldeum", speech.Last);
+        keys.Escape();
+        Assert.Equal("Events menu: Whispers, 2 of 3.", speech.Last);
+        keys.Down();
+        keys.Enter();
+        Assert.StartsWith("1 events by distance. World Boss, Dry Steppes, 5 Grim Favors", speech.Last);
+        keys.Escape();
+        Assert.Equal("Events menu: Events, 3 of 3.", speech.Last);
+    }
+
+    [Fact]
+    public void No_event_listed_says_they_show_shortly_before_they_start_and_keeps_the_menu()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [NearWhisper]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Down();
+        keys.Enter();
+
+        Assert.Equal("No events right now. They show shortly before they start.", speech.Last);
+        Assert.True(keys.ListKeys);
+    }
+
+    [Fact]
+    public void The_whispers_list_nearest_first_with_their_favors_and_the_minutes_left_when_known()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [FarWhisper, NearWhisper]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        Assert.StartsWith("2 whispers by distance. Harvest: Caldeum, Kehjistan, 3 Grim Favors, 18 meters", speech.Last);
+        Assert.EndsWith("1 of 2.", speech.Last);
+        Assert.True(speech.Brailled);
+        keys.Down();
+        Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 12 minutes left, 510 meters", speech.Last);
+        keys.Escape();
+        Assert.Equal("Events menu: Whispers, 2 of 3.", speech.Last); // back on the entry it came from
+    }
+
+    [Fact]
+    public void A_coming_event_says_when_it_starts_and_nothing_after_it_has()
+    {
+        int? minutes = 58;
+        var boss = new WhisperEvent("World Boss", "Scosglen", 681.64, -410.26, OpenWorld, 5, IsEvent: true, MinutesToStart: () => minutes);
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [boss]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Down();
+        keys.Enter();
+        Assert.Contains("World Boss, Scosglen, 5 Grim Favors, starts in 58 minutes", speech.Last);
+        keys.Escape();
+
+        minutes = 1;
+        keys.Enter();
+        Assert.Contains("5 Grim Favors, starts in 1 minute,", speech.Last);
+        keys.Escape();
+
+        minutes = null;
+        keys.Enter();
+        Assert.DoesNotContain("starts in", speech.Last);
+    }
+
+    [Fact]
+    public void A_whispers_minutes_are_those_of_the_moment_it_is_said_not_of_the_lists_opening()
+    {
+        int minutes = 2;
+        WhisperEvent ticking = FarWhisper with { MinutesLeft = () => minutes };
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => [NearWhisper, ticking]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        keys.Down();
+        Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 2 minutes left", speech.Last);
+        minutes = 1;
+        keys.Up();
+        keys.Down();
+        Assert.StartsWith("Lut Bahadur, 1 Grim Favor, 1 minute left", speech.Last);
+    }
+
+    [Fact]
+    public void Enter_puts_the_cursor_on_a_whisper_in_view_without_touching_the_zoom()
+    {
+        var view = new MapView(681.64f, -410.26f, 1100f);
+        var (_, keys, speech, mouse) = Create([GeaKul], view: view, helltidePlace: Helltide, readWhispers: () => [NearWhisper]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        keys.Enter();
+
+        Assert.Equal(MapProjection.ToClient(view, 700, -410, 1920, 1080, 60), mouse.Moved);
+        Assert.Empty(mouse.Notches);
+        Assert.Equal("Cursor on Harvest: Caldeum.", speech.Last);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void Enter_zooms_out_until_a_whisper_comes_into_view()
+    {
+        var view = new MapView(681.64f, -410.26f, 500f);
+        var (_, keys, _, mouse) = Create([GeaKul], readView: () => view, helltidePlace: Helltide, readWhispers: () => [FarWhisper]);
+        mouse.Scrolled = notches => view = view with { Zoom = notches < 0 ? 3046f : 100f };
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        keys.Enter();
+
+        Assert.Equal([-1], mouse.Notches);
+        Assert.Equal(MapProjection.ToClient(view, 681.64, 100, 1920, 1080, 60), mouse.Moved);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void A_whisper_out_of_view_even_zoomed_out_says_where_it_lies_and_keeps_the_list()
+    {
+        var far = new WhisperEvent("Far", null, 681.64, 5000, OpenWorld, 1);
+        var (_, keys, speech, mouse) = Create([GeaKul], view: FarOut, helltidePlace: Helltide, readWhispers: () => [NearWhisper, far]);
+
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        keys.Down();
+        keys.Enter();
+
+        Assert.StartsWith("Far is outside the map view", speech.Last);
+        Assert.Null(mouse.Moved); // never hops to another whisper
+        Assert.True(keys.ListKeys);
+    }
+
+    [Fact]
+    public void No_whisper_up_or_unreadable_says_so_and_keeps_the_menu()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => []);
+        keys.OpenEvents();
+        keys.Down();
+        keys.Enter();
+        Assert.Equal("No whispers are up.", speech.Last);
+        Assert.True(keys.ListKeys);
+
+        var (_, keys2, speech2, _) = Create([GeaKul], helltidePlace: Helltide, readWhispers: () => null);
+        keys2.OpenEvents();
+        keys2.Down();
+        keys2.Enter();
+        Assert.Equal("Can't read what is up.", speech2.Last);
+        Assert.True(keys2.ListKeys);
+    }
+
+    [Fact]
+    public void Without_a_source_of_whispers_the_menu_holds_the_helltide_alone()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], helltidePlace: Helltide);
+        keys.OpenEvents();
+        keys.Down();
+        Assert.Equal("Helltide, 1 of 1.", speech.Last);
+    }
+
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
         int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
         Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
-        Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null)
+        Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null,
+        Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
@@ -373,7 +642,7 @@ public class WaypointListBridgeTests
             Catalog, w => w.LevelAreaName, _ => activated, readView ?? (() => view ?? FarOut), () => world, speech,
             new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
             helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { },
-            bountiesOf: _ => bounties ?? []);
+            bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace, readWhispers: readWhispers);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);
@@ -386,7 +655,8 @@ public class WaypointListBridgeTests
         public void SetOpenKey(bool active) => OpenKey = active;
         public void SetListKeys(bool active) => ListKeys = active;
         public event Action? OpenPressed;
-        public event Action? OpenHelltidePressed;
+        public event Action? OpenEventsPressed;
+        public event Action? OpenGoblinsPressed;
         public event Action? UpPressed;
         public event Action? DownPressed;
         public event Action? EnterPressed;
@@ -394,7 +664,10 @@ public class WaypointListBridgeTests
 
         // A key reaches the app only while it is registered, as with RegisterHotKey.
         public void Open() { if (OpenKey) OpenPressed?.Invoke(); }
-        public void OpenHelltide() { if (OpenKey) OpenHelltidePressed?.Invoke(); }
+        public void OpenEvents() { if (OpenKey) OpenEventsPressed?.Invoke(); }
+        // The events menu opens on the helltide.
+        public void OpenHelltide() { OpenEvents(); Enter(); }
+        public void OpenGoblins() { if (OpenKey) OpenGoblinsPressed?.Invoke(); }
         public void Up() { if (ListKeys) UpPressed?.Invoke(); }
         public void Down() { if (ListKeys) DownPressed?.Invoke(); }
         public void Enter() { if (ListKeys) EnterPressed?.Invoke(); }

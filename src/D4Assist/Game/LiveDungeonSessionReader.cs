@@ -509,7 +509,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlyList<MarkedActor>? ReadMapMarkers() =>
         _offsets is { } offsets && _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is { } markers
-            ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind))]
+            ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind, m.Flags))]
             : null;
 
     public IReadOnlySet<int>? ReadQuestActorSnos() => _activeQuests is null ? null : _questActorSnos;
@@ -517,6 +517,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     public IReadOnlyList<int>? ReadOwnedQuests() => _activeQuests?.Owned;
 
     public bool QuestStepElsewhere => _activeQuests?.StepElsewhere ?? false;
+
+    public IReadOnlySet<int> AwaitedLevelAreas => _activeQuests?.AwaitedLevelAreas ?? new HashSet<int>();
 
     public IReadOnlyDictionary<int, uint>? FindQuestPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests) =>
         _activeQuests is null ? null : QuestPhaseLocator.FindAllCandidates(_process, _moduleData, quests)
@@ -530,6 +532,10 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
         _offsets is { } offsets ? CurrencyReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
     public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
+    private MapBountyTableReader? _mapBounties;
+
+    public MapBounties? ReadMapBounties(IReadOnlySet<int> quests) => (_mapBounties ??= new MapBountyTableReader(_process)).Read(quests);
 
     public IReadOnlyDictionary<int, int>? ReadWorldStates()
     {

@@ -34,8 +34,7 @@ public sealed record HelltideBounty(
 public sealed class HelltideBountyCatalog(SnoStore store, TypeSchema schema)
 {
     private const string UnlockPrefix = "Bounty_Unlock_Condition_Helltide", BountySubzoneState = "Helltide_BountySubzone";
-    private const string GlobalDefinition = "GlobalDefinition", BountyTable = "bounties", BountyData = "GlobalBountyData",
-        Group = "BountyGroups", Bounty = "BountyData", Quest = "QuestDefinition", Requirements = "RequirementsToBeActive";
+    private const string Group = "BountyGroups", Bounty = "BountyData", Quest = "QuestDefinition", Requirements = "RequirementsToBeActive";
 
     // In a condition's subcondition the comparison sits two words before the world state's SNO, the value right after it.
     private const int ComparisonBefore = 8, ValueAfter = 4;
@@ -56,19 +55,12 @@ public sealed class HelltideBountyCatalog(SnoStore store, TypeSchema schema)
     private List<HelltideBounty> Read()
     {
         var bounties = new List<HelltideBounty>();
-        int globalGroup = schema.SnoGroup(GlobalDefinition);
-        if (store.EntriesWithPrefix(globalGroup, BountyTable).Where(e => e.Name == BountyTable).Select(e => store.Meta(globalGroup, e.Id))
-                .FirstOrDefault() is not { } table)
-            return bounties;
-        int TypeAt(int p) => p + schema.Offset(BountyData, "dwType");
-        var contents = table.PolymorphicElements(schema.Offset(GlobalDefinition, "ptContent"),
-            p => schema.TypeName(table.U32(TypeAt(p))) is { } t ? schema.Size(t) : null);
-        if (contents?.Where(c => schema.TypeName(table.U32(TypeAt(c))) == BountyData).Select(c => (int?)c).FirstOrDefault() is not { } content)
-            return bounties;
+        if (BountyTable.Read(store, schema) is not { } read) return bounties;
+        var (table, groups) = read;
         int conditionGroup = schema.SnoGroup("ConditionDefinition"), questGroup = schema.SnoGroup(Quest);
         int location = schema.Offset(Quest, "vecStartLocation"), world = schema.Offset(Quest, "snoWorldStartLocation");
         int seasons = schema.Offset(Quest, "tRequirementsToBeActive") + schema.Offset(Requirements, "arSeasons");
-        foreach (int group in table.Array(content + schema.Offset(BountyData, "arBountyGroups"), schema.Size(Group)))
+        foreach (int group in groups)
         {
             int condition = table.I32(group + schema.Offset(Group, "snoCondition"));
             if (store.Name(condition) is not { } conditionName || Territory(conditionName) is not { } territory

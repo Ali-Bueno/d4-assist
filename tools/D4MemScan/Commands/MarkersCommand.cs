@@ -21,7 +21,7 @@ internal static class MarkersCommand
         {
             var zones = new ZoneCatalog(store, schema);
             string Describe(MapMarker m) =>
-                $"kind {m.Kind,2} {store.Name(m.ActorSno) ?? "?",-56} {m.ActorSno,8} ({m.Position.X:F1},{m.Position.Y:F1},{m.Position.Z:F1}) " +
+                $"kind {m.Kind,2} flags 0x{m.Flags:X4} {store.Name(m.ActorSno) ?? "?",-56} {m.ActorSno,8} ({m.Position.X:F1},{m.Position.Y:F1},{m.Position.Z:F1}) " +
                 $"{store.Name(m.LevelAreaSno) ?? m.LevelAreaSno.ToString()} [{zones.Name(m.LevelAreaSno, locale) ?? "-"}]";
             bool Kept(MapMarker m) => match is null || match.IsMatch(store.Name(m.ActorSno) ?? "");
 

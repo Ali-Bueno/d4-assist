@@ -51,6 +51,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>No quest's step is here and a followed one's is shown in another world (ActiveQuests.StepElsewhere).</summary>
     bool QuestStepElsewhere => false;
 
+    /// <summary>The level areas the current quest steps wait for the player to enter (ActiveQuests.AwaitedLevelAreas).</summary>
+    IReadOnlySet<int> AwaitedLevelAreas => new HashSet<int>();
+
     /// <summary>The phase of each of <paramref name="quests"/> (quest SNO → its phase UIDs) whose {quest, phase} pair the module data
     /// holds: one scan, on the caller's thread. A pair at phase 0 is left out (a stray one, QuestPhaseLocator.Pick). Null when
     /// quests aren't read.</summary>
@@ -62,6 +65,9 @@ public interface IDungeonSessionReader : IDisposable
 
     /// <summary>The world map's center and zoom; null when unreadable. Meaningful while the map is open.</summary>
     MapView? ReadMapView() => null;
+
+    /// <summary>The bounty pins of the quests the open world map holds, and their ends (MapBountyTableReader); slow, so off the poll threads.</summary>
+    MapBounties? ReadMapBounties(IReadOnlySet<int> quests) => null;
 
     /// <summary>The session's world states, {WorldState SNO → value}; null when unreadable.</summary>
     IReadOnlyDictionary<int, int>? ReadWorldStates() => null;

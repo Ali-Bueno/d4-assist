@@ -9,6 +9,22 @@ public class BeaconTests
 {
     private const int PadSno = 900, OtherSno = 901;
 
+    // User request 2026-10-29: the War Plans command table in Temis gets the quest sound, as far as a portal's beacon.
+    [Fact]
+    public void The_war_plans_table_loops_the_quest_sound_as_far_as_a_beacon()
+    {
+        const int Table = 2412246;
+        var selector = new LoopTargetSelector(new HashSet<int>(), objectives: null, _ => new HashSet<int>(), isWarPlans: sno => sno == Table);
+
+        var target = selector.Select(new ActorState(1, Table, 0, 0, 0, Talkable: true));
+
+        Assert.NotNull(target);
+        Assert.Equal(LoopTargetSelector.QuestItemSound, target.Sound);
+        Assert.Equal(LoopProfiles.Beacon, target.Profile);
+        Assert.Equal(D4Assist.Config.SoundCue.QuestObjective, target.Cue);
+        Assert.Null(selector.Select(new ActorState(2, OtherSno, 0, 0, 0)));
+    }
+
     [Fact]
     public void Resolve_KeepsKnownNamesAndReportsUnknownOnce()
     {

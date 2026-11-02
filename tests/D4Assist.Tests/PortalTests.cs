@@ -165,6 +165,22 @@ public class PortalTests
     }
 
     [Fact]
+    public void On_a_floor_with_two_entrance_tiles_the_portal_not_come_by_leads_on()
+    {
+        // Live 2026-10-29, S15_CountessTower: each floor holds ProtoDun_Crypt_N_Entrance_01 twice, at the portal the player came
+        // up by and at the portal on up; taking both for the way in, the guide led back to the arrival once the floor was explored.
+        var (feed, memory) = NewMemory(tilePortals: true);
+        feed.RaisePlayer(TilePortalAt.X, TilePortalAt.Y + 5); // arrived beside the first tile's portal
+        var entrance = HubTile with { Name = "ProtoDun_Crypt_N_Entrance_01" };
+
+        feed.RaiseTiles(entrance, entrance with { OriginX = 32 });
+
+        var tiers = memory.Destinations().ToDictionary(d => MathF.Round(d.Position.X), d => d.Tier);
+        Assert.Equal(1, tiers[MathF.Round(TilePortalAt.X)]); // the way in
+        Assert.Equal(0, tiers[MathF.Round(TilePortalAt.X + 64)]); // the way on
+    }
+
+    [Fact]
     public void Restored_tiles_tell_the_boss_room_too()
     {
         var boss = new BossRoomDestination(new Feed(), _ => []);

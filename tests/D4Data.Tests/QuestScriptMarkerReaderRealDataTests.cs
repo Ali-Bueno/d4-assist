@@ -28,6 +28,21 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AStepKnowsWhichLevelAreaItWaitsForThePlayerToEnter()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+        const int BossArea = 2682147; // S15_Triad_A_Cave_04_Boss_QST
+
+        var phases = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "S15_Triad_A_Labyrinth"));
+
+        Assert.Equal([BossArea], phases.Single(p => p.PhaseUid == 28).EnteredLevelAreas!);
+        Assert.Null(phases.Single(p => p.PhaseUid == 29).EnteredLevelAreas);
+    }
+
+    [Fact]
     public void AStepKnowsWhichOfItsMarkersTheGameHides()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

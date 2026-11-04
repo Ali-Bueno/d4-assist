@@ -55,6 +55,18 @@ public class ActiveQuestsTests
     };
 
     [Fact]
+    public void A_phase_that_counts_several_kills_and_names_nothing_counts_waves()
+    {
+        // The Condemned Mines' phase 149, 30 kills; a single kill is a monster to find, a named object a place to go to.
+        var nothing = new HashSet<int>();
+        Assert.True(new QuestPhaseObjects(149, [], nothing, [], KillsNeeded: 30).CountsWaves);
+        Assert.False(new QuestPhaseObjects(149, [], nothing, [], KillsNeeded: 1).CountsWaves);
+        Assert.False(new QuestPhaseObjects(149, [], new HashSet<int> { OrbSno }, [], KillsNeeded: 30).CountsWaves);
+        Assert.False(new QuestPhaseObjects(149, [], nothing, [], new HashSet<int> { HubQuest }, KillsNeeded: 30).CountsWaves);
+        Assert.False(new QuestPhaseObjects(149, [], nothing, []).CountsWaves);
+    }
+
+    [Fact]
     public void A_tracked_quest_that_waits_on_another_names_that_quests_current_phase()
     {
         var quests = Create(new ModuleReader((HubQuest, OrbPhase)));

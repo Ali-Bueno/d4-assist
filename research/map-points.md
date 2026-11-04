@@ -112,6 +112,16 @@ Purpose: a screen reader for the game's own map screen (players: dungeons and wa
   World bosses are quests `WE_WorldBoss_<name>` (Ashava 366701). Not pursued: the game's own world-boss announcement names
   several places (user, 2026-10-25).
 
+## 4c. Helltides the world states don't name (tester report without a log, 2026-11-04)
+
+A tester's war plan led into a helltide in Nahantu, and Shift+F2 knew only the base game's (their last log, of 2026-11-02, is build 3.2.4; the helltide's own build is unknown). `ActiveHelltides`
+counts `UberSubzone_Expansions` from build 3.3 on, because the state read 1 on 2026-10-28 with the base game's helltide in Scosglen and
+patch 3.3.0 announces expansion helltides on the half hour (its PTR ran 2026-10-27 to 11-03, so the patch was not live). That nobody saw a
+Nahantu helltide then was an assumption, not a test: whether the state is real before 3.3 is **open**. The list now also shows every
+region the map marks helltide objects in, whatever the states say, first and with no minutes (its end is unknown), and each open
+logs `Helltide states: base N, expansions N, game build …`. A log taken in such a helltide settles it: the state changing on the half
+hour, or matching where the helltide is, would make the build test wrong. From afar an expansion helltide still doesn't list.
+
 ## 4a. Treasure goblins on the map (game data, build 3.2.3, 2026-10-29)
 
 - **Who (H):** the monsters of the family `Treasure_Goblin` (24 actors: `treasure_goblin` "Schatzgoblin", the named ones

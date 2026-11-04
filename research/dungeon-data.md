@@ -186,6 +186,15 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   3–26 units, so routes skip the ladders and point across cliffs (tester 2026-10-29). Not handled: needs a 2.5D DRLG map, as §4.1b
   notes for story areas.
 
+### 4.1e Filler tiles are rock (log + offline, 2026-11-04, `CSD_Frac_GaleValley_OldMines` 479002)
+
+`Cave_Mine_Filler_01` fills the layout's gaps: live exit mask 0, scene exit mask 0, no walk map, and the room node of the tiles
+around it (`node=0xD4` in the log of 2026-11-02). `TileGraph` joined touching tiles of one room, and an unknown walk map counted as
+floor that meets, so the guide led into the rock (`GUIDE target UnvisitedTile tile:-3,0`, `tile:-1,-1`): the tester's "spaces I
+couldn't walk". A tile with no exit, live or authored, and no walk map now joins nothing. Census of the 4042 scenes: 106 have neither
+exits nor a walk map, 69 of them fillers; the other 37 are static story-area scenes (`Kehj_Hell_Sightless_Eye_*`) and menu scenes,
+so the radar, which runs in story areas too, keeps reading such tiles Unknown. 43 more fillers have a walk map: `FloorMeets` decides.
+
 ### 4.1d Wall-less tiles: floor islands at the edges (offline, 2026-10-30, `CSD_Hawe_Verge_CorrosiveSwamp` 600744)
 
 - The 14 `Hawe_Swamp_*` tiles have no walls: floor of 17–64 cells touches edges with no exit bit, in scattered islands.

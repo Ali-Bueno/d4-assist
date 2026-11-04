@@ -101,6 +101,10 @@ public sealed class ObjectiveMemory
     private readonly Func<int, bool> _isBoss;
     private readonly Func<int, bool> _isNpc;
     private volatile bool _bossFight;
+    private (float X, float Y, float? Z)? _lastQuestSpot;
+
+    /// <summary>The quest step's place the player last stood at in this world; null before any.</summary>
+    public (float X, float Y, float? Z)? LastQuestSpot { get { lock (_gate) return _lastQuestSpot; } }
 
     /// <summary>True while a boss or unique to kill is among the objective actors read (looping, or silent while invulnerable): a
     /// fight's objectives are its mechanics, used again and again, and the guide stays in the arena (ExplorationGuideBridge).</summary>
@@ -155,7 +159,7 @@ public sealed class ObjectiveMemory
         _takesHeld = takesHeld ?? (_ => null);
         _locked = locked ?? ((_, _) => false);
         _log = log;
-        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _trail.Clear(); _escorts = []; _player = null; _namedSnos = new HashSet<int>(); } };
+        feed.WorldChanged += (_, _, _) => { lock (_gate) { _objectives.Clear(); _places.Clear(); _trail.Clear(); _escorts = []; _player = null; _lastQuestSpot = null; _namedSnos = new HashSet<int>(); } };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) OnPlayer((p.X, p.Y)); };
     }
 
@@ -440,6 +444,7 @@ public sealed class ObjectiveMemory
                 if (objective.AtIt) continue;
                 objective.AtIt = true;
                 objective.WalkedThrough |= UnheardTrigger(objective);
+                if (objective.Quest) _lastQuestSpot = (objective.Position.X, objective.Position.Y, objective.Z);
                 Log("reached", objective);
             }
             else if (objective.AtIt && distance > LeaveDistance(objective) && _bossFight)

@@ -84,6 +84,25 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void The_quest_place_last_stood_at_is_kept_once_used_and_forgotten_with_the_world()
+    {
+        var (feed, memory) = NewMemory();
+        Assert.Null(memory.LastQuestSpot);
+        feed.RaisePlayer(At(50, 0));
+        memory.Heard(Lever(0, 0, quest: true), Altar(100, 0));
+        Assert.Null(memory.LastQuestSpot); // heard, not stood at
+
+        feed.RaisePlayer(At(1, 0));
+        memory.Heard(Lever(0, 0, quest: true), Altar(100, 0));
+        feed.RaisePlayer(At(99, 0)); // the altar is no quest step
+        memory.Heard(Lever(0, 0, quest: true), Altar(100, 0));
+
+        Assert.Equal((0f, 0f), (memory.LastQuestSpot!.Value.X, memory.LastQuestSpot!.Value.Y));
+        feed.RaiseWorld(2);
+        Assert.Null(memory.LastQuestSpot);
+    }
+
+    [Fact]
     public void An_objective_stays_the_goal_while_the_player_stands_at_it_and_is_done_once_used()
     {
         // Players' reports (2026-10-05): beside the objective, before it was used, the guide turned to unexplored ground.

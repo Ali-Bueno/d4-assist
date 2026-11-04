@@ -15,6 +15,9 @@ public sealed class CueGate(Action<bool> setPaused, Action<string>? log = null)
 
     public bool IsPaused { get { lock (_gate) return Paused; } }
 
+    /// <summary>The game shows no gameplay now: a cutscene, a cinematic or a loading screen.</summary>
+    public bool ShowsNoGameplay { get { lock (_gate) return _reasons.Overlaps([CueMute.Cutscene, CueMute.Cinematic, CueMute.Loading]); } }
+
     public void Set(CueMute reason, bool on)
     {
         lock (_gate)

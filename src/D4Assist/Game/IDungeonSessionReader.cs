@@ -54,6 +54,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The level areas the current quest steps wait for the player to enter (ActiveQuests.AwaitedLevelAreas).</summary>
     IReadOnlySet<int> AwaitedLevelAreas => new HashSet<int>();
 
+    /// <summary>True while a current quest step counts waves of kills (ActiveQuests.StepCountsWaves).</summary>
+    bool QuestStepCountsWaves => false;
+
     /// <summary>The phase of each of <paramref name="quests"/> (quest SNO → its phase UIDs) whose {quest, phase} pair the module data
     /// holds: one scan, on the caller's thread. A pair at phase 0 is left out (a stray one, QuestPhaseLocator.Pick). Null when
     /// quests aren't read.</summary>

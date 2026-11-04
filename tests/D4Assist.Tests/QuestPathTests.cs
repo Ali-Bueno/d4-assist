@@ -238,6 +238,39 @@ public class QuestPathTests
         Assert.Empty(rig.Speech.Texts);
     }
 
+    // Tester 2026-11-02: a press as the game loaded a new character found no map yet and led to the nearest entrance.
+    [Fact]
+    public void A_press_before_the_maps_first_read_leads_nowhere_and_later_presses_take_the_entrance()
+    {
+        var ruins = KedBardu + new Vector2(40, 30);
+        var rig = new Rig(entrances: [new QuestMapPlace(0, "Sunken Ruins", 0, ruins, Entrance: true)]);
+        rig.Feed.RaiseWorld(StoryArea); // a new world: nothing read of its map
+        rig.Move(KedBardu);
+
+        rig.Pad.Press();
+
+        Assert.Equal(English.NoQuestPlace, rig.Speech.Texts.Last());
+        Assert.Empty(rig.Searches);
+        rig.Clock += QuestPathBridge.MapReadWait;
+        rig.Bridge.OnMapMarkers([]);
+        rig.Pad.Press();
+        Assert.Empty(rig.Searches); // this world names no entrance in the rig
+    }
+
+    [Fact]
+    public void With_the_map_never_read_a_press_still_finds_the_entrance_after_the_wait()
+    {
+        var ruins = KedBardu + new Vector2(40, 30);
+        var rig = new Rig(entrances: [new QuestMapPlace(0, "Sunken Ruins", 0, ruins, Entrance: true)]);
+        rig.Feed.RaiseWorld(World);
+        rig.Move(KedBardu);
+        rig.Clock += QuestPathBridge.MapReadWait;
+
+        rig.Pad.Press();
+
+        Assert.StartsWith("Entrance: Sunken Ruins", rig.Speech.Texts.Last());
+    }
+
     [Fact]
     public void A_dungeon_entrance_near_the_player_comes_after_the_quest_places_and_names_the_dungeon()
     {

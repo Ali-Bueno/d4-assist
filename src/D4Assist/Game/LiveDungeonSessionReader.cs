@@ -520,6 +520,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public IReadOnlySet<int> AwaitedLevelAreas => _activeQuests?.AwaitedLevelAreas ?? new HashSet<int>();
 
+    public bool QuestStepCountsWaves => _activeQuests?.StepCountsWaves ?? false;
+
     public IReadOnlyDictionary<int, uint>? FindQuestPhases(IReadOnlyDictionary<int, IReadOnlySet<uint>> quests) =>
         _activeQuests is null ? null : QuestPhaseLocator.FindAllCandidates(_process, _moduleData, quests)
             .Select(found => (Quest: found.Key, found.Value.First(c => c.Address == QuestPhaseLocator.Pick(found.Value)).Phase))

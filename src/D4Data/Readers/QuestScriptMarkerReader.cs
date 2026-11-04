@@ -32,10 +32,17 @@ public sealed record BlueprintMarker(Blueprint Frame, PlacedMarker Marker);
 /// phase 12, find the untouched forests, shows the trigger at the Rathmic statue and hides two on the way there. Null for none.</param>
 /// <param name="EnteredLevelAreas">The level areas the phase waits for the player to enter (eEventType 50): S15_Triad_A_Labyrinth phase 28
 /// names no object, only the boss's area S15_Triad_A_Cave_04_Boss_QST, and the next phase names the boss. Null for none.</param>
+/// <param name="KillsNeeded">The kills the phase counts (eEventType 0, QuestCallback.nNeeded): QST_Frac_GaleValley_OldMines phase 149, the
+/// waves at the door Neyrelle opens, counts 30 of an actor group no marker places. 0 for none.</param>
 public sealed record QuestPhaseObjects(
     uint PhaseUid, IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers,
     IReadOnlySet<int>? SubQuests = null, IReadOnlySet<int>? Worlds = null, IReadOnlyList<BlueprintMarker>? KindMarkers = null,
-    IReadOnlySet<PlacedMarker>? HiddenMarkers = null, IReadOnlySet<int>? EnteredLevelAreas = null);
+    IReadOnlySet<PlacedMarker>? HiddenMarkers = null, IReadOnlySet<int>? EnteredLevelAreas = null, int KillsNeeded = 0)
+{
+    /// <summary>True when the phase counts several kills and no object, place, sub-quest or area says where: waves come to the player.</summary>
+    public bool CountsWaves => KillsNeeded > 1 && Markers.Count == 0 && ActorSnos.Count == 0 && SceneMarkers.Count == 0
+        && SubQuests is null && KindMarkers is null && EnteredLevelAreas is null;
+}
 
 /// <summary>The objects a quest's objective scripts name (research/client-memory.md §4, quest gizmos).</summary>
 /// <remarks>Walks phases → objective sets → callbacks, keeping every ScriptEventParamMarkerHandle of the script message map's
@@ -85,6 +92,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
         var worlds = CallbackWorlds(quest).ToList();
         var groups = ActorGroups(quest).ToList();
         var entered = EnteredLevelAreas(quest).ToList();
+        var kills = KillCounts(quest).ToList();
         return _phaseCache[questSno] = [.. Phases(quest).Select(phase => PhaseUid(quest, phase)).Select(uid =>
         {
             var shownIn = worlds.Where(w => w.PhaseUid == uid).Select(w => w.World).ToHashSet();
@@ -108,7 +116,8 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
                 hidden.Count > 0 ? hidden : null,
-                areas.Count > 0 ? areas : null);
+                areas.Count > 0 ? areas : null,
+                kills.Where(k => k.PhaseUid == uid).Sum(k => k.Needed));
         })];
     }
 
@@ -416,7 +425,16 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
 
     private const int HiddenIndicator = 3;
 
-    private const int EnterLevelAreaEvent = 50;
+    private const int EnterLevelAreaEvent = 50, KillEvent = 0;
+
+    private IEnumerable<(uint PhaseUid, int Needed)> KillCounts(SnoBlob quest)
+    {
+        int eventType = schema.Offset(Callback, "tScriptMessageMap") + schema.Offset(MessageMap, "eEventType");
+        foreach (int phase in Phases(quest))
+        foreach (int callback in Callbacks(quest, phase))
+            if (quest.I32(callback + eventType) == KillEvent)
+                yield return (PhaseUid(quest, phase), quest.I32(callback + schema.Offset(Callback, "nNeeded")));
+    }
 
     // The level areas a callback waits for the player to enter; the same parameter on another event only narrows that event down.
     private IEnumerable<(uint PhaseUid, int LevelArea)> EnteredLevelAreas(SnoBlob quest)

@@ -27,6 +27,23 @@ public class QuestScriptMarkerReaderRealDataTests
         Assert.Equal(y, marker.Position.Y, 0.5f);
     }
 
+    // The waves at the door Neyrelle opens in the Condemned Mines (research/dungeon-objectives.md §33).
+    [Fact]
+    public void TheCondemnedMinesWavesCountThirtyKillsAndNameNothing()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        var phases = reader.PhaseObjects(store.Resolve(schema.SnoGroup("QuestDefinition"), "QST_Frac_GaleValley_Main_05"));
+
+        var waves = Assert.Single(phases, p => p.PhaseUid == 149);
+        Assert.Equal(30, waves.KillsNeeded);
+        Assert.True(waves.CountsWaves);
+        Assert.False(Assert.Single(phases, p => p.PhaseUid == 164).CountsWaves); // the locked door
+    }
+
     [Fact]
     public void AStepKnowsWhichLevelAreaItWaitsForThePlayerToEnter()
     {

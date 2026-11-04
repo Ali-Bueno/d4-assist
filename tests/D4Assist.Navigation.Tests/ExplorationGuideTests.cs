@@ -269,6 +269,42 @@ public class ExplorationGuideTests
         Assert.True(step.RemainingLength > 55f, $"route {step.RemainingLength} shorter than the walkable path");
     }
 
+    // Log of 2026-11-02, the Condemned Mines: Cave_Mine_Filler_01 (exit 0, no walk map) carries its neighbours' room node.
+    [Fact]
+    public void A_filler_tile_of_the_room_is_rock_and_never_a_target()
+    {
+        const uint room = 0xD4;
+        const int floorScene = 1, fillerScene = 2;
+        var cells = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++) cells[r, c] = true;
+        var walkability = new FakeTileWalkability().Add(floorScene, new WalkGrid(1f, 0f, 0f, 32, 32, cells));
+        var map = Map(Tile(0, 0, 0, room, floorScene), Tile(0, 1, 0, room, fillerScene));
+        Visit(map, (0, 0));
+
+        var step = new ExplorationGuide(map, walkability).Step(Centre(0, 0));
+
+        Assert.Null(step.Target);
+    }
+
+    // A tile of the room with no walk map but an exit is unknown ground, not rock.
+    [Fact]
+    public void A_room_tile_with_an_exit_and_no_walk_map_still_leads()
+    {
+        const uint room = 0xD4;
+        const int floorScene = 1, unknownScene = 2;
+        var cells = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++) cells[r, c] = true;
+        var walkability = new FakeTileWalkability().Add(floorScene, new WalkGrid(1f, 0f, 0f, 32, 32, cells));
+        var map = Map(Tile(0, 0, 0, room, floorScene), Tile(0, 1, W, room, unknownScene));
+        Visit(map, (0, 0));
+
+        var step = new ExplorationGuide(map, walkability).Step(Centre(0, 0));
+
+        Assert.Equal("tile:0,1", step.Target?.Id);
+    }
+
     // The player's tile (0,1), entered from the west: its floor touches the East edge only on an island cols 26-31, rows 0-5,
     // unless joined by a floor strip or a jump (the Corrosive Swamp's sea-hag clearing, 2026-10-29).
     private static (DungeonMap Map, ExplorationGuide Guide) TileWithAnIslandEast(bool joined)

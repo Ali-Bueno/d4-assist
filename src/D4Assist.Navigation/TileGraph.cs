@@ -75,7 +75,8 @@ internal sealed class TileGraph
         foreach (var room in graph._tiles.Values.GroupBy(t => t.Tile.Input.NodeId))
             foreach (var near in room)
                 foreach (var far in room)
-                    if (near != far && RoomModel.Adjacent(near.Tile, far.Tile) && FloorMeets(near.Tile, far.Tile, walkability))
+                    if (near != far && RoomModel.Adjacent(near.Tile, far.Tile) && !IsSolid(near.Tile, walkability) && !IsSolid(far.Tile, walkability)
+                        && FloorMeets(near.Tile, far.Tile, walkability))
                         foreach (var (from, to, crossing) in Contacts(near, far, SharedEdge(near.Tile, far.Tile)))
                             if (!from.Hops.Any(h => h.To == to)) from.Hops.Add(new TileHop(crossing, to));
 
@@ -133,6 +134,10 @@ internal sealed class TileGraph
 
     private static (float X, float Y) Offset((float X, float Y) point, (float X, float Y) direction, float distance) =>
         (point.X + direction.X * distance, point.Y + direction.Y * distance);
+
+    // A filler tile shares its neighbours' room node, and with no walk map nothing else says it has no floor (research/dungeon-data.md §4.1e).
+    private static bool IsSolid(MapTile tile, ITileWalkability? walkability) =>
+        tile.Input.ExitMask == 0 && tile.Input.AuthoredExitMask == 0 && walkability is not null && !walkability.TryGet(tile.Input.SceneSno, out _);
 
     // Somewhere along the shared edge both tiles have floor within EdgeFloorUnits of it; true when a walk map is unknown.
     private static bool FloorMeets(MapTile near, MapTile far, ITileWalkability? walkability)

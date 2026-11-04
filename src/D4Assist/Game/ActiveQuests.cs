@@ -132,6 +132,10 @@ public sealed class ActiveQuests(
         _quests.Where(q => q.Phase is not null && StepIsHere(q.Sno)).SelectMany(q => q.Current)
             .SelectMany(p => p.EnteredLevelAreas ?? Enumerable.Empty<int>()).ToHashSet();
 
+    /// <summary>True while a quest whose step is here counts waves of kills (QuestPhaseObjects.CountsWaves).</summary>
+    public bool StepCountsWaves =>
+        _quests.Where(q => q.Phase is not null && StepIsHere(q.Sno)).SelectMany(q => q.Current).Any(p => p.CountsWaves);
+
     private readonly HashSet<int> _stepWasHere = [];
 
     private string _loggedSteps = "";

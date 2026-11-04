@@ -217,7 +217,9 @@ for the cursor, Escape to close. The game shows these objects only while you
 are out in the helltide's area, not in a town; until then Enter says to go
 there. Zoomed far out the map does not show them as icons, so Enter on an
 object first zooms the map in with the mouse wheel. Between two helltides
-Shift+F2 says when the next one starts.
+Shift+F2 says when the next one starts. A helltide the game's map marks
+objects of, as in Nahantu or Skovos, also lists while you are in it, with no
+minutes left: the program can't yet tell its end, or see it from afar.
 
 
 Known issues

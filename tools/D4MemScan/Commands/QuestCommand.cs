@@ -26,7 +26,7 @@ internal static class QuestCommand
             var quests = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
             var phases = quests.PhaseObjects(sno);
             int index = 0;
-            foreach (var (uid, markers, actors, sceneMarkers, subQuests, worlds, kindMarkers, hidden, entered) in phases)
+            foreach (var (uid, markers, actors, sceneMarkers, subQuests, worlds, kindMarkers, hidden, entered, kills) in phases)
                 Console.WriteLine($"phase {index++,2} uid {uid} (0x{uid:X}): " +
                     string.Join(", ", markers.Select(m => $"{store.Name(m.Sno)} ({m.Position.X:F0},{m.Position.Y:F0}){(hidden?.Contains(m) == true ? " hidden" : "")}")
                         .Concat(sceneMarkers.Select(s => $"{store.Name(s.Marker.Sno)} ({s.Marker.Position.X:F0},{s.Marker.Position.Y:F0} in {store.Name(s.SceneSno)})"))
@@ -34,7 +34,8 @@ internal static class QuestCommand
                         .Concat(actors.Select(a => $"{store.Name(a)} (any)"))
                         .Concat((subQuests ?? new HashSet<int>()).Select(q => $"waits on quest {q} {store.Name(q)}"))
                         .Concat((worlds ?? new HashSet<int>()).Select(w => $"shown in {store.Name(w)}"))
-                        .Concat((entered ?? new HashSet<int>()).Select(a => $"enter {store.Name(a)}"))));
+                        .Concat((entered ?? new HashSet<int>()).Select(a => $"enter {store.Name(a)}"))
+                        .Concat(kills > 0 ? [$"counts {kills} kills"] : [])));
             if (reader.Has("--callbacks")) QuestCallbacks.Print(store, schema, sno);
             if (reader.Get("--group") is { } gbid) PrintGroup(store, schema, uint.Parse(gbid));
             if (reader.Get("--actors") is { } pattern) PrintActors(store, schema, pattern);

@@ -1005,3 +1005,18 @@ Tester report (0.1.26, VoH campaign; the log of the second half was overwritten,
   door left the boss unled); a character is one destination by an id of its own, followed within 20 units between marker reads,
   not one per 8-unit spot (an escort walking through left a trail). Kind 8 is any NPC on the map, ambient ones included: an awaited
   area with townsfolk would lead to each.
+
+## 33. Steps that count waves (tester log, 2026-11-02; offline census 2026-11-04)
+
+- **The Condemned Mines** (`CSD_Frac_GaleValley_OldMines` 479002, quest `QST_Frac_GaleValley_Main_05` 480289): phase 164 names the door
+  `ProtoDun_DoorLocked` Neyrelle opens; used, phase 149 counts 30 kills of an actor group no marker places (`eEventType` 0,
+  `QuestCallback.nNeeded`, `ScriptEventParamActorGroup`) and names nothing, so the guide went exploring in the fight (121 units off),
+  and after the player's death nothing led back from the checkpoint (-113.5,29.5). Phase 133 names the way out once the waves end.
+- **App rule (unit-tested, not live):** a phase that counts more than one kill and names no object, place, sub-quest or area
+  (`QuestPhaseObjects.CountsWaves`) keeps the last quest place the player stood at (`ObjectiveMemory.LastQuestSpot`) as a quest-tier
+  goal (`WaveStepDestination`). It holds within 12 units and leads back from anywhere. Monsters the map marks (kind 10) within 30 units
+  of it keep it; 20 s there with none lets the guide go on, for a count whose kills lie elsewhere; a marked monster there calls it back.
+- **Census (build 3.2.4, 19731 phases):** 1557 count kills, 591 of them name nothing; 10 of those show a dungeon or story world
+  (the Condemned Mines, `QST_Skov_Celestia_03` 279 and 283, `QST_X2_Skov_Lycander_Mindscape_01` 58, `QST_Skov_Prologue_03` 235), 556 name no
+  world, 71 of those after a place (`DPO_Frac_AnicasClaim` 43 counts 30, `DPO_CAP_Tier3_Step_FallenTemple` 32 counts 10). One kill is a
+  monster to find, so it is left out. `D4MemScan quest` prints `counts N kills`.

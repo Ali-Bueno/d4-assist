@@ -385,8 +385,12 @@ internal static class Program
         var pad = xboxPad is not null && hidPad is not null
             ? new CombinedPad([
                 new GatedPad(
-                    new GatedPad(new CombinedPad([xboxPad, hidPad]), () => !GameWindowFocus.IsGameForeground(),
-                        () => Console.WriteLine($"Guide toggle ignored: game not in the foreground ({GameWindowFocus.ForegroundProcessName() ?? "no window"} is).")),
+                    new GatedPad(
+                        new GatedPad(new CombinedPad([xboxPad, hidPad]), () => !GameWindowFocus.IsGameForeground(),
+                            () => Console.WriteLine($"Guide toggle ignored: game not in the foreground ({GameWindowFocus.ForegroundProcessName() ?? "no window"} is).")),
+                        // Character select and creation are menus with no screen of ours; the D-pad moves through them.
+                        () => session.CurrentWorld is not { } world || WorldClassifier.IsMenuWorld(world.Name) || cueGate.ShowsNoGameplay,
+                        () => Console.WriteLine($"Guide toggle ignored: no gameplay ({session.CurrentWorld?.Name ?? "no world"}).")),
                     () => menus?.AnyOpen ?? false, () => Console.WriteLine($"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
                 hotkeys])
             : null;
@@ -414,6 +418,9 @@ internal static class Program
         var awaitedAreas = new AwaitedAreaDestination(store.Name, debug ? Console.WriteLine : null);
         session.MapMarkersRead += awaitedAreas.OnMarkers;
         session.WorldChanged += (_, _, _) => awaitedAreas.Reset();
+        var waves = new WaveStepDestination(debug ? Console.WriteLine : null);
+        session.MapMarkersRead += waves.OnMarkers;
+        session.WorldChanged += (_, _, _) => waves.Reset();
         if (guidePing is not null && config.ExplorationGuideEnabled)
             _ = new ExplorationGuideBridge(
                 session, navigation.NextGuideStep, guidePing, speech, () => portals?.FreshInSight ?? false, debug ? Console.WriteLine : null,
@@ -423,9 +430,11 @@ internal static class Program
                 objectives is null ? null : () =>
                 {
                     bool elsewhere = false;
+                    bool countsWaves = false;
                     IReadOnlySet<int> areas = new HashSet<int>();
-                    session.Query(r => { elsewhere = r.QuestStepElsewhere; areas = r.AwaitedLevelAreas; });
-                    return [.. ward.Destinations(), .. objectives.Destinations(), .. awaitedAreas.Destinations(areas), .. portals!.ObjectiveDestinations(),
+                    session.Query(r => { elsewhere = r.QuestStepElsewhere; areas = r.AwaitedLevelAreas; countsWaves = r.QuestStepCountsWaves; });
+                    return [.. ward.Destinations(), .. objectives.Destinations(), .. awaitedAreas.Destinations(areas),
+                        .. waves.Destinations(countsWaves, objectives.LastQuestSpot), .. portals!.ObjectiveDestinations(),
                         .. elsewhere ? portals.WayOutDestinations() : []];
                 },
                 objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },
@@ -507,7 +516,10 @@ internal static class Program
                 {
                     IReadOnlyDictionary<int, int>? states = null;
                     session.Query(r => states = r.ReadWorldStates());
-                    return states is null ? null : ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides(store.BuildVersion));
+                    if (states is null) return null;
+                    // Rare, and what tells a real expansion helltide from a state left at 1 before patch 3.3.0 (research/map-points.md §4c).
+                    Console.WriteLine($"Helltide states: base {states.GetValueOrDefault(ActiveHelltides.UberSubzone)}, expansions {states.GetValueOrDefault(ActiveHelltides.UberSubzoneExpansions)}, game build {store.BuildVersion}.");
+                    return ActiveHelltides.From(states, ActiveHelltides.ExpansionsHaveHelltides(store.BuildVersion));
                 },
                 region => HelltideRegionName(region, allWaypoints, w => { lock (cascGate) return waypointCatalog.Zone(w, SpeechLanguages.GameLocale(language.Current)); }),
                 goblinPlace: m => goblins.IsShown(m) ? MarkerPlaceOfLocked(m) : null,

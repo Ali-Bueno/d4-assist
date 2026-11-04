@@ -279,6 +279,32 @@ public class WaypointListBridgeTests
         Assert.True(keys.ListKeys); // the events menu stays for the whispers
     }
 
+    // Tester, reported 2026-11-04: a war plan led into Nahantu's helltide; before build 3.3 the world state doesn't count, the map's objects do.
+    private static HelltidePlace? NahantuGift(MarkedActor m) => new("Tortured Gift of Mysteries", "Zarbinzet", "Seven Stones, Nahantu");
+
+    [Fact]
+    public void A_helltide_only_the_map_shows_lists_first_with_no_minutes_and_takes_its_objects()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], helltidePlace: NahantuGift, helltides: [HelltideRegion.Scosglen]);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        Assert.EndsWith("Nahantu. 1 of 2.", speech.Last);
+        keys.Enter();
+        Assert.StartsWith("Helltide in Seven Stones, Nahantu: 1 objects", speech.Last);
+    }
+
+    [Fact]
+    public void A_helltide_the_map_shows_lists_though_the_world_states_name_none()
+    {
+        var (bridge, keys, speech, _) = Create([GeaKul], helltidePlace: NahantuGift, helltides: []);
+        bridge.OnMapMarkers([new MarkedActor(Gift, 700, -410, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+
+        Assert.EndsWith("Nahantu.", speech.Last);
+    }
+
     // Patch 3.3.0: an expansion's helltide rises on the half hour beside the base game's; each takes the objects in its region.
     [Fact]
     public void Two_helltides_list_one_after_the_other_and_each_takes_its_own_objects()

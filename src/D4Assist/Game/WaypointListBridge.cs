@@ -64,6 +64,7 @@ public sealed class WaypointListBridge(
     private bool _mapOpen, _openKey;
     private Mode _mode;
     private IReadOnlyList<HelltideRegion> _regions = [];
+    private IReadOnlySet<HelltideRegion> _markedOnly = new HashSet<HelltideRegion>();
     private int _regionIndex, _menuIndex;
     private IReadOnlyDictionary<(string Name, double X, double Y), WhisperEvent> _whispers = new Dictionary<(string, double, double), WhisperEvent>();
 
@@ -220,14 +221,22 @@ public sealed class WaypointListBridge(
             if (!OpenObjectsLocked(null)) speech.Output(text.NoneOnMap, interrupt: true);
             return;
         }
-        log?.Invoke($"HELLTIDE active: {(active.Count == 0 ? "none" : string.Join(", ", active))}");
-        if (active.Count == 0)
+        var marked = MarkedRegions().Except(active).ToHashSet();
+        log?.Invoke($"HELLTIDE active: {(active.Count == 0 ? "none" : string.Join(", ", active))}; only on the map: {(marked.Count == 0 ? "none" : string.Join(", ", marked))}");
+        if (active.Count + marked.Count == 0)
         {
             speech.Output(string.Format(text.NoneActiveFormat, ActiveHelltides.MinutesToNextBase(Now())), interrupt: true);
             return;
         }
-        (_regions, _regionIndex, _mode) = (active, 0, Mode.Regions);
+        (_regions, _markedOnly, _regionIndex, _mode) = ([.. marked, .. active], marked, 0, Mode.Regions);
         speech.Output($"{text.RegionsOpened} {RegionText()}", interrupt: true);
+    }
+
+    // The regions the map marks helltide objects in: proof of a helltide the world states may not name (research/map-points.md §4c).
+    private List<HelltideRegion> MarkedRegions()
+    {
+        var areas = _markers.Select(m => helltidePlace?.Invoke(m)?.Area).OfType<string>().Distinct().ToList();
+        return [.. Enum.GetValues<HelltideRegion>().Where(r => regionName?.Invoke(r) is { } name && areas.Any(a => a.EndsWith(name, StringComparison.Ordinal)))];
     }
 
     private void OpenWhispers(bool events)
@@ -357,7 +366,9 @@ public sealed class WaypointListBridge(
     {
         var region = _regions[_regionIndex];
         var text = HelltideStrings.For(language.Current);
-        string entry = string.Format(text.RegionEntryFormat, RegionName(region), ActiveHelltides.MinutesLeft(region, Now(), helltideEndsEarly));
+        // A helltide only the map shows has no known end.
+        string entry = _markedOnly.Contains(region) ? $"{RegionName(region)}."
+            : string.Format(text.RegionEntryFormat, RegionName(region), ActiveHelltides.MinutesLeft(region, Now(), helltideEndsEarly));
         return _regions.Count > 1 ? $"{entry} {string.Format(text.PositionFormat, _regionIndex + 1, _regions.Count)}" : entry;
     }
 

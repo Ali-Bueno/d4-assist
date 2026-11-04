@@ -67,6 +67,9 @@ public sealed class QuestPathBridge
     // How often --debug logs where the ping aims.
     private static readonly TimeSpan AimLogInterval = TimeSpan.FromSeconds(5);
 
+    /// <summary>How long after entering a world a press waits for the map's first read: a handheld's list took 24 s (log of 2026-11-02).</summary>
+    public static readonly TimeSpan MapReadWait = TimeSpan.FromSeconds(30);
+
     // Marked places closer than this are one place (a quest marks a spot with several markers).
     private const float SamePlaceUnits = 3f;
 
@@ -95,6 +98,8 @@ public sealed class QuestPathBridge
     private string? _world;
     private bool _leads;
     private IReadOnlyList<MarkedActor> _markers = [];
+    private bool _markersRead;
+    private TimeSpan _worldEntered;
     private QuestMapPlace? _active;
     private Vector3? _player;
     private PathFollower? _follower;
@@ -150,7 +155,7 @@ public sealed class QuestPathBridge
     /// <summary>Every actor the game's map marks (GameSession.MapMarkersRead).</summary>
     public void OnMapMarkers(IReadOnlyList<MarkedActor> markers)
     {
-        lock (_gate) _markers = markers;
+        lock (_gate) (_markers, _markersRead) = (markers, true);
     }
 
     private void EnterWorld(string worldName)
@@ -158,6 +163,8 @@ public sealed class QuestPathBridge
         Stop();
         _player = null;
         _markers = [];
+        _markersRead = false;
+        _worldEntered = _clock();
         _world = worldName;
         _leads = _leadsIn(worldName);
     }
@@ -174,7 +181,12 @@ public sealed class QuestPathBridge
         {
             if (!_leads || (_active is null && _routeActive())) return;
             var strings = AppStrings.For(_language.Current);
-            if (_player is not { } player) { _speech.Speak(strings.NoQuestPlace, interrupt: true); return; }
+            // A press before the map's first read knows no quest place, and would take a nearby entrance for the goal.
+            if (_player is not { } player || (!_markersRead && _clock() - _worldEntered < MapReadWait))
+            {
+                _speech.Speak(strings.NoQuestPlace, interrupt: true);
+                return;
+            }
             var here = new Vector2(player.X, player.Y);
             var places = Places(here);
             Log($"PATH places: {string.Join("; ", places.Select(p => $"{p.QuestName} ({p.Position.X:F0},{p.Position.Y:F0}) {Vector2.Distance(here, p.Position):F0}"))}");

@@ -395,7 +395,8 @@ the player holds an item it takes, then in the quest tier; empty-handed, the gui
 silent within 20 units of the player is done (used, locked or removed). The guide walks the last stretch over the room's floor (the
 walk-grid path to the floor within reach of the object, not a straight line through what stands before it) and, once the player is
 within reach (3 units past the edge of the actor's box, a trigger's own radius), chimes once and holds silent while the objective's
-own loop sounds; a step away it points again. One the player stood at and then walked 20 units away from, still undone, is passed
+own loop sounds; a step away it points again. A step that counts waves of kills and names no place keeps the last quest place as its goal
+(`Game/WaveStepDestination`, [dungeon-objectives](../../research/dungeon-objectives.md) §33). One the player stood at and then walked 20 units away from, still undone, is passed
 over until another objective is done (a key found may open a door visited earlier) or the guide is switched on again. A door
 the player can't open yet is a wall for the guide and never its goal; once it or a barrier falls, the ground past it is explored
 before the ground left behind (Barriers in the radar and the guide).
@@ -512,7 +513,8 @@ a dungeon's markers after the player leaves it.
   ground; each new world starts on the objectives; endgame worlds only explore; tester 2026-10-27, user's binding
   2026-10-28; logs `Guide mode pressed.`, `--debug` `GUIDE mode explore|objectives`). Ignored while a game menu is open
   (inventory, map, vendor…: the D-pad navigates it; `Input/GatedPad` over `MenuMute`, `--debug` logs `GUIDE toggle ignored`),
-  and while Diablo IV isn't the foreground window (another game, or the game closed: the pad is read globally);
+  while Diablo IV isn't the foreground window (another game, or the game closed: the pad is read globally),
+  and while the game shows no gameplay (character select and creation, loading, cinematics: `Guide toggle ignored: no gameplay (…)`);
   every press past that gate logs `Guide toggle pressed.`, and each raw press its source first (`Pad: XInput D-pad left.`,
   `Pad: HID D-pad left.`, `Keys: Ctrl+Alt+Shift+G.`). `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
   D2R mod's `input_direction.cpp`; logs `Pad: XInput loaded from …`, `Pad: XInput slot N connected (type, subtype, flags, vendor,

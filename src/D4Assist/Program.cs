@@ -466,7 +466,8 @@ internal static class Program
                 (world, from, to) => paths.Find(world, from, to, lockedDoors.Walls()),
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate),
-                wallsVersion: () => lockedDoors.Version);
+                wallsVersion: () => lockedDoors.Version,
+                legionTargets: new LegionTargets(store.Name).Near);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();

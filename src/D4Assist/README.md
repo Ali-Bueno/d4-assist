@@ -490,6 +490,14 @@ a dungeon's markers after the player leaves it.
 - **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
   desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
+- **Inside a legion event** (user request 2026-11-04) the event's targets come first (`Game/LegionTargets`): the map
+  markers in the event's level area (`*_ZoneEvent`) that are its boss (`*_boss`), a structure to destroy (`Structure_*`), a
+  captain (`*_ZE_*Captain*`) or a reward chest (`ZE_Chest_Reward*`, last), within 150 units, nearest first; spoken "Legion:
+  Struktur, N Meter.". At a target it chimes, says "Legionsziel erreicht." and holds silent while the player stays within 10
+  units; when the map stops marking it for 1.5 s (destroyed, killed, opened) it leads on to the nearest target left by
+  itself, and says "Keine Legionsziele mehr auf der Karte." after the last. A walking captain's marker is followed (25 units).
+  Seen live: the Dry Steppes legion (`ZE_Invasion_Demon`); Chakhir's and Skovos' kinds may mark other goals. `--debug`:
+  `PATH … legion <kind>`, `PATH legion target done`, `PATH reached legion target`.
 - After the quest places come the dungeon and cellar entrances within 150 units (`DungeonEntranceCatalog`: the map's portal
   markers of dungeon type or named `*Cellar*`, not hidden; 534 in the open world in 3.2.4), nearest first, spoken "Entrada:
   <dungeon>, N metros." and, on arrival, "Has llegado a la entrada." (tester 2026-10-31: the game's navigation assist ended

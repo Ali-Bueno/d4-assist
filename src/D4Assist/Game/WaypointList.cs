@@ -85,3 +85,6 @@ public sealed record MapPlace(string Name, string? Region, int WorldSno, double 
 /// <summary>A list of the map menu: its kind, its places (asked anew each time it opens, so names follow the language and
 /// filters read the game anew), and whether the menu offers it now (null: always).</summary>
 public sealed record MapPlaceList(MapListKind Kind, Func<IReadOnlyList<MapPlace>> Places, Func<bool>? Shown = null);
+
+/// <summary>A place chosen with Enter in a map menu list (not the waypoints): D-pad left leads to it (user request 2026-11-06).</summary>
+public sealed record MapPlaceChoice(string Name, int WorldSno, double X, double Y);

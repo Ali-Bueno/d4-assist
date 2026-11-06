@@ -52,6 +52,8 @@ namespace D4Assist.Game;
 /// null for any other marker; null for no goblin list (Shift+F3, user request 2026-10-29).</param>
 /// <param name="readWhispers">The whispers up now; null when the world states are unreadable. Null for no whispers' entry in the events menu.</param>
 /// <param name="eventsReading">True while the map's first read since it opened still runs (MapBountyWatch.Reading): no event listed yet is no answer.</param>
+/// <param name="placeChosen">Told the entry Enter chose in a map menu list other than the waypoints, whether or not the cursor can reach it:
+/// D-pad left then leads there (QuestPathBridge.Choose, user request 2026-11-06).</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
@@ -60,7 +62,7 @@ public sealed class WaypointListBridge(
     Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null, bool helltideEndsEarly = false,
     Func<HelltideRegion, IReadOnlyList<(string Name, double X, double Y)>>? bountiesOf = null,
     Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null,
-    IReadOnlyList<MapPlaceList>? placeLists = null)
+    IReadOnlyList<MapPlaceList>? placeLists = null, Action<MapPlaceChoice>? placeChosen = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
@@ -505,6 +507,11 @@ public sealed class WaypointListBridge(
             }
             if (_list.Current is not { } entry) return;
             if (_mode == Mode.Goblins) entry = Fresh(entry);
+            if (_mode == Mode.Places)
+            {
+                log?.Invoke($"MAPLIST chosen {entry.Name} at ({entry.X:F0},{entry.Y:F0}) for D-pad left");
+                placeChosen?.Invoke(new MapPlaceChoice(entry.Name, currentWorld(), entry.X, entry.Y));
+            }
             if (readMapView() is not { } view || mouse.ClientSize() is not { } size)
             {
                 speech.Output(Text.MapUnreadable, interrupt: true);

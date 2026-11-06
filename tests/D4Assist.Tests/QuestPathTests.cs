@@ -289,6 +289,50 @@ public class QuestPathTests
     }
 
     [Fact]
+    public void A_place_chosen_in_the_map_list_is_offered_first_from_far_off_until_it_is_reached()
+    {
+        // The Inundated Cellar by Xanderos, 370 units from where the user stood (2026-11-06): far beyond the entrances' 150.
+        var cellar = KedBardu + new Vector2(300, 220);
+        var rig = new Rig();
+        rig.Move(KedBardu);
+
+        rig.Bridge.Choose(World, "Inundated Cellar", cellar);
+        rig.Pad.Press();
+
+        Assert.Equal("Chosen place: Inundated Cellar, 372 meters. 1 of 3.", rig.Speech.Texts.Last());
+        Assert.Equal(cellar, rig.Searches[^1].To);
+        rig.Pad.Press();
+        Assert.StartsWith("Quest goal: Disciples of the Forbidden", rig.Speech.Texts.Last()); // further presses: the other places
+        rig.Pad.Press();
+        rig.Pad.Press(); // off
+        rig.Pad.Press();
+        Assert.StartsWith("Chosen place: Inundated Cellar", rig.Speech.Texts.Last()); // still first
+
+        foreach (var p in Straight(KedBardu, cellar)) rig.Move(p);
+        Assert.Equal(MapMenuStrings.English.ChosenReached, rig.Speech.Texts.Last());
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        Assert.StartsWith("Quest goal:", rig.Speech.Texts.Last()); // reached: no longer offered
+    }
+
+    [Fact]
+    public void A_chosen_place_stops_the_running_guide_and_belongs_to_its_world_only()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        Assert.StartsWith("Quest goal:", rig.Speech.Texts.Last());
+
+        rig.Bridge.Choose("Some_Other_World", "Elsewhere", KedBardu + new Vector2(50, 0));
+        rig.Pad.Press();
+        Assert.StartsWith("Quest goal: Disciples of the Forbidden", rig.Speech.Texts.Last()); // stopped, starts over, not offered here
+
+        rig.Bridge.Choose(World, "Xanderos", KedBardu + new Vector2(50, 0));
+        rig.Pad.Press();
+        Assert.StartsWith("Chosen place: Xanderos, 50 meters.", rig.Speech.Texts.Last());
+    }
+
+    [Fact]
     public void Entrances_farther_than_the_range_are_not_asked_for()
     {
         float asked = 0;

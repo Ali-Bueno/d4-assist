@@ -201,7 +201,9 @@ Dungeons, Cellars and Strongholds (all of them, freed or not). Up and down choos
 to the menu and closes it from there. Every list is nearest first; Enter puts
 the mouse cursor on the entry and zooms the map out if needed. An entry too far
 for the map puts the cursor on the activated waypoint nearest to it: travel
-there and choose the entry again.
+there and choose the entry again. A dungeon, cellar or stronghold chosen with
+Enter is also where D-pad left leads first, from up to 1500 meters away, until
+you reach it.
 Waypoint list. In the map menu, Waypoints lists the waypoints you have
 activated in this world, nearest first. Up and down read them (name, region,
 distance and direction), Enter puts the mouse cursor on the chosen waypoint and closes

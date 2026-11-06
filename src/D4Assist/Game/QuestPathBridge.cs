@@ -15,9 +15,10 @@ namespace D4Assist.Game;
 /// <param name="Hidden">Named only by a step the game doesn't show (QuestPhaseObjects.HiddenMarkers): offered after the shown ones.</param>
 /// <param name="Entrance">A dungeon or cellar entrance near the player, not a quest's: offered after every quest place, named
 /// after the dungeon.</param>
-/// <param name="Legion">A legion event's target (LegionTargets), named after its kind: offered before everything else.</param>
+/// <param name="Legion">A legion event's target (LegionTargets), named after its kind: offered before everything else but a chosen place.</param>
+/// <param name="Chosen">The place last chosen with Enter in a map menu list (Choose): offered first until reached.</param>
 public sealed record QuestMapPlace(int QuestSno, string QuestName, int ActorSno, Vector2 Position, bool GameMarker = false, bool Hidden = false,
-    bool Entrance = false, LegionTargetKind? Legion = null);
+    bool Entrance = false, LegionTargetKind? Legion = null, bool Chosen = false);
 
 /// <summary>Where a map marker stands in a quest's current step.</summary>
 public enum StepPlace { NotInStep, Shown, Hidden }
@@ -130,6 +131,8 @@ public sealed class QuestPathBridge
     private int _activeId;
     private Vector2 _pathTo;
     private bool _held;
+    // The place chosen in a map menu list, and its world's name: offered first until reached (user request 2026-11-06).
+    private (string World, QuestMapPlace Place)? _chosen;
     private TimeSpan? _missingSince;
 
     /// <summary>True where D-pad left leads to quest places: the exploration guide then leaves the press to it.</summary>
@@ -192,6 +195,19 @@ public sealed class QuestPathBridge
         {
             (_markers, _markersRead) = (markers, true);
             if (_active?.Legion is not null) TrackLegionTarget();
+        }
+    }
+
+    /// <summary>The place chosen with Enter in a map menu list (a dungeon, cellar or stronghold, WaypointListBridge): the next D-pad
+    /// left leads there, from up to <see cref="MaxDistanceUnits"/> away, until it is reached. A guide running stops, so that press
+    /// starts with it.</summary>
+    public void Choose(string worldName, string name, Vector2 position)
+    {
+        lock (_gate)
+        {
+            _chosen = (worldName, new QuestMapPlace(0, name, 0, position, Chosen: true));
+            Log($"PATH chosen in the map list: {name} at ({position.X:F0},{position.Y:F0}) in {worldName}");
+            Stop();
         }
     }
 
@@ -284,12 +300,18 @@ public sealed class QuestPathBridge
         }
     }
 
-    // A legion's targets first (LegionTargets.Near's order, also the one the player stands at), then the marked quest places in
-    // reach, the game's own quest markers first, hidden steps last, else nearest first, then the dungeon entrances near the player,
-    // nearest first; one per spot.
+    // The place chosen in a map list first (once the player stands at it, it is done), then a legion's targets (LegionTargets.Near's
+    // order, also the one the player stands at), then the marked quest places in reach, the game's own quest markers first, hidden
+    // steps last, else nearest first, then the dungeon entrances near the player, nearest first; one per spot.
     private List<QuestMapPlace> Places(Vector2 here)
     {
         var places = new List<QuestMapPlace>();
+        if (_chosen is { } chosen && chosen.World == _world)
+        {
+            float distance = Vector2.Distance(here, chosen.Place.Position);
+            if (distance <= HereUnits) _chosen = null;
+            else if (distance <= MaxDistanceUnits) places.Add(chosen.Place);
+        }
         foreach (var target in _legionTargets(_markers, here))
             if (!places.Any(p => Vector2.Distance(p.Position, target.Position) <= SamePlaceUnits))
                 places.Add(LegionPlace(target));
@@ -312,7 +334,8 @@ public sealed class QuestPathBridge
         string legion = place.Legion is { } kind ? $", legion {kind}" : "";
         Log($"PATH to {place.QuestName} (quest {place.QuestSno}{legion}) at ({place.Position.X:F1},{place.Position.Y:F1}), {distance:F0} units ({reason})");
         var strings = AppStrings.For(_language.Current);
-        string format = place.Legion is not null ? LegionStrings.For(_language.Current).TargetFormat
+        string format = place.Chosen ? MapMenuStrings.For(_language.Current).ChosenGuideFormat
+            : place.Legion is not null ? LegionStrings.For(_language.Current).TargetFormat
             : place.Entrance ? strings.EntranceGuideFormat : strings.PathGuideFormat;
         string text = string.Format(format, place.QuestName, MathF.Round(distance));
         _speech.Speak(count > 1 ? $"{text} {string.Format(strings.PlaceCountFormat, number, count)}" : text, interrupt: true);
@@ -386,7 +409,9 @@ public sealed class QuestPathBridge
             Log($"PATH reached {place.QuestName} at ({here.X:F1},{here.Y:F1})");
             _ping.PlayArrived();
             var strings = AppStrings.For(_language.Current);
-            _speech.Speak(place.Entrance ? strings.EntranceReached : strings.PathEnd, interrupt: false);
+            if (place.Chosen) _chosen = null;
+            _speech.Speak(place.Chosen ? MapMenuStrings.For(_language.Current).ChosenReached
+                : place.Entrance ? strings.EntranceReached : strings.PathEnd, interrupt: false);
             Stop();
             return;
         }

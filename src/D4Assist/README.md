@@ -490,6 +490,10 @@ a dungeon's markers after the player leaves it.
 - **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
   desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
+- **A place chosen in the map menu** (Enter in Dungeons, Keller or Stützpunkte, user request 2026-11-06; also when the cursor
+  can only reach a stopover) comes first, within 1500 units, spoken "Gewähltes Ziel: <name>, N Meter." (`MapMenuStrings`,
+  `QuestPathBridge.Choose`, debug `MAPLIST chosen` / `PATH chosen in the map list`); a new choice stops a running guide;
+  reached it says "Ziel erreicht." and is no longer offered.
 - **Inside a legion event** (user request 2026-11-04) the event's targets come first (`Game/LegionTargets`): the map
   markers in the event's level area (`*_ZoneEvent`) that are its boss (`*_boss`), a structure to destroy (`Structure_*`), a
   captain (`*_ZE_*Captain*`) or a reward chest (`ZE_Chest_Reward*`, last), within 150 units, nearest first; spoken "Legion:

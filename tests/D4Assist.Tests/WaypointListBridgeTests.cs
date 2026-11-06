@@ -829,7 +829,9 @@ public class WaypointListBridgeTests
     [Fact]
     public void A_place_too_far_puts_the_cursor_on_the_activated_waypoint_nearest_to_it()
     {
-        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar], view: OutAtTemis, placeLists: Lists(false, FarobruDungeon));
+        MapPlaceChoice? chosen = null;
+        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar], view: OutAtTemis, placeLists: Lists(false, FarobruDungeon),
+            placeChosen: c => chosen = c);
         keys.Open();
         keys.Down();
         keys.Enter();
@@ -838,6 +840,8 @@ public class WaypointListBridgeTests
 
         Assert.Equal(MapProjection.ToClient(OutAtTemis, 1038, 152, 1920, 1080), mouse.Moved);
         Assert.Equal("Farobru Pit is too far for the map. Stopover: cursor on Naha_Kurast_Bazaar. After the trip, choose Farobru Pit again.", speech.Last);
+        // D-pad left leads to the chosen place itself, even one the cursor can't reach (user request 2026-11-06).
+        Assert.Equal(new MapPlaceChoice("Farobru Pit", OpenWorld, FarobruDungeon.X, FarobruDungeon.Y), chosen);
     }
 
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
@@ -845,7 +849,7 @@ public class WaypointListBridgeTests
         Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
         Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null,
         Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null,
-        IReadOnlyList<MapPlaceList>? placeLists = null)
+        IReadOnlyList<MapPlaceList>? placeLists = null, Action<MapPlaceChoice>? placeChosen = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
@@ -855,7 +859,7 @@ public class WaypointListBridgeTests
             new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
             helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { },
             bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace, readWhispers: readWhispers, eventsReading: eventsReading,
-            placeLists: placeLists);
+            placeLists: placeLists, placeChosen: placeChosen);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);

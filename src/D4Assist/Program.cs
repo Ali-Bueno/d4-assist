@@ -567,7 +567,9 @@ internal static class Program
                 },
                 eventsReading: () => mapBounties.Reading,
                 placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), new StrongholdCatalog(store, schema), waypointCatalog, zones, store,
-                    language, cascGate));
+                    language, cascGate),
+                // D-pad left leads to the place Enter chose (user request 2026-11-06).
+                placeChosen: choice => pathBridge?.Choose(store.Name(choice.WorldSno) ?? "", choice.Name, new Vector2((float)choice.X, (float)choice.Y)));
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;

@@ -27,6 +27,21 @@ public class DungeonEntranceCatalogRealDataTests
         Assert.True(Vector2.Distance(new(ruins.Position.X, ruins.Position.Y), new(-2055f, -1033.5f)) < 2);
         Assert.InRange(catalog.All.Count(e => e.WorldSno == OpenWorld), 400, 700); // 534 in build 3.2.4: dungeons and cellars, not every portal
     }
+
+    [Fact]
+    public void An_entrance_is_named_as_the_map_names_it_after_the_world_it_leads_into()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var catalog = new DungeonEntranceCatalog(store, TypeSchema.Load(definitions));
+
+        // The Aegoye by Temis: its first level area is only its first floor, "Aufnahme" (user, 2026-11-06).
+        var aegoye = catalog.All.Single(e => e.DestWorldName == "DGN_Skov_Aegoye");
+        Assert.Equal("Die Aegoye", catalog.Name(aegoye, "deDE"));
+        Assert.Equal("Dunkle Zuflucht", catalog.Name(catalog.All.Single(e => e.DestWorldName == "DGN_Skov_DarkRefuge"), "deDE"));
+        Assert.Equal("Verlassene Gruft", catalog.Name(catalog.All.Single(e => e.DestWorldName == "OWC_Skov_Philios_01"), "deDE"));
+        Assert.NotEqual(catalog.Name(aegoye, "deDE"), catalog.Name(aegoye, "enUS"));
+    }
     [Fact]
     public void Entrances_tell_dungeons_cellars_and_boss_lairs_apart_and_a_season_s_ones_show_in_it_only()
     {
@@ -37,8 +52,13 @@ public class DungeonEntranceCatalogRealDataTests
         var lairs = catalog.All.Where(e => e.Kind == EntranceKind.BossLair).ToList();
         Assert.Equal(10, lairs.Count); // Varshan, Grigoire, Zir, the Beast in the Ice, Duriel, Andariel, Belial, Urivar, the Harbinger, Mephisto
         Assert.Contains(lairs, e => e.DestLevelAreaName == "Boss_WT4_Duriel");
-        Assert.InRange(catalog.All.Count(e => e.Kind == EntranceKind.Cellar), 150, 250);
+        // Cellars are the OWC_ worlds (175 in build 3.2.4), Skovos' too behind their dungeon-type portal; quest cellars are not.
+        Assert.InRange(catalog.All.Count(e => e.Kind == EntranceKind.Cellar), 160, 200);
+        Assert.All(catalog.All.Where(e => e.Kind == EntranceKind.Cellar), e => Assert.StartsWith("OWC_", e.DestWorldName));
+        Assert.Equal(EntranceKind.Cellar, catalog.All.Single(e => e.DestWorldName == "OWC_Skov_Philios_01").Kind);
+        Assert.Equal(EntranceKind.Other, catalog.All.Single(e => e.DestWorldName == "QST_Skov_Chronicles_03_Cellar").Kind);
         Assert.Equal(EntranceKind.Dungeon, catalog.All.Single(e => e.DestLevelAreaName == "DGN_Scos_SunkenRuins").Kind);
+        Assert.Equal(EntranceKind.Dungeon, catalog.All.Single(e => e.DestWorldName == "DGN_Hawe_BelfryZakara").Kind); // behind a cellar door
 
         Assert.True(catalog.Season >= 15);
         var oldSeason = catalog.All.First(e => e.Condition == "Season_Active_Season12");

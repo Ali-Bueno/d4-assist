@@ -381,9 +381,8 @@ public class WaypointListBridgeTests
         keys.Open();
         keys.Down(); // Temis, 1900 units away
 
-        keys.Enter();
+        keys.Enter(); // the map doesn't zoom out here: the wheel turns, the view stays
 
-        Assert.Null(mouse.Moved);
         Assert.True(keys.ListKeys);
         Assert.StartsWith("Skov_Temis is outside the map view", speech.Last);
     }
@@ -682,7 +681,7 @@ public class WaypointListBridgeTests
         keys.Enter();
 
         Assert.StartsWith("Far is outside the map view", speech.Last);
-        Assert.Null(mouse.Moved); // never hops to another whisper
+        Assert.DoesNotContain("Stopover", speech.Last); // no activated waypoint lies nearer to it
         Assert.True(keys.ListKeys);
     }
 
@@ -752,11 +751,101 @@ public class WaypointListBridgeTests
         Assert.Equal("Helltide, 1 of 1.", speech.Last);
     }
 
+    // The map menu (user request 2026-11-06): waypoints, dungeons, cellars, boss lairs only while offered.
+    private static readonly MapPlace NearDungeon = new("Den of Near", "Kehjistan", OpenWorld, 700, -400);
+    private static readonly MapPlace MidDungeon = new("Mid Halls", null, OpenWorld, 681.64, 250);
+    private static readonly MapPlace FarobruDungeon = new("Farobru Pit", null, OpenWorld, -1180, -880);
+    private static readonly MapPlace OtherWorldDungeon = new("Hideout Hole", null, OtherWorld, 0, 0);
+
+    private static IReadOnlyList<MapPlaceList> Lists(bool lairs = false, params MapPlace[] dungeons) =>
+    [
+        new(MapListKind.Dungeons, () => dungeons),
+        new(MapListKind.Cellars, () => []),
+        new(MapListKind.Lairs, () => [NearDungeon], () => lairs),
+    ];
+
+    [Fact]
+    public void Shift_F1_opens_the_map_menu_and_escape_goes_back_a_level()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], placeLists: Lists(false, MidDungeon, NearDungeon, OtherWorldDungeon));
+
+        keys.Open();
+        Assert.Equal("Map menu. Waypoints, 1 of 3.", speech.Last);
+        keys.Down();
+        Assert.Equal("Dungeons, 2 of 3.", speech.Last);
+        keys.Enter();
+        Assert.StartsWith("Dungeons by distance: 2. Den of Near, Kehjistan, ", speech.Last);
+        keys.Down();
+        Assert.StartsWith("Mid Halls, 660 meters", speech.Last);
+
+        keys.Escape();
+        Assert.Equal("Map menu. Dungeons, 2 of 3.", speech.Last);
+        keys.Escape();
+        Assert.Equal("List closed.", speech.Last);
+        Assert.False(keys.ListKeys);
+    }
+
+    [Fact]
+    public void The_lairs_entry_shows_only_while_offered_and_an_empty_list_keeps_the_menu()
+    {
+        var (_, keys, speech, _) = Create([GeaKul], placeLists: Lists(true, NearDungeon));
+        keys.Open();
+        Assert.Equal("Map menu. Waypoints, 1 of 4.", speech.Last);
+        keys.Down();
+        keys.Down();
+        Assert.Equal("Cellars, 3 of 4.", speech.Last);
+        keys.Enter();
+        Assert.Equal("Cellars: none in this world.", speech.Last);
+        Assert.True(keys.ListKeys);
+        keys.Down();
+        Assert.Equal("Boss lairs, 4 of 4.", speech.Last);
+
+        keys.Up();
+        keys.Up();
+        keys.Up();
+        keys.Enter();
+        Assert.StartsWith("Waypoints by distance: 1.", speech.Last);
+        keys.Escape();
+        Assert.Equal("Map menu. Waypoints, 1 of 4.", speech.Last);
+    }
+
+    [Fact]
+    public void Enter_zooms_out_until_a_place_is_in_view()
+    {
+        var view = new MapView(681.64f, -410.26f, 417.6f);
+        var (_, keys, speech, mouse) = Create([GeaKul], readView: () => view, placeLists: Lists(false, MidDungeon));
+        mouse.Scrolled = notches => view = view with { Zoom = notches < 0 ? MapProjection.MaxZoom : 417.6f };
+        keys.Open();
+        keys.Down();
+        keys.Enter();
+
+        keys.Enter();
+
+        Assert.Equal(MapProjection.MaxZoom, view.Zoom);
+        Assert.Equal(MapProjection.ToClient(view, MidDungeon.X, MidDungeon.Y, 1920, 1080), mouse.Moved);
+        Assert.Equal("Cursor on Mid Halls.", speech.Last);
+    }
+
+    [Fact]
+    public void A_place_too_far_puts_the_cursor_on_the_activated_waypoint_nearest_to_it()
+    {
+        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar], view: OutAtTemis, placeLists: Lists(false, FarobruDungeon));
+        keys.Open();
+        keys.Down();
+        keys.Enter();
+
+        keys.Enter();
+
+        Assert.Equal(MapProjection.ToClient(OutAtTemis, 1038, 152, 1920, 1080), mouse.Moved);
+        Assert.Equal("Farobru Pit is too far for the map. Stopover: cursor on Naha_Kurast_Bazaar. After the trip, choose Farobru Pit again.", speech.Last);
+    }
+
     private static (WaypointListBridge, FakeKeys, FakeSpeech, FakeMouse) Create(
         int[]? activated, MapView? view = null, int world = OpenWorld, Func<bool>? foreground = null, Func<Waypoint, string?>? regionOf = null,
         Func<MarkedActor, HelltidePlace?>? helltidePlace = null, IReadOnlyList<HelltideRegion>? helltides = null,
         Func<MapView?>? readView = null, IReadOnlyList<(string Name, double X, double Y)>? bounties = null,
-        Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null)
+        Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null,
+        IReadOnlyList<MapPlaceList>? placeLists = null)
     {
         var keys = new FakeKeys();
         var speech = new FakeSpeech();
@@ -765,7 +854,8 @@ public class WaypointListBridgeTests
             Catalog, w => w.LevelAreaName, _ => activated, readView ?? (() => view ?? FarOut), () => world, speech,
             new LanguageSetting(SpeechLanguage.English), DirectionStyle.Screen, keys, mouse, foreground ?? (() => true), regionOf: regionOf,
             helltidePlace: helltidePlace, readHelltides: () => helltides, regionName: r => r.ToString(), now: () => Evening, wait: _ => { },
-            bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace, readWhispers: readWhispers, eventsReading: eventsReading);
+            bountiesOf: _ => bounties ?? [], goblinPlace: goblinPlace, readWhispers: readWhispers, eventsReading: eventsReading,
+            placeLists: placeLists);
         bridge.Start();
         bridge.OnPlayerMoved(new PlayerState(681.64f, -410.26f, 0, 0));
         bridge.OnMenus([MenuScreens.MainMenu, MenuScreens.Map]);

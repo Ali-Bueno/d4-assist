@@ -565,7 +565,8 @@ internal static class Program
                             .ToList();
                     }
                 },
-                eventsReading: () => mapBounties.Reading);
+                eventsReading: () => mapBounties.Reading,
+                placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), zones, store, language, cascGate));
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;
@@ -939,6 +940,32 @@ internal static class Program
         try { return store.Resolve(group, name); }
         catch (ArgumentException) { return null; }
     }
+
+    // The map menu's lists besides the waypoints (Shift+F1, user request 2026-11-06): the dungeons and the cellars the map shows,
+    // each named after where it leads, with the region it lies in; one entry per name and spot. The boss lairs and the strongholds
+    // wait for their filters (the Torment tier, the map's revealed strongholds), not readable yet.
+    private static IReadOnlyList<MapPlaceList> MapPlaceLists(
+        DungeonEntranceCatalog catalog, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate)
+    {
+        IReadOnlyList<MapPlace> Of(EntranceKind kind)
+        {
+            lock (cascGate)
+            {
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                var places = new List<MapPlace>();
+                foreach (var e in catalog.All.Where(e => e.Kind == kind && catalog.Shown(e)))
+                {
+                    var place = new MapPlace(catalog.Name(e, locale), e.LevelAreaSno > 0 ? zones.Name(e.LevelAreaSno, locale) : null, e.WorldSno, e.Position.X, e.Position.Y);
+                    if (!places.Any(p => p.Name == place.Name && Math.Abs(p.X - place.X) + Math.Abs(p.Y - place.Y) < SameEntranceUnits)) places.Add(place);
+                }
+                return places;
+            }
+        }
+        return [new(MapListKind.Dungeons, () => Of(EntranceKind.Dungeon)), new(MapListKind.Cellars, () => Of(EntranceKind.Cellar))];
+    }
+
+    // Two portals of one name this close are one entrance (a dungeon's door with its own way back out beside it).
+    private const double SameEntranceUnits = 10;
 
     // The dungeon and cellar entrances of a world within a distance of a spot, as places D-pad left leads to, named in the spoken language.
     private static Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>> NearbyEntrances(

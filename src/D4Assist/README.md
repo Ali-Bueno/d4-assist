@@ -552,10 +552,11 @@ a dungeon's markers after the player leaves it.
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
 - **Ctrl+Alt+Shift+E** (keyboard, while the game is in front) — holding D-pad left: the guide's mode, objectives or exploring.
 - **Shift+F1** (keyboard, world map only) — the map menu (user request 2026-11-06): "Kartenmenü. Wegpunkte, 1 von 3." with
-  Wegpunkte, Dungeons and Keller (`MapPlaceList`, `Program.MapPlaceLists`); Enter opens a list, Escape in a list goes back to
+  Wegpunkte, Dungeons, Keller and Stützpunkte (`MapPlaceList`, `Program.MapPlaceLists`; strongholds = `StrongholdCatalog`, the 21
+  `zone_progress` `arCamps` quests at their `vecStartLocation`, freed or not, region of the nearest waypoint); Enter opens a list, Escape in a list goes back to
   the menu, in the menu it closes. Dungeons are the `DGN_*` entrances of `DungeonEntranceCatalog` (146 in the open world,
   build 3.2.4; quest dungeons, the Undercity's districts and seasonal places are `EntranceKind.Other` and not listed), cellars
-  its `Portal_Cellar*` ones; both drop a portal whose map condition is another season's (`Season_Active_SeasonN`,
+  its `OWC_*` ones (175; quest cellars are `EntranceKind.QuestCellar`); both drop a portal whose map condition is another season's (`Season_Active_SeasonN`,
   `Season_Only_Not_SN`; the season is the highest plain `Season_Active_SeasonN` in the data) or the Torment tier's (the Throne
   of Hatred), and say the region they lie in. Boss lairs (`EntranceKind.BossLair`, 10 portals into `Boss_*` worlds) and the
   strongholds (`CMP_*` quests) are not offered yet: the Torment tier and the map's revealed strongholds are not readable yet.

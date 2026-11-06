@@ -566,7 +566,8 @@ internal static class Program
                     }
                 },
                 eventsReading: () => mapBounties.Reading,
-                placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), zones, store, language, cascGate));
+                placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), new StrongholdCatalog(store, schema), waypointCatalog, zones, store,
+                    language, cascGate));
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;
@@ -942,11 +943,28 @@ internal static class Program
     }
 
     // The map menu's lists besides the waypoints (Shift+F1, user request 2026-11-06): the dungeons and the cellars the map shows,
-    // each named after where it leads, with the region it lies in; one entry per name and spot. The boss lairs and the strongholds
-    // wait for their filters (the Torment tier, the map's revealed strongholds), not readable yet.
-    private static IReadOnlyList<MapPlaceList> MapPlaceLists(
-        DungeonEntranceCatalog catalog, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate)
+    // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds, freed or not
+    // (user request: to find the places near one before it is freed; which are freed is not read yet), with the region of the
+    // waypoint nearest to each. The boss lairs wait for their filter (the Torment tier), not readable yet.
+    private static IReadOnlyList<MapPlaceList> MapPlaceLists(DungeonEntranceCatalog catalog, StrongholdCatalog strongholds,
+        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate)
     {
+        IReadOnlyList<MapPlace> Strongholds()
+        {
+            lock (cascGate)
+            {
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                return
+                [
+                    .. strongholds.All.Select(s => new MapPlace(strongholds.Name(s, locale),
+                        waypoints.All.Where(w => w.WorldSno == s.WorldSno)
+                            .MinBy(w => Vector2.Distance(new Vector2(w.Position.X, w.Position.Y), new Vector2(s.Position.X, s.Position.Y))) is { } near
+                            ? waypoints.Zone(near, locale) : null,
+                        s.WorldSno, s.Position.X, s.Position.Y)),
+                ];
+            }
+        }
+
         IReadOnlyList<MapPlace> Of(EntranceKind kind)
         {
             lock (cascGate)
@@ -961,7 +979,11 @@ internal static class Program
                 return places;
             }
         }
-        return [new(MapListKind.Dungeons, () => Of(EntranceKind.Dungeon)), new(MapListKind.Cellars, () => Of(EntranceKind.Cellar))];
+        return
+        [
+            new(MapListKind.Dungeons, () => Of(EntranceKind.Dungeon)), new(MapListKind.Cellars, () => Of(EntranceKind.Cellar)),
+            new(MapListKind.Strongholds, Strongholds),
+        ];
     }
 
     // Two portals of one name this close are one entrance (a dungeon's door with its own way back out beside it).

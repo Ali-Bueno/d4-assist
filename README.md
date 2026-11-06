@@ -140,8 +140,8 @@ D-pad does nothing, because there it belongs to the game. On the keyboard, Ctrl+
 D-pad, also in menus. While Diablo IV isn't the window in front (you play something else), the D-pad and the keys of the
 program do nothing and are left to the other programs; only Ctrl+Alt+Shift+C (settings) and Ctrl+Alt+Shift+Q (exit) work.
 
-**Map menu.** With the world map open, Shift+F1 opens the map menu: Waypoints, Dungeons and Cellars. Up and down choose,
-Enter opens a list, Escape goes back to the menu and closes it from there. Every list is nearest first; Enter puts the mouse
+**Map menu.** With the world map open, Shift+F1 opens the map menu: Waypoints, Dungeons, Cellars and Strongholds
+(all of them, freed or not). Up and down choose, Enter opens a list, Escape goes back to the menu and closes it from there. Every list is nearest first; Enter puts the mouse
 cursor on the entry and zooms the map out if needed. An entry too far for the map puts the cursor on the activated waypoint
 nearest to it: travel there and choose the entry again.
 

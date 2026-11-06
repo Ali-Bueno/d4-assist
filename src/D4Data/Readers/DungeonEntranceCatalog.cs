@@ -9,7 +9,9 @@ namespace D4Data.Readers;
 /// portal (quest dungeons and quest cellars <c>QST_*</c>, story places <c>CSD_*</c>, the Undercity, seasonal and event places):
 /// only <c>DGN_*</c> level areas are the map's dungeons (150 in the open world, build 3.2.4), only <c>OWC_*</c> worlds its cellars
 /// (175; Skovos' 15 stand behind a dungeon-type portal, not a cellar one).</summary>
-public enum EntranceKind { Dungeon, Cellar, BossLair, Other }
+/// <remarks><see cref="QuestCellar"/>: a cellar door into a quest or story place (<c>QST_*</c>, <c>CSD_*</c>, 30 + 5): the game
+/// spawns it only while its quest runs (live 2026-11-06: no portal at the Versunkene Vorratskammer's spot, the player 3 units off).</remarks>
+public enum EntranceKind { Dungeon, Cellar, BossLair, Other, QuestCellar }
 
 /// <summary>A dungeon's or cellar's entrance: the portal's world and spot, and the level area it leads to (its map name).</summary>
 /// <param name="Kind">Dungeon, cellar or boss lair.</param>
@@ -89,6 +91,7 @@ public sealed class DungeonEntranceCatalog(SnoStore store, TypeSchema schema)
         return world?.StartsWith(BossWorldPrefix, StringComparison.Ordinal) == true ? EntranceKind.BossLair
             : world?.StartsWith(CellarWorldPrefix, StringComparison.Ordinal) == true ? EntranceKind.Cellar
             : store.Name(point.Portal.DestLevelArea)?.StartsWith(DungeonAreaPrefix, StringComparison.Ordinal) == true ? EntranceKind.Dungeon
+            : store.Name(point.ActorSno)?.Contains(CellarNamePart) == true ? EntranceKind.QuestCellar
             : EntranceKind.Other;
     }
 }

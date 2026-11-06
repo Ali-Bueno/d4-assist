@@ -56,7 +56,9 @@ public class DungeonEntranceCatalogRealDataTests
         Assert.InRange(catalog.All.Count(e => e.Kind == EntranceKind.Cellar), 160, 200);
         Assert.All(catalog.All.Where(e => e.Kind == EntranceKind.Cellar), e => Assert.StartsWith("OWC_", e.DestWorldName));
         Assert.Equal(EntranceKind.Cellar, catalog.All.Single(e => e.DestWorldName == "OWC_Skov_Philios_01").Kind);
-        Assert.Equal(EntranceKind.Other, catalog.All.Single(e => e.DestWorldName == "QST_Skov_Chronicles_03_Cellar").Kind);
+        Assert.Equal(EntranceKind.QuestCellar, catalog.All.Single(e => e.DestWorldName == "QST_Skov_Chronicles_03_Cellar").Kind);
+        // Only there while its quest runs: no portal at its spot with the player 3 units off (live 2026-11-06).
+        Assert.Equal(EntranceKind.QuestCellar, catalog.All.Single(e => e.DestWorldName == "QST_Skov_Philios_Larder_Cellar").Kind);
         Assert.Equal(EntranceKind.Dungeon, catalog.All.Single(e => e.DestLevelAreaName == "DGN_Scos_SunkenRuins").Kind);
         Assert.Equal(EntranceKind.Dungeon, catalog.All.Single(e => e.DestWorldName == "DGN_Hawe_BelfryZakara").Kind); // behind a cellar door
 

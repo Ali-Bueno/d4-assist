@@ -967,7 +967,8 @@ internal static class Program
     // Two portals of one name this close are one entrance (a dungeon's door with its own way back out beside it).
     private const double SameEntranceUnits = 10;
 
-    // The dungeon and cellar entrances of a world within a distance of a spot, as places D-pad left leads to, named in the spoken language.
+    // The dungeon and cellar entrances of a world within a distance of a spot, as places D-pad left leads to, named in the spoken language;
+    // not quest cellars, which stand there only while their quest runs.
     private static Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>> NearbyEntrances(
         DungeonEntranceCatalog catalog, SnoStore store, TypeSchema schema, LanguageSetting language, object cascGate) =>
         (worldName, here, range) =>
@@ -978,7 +979,8 @@ internal static class Program
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 return
                 [
-                    .. catalog.All.Where(e => e.WorldSno == world && Vector2.Distance(here, new Vector2(e.Position.X, e.Position.Y)) <= range)
+                    .. catalog.All.Where(e => e.WorldSno == world && e.Kind != EntranceKind.QuestCellar
+                            && Vector2.Distance(here, new Vector2(e.Position.X, e.Position.Y)) <= range)
                         .Select(e => new QuestMapPlace(0, catalog.Name(e, locale), 0, new Vector2(e.Position.X, e.Position.Y), Entrance: true)),
                 ];
             }

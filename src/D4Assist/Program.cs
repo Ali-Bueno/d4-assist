@@ -448,6 +448,7 @@ internal static class Program
         if (guidePing is not null && routesEnabled)
         {
             var paths = OverworldPaths.FromGameData(store, schema, cascGate);
+            var legionTargets = new LegionTargets(store.Name);
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
                 session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
@@ -467,7 +468,8 @@ internal static class Program
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate),
                 wallsVersion: () => lockedDoors.Version,
-                legionTargets: new LegionTargets(store.Name).Near);
+                legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
+                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();

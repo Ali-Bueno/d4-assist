@@ -15,13 +15,19 @@ public class LegionGuideTests
     private const string World = "Sanctuary_Eastern_Continent";
     private const int EventArea = 1, OtherArea = 2;
     private const int Boss = 145695, Shrine = 1093402, ShrineSpawner = 1092805, Idol = 971924, FallenCaptain = 1092023,
-        Demon = 205815, Bonfire = 1017563, Chest = 1048395, Cellar = 9;
+        Demon = 205815, Bonfire = 1017563, Chest = 1048395, Cellar = 9,
+        IslandArea = 3, HighHp = 2243107, Building = 2138852, PingMiddle = 2164144, PingSouth = 2164146, PingWest = 2164148,
+        PingNorth = 2164150, Guard = 2411902, Catapults = 2181327, Pirate = 2188923;
     private static readonly Dictionary<int, string> Names = new()
     {
         [EventArea] = "Step_ZoneEvent", [OtherArea] = "Step_WesternFlats",
         [Boss] = "Goatman_abom_boss", [Shrine] = "Structure_Goatman_CorruptedShrine", [ShrineSpawner] = "ZE_Invasion_Demon_GoatmenStructure_Spawner",
         [Idol] = "Structure_Fallen_IdolOfTheShaman", [FallenCaptain] = "fallen_brute_unique_ACD_ZE_Invasion_Demon_FallenCaptain",
         [Demon] = "demon_swarmer_phys", [Bonfire] = "bonfire_restingSpot", [Chest] = "ZE_Chest_Reward",
+        [IslandArea] = "Skov_ZoneEvent", [HighHp] = "ZE_IslandDefense_Structure_HighHP", [Building] = "ZE_IslandDefense_Structure",
+        [PingMiddle] = "ZE_IslandDefense_MapPing", [PingSouth] = "ZE_IslandDefense_MapPing_1", [PingWest] = "ZE_IslandDefense_MapPing_2",
+        [PingNorth] = "ZE_IslandDefense_MapPing_3", [Guard] = "ZE_IslandDefense_AmazonGuard",
+        [Catapults] = "ZE_IslandDefense_spawner_catapult", [Pirate] = "pirate_ranged_dreg_miniboss",
     };
     private static readonly LegionTargets Targets = new(Names.GetValueOrDefault);
     private static readonly LegionStrings English = LegionStrings.English;
@@ -43,6 +49,16 @@ public class LegionGuideTests
     [InlineData("ZE_Invasion_Demon_DemonCaptain_Spawner", MapMarkerReader.KindGizmo, null)]
     [InlineData("demon_succubus_phys", MapMarkerReader.KindBoss, null)]
     [InlineData("bonfire_restingSpot_ignite", MapMarkerReader.KindGizmo, null)]
+    [InlineData("ZE_IslandDefense_MapPing_2", MapMarkerReader.KindGizmo, LegionTargetKind.Attack)]
+    [InlineData("ZE_TowerDefense_MapPing_4", 9, LegionTargetKind.Attack)]
+    [InlineData("ZE_IslandDefense_Structure", 9, LegionTargetKind.Defend)]
+    [InlineData("ZE_IslandDefense_Structure_HighHP", 9, LegionTargetKind.Defend)]
+    [InlineData("ZE_Towerdefense_Inhibitor_3", 9, LegionTargetKind.Defend)]
+    [InlineData("ZE_TowerDefense_InhibitorTrigger", MapMarkerReader.KindGizmo, null)]
+    [InlineData("ZE_IslandDefense_spawner_catapult", MapMarkerReader.KindGizmo, null)]
+    [InlineData("ZE_IslandDefense_AmazonGuard", 8, null)]
+    [InlineData("ZE_IslandDefense_GolemPing", MapMarkerReader.KindGizmo, null)]
+    [InlineData("pirate_ranged_dreg_miniboss", MapMarkerReader.KindBoss, LegionTargetKind.Boss)]
     public void A_marker_is_a_legion_target_by_its_name(string name, int markerKind, LegionTargetKind? expected) =>
         Assert.Equal(expected, LegionTargets.KindOf(name, markerKind));
 
@@ -176,6 +192,72 @@ public class LegionGuideTests
 
         Assert.Equal(English.Done, rig.Speech.Texts.Last());
         Assert.False(rig.Pings());
+    }
+
+    // Skovos' island defense, its marker set ZE_IslandDefense placed at (2406,-194) (the miniboss's spot in quest ZE_IslandDefense).
+    private static readonly Vector2 Island = new(2406f, -194f);
+    private static Vector2 OnIsland(float x, float y) => Island + new Vector2(x, y);
+    private static MarkedActor IslandMarker(int sno, Vector2 at, int kind = 9) => new(sno, at.X, at.Y, 5, IslandArea, kind);
+    private static readonly Vector2 HighHpAt = OnIsland(8, 6), NorthPingAt = OnIsland(-18, 28), WestPingAt = OnIsland(-29, 5),
+        NorthBuilding = OnIsland(-18, 22), SouthBuilding = OnIsland(-24, -16);
+
+    [Fact]
+    public void In_a_defense_legion_a_spot_under_attack_comes_first_with_its_side_and_the_buildings_wait()
+    {
+        var markers = new[]
+        {
+            IslandMarker(HighHp, HighHpAt), IslandMarker(Building, NorthBuilding), IslandMarker(Building, SouthBuilding),
+            IslandMarker(Guard, OnIsland(-21, 31), 8), IslandMarker(Catapults, OnIsland(-29, 42), MapMarkerReader.KindGizmo),
+            IslandMarker(PingNorth, NorthPingAt, MapMarkerReader.KindGizmo), IslandMarker(PingWest, WestPingAt, MapMarkerReader.KindGizmo),
+            IslandMarker(Pirate, OnIsland(-4, -2), MapMarkerReader.KindBoss),
+        };
+
+        var near = Targets.Near(markers, HighHpAt);
+
+        Assert.Equal([LegionTargetKind.Attack, LegionTargetKind.Attack, LegionTargetKind.Boss], near.Select(t => t.Kind));
+        Assert.Equal(NorthPingAt, near[0].Position); // 34 off, the west ping 37: nearest first
+        Assert.Equal(ScreenDirections.Bin(NorthPingAt.X - HighHpAt.X, NorthPingAt.Y - HighHpAt.Y), near[0].Side);
+        Assert.Equal(ScreenDirections.Bin(WestPingAt.X - HighHpAt.X, WestPingAt.Y - HighHpAt.Y), near[1].Side);
+        Assert.NotEqual(near[0].Side, near[1].Side);
+    }
+
+    [Fact]
+    public void The_middle_s_own_ping_has_no_side_and_with_no_ping_the_nearest_building_is_the_goal()
+    {
+        var pinged = Targets.Near([IslandMarker(HighHp, HighHpAt), IslandMarker(PingMiddle, OnIsland(8, 5), MapMarkerReader.KindGizmo)], Island);
+        Assert.Equal([(LegionTargetKind.Attack, (StickDirection?)null)], pinged.Select(t => (t.Kind, t.Side)));
+
+        var calm = Targets.Near([IslandMarker(HighHp, HighHpAt), IslandMarker(Building, NorthBuilding), IslandMarker(Building, SouthBuilding)],
+            SouthBuilding + new Vector2(0, -5));
+        Assert.Equal([SouthBuilding, HighHpAt, NorthBuilding], calm.Select(t => t.Position));
+        Assert.All(calm, t => Assert.Equal(LegionTargetKind.Defend, t.Kind));
+    }
+
+    [Fact]
+    public void The_debug_line_lists_every_marker_in_the_legion_area_only()
+    {
+        var line = Targets.Describe([IslandMarker(Guard, OnIsland(-21, 31), 8), Marker(Shrine, Island + new Vector2(3, 3), area: OtherArea)], Island);
+
+        Assert.Equal("ZE_IslandDefense_AmazonGuard kind 8 flags 0x0 (2385.0,-163.0) 37", line);
+        Assert.Null(Targets.Describe([Marker(Shrine, Island, area: OtherArea)], Island));
+    }
+
+    [Fact]
+    public void D_pad_left_says_the_attacked_side_and_a_building_gives_way_once_a_spot_is_attacked()
+    {
+        var rig = new Rig();
+        var side = NavigationPhrases.For(SpeechLanguage.English).Direction(ScreenDirections.Bin(WestPingAt.X - HighHpAt.X, WestPingAt.Y - HighHpAt.Y));
+        rig.Markers(IslandMarker(HighHp, HighHpAt), IslandMarker(Building, SouthBuilding));
+        rig.Move(SouthBuilding + new Vector2(0, -5));
+        rig.Pad.Press();
+        Assert.StartsWith("Legion: Building to defend, 5 meters.", rig.Speech.Texts.Last());
+
+        rig.Markers(IslandMarker(HighHp, HighHpAt), IslandMarker(Building, SouthBuilding), IslandMarker(PingWest, WestPingAt, MapMarkerReader.KindGizmo));
+        rig.Wait(2);
+        rig.Markers(IslandMarker(HighHp, HighHpAt), IslandMarker(Building, SouthBuilding), IslandMarker(PingWest, WestPingAt, MapMarkerReader.KindGizmo));
+
+        Assert.StartsWith($"Legion: Attack, {side},", rig.Speech.Texts.Last());
+        Assert.Equal(WestPingAt, rig.Searches.Last());
     }
 
     public sealed class Feed : IDungeonFeed

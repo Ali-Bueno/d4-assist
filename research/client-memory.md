@@ -545,6 +545,7 @@ restart while mounted (the player's RActor is still listed) and in a dungeon.
   `WorldTier_ItemSource_Torment_12orGreater` = at least 15). Read 5, 4 (first run) and 7, 5, 0, 3 as the user set Torment 2,
   Torment 1, Torment 4, Torment 2, Normal, Penitent; the only spot behind a module pointer (16 module words, all reaching the
   same heap address, the game object's at +0x990) that followed every change. `WorldTierReader`.
+- **The statue's menu** is no screen of the registry (a `screens` watch saw nothing at the statue; map and inventory toggled as usual). `[[G + 0xC78] + 0x3F0]` (the map view's object) is a pointer set while it is open, 0 otherwise: three openings, 0 through the map, the inventory and the blacksmith (module RVA 0x30471A8 flips 0/1 with it). Found by a diff of the module image and G's pointees, two closed and two open snapshots (71 words kept). `WorldTierMenuReader`; D-pad left is swallowed there (it started the guide before).
 - G + 0x994 held 7 throughout: the highest tier the character has unlocked (Torment 4, user). Not read.
 - Dead ends: a value-diff over the heap (2026-11-06 and again 2026-11-07 with `snap` skipping regions over 256 MB) never kept
   the spot, because G's block lies in a larger region; the stale hits that stepped through some changes were copies (menu

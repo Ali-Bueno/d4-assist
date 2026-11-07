@@ -393,7 +393,8 @@ internal static class Program
                         // Character select and creation are menus with no screen of ours; the D-pad moves through them.
                         () => session.CurrentWorld is not { } world || WorldClassifier.IsMenuWorld(world.Name) || cueGate.ShowsNoGameplay,
                         () => Console.WriteLine($"Guide toggle ignored: no gameplay ({session.CurrentWorld?.Name ?? "no world"}).")),
-                    () => menus?.AnyOpen ?? false, () => Console.WriteLine($"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
+                    () => menus?.AnyOpen ?? false || StatueMenuOpen(session), () => Console.WriteLine(StatueMenuOpen(session)
+                        ? "Guide toggle ignored: menu open (difficulty statue)." : $"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
                 hotkeys])
             : null;
         if (pad is not null)
@@ -994,6 +995,15 @@ internal static class Program
             new(MapListKind.Strongholds, Strongholds),
             new(MapListKind.Lairs, () => Of(EntranceKind.BossLair), () => worldTier() >= WorldTierCondition.FirstTorment),
         ];
+    }
+
+    // The difficulty statue's menu is no screen of the registry, so the menu watch misses it; its own pointer tells (live
+    // 2026-11-07: D-pad left in it started the guide).
+    private static bool StatueMenuOpen(GameSession session)
+    {
+        bool open = false;
+        session.Query(r => open = r.ReadWorldTierMenuOpen() == true);
+        return open;
     }
 
     // Two portals of one name this close are one entrance (a dungeon's door with its own way back out beside it).

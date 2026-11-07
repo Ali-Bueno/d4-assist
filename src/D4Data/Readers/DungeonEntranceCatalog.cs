@@ -18,8 +18,11 @@ public enum EntranceKind { Dungeon, Cellar, BossLair, Other, QuestCellar }
 /// <param name="Condition">The internal name of the condition the map shows it under (snoCampaignEnableCondition), null for none.</param>
 /// <param name="LevelAreaSno">The level area the portal stands in (its zone is the region spoken after the name); 0 when unknown.</param>
 /// <param name="DestWorldName">The internal name of the world the portal leads into (its map name is that world's), null when unknown.</param>
+/// <param name="MinWorldTier">The lowest world tier (eWorldTier, <see cref="WorldTierCondition"/>) the portal is there on, by its
+/// conditions: 4 (Torment 1) for the boss lairs, 13 (Torment 10) for Mephisto's; 0 for none.</param>
 public sealed record DungeonEntrance(int WorldSno, Vector3 Position, int DestLevelAreaSno, string DestLevelAreaName,
-    EntranceKind Kind = EntranceKind.Dungeon, string? Condition = null, int LevelAreaSno = 0, string? DestWorldName = null);
+    EntranceKind Kind = EntranceKind.Dungeon, string? Condition = null, int LevelAreaSno = 0, string? DestWorldName = null,
+    int MinWorldTier = 0);
 
 /// <summary>
 /// Every dungeon and cellar entrance the world map can show, from the Global <c>global_markers</c> portal markers
@@ -35,6 +38,7 @@ public sealed class DungeonEntranceCatalog(SnoStore store, TypeSchema schema)
     /// <summary>The condition of an entrance the map shows only on a Torment tier (the Throne of Hatred).</summary>
     public const string TormentCondition = "WorldTier_IsDifficultyTier_AnyTorment";
 
+    private readonly WorldTierCondition _tiers = new(store, schema);
     private IReadOnlyList<DungeonEntrance>? _all;
     private int? _season;
 
@@ -54,13 +58,13 @@ public sealed class DungeonEntranceCatalog(SnoStore store, TypeSchema schema)
         .Select(e => e.Name.StartsWith(SeasonActivePrefix, StringComparison.Ordinal) && int.TryParse(e.Name[SeasonActivePrefix.Length..], out int n) ? n : 0)
         .DefaultIfEmpty(0).Max();
 
-    /// <summary>Whether the map shows the entrance by its condition: a season's entrance only in that season, a
-    /// <c>Season_Only_Not_SN</c> one only outside season N, a Torment one only when <paramref name="torment"/> is true (unknown:
-    /// not shown); every other condition (campaign progress, capstones) counts as met.</summary>
-    public bool Shown(DungeonEntrance entrance, bool? torment = null)
+    /// <summary>Whether the map shows the entrance by its conditions: one that needs a world tier only from that tier on
+    /// (<paramref name="worldTier"/>, eWorldTier; unknown: not shown), a season's entrance only in that season, a
+    /// <c>Season_Only_Not_SN</c> one only outside season N; every other condition (campaign progress, capstones) counts as met.</summary>
+    public bool Shown(DungeonEntrance entrance, int? worldTier = null)
     {
+        if (entrance.MinWorldTier > 0 && !(worldTier >= entrance.MinWorldTier)) return false;
         if (entrance.Condition is not { } condition) return true;
-        if (condition == TormentCondition) return torment == true;
         if (condition.StartsWith(SeasonOnlyNotPrefix, StringComparison.Ordinal) && int.TryParse(condition[SeasonOnlyNotPrefix.Length..], out int not))
             return not != Season;
         if (condition.StartsWith(SeasonActivePrefix, StringComparison.Ordinal))
@@ -78,7 +82,8 @@ public sealed class DungeonEntranceCatalog(SnoStore store, TypeSchema schema)
                 && (portal.DestSubzoneType == DungeonSubzoneType || store.Name(p.ActorSno)?.Contains(CellarNamePart) == true))
             .Select(p => store.Name(p.Portal!.DestLevelArea) is { } area
                 ? new DungeonEntrance(p.WorldSno, p.Position, p.Portal.DestLevelArea, area, KindOf(p), p.EnableConditionSno > 0 ? store.Name(p.EnableConditionSno) : null, p.LevelAreaSno,
-                    p.Portal.SpecifiedWorld > 0 ? store.Name(p.Portal.SpecifiedWorld) : null)
+                    p.Portal.SpecifiedWorld > 0 ? store.Name(p.Portal.SpecifiedWorld) : null,
+                    Math.Max(_tiers.MinimumOf(p.EnableConditionSno), _tiers.MinimumOf(p.Portal.PhasingVisibilityCondition)))
                 : null)
             .OfType<DungeonEntrance>(),
     ];

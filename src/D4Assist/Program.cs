@@ -567,7 +567,12 @@ internal static class Program
                 },
                 eventsReading: () => mapBounties.Reading,
                 placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), new StrongholdCatalog(store, schema), waypointCatalog, zones, store,
-                    language, cascGate),
+                    language, cascGate, () =>
+                    {
+                        int? tier = null;
+                        session.Query(r => tier = r.ReadWorldTier());
+                        return tier;
+                    }),
                 // D-pad left leads to the place Enter chose (user request 2026-11-06).
                 placeChosen: choice => pathBridge?.Choose(store.Name(choice.WorldSno) ?? "", choice.Name, new Vector2((float)choice.X, (float)choice.Y)));
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
@@ -947,9 +952,10 @@ internal static class Program
     // The map menu's lists besides the waypoints (Shift+F1, user request 2026-11-06): the dungeons and the cellars the map shows,
     // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds, freed or not
     // (user request: to find the places near one before it is freed; which are freed is not read yet), with the region of the
-    // waypoint nearest to each. The boss lairs wait for their filter (the Torment tier), not readable yet.
+    // waypoint nearest to each; and the boss lairs, only on a Torment tier, as the map shows them (each portal names the tier it
+    // is there from: Torment 1, Mephisto's Torment 10; the campaign each also asks for is taken as done).
     private static IReadOnlyList<MapPlaceList> MapPlaceLists(DungeonEntranceCatalog catalog, StrongholdCatalog strongholds,
-        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate)
+        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate, Func<int?> worldTier)
     {
         IReadOnlyList<MapPlace> Strongholds()
         {
@@ -969,11 +975,12 @@ internal static class Program
 
         IReadOnlyList<MapPlace> Of(EntranceKind kind)
         {
+            int? tier = worldTier(); // read before taking the data lock, as the whispers are
             lock (cascGate)
             {
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 var places = new List<MapPlace>();
-                foreach (var e in catalog.All.Where(e => e.Kind == kind && catalog.Shown(e)))
+                foreach (var e in catalog.All.Where(e => e.Kind == kind && catalog.Shown(e, tier)))
                 {
                     var place = new MapPlace(catalog.Name(e, locale), e.LevelAreaSno > 0 ? zones.Name(e.LevelAreaSno, locale) : null, e.WorldSno, e.Position.X, e.Position.Y);
                     if (!places.Any(p => p.Name == place.Name && Math.Abs(p.X - place.X) + Math.Abs(p.Y - place.Y) < SameEntranceUnits)) places.Add(place);
@@ -985,6 +992,7 @@ internal static class Program
         [
             new(MapListKind.Dungeons, () => Of(EntranceKind.Dungeon)), new(MapListKind.Cellars, () => Of(EntranceKind.Cellar)),
             new(MapListKind.Strongholds, Strongholds),
+            new(MapListKind.Lairs, () => Of(EntranceKind.BossLair), () => worldTier() >= WorldTierCondition.FirstTorment),
         ];
     }
 

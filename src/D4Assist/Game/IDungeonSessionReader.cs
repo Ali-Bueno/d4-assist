@@ -75,6 +75,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The session's world states, {WorldState SNO → value}; null when unreadable.</summary>
     IReadOnlyDictionary<int, int>? ReadWorldStates() => null;
 
+    /// <summary>The game's world tier (eWorldTier: 0 Normal … 3 Penitent, 4 Torment 1 …, WorldTierReader); null when unreadable.</summary>
+    int? ReadWorldTier() => null;
+
     /// <summary>The local player's amount of each currency, indexed by eCurrencyType (CurrencyReader); null when unreadable.</summary>
     IReadOnlyList<long>? ReadCurrencies() => null;
 }

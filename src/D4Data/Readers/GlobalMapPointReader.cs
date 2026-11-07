@@ -8,9 +8,11 @@ namespace D4Data.Readers;
 public enum MapPointKind { Waypoint, Portal, PortalDestination, HiddenCache, Other }
 
 /// <summary>What a portal marker says about where it leads (GlobalMarkerActorPortalData).</summary>
+/// <param name="PhasingVisibilityCondition">snoPhasingVisibilityCondition: the condition the portal is there under, -1 (or 0) for
+/// none; every boss lair's names a world tier (<c>PlayerWorldTier_GameWorldTier_IsWorldTier_Torment_1orGreater</c>).</param>
 public sealed record PortalInfo(
     uint EntranceNameToFind, uint PortalType, int SpecifiedWorld, int DestSubzone, int DestSubzoneType, uint DestSubzoneFlags,
-    uint DungeonArchetype, int DestLevelArea, int DestObjectiveQuest, bool HiddenMapIcon);
+    uint DungeonArchetype, int DestLevelArea, int DestObjectiveQuest, bool HiddenMapIcon, int PhasingVisibilityCondition = -1);
 
 /// <summary>One marker actor of a Global GlobalWaypointData record: a waypoint, dungeon entrance or other map point.</summary>
 /// <param name="EntranceName">dwEntranceName of a waypoint / destination marker (0 for the other kinds).</param>
@@ -79,7 +81,7 @@ public sealed class GlobalMapPointReader(SnoStore store, TypeSchema schema)
             PortalMarker => (MapPointKind.Portal, type, new Variant(0, 0, new PortalInfo(
                 U(type, "dwEntranceNameToFind"), U(type, "dwPortalType"), I(type, "snoSpecifiedWorld"), I(type, "snoPortalDestSubzone"),
                 I(type, "ePortalDestSubzoneType"), U(type, "dwPortalDestSubzoneFlags"), U(type, "gbidDungeonArchetype"), I(type, "snoPortalDestLevelArea"),
-                I(type, "snoPortalDestObjectiveQuest"), I(type, "fHiddenMapIcon") != 0))),
+                I(type, "snoPortalDestObjectiveQuest"), I(type, "fHiddenMapIcon") != 0, I(type, "snoPhasingVisibilityCondition")))),
             _ => (MapPointKind.Other, type, default),
         };
     }

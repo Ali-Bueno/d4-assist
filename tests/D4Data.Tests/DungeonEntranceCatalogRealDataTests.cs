@@ -67,7 +67,33 @@ public class DungeonEntranceCatalogRealDataTests
         Assert.False(catalog.Shown(oldSeason)); // the season 12 town sieges
         var throne = catalog.All.Single(e => e.Condition == DungeonEntranceCatalog.TormentCondition);
         Assert.False(catalog.Shown(throne));
-        Assert.True(catalog.Shown(throne, torment: true));
-        Assert.True(catalog.Shown(catalog.All.First(e => e.Condition == "Campaign_Public")));
+        Assert.False(catalog.Shown(throne, worldTier: 3)); // Penitent
+        Assert.True(catalog.Shown(throne, worldTier: WorldTierCondition.FirstTorment));
+        Assert.True(catalog.Shown(catalog.All.First(e => e.Condition == "Campaign_Public" && e.MinWorldTier == 0)));
+    }
+
+    [Fact]
+    public void Boss_lairs_are_there_from_their_world_tier_on()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var catalog = new DungeonEntranceCatalog(store, TypeSchema.Load(definitions));
+
+        // Each lair portal's snoPhasingVisibilityCondition: PlayerWorldTier_GameWorldTier_IsWorldTier_Torment_1orGreater (and
+        // campaign variants), Mephisto's …_Torment_10orGreater (build 3.2.4).
+        var lairs = catalog.All.Where(e => e.Kind == EntranceKind.BossLair).ToList();
+        var mephisto = lairs.Single(e => e.DestWorldName == "Boss_Skov_UberMephisto");
+        Assert.Equal(13, mephisto.MinWorldTier);
+        Assert.All(lairs.Where(e => e != mephisto), e => Assert.Equal(WorldTierCondition.FirstTorment, e.MinWorldTier));
+
+        var duriel = lairs.Single(e => e.DestWorldName == "Boss_WT4_Duriel");
+        Assert.False(catalog.Shown(duriel));
+        Assert.False(catalog.Shown(duriel, worldTier: 3));
+        Assert.True(catalog.Shown(duriel, worldTier: 7)); // Torment 4
+        Assert.False(catalog.Shown(mephisto, worldTier: 7));
+        Assert.True(catalog.Shown(mephisto, worldTier: 13));
+        // No dungeon or cellar needs a tier: the lists stay as they were below Torment.
+        Assert.All(catalog.All.Where(e => e.Kind is EntranceKind.Dungeon or EntranceKind.Cellar && e.Condition != DungeonEntranceCatalog.TormentCondition),
+            e => Assert.Equal(0, e.MinWorldTier));
     }
 }

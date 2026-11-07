@@ -21,7 +21,7 @@ public sealed class EnemyCuePlayer : IDisposable
 
     private readonly AudioMixer _mixer;
     private readonly Func<double> _nowSeconds;
-    private readonly Timer? _timer;
+    private readonly PausingTimer? _ticks;
     private readonly object _gate = new();
     private readonly TapSchedule<EnemyAim> _schedule = new(StaleAimSeconds);
     private readonly Dictionary<EnemyClass, (double Volume, double Rate)> _levels =
@@ -34,7 +34,7 @@ public sealed class EnemyCuePlayer : IDisposable
         _mixer = mixer;
         var clock = System.Diagnostics.Stopwatch.StartNew();
         _nowSeconds = nowSeconds ?? (() => clock.Elapsed.TotalSeconds);
-        if (autoTick) _timer = new Timer(_ => Tick(), null, NpcCuePlayer.TickMs, NpcCuePlayer.TickMs);
+        if (autoTick) _ticks = new PausingTimer(Tick, NpcCuePlayer.TickMs);
     }
 
     /// <summary>Seconds between cues at <paramref name="distanceUnits"/>: linear from 150 ms at contact to 600 ms at the range edge
@@ -54,13 +54,21 @@ public sealed class EnemyCuePlayer : IDisposable
     /// <summary>Points one cue at each enemy; an enemy left out, or beyond <see cref="RangeUnits"/>, goes silent.</summary>
     public void Aim(IReadOnlyList<EnemyAim> enemies)
     {
-        lock (_gate) _schedule.Aim(enemies.Where(e => e.DistanceUnits <= RangeUnits).Select(e => (e.Key, e)), _nowSeconds());
+        lock (_gate)
+        {
+            _schedule.Aim(enemies.Where(e => e.DistanceUnits <= RangeUnits).Select(e => (e.Key, e)), _nowSeconds());
+            if (!_schedule.IsEmpty) _ticks?.Run();
+        }
     }
 
     /// <summary>Stops every cue until the next <see cref="Aim"/>.</summary>
     public void Silence()
     {
-        lock (_gate) _schedule.Clear();
+        lock (_gate)
+        {
+            _schedule.Clear();
+            _ticks?.Pause();
+        }
     }
 
     /// <summary>Plays the most overdue cue once the gap since the last start has passed; the timer calls this, tests call it directly.</summary>
@@ -70,7 +78,11 @@ public sealed class EnemyCuePlayer : IDisposable
         double volume;
         lock (_gate)
         {
-            if (_schedule.IsEmpty) return; // mostly nobody to cue: allocates nothing then
+            if (_schedule.IsEmpty)
+            {
+                _ticks?.Pause();
+                return;
+            }
             double now = _nowSeconds();
             if ((now - _lastStart) * 1000 < GapMs) return;
             var due = _schedule.TakeDue(now, e => IntervalSeconds(e.DistanceUnits) / Math.Max(_levels[e.Class].Rate, MinRate), max: 1);
@@ -83,5 +95,5 @@ public sealed class EnemyCuePlayer : IDisposable
         _mixer.PlayEntity(EnemyCueSynth.Synthesize(enemy.Class, NpcCueSynth.Pitch(up)), volume * RadarCuePlayer.LoudnessBoost, right);
     }
 
-    public void Dispose() => _timer?.Dispose();
+    public void Dispose() => _ticks?.Dispose();
 }

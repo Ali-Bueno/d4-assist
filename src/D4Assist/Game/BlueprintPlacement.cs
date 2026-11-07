@@ -51,11 +51,15 @@ public sealed class BlueprintPlacement
     {
         var bySno = anchors.ToLookup(a => a.Sno);
         var pairs = actors.SelectMany(a => bySno[a.ActorSno].Select(m => (a.ActorSno, Shift: a.Position - m.Position))).ToList();
+        // A shift only ever agrees with those in its cell of the grid or the eight around it; an unsettled blueprint looks on every actor poll.
+        var cells = pairs.ToLookup(p => Cell(p.Shift));
         (Vector3 Shift, int Kinds) best = (default, 0);
         bool tied = false;
         foreach (var candidate in pairs)
         {
-            var agreeing = pairs.Where(p => Flat(p.Shift - candidate.Shift) <= AgreeUnits).ToList();
+            var (cellX, cellY) = Cell(candidate.Shift);
+            var near = Neighbours.SelectMany(n => cells[(cellX + n.X, cellY + n.Y)]);
+            var agreeing = near.Where(p => Flat(p.Shift - candidate.Shift) <= AgreeUnits).ToList();
             int kinds = agreeing.Select(p => p.ActorSno).Distinct().Count();
             var shift = Mean(agreeing.Select(p => p.Shift));
             if (kinds > best.Kinds) (best, tied) = ((shift, kinds), false);
@@ -63,6 +67,10 @@ public sealed class BlueprintPlacement
         }
         return best.Kinds >= MinAnchorKinds && !tied ? best : null;
     }
+
+    private static readonly (int X, int Y)[] Neighbours = [(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
+
+    private static (int X, int Y) Cell(Vector3 shift) => ((int)MathF.Floor(shift.X / AgreeUnits), (int)MathF.Floor(shift.Y / AgreeUnits));
 
     private static float Flat(Vector3 v) => MathF.Sqrt(v.X * v.X + v.Y * v.Y);
 

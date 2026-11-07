@@ -6,6 +6,17 @@ namespace D4Assist.Tests;
 
 public class BlueprintPlacementTests
 {
+    [Fact]
+    public void Shifts_just_across_a_grid_line_still_agree()
+    {
+        var anchors = new[] { Anchor(100, 0, 0), Anchor(200, 10, 10) };
+        var actors = new (int, Vector3)[] { (100, new(4.95f, 7f, 0)), (200, new(15.05f, 17f, 0)) };
+
+        Assert.NotNull(BlueprintPlacement.Locate(anchors, actors));
+    }
+
+    private static PlacedMarker Anchor(int sno, float x, float y) => new(0, sno, new Vector3(x, y, 0));
+
     // CSD_Skov_Temis_SmugglersRun_02_BPMS (live 2026-10-17): the explorer's notes and the demonic barrier anchor it at (-128,-128).
     private const int NotesSno = 2578388, BarrierSno = 726309, TriggerSno = 42298;
     private static readonly Vector3 Shift = new(-128, -128, 0);

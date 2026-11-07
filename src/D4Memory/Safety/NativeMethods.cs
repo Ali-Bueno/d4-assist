@@ -19,6 +19,20 @@ internal static class NativeMethods
     internal static unsafe extern bool ReadProcessMemory(
         IntPtr process, IntPtr baseAddress, byte* buffer, nuint size, out nuint bytesRead);
 
+    [DllImport("kernel32.dll", EntryPoint = "K32QueryWorkingSetEx", SetLastError = true)]
+    internal static extern bool QueryWorkingSetEx(IntPtr process, [In, Out] WorkingSetPage[] pages, uint size);
+
+    // PSAPI_WORKING_SET_EX_INFORMATION: the page asked about, and its attributes.
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct WorkingSetPage
+    {
+        public IntPtr VirtualAddress;
+        public nuint Attributes;
+    }
+
+    // PSAPI_WORKING_SET_EX_BLOCK.Valid: the page is in the process's working set.
+    internal const nuint WorkingSetValid = 1;
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct MemoryBasicInformation
     {
@@ -31,7 +45,8 @@ internal static class NativeMethods
         public uint Type;
     }
 
-    // PROCESS_* access rights (winnt.h) — the minimum needed to read memory, nothing else.
+    // PROCESS_* access rights (winnt.h) — to read memory and ask which pages are in RAM, nothing else.
+    internal const uint ProcessQueryInformation = 0x0400;
     internal const uint ProcessQueryLimitedInformation = 0x1000;
     internal const uint ProcessVmRead = 0x0010;
 
@@ -51,6 +66,9 @@ internal static class NativeMethods
     // see ProcessReader.ImageRegions. Heap-scan regions never need it.
     internal const uint PageWriteCopy = 0x08;
     internal const uint PageGuard = 0x100;
+    // Memory shared with the GPU: no game object lives there, and reading it costs far more than any other page.
+    internal const uint PageNoCache = 0x200;
+    internal const uint PageWriteCombine = 0x400;
 
     // Low byte of Protect holds the base protection; bits above it are modifiers (guard/nocache/writecombine).
     internal const uint BaseProtectionMask = 0xFF;

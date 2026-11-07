@@ -15,4 +15,7 @@ public interface IMemoryReader
     /// <summary>Reads <paramref name="count"/> bytes at <paramref name="address"/> into <paramref name="buffer"/>.</summary>
     /// <remarks>Returns false on any failure (unmapped, protected, partial read); callers skip silently.</remarks>
     bool TryRead(long address, byte[] buffer, int count);
+
+    /// <summary>The parts of <paramref name="region"/> the process holds in RAM; the whole region when that can't be told.</summary>
+    IEnumerable<MemoryRegion> ResidentRuns(MemoryRegion region) => [region];
 }

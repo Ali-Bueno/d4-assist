@@ -35,22 +35,19 @@ public static class MapMarkerReader
         LevelAreaOffset = 0x38, KindOffset = 0x50, FlagsOffset = 0x54;
 
     private const long MinPointer = 0x10000, MaxPointer = 0x7FF000000000;
-    private static readonly int ScanThreads = Math.Max(1, Environment.ProcessorCount / 2);
 
-    /// <summary>The list head, scanning only the reservation of the game object (one 883 MB region, about 2 s); null when none matches.</summary>
+    /// <summary>The list head, scanning only the reservation of the game object (one 883 MB region, seconds); null when none matches.</summary>
     public static long? Locate(IMemoryReader memory, long moduleBase, long gameObjectPointerRva)
     {
         if (!PoolContainer.TryReadU64(memory, moduleBase + gameObjectPointerRva, out ulong g) || g == 0) return null;
         var all = memory.Regions();
         if (all.FirstOrDefault(r => (long)g >= r.Address && (long)g < r.Address + r.Size) is not { Size: > 0 } home) return null;
         var candidates = new ConcurrentBag<long>();
-        Parallel.ForEach(all.Where(r => r.AllocationBase == home.AllocationBase), new ParallelOptions { MaxDegreeOfParallelism = ScanThreads },
-            () => new byte[RegionWindows.DefaultWindowBytes], (region, _, buffer) =>
-            {
-                foreach (var (address, window) in RegionWindows.ReadRegion(memory, region, buffer))
-                    CollectCandidates(address, window.Span, candidates);
-                return buffer;
-            }, _ => { });
+        BackgroundScan.ForEach(all.Where(r => r.AllocationBase == home.AllocationBase), (region, _, buffer) =>
+        {
+            foreach (var (address, window) in RegionWindows.ReadResident(memory, region, buffer))
+                CollectCandidates(address, window.Span, candidates);
+        });
         return candidates.Distinct().Order().Cast<long?>().FirstOrDefault(h => IsHead(memory, h!.Value));
     }
 
@@ -71,24 +68,35 @@ public static class MapMarkerReader
     /// <summary>True when <paramref name="head"/> still heads a marker list: its pool holds 0xA0-byte nodes and the ring closes.</summary>
     public static bool IsHead(IMemoryReader memory, long head) => TryRead(memory, head) is not null;
 
+    /// <summary>True while the pool before <paramref name="head"/> holds marker nodes: what a head found earlier must keep.</summary>
+    public static bool HoldsMarkers(IMemoryReader memory, long head) =>
+        PoolContainer.TryReadU64(memory, head - PoolBeforeHead, out ulong pool)
+        && PoolContainer.TryReadU32(memory, (long)pool + PoolNodeSizeOffset, out uint size) && size == NodeSize;
+
     /// <summary>Every marker, walking from the head; null when the head no longer validates (freed, or another list).</summary>
-    public static IReadOnlyList<MapMarker>? TryRead(IMemoryReader memory, long head)
+    public static IReadOnlyList<MapMarker>? TryRead(IMemoryReader memory, long head) => Walk(memory, head, sameGeneration: true);
+
+    /// <summary>Every marker of a head found earlier, whatever generation its nodes carry; null when the walk doesn't close.</summary>
+    public static IReadOnlyList<MapMarker>? TryReadFound(IMemoryReader memory, long head) => Walk(memory, head, sameGeneration: false);
+
+    private static IReadOnlyList<MapMarker>? Walk(IMemoryReader memory, long head, bool sameGeneration)
     {
         if (!PoolContainer.TryReadU64(memory, head - PoolBeforeHead, out ulong pool) || !PoolContainer.TryReadU32(memory, (long)pool + PoolNodeSizeOffset, out uint size)
             || size != NodeSize || !PoolContainer.TryReadU64(memory, head + CountOffset, out ulong count) || count is < 1 or > MaxCount
             || !PoolContainer.TryReadU64(memory, head, out ulong first) || !PoolContainer.TryReadU64(memory, (long)first + PrevOffset, out ulong back)
             || (long)back != head)
             return null;
+        var nodes = new PagedReads(memory); // the pool's nodes lie together: read as they stand, not one by one while the list changes
         var markers = new List<MapMarker>((int)count);
         var node = new byte[NodeSize];
         long at = (long)first;
         uint? generation = null;
         while (at != head)
         {
-            if (markers.Count >= (int)count || !memory.TryRead(at, node, NodeSize)) return null;
+            if (markers.Count >= (int)count || !nodes.TryRead(at, node, NodeSize)) return null;
             var span = node.AsSpan();
             uint mark = BinaryPrimitives.ReadUInt32LittleEndian(span[GenerationOffset..]);
-            if (mark != BinaryPrimitives.ReadUInt32LittleEndian(span[GenerationCopyOffset..]) || mark != (generation ??= mark)) return null;
+            if (sameGeneration && (mark != BinaryPrimitives.ReadUInt32LittleEndian(span[GenerationCopyOffset..]) || mark != (generation ??= mark))) return null;
             markers.Add(new MapMarker(
                 BinaryPrimitives.ReadInt32LittleEndian(span[SnoOffset..]),
                 new Vector3(BinaryPrimitives.ReadSingleLittleEndian(span[PositionOffset..]), BinaryPrimitives.ReadSingleLittleEndian(span[(PositionOffset + 4)..]),

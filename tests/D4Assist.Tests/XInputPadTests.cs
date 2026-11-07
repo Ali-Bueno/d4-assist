@@ -5,6 +5,26 @@ namespace D4Assist.Tests;
 public class XInputPadTests
 {
     [Fact]
+    public void An_empty_slot_is_asked_only_every_few_seconds_and_a_connected_one_every_poll()
+    {
+        long now = 0;
+        var asked = new int[XInputPad.MaxUsers];
+        var pad = new XInputPad(slot => { asked[slot]++; return slot == 0 ? (ushort)0 : null; }, nowMs: () => now);
+
+        pad.PollOnce();
+        for (int poll = 0; poll < 10; poll++)
+        {
+            now += XInputPad.PollIntervalMs;
+            pad.PollOnce();
+        }
+        Assert.Equal([11, 1, 1, 1], asked);
+
+        now += XInputPad.EmptySlotCheckMs;
+        pad.PollOnce();
+        Assert.Equal([12, 2, 2, 2], asked);
+    }
+
+    [Fact]
     public async Task Dispose_waits_for_a_poll_still_running()
     {
         using var inPoll = new ManualResetEventSlim();
@@ -81,7 +101,8 @@ public class XInputPadTests
     {
         ushort?[] slots = [0, null, null, null];
         var lines = new List<string>();
-        using var pad = new XInputPad(i => slots[i], lines.Add, () => 0);
+        long now = 0;
+        using var pad = new XInputPad(i => slots[i], lines.Add, () => now);
 
         pad.PollOnce();
         slots[0] = 0x1000;
@@ -91,6 +112,7 @@ public class XInputPadTests
         slots[0] = null;
         pad.PollOnce();
         slots[0] = 0x0004;
+        now += XInputPad.EmptySlotCheckMs; // a pad coming back is looked for every few seconds
         pad.PollOnce();
 
         Assert.Equal(["Pad: XInput slot 0 connected.", "Pad: XInput slot 0 first input.", "Pad: XInput slot 0 first buttons 0x1000.",
@@ -102,13 +124,15 @@ public class XInputPadTests
     {
         ushort?[] slots = [0x1000, null, XInputPad.DpadLeftMask, null];
         int presses = 0;
-        using var pad = new XInputPad(i => slots[i], nowMs: () => 0);
+        long now = 0;
+        using var pad = new XInputPad(i => slots[i], nowMs: () => now);
         pad.DpadLeftPressed += () => presses++;
 
         pad.PollOnce(); // slot 2 down
         slots[2] = null;
         pad.PollOnce(); // disconnected while down: that press is dropped
         slots[2] = XInputPad.DpadLeftMask; // reconnected while still held: a fresh press
+        now += XInputPad.EmptySlotCheckMs;
         pad.PollOnce();
         slots[2] = 0;
         pad.PollOnce();

@@ -27,7 +27,7 @@ public sealed class NpcCuePlayer : IDisposable
 
     private readonly AudioMixer _mixer;
     private readonly Func<double> _nowSeconds;
-    private readonly Timer? _timer;
+    private readonly PausingTimer? _ticks;
     private readonly object _gate = new();
     private readonly TapSchedule<NpcAim> _schedule = new(StaleAimSeconds);
 
@@ -52,7 +52,7 @@ public sealed class NpcCuePlayer : IDisposable
         _mixer = mixer;
         var clock = System.Diagnostics.Stopwatch.StartNew();
         _nowSeconds = nowSeconds ?? (() => clock.Elapsed.TotalSeconds);
-        if (autoTick) _timer = new Timer(_ => Tick(), null, TickMs, TickMs);
+        if (autoTick) _ticks = new PausingTimer(Tick, TickMs);
     }
 
     /// <summary>Seconds between taps at <paramref name="distanceUnits"/>: linear from 150 ms at contact to 450 ms at <paramref name="rangeUnits"/>.</summary>
@@ -65,13 +65,21 @@ public sealed class NpcCuePlayer : IDisposable
     /// <summary>Points one tap at each NPC; an NPC left out, or beyond <see cref="RangeUnits"/>, goes silent. Each keeps its own rhythm.</summary>
     public void Aim(IReadOnlyList<NpcAim> npcs)
     {
-        lock (_gate) _schedule.Aim(npcs.Where(n => n.DistanceUnits <= RangeUnits).Select(n => (n.Key, n)), _nowSeconds());
+        lock (_gate)
+        {
+            _schedule.Aim(npcs.Where(n => n.DistanceUnits <= RangeUnits).Select(n => (n.Key, n)), _nowSeconds());
+            if (!_schedule.IsEmpty) _ticks?.Run();
+        }
     }
 
     /// <summary>Stops tapping until the next <see cref="Aim"/>.</summary>
     public void Silence()
     {
-        lock (_gate) _schedule.Clear();
+        lock (_gate)
+        {
+            _schedule.Clear();
+            _ticks?.Pause();
+        }
     }
 
     /// <summary>Plays the taps that are due; the timer calls this, tests call it directly.</summary>
@@ -80,7 +88,11 @@ public sealed class NpcCuePlayer : IDisposable
         List<NpcAim> due;
         lock (_gate)
         {
-            if (_schedule.IsEmpty) return; // every 25 ms, mostly with nobody to tap: allocates nothing then
+            if (_schedule.IsEmpty)
+            {
+                _ticks?.Pause();
+                return;
+            }
             due = _schedule.TakeDue(_nowSeconds(), n => IntervalSeconds(n.DistanceUnits, RangeUnits) / Math.Max(Rate, MinRate));
         }
 
@@ -99,5 +111,5 @@ public sealed class NpcCuePlayer : IDisposable
         return length > 0 ? (Math.Clamp(right / length, -1.0, 1.0), up / length) : (0, 0);
     }
 
-    public void Dispose() => _timer?.Dispose();
+    public void Dispose() => _ticks?.Dispose();
 }

@@ -50,6 +50,35 @@ public class MapBountyTableReaderTests
         Assert.Equal(new HashSet<int> { Carrowcrest, Chakhir }, held.Pins);
     }
 
+    [Theory]
+    [InlineData(0x100)] // the eight words a block tests at once: each place in it
+    [InlineData(0x104)]
+    [InlineData(0x108)]
+    [InlineData(0x10C)]
+    [InlineData(0x110)]
+    [InlineData(0x114)]
+    [InlineData(0x118)]
+    [InlineData(0x11C)]
+    [InlineData(0x1000 - 0x20)] // the last word a record fits at, past the last whole block
+    public void A_pin_is_found_wherever_it_falls_among_the_words_tested_together(int offset)
+    {
+        var memory = new FakeMemoryReader();
+        memory.AddRegion(0x10000, Heap((offset, Carrowcrest)), HeapType, HeapProtection);
+
+        Assert.Equal(new HashSet<int> { Carrowcrest }, new MapBountyTableReader(memory).Read(new HashSet<int> { Alcarnus, Carrowcrest }).Pins);
+    }
+
+    [Fact]
+    public void Quests_at_both_ends_of_the_range_asked_for_are_found()
+    {
+        var memory = new FakeMemoryReader();
+        memory.AddRegion(0x10000, Heap((0x104, Carrowcrest), (0x42C, Alcarnus)), HeapType, HeapProtection);
+
+        var held = new MapBountyTableReader(memory).Read(new HashSet<int> { Carrowcrest, Chakhir, Alcarnus });
+
+        Assert.Equal(new HashSet<int> { Carrowcrest, Alcarnus }, held.Pins);
+    }
+
     [Fact]
     public void Only_heap_regions_are_read()
     {

@@ -24,6 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Pool threads spun before sleeping on each of the app's short timers: about half its idle CPU (measured 2026-11-07). -->
+    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.UnfairSemaphoreSpinLimit" Value="0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Official .NET PRISM binding (targets .NET 10) — see reference/screen-reader-integration/prism-prebuilt.md. -->
     <PackageReference Include="Prismatoid" Version="0.3.0" />
   </ItemGroup>

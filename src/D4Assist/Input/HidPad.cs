@@ -39,11 +39,7 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
     /// <param name="log">Connect, disconnect, open-failure and first-press lines (a few per session).</param>
     public HidPad(Action<string> log) => _log = log;
 
-    public void Start()
-    {
-        _rescanTimer ??= new Timer(_ => Rescan(), null, 0, RescanIntervalMs);
-        _pollTimer ??= new Timer(_ => Poll(), null, 0, XInputPad.PollIntervalMs);
-    }
+    public void Start() => _rescanTimer ??= new Timer(_ => Rescan(), null, 0, RescanIntervalMs);
 
     private void Poll()
     {
@@ -113,6 +109,7 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
             if (_disposed) { handle.Dispose(); hat?.Dispose(); return; }
             _reading[path] = (handle, pad);
             _failed.Remove(path);
+            _pollTimer ??= new Timer(_ => Poll(), null, 0, XInputPad.PollIntervalMs); // none without a pad to poll
         }
         _log(sony is not null
             ? $"Pad: {name} over {(info.IsBluetooth ? "Bluetooth" : "USB")} connected."

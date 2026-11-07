@@ -19,7 +19,7 @@ public sealed class GuidePingPlayer : IDisposable
 
     private readonly AudioMixer _mixer;
     private readonly Func<double> _nowSeconds;
-    private readonly Timer? _timer;
+    private readonly PausingTimer? _ticks;
     private readonly object _gate = new();
     private bool _active;
     private double _right, _up, _remaining, _nextDue, _lastAim;
@@ -42,7 +42,7 @@ public sealed class GuidePingPlayer : IDisposable
         _mixer = mixer;
         var clock = System.Diagnostics.Stopwatch.StartNew();
         _nowSeconds = nowSeconds ?? (() => clock.Elapsed.TotalSeconds);
-        if (autoTick) _timer = new Timer(_ => Tick(), null, TickMs, TickMs);
+        if (autoTick) _ticks = new PausingTimer(Tick, TickMs);
     }
 
     /// <summary>Seconds between pings for a route of <paramref name="remainingUnits"/> world units: linear from 160 to 1200 ms (beacon.cpp:95-100).</summary>
@@ -55,13 +55,22 @@ public sealed class GuidePingPlayer : IDisposable
     /// <summary>Points the ping at a waypoint (screen offset in world units) and keeps it repeating.</summary>
     public void Aim(double right, double up, double remainingUnits)
     {
-        lock (_gate) { _active = true; (_right, _up, _remaining, _lastAim) = (right, up, remainingUnits, _nowSeconds()); }
+        lock (_gate)
+        {
+            _active = true;
+            (_right, _up, _remaining, _lastAim) = (right, up, remainingUnits, _nowSeconds());
+            _ticks?.Run();
+        }
     }
 
     /// <summary>Stops pinging until the next <see cref="Aim"/>.</summary>
     public void Silence()
     {
-        lock (_gate) _active = false;
+        lock (_gate)
+        {
+            _active = false;
+            _ticks?.Pause();
+        }
     }
 
     /// <summary>Plays the arrival chime once, centred like D2R's (beacon_service.cpp:329), and holds the next ping until it ends.</summary>
@@ -82,8 +91,18 @@ public sealed class GuidePingPlayer : IDisposable
         lock (_gate)
         {
             double now = _nowSeconds();
-            if (!_active || now < _nextDue) return;
-            if (now - _lastAim > StaleAimSeconds) { _active = false; return; }
+            if (!_active)
+            {
+                _ticks?.Pause();
+                return;
+            }
+            if (now < _nextDue) return;
+            if (now - _lastAim > StaleAimSeconds)
+            {
+                _active = false;
+                _ticks?.Pause();
+                return;
+            }
             (right, up, remaining) = (_right, _up, _remaining);
             _nextDue = now + IntervalSeconds(remaining) / Math.Max(Rate, MinRate);
         }
@@ -96,5 +115,5 @@ public sealed class GuidePingPlayer : IDisposable
             Volume * RadarCuePlayer.LoudnessBoost, SpatialLoopPlayer.Pan(unitRight, unitUp));
     }
 
-    public void Dispose() => _timer?.Dispose();
+    public void Dispose() => _ticks?.Dispose();
 }

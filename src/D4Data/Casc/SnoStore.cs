@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using D4Data.Casc.Static;
 using D4Data.Format;
@@ -9,20 +10,17 @@ namespace D4Data.Casc;
 /// <summary>Read-only SNO access over the local install: CoreTOC name lookups plus Meta/Payload reads.</summary>
 public sealed class SnoStore : IDisposable
 {
-    private readonly ISnoArchive _archive;
-    private readonly Dictionary<(int Group, string Name), int> _idsByName = new();
-    private readonly Dictionary<int, string> _namesById = new();
-    private readonly Dictionary<string, StringListCatalog?> _strings = new();
+    // The name of the TACT product: Diablo IV on Battle.net.
+    private const string BattleNetProduct = "fenris";
+
+    private readonly TvfsSnoArchive _archive;
+    private readonly ConcurrentDictionary<int, Dictionary<string, int>> _idsIgnoringCase = new();
+    private readonly Dictionary<string, TextBundle?> _strings = new();
 
     /// <param name="log">Where the Steam storage reports each opening step and its first failed reads.</param>
     public SnoStore(string installPath, Action<string>? log = null)
     {
         _archive = OpenArchive(installPath, log);
-        foreach (var e in _archive.CoreToc.Entries)
-        {
-            _idsByName.TryAdd(((int)e.Group, e.Name.ToUpperInvariant()), e.Id);
-            _namesById.TryAdd(e.Id, e.Name);
-        }
     }
 
     public string BuildVersion => _archive.BuildVersion;
@@ -42,11 +40,16 @@ public sealed class SnoStore : IDisposable
     private const string BuildInfoFileName = ".build.info";
 
     // Steam's install also has a .build.info, so its static build config is checked first.
-    private static ISnoArchive OpenArchive(string installPath, Action<string>? log)
+    private static TvfsSnoArchive OpenArchive(string installPath, Action<string>? log)
     {
         try
         {
-            if (!StaticCascStorage.IsStaticInstall(installPath)) return new BattleNetSnoArchive(Diablo4Storage.Open(installPath));
+            if (!StaticCascStorage.IsStaticInstall(installPath))
+            {
+                var casc = CascStorage.OpenLocal(installPath, new CascOpenOptions { Product = BattleNetProduct });
+                try { return new TvfsSnoArchive(path => casc.TryResolvePath(path, out var key) ? casc.Read(key) : null, casc.Build.Version, casc); }
+                catch { casc.Dispose(); throw; }
+            }
             var storage = StaticCascStorage.Open(installPath, log);
             try { return new TvfsSnoArchive(storage.ReadPath, storage.BuildVersion, storage); }
             catch { storage.Dispose(); throw; }
@@ -61,20 +64,25 @@ public sealed class SnoStore : IDisposable
     public int Resolve(int group, string idOrName)
     {
         if (int.TryParse(idOrName, out var id)) return id;
-        return _idsByName.TryGetValue((group, idOrName.ToUpperInvariant()), out id) ? id
-            : throw new ArgumentException($"No SNO named '{idOrName}' in group {group}.");
+        return IdsIgnoringCase(group).TryGetValue(idOrName, out id) ? id : throw new ArgumentException($"No SNO named '{idOrName}' in group {group}.");
     }
 
+    // Built for the groups names are looked up in: every group's would hold 1.4 million names.
+    private Dictionary<string, int> IdsIgnoringCase(int group) => _idsIgnoringCase.GetOrAdd(group, g =>
+    {
+        var ids = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (id, name) in _archive.Toc.InGroup(g)) ids.TryAdd(name, id);
+        return ids;
+    });
+
     /// <summary>CoreTOC name of a SNO id (ids are unique across groups).</summary>
-    public string? Name(int id) => _namesById.GetValueOrDefault(id);
+    public string? Name(int id) => _archive.Toc.Name(id);
 
     public IEnumerable<(int Id, string Name)> EntriesWithPrefix(int group, string prefix) =>
-        _archive.CoreToc.EntriesInGroup((SnoGroup)group)
-            .Where(e => e.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .Select(e => (e.Id, e.Name));
+        _archive.Toc.InGroup(group).Where(e => e.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The localized StringList catalog of <paramref name="locale"/> (e.g. enUS, esES), loaded once; null when not installed.</summary>
-    public StringListCatalog? Strings(string locale)
+    public TextBundle? Strings(string locale)
     {
         if (!_strings.TryGetValue(locale, out var catalog)) _strings[locale] = catalog = _archive.ReadStrings(locale);
         return catalog;
@@ -93,14 +101,14 @@ public sealed class SnoStore : IDisposable
     public string? Text(string locale, string table, string label)
     {
         if (Strings(locale) is not { } strings) return null;
-        if (!_idsByName.TryGetValue(((int)SnoGroup.StringList, table.ToUpperInvariant()), out int id)) return null;
+        if (!IdsIgnoringCase((int)SnoGroup.StringList).TryGetValue(table, out int id)) return null;
         return strings.TryGet(id, label, out string? text) ? text : null;
     }
 
     // 1087 of 62490 actor metas were TACT-encrypted in build 3.2.1.73552 (census 2026-09-29).
     private bool TryRead(int group, int id, SnoFolder folder, out byte[] bytes)
     {
-        try { return _archive.TryReadSno(group, id, folder, out bytes); }
+        try { return _archive.TryReadSno(id, folder, out bytes); }
         catch (CascEncryptedContentException) { bytes = []; return false; }
     }
 

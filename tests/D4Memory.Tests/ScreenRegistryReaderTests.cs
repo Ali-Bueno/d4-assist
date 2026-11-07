@@ -167,6 +167,21 @@ public class ScreenRegistryReaderTests
         Assert.Null(ScreenRegistryReader.TryReadOpen(memory, 0x5000_0000, Module));
     }
 
+    [Fact]
+    public void Locate_LeavesPagesOutOfRamAlone()
+    {
+        var memory = new FakeMemoryReader();
+        var table = new byte[0x1000];
+        Entry(table, 0x100, "screen_MenuPanel_Default", RecordRegion);
+        memory.AddRegion(TableRegion, table, Private, ReadWrite);
+        memory.AddRegion(RecordRegion, Record(open: false), Private, ReadWrite);
+        memory.Resident = _ => [];
+
+        var found = ScreenRegistryReader.Locate(memory, ["screen_MenuPanel_Default"], Module);
+
+        Assert.Empty(found);
+    }
+
     private static void Entry(byte[] table, int offset, string name, long value)
     {
         BinaryPrimitives.WriteUInt32LittleEndian(table.AsSpan(offset + 8), ScreenRegistryReader.Hash(name));

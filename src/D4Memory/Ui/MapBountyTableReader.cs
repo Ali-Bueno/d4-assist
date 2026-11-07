@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using D4Memory.Safety;
 using D4Memory.Scan;
 
@@ -30,7 +32,7 @@ public sealed class MapBountyScanMemory
 /// Which of the given quests the world map holds a bounty pin for, when they end, and what legions and world bosses come (research/map-points.md §4b). While
 /// the map is open the client keeps an array of 808-byte records, one per pin: the quest's SNO, 0x10 on FLT_MAX, 0x1C on the SNO again. The ends stand in
 /// 168-byte objects: the SNO, 0x34 on -1, 0x50 on the end in unix seconds. The events in objects of their own: x, y and z floats, then warmup, start and a
-/// third time as unix seconds in 64 bits. No pointer path to any is known, so the heap is scanned: about 10 s the first time and when nothing is where it was, else only the regions they were found in, and the whole
+/// third time as unix seconds in 64 bits. No pointer path to any is known, so the heap is scanned: about 2 s the first time and when nothing is where it was, else only the regions they were found in, and the whole
 /// heap every few minutes in case something moved or a new event came.
 /// </summary>
 /// <param name="utcNow">The clock the times are checked against; the system's by default.</param>
@@ -61,11 +63,9 @@ public sealed class MapBountyTableReader(IMemoryReader memory, Func<DateTime>? u
     /// at least 8 to go.</summary>
     public static readonly TimeSpan EventScanInterval = TimeSpan.FromMinutes(2);
 
-    private static readonly int ScanThreads = Math.Max(1, Environment.ProcessorCount / 2);
-
     private readonly MapBountyScanMemory _memory = remembered ?? new();
 
-    private readonly record struct Times(uint EndFrom, uint EndTo, uint EventFrom, uint EventTo);
+    private readonly record struct Sought(uint EndFrom, uint EndTo, uint EventFrom, uint EventTo, uint QuestFrom, uint QuestTo);
 
     private sealed class Hits
     {
@@ -82,15 +82,16 @@ public sealed class MapBountyTableReader(IMemoryReader memory, Func<DateTime>? u
         foreach (int quest in quests) filter[(uint)quest & FilterMask] = true;
         var clock = DateTime.SpecifyKind(utcNow?.Invoke() ?? DateTime.UtcNow, DateTimeKind.Utc);
         var now = new DateTimeOffset(clock);
-        var times = new Times(
+        var sought = new Sought(
             (uint)(now + EndsAfter).ToUnixTimeSeconds(), (uint)(now + EndsBefore).ToUnixTimeSeconds(),
-            (uint)(now + EventsAfter).ToUnixTimeSeconds(), (uint)(now + EventsBefore).ToUnixTimeSeconds());
-        var hits = Scan(_memory.Known, quests, filter, times);
+            (uint)(now + EventsAfter).ToUnixTimeSeconds(), (uint)(now + EventsBefore).ToUnixTimeSeconds(),
+            quests.Min(q => (uint)q), quests.Max(q => (uint)q));
+        var hits = Scan(_memory.Known, quests, filter, sought);
         bool lost = hits.Pins.IsEmpty && hits.Ends.IsEmpty;
         var due = hits.Events.IsEmpty ? EventScanInterval : FullScanInterval;
         if (lost || clock - _memory.LastFullScan >= due)
         {
-            hits = Scan(memory.Regions().Where(r => r.Type == HeapType && r.Protection == HeapProtection), quests, filter, times);
+            hits = Scan(memory.Regions().Where(r => r.Type == HeapType && r.Protection == HeapProtection), quests, filter, sought);
             _memory.Known = [.. hits.Pins.Values.Concat(hits.Ends.Values.Select(e => e.Region)).Concat(hits.Events.Values).Distinct()];
             _memory.LastFullScan = clock;
         }
@@ -99,36 +100,54 @@ public sealed class MapBountyTableReader(IMemoryReader memory, Func<DateTime>? u
 
     private static DateTime Utc(uint seconds) => DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime;
 
-    private Hits Scan(IEnumerable<MemoryRegion> regions, IReadOnlySet<int> quests, bool[] filter, Times times)
+    private Hits Scan(IEnumerable<MemoryRegion> regions, IReadOnlySet<int> quests, bool[] filter, Sought sought)
     {
         var hits = new Hits();
-        Parallel.ForEach(regions, new ParallelOptions { MaxDegreeOfParallelism = ScanThreads }, () => new byte[RegionWindows.DefaultWindowBytes], (region, _, buffer) =>
+        BackgroundScan.ForEach(regions, (region, _, buffer) =>
         {
-            foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
-                FindInWindow(quests, filter, times, hits, region, address, data.Span);
-            return buffer;
-        }, _ => { });
+            foreach (var (address, data) in RegionWindows.ReadResident(memory, region, buffer))
+                FindInWindow(quests, filter, sought, hits, region, address, data.Span);
+        });
         return hits;
     }
 
     private static void FindInWindow(
-        IReadOnlySet<int> quests, bool[] filter, Times times, Hits hits, MemoryRegion region, long address, ReadOnlySpan<byte> data)
+        IReadOnlySet<int> quests, bool[] filter, Sought sought, Hits hits, MemoryRegion region, long address, ReadOnlySpan<byte> data)
     {
         int first = (int)((sizeof(int) - address % sizeof(int)) % sizeof(int));
         if (first >= data.Length) return;
         var words = MemoryMarshal.Cast<byte, int>(data[first..]);
         int last = words.Length - RecordBytes / sizeof(int);
-        int endWord = EndOffset / sizeof(int);
-        for (int i = 0; i <= last; i++)
+        int i = 0;
+        if (Vector256.IsHardwareAccelerated)
         {
-            int value = words[i];
-            if ((uint)value >= times.EventFrom && (uint)value <= times.EventTo && EventAt(words, i) is { } found) hits.Events.TryAdd(found, region);
-            if (!filter[(uint)value & FilterMask] || !quests.Contains(value)) continue;
-            if ((uint)words[i + MarkOffset / sizeof(int)] == Mark && words[i + SecondSnoOffset / sizeof(int)] == value) hits.Pins.TryAdd(value, region);
-            if (i + endWord >= words.Length || (uint)words[i + EndGuardOffset / sizeof(int)] != EndGuard) continue;
-            uint end = (uint)words[i + endWord];
-            if (end >= times.EndFrom && end <= times.EndTo) hits.Ends.AddOrUpdate(value, (end, region), (_, old) => end > old.End ? (end, region) : old);
+            // Looking at each word was most of a scan's CPU: two range tests set aside eight words at once.
+            var (eventFrom, eventSpan) = (Vector256.Create(sought.EventFrom), Vector256.Create(sought.EventTo - sought.EventFrom));
+            var (questFrom, questSpan) = (Vector256.Create(sought.QuestFrom), Vector256.Create(sought.QuestTo - sought.QuestFrom));
+            ref uint start = ref MemoryMarshal.GetReference(MemoryMarshal.Cast<int, uint>(words));
+            for (; i + Vector256<uint>.Count - 1 <= last; i += Vector256<uint>.Count)
+            {
+                var block = Vector256.LoadUnsafe(ref start, (nuint)i);
+                var near = Vector256.LessThanOrEqual(block - eventFrom, eventSpan) | Vector256.LessThanOrEqual(block - questFrom, questSpan);
+                if (near == Vector256<uint>.Zero) continue;
+                for (uint lanes = near.ExtractMostSignificantBits(); lanes != 0; lanes &= lanes - 1)
+                    FindAt(words, i + BitOperations.TrailingZeroCount(lanes), quests, filter, sought, hits, region);
+            }
         }
+        for (; i <= last; i++) FindAt(words, i, quests, filter, sought, hits, region);
+    }
+
+    // What the word at i starts, if anything.
+    private static void FindAt(ReadOnlySpan<int> words, int i, IReadOnlySet<int> quests, bool[] filter, Sought sought, Hits hits, MemoryRegion region)
+    {
+        int value = words[i];
+        int endWord = EndOffset / sizeof(int);
+        if ((uint)value >= sought.EventFrom && (uint)value <= sought.EventTo && EventAt(words, i) is { } found) hits.Events.TryAdd(found, region);
+        if (!filter[(uint)value & FilterMask] || !quests.Contains(value)) return;
+        if ((uint)words[i + MarkOffset / sizeof(int)] == Mark && words[i + SecondSnoOffset / sizeof(int)] == value) hits.Pins.TryAdd(value, region);
+        if (i + endWord >= words.Length || (uint)words[i + EndGuardOffset / sizeof(int)] != EndGuard) return;
+        uint end = (uint)words[i + endWord];
+        if (end >= sought.EndFrom && end <= sought.EndTo) hits.Ends.AddOrUpdate(value, (end, region), (_, old) => end > old.End ? (end, region) : old);
     }
 
     // The event whose warmup is the word at i, if the words around it make one.

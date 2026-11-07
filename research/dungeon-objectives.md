@@ -606,6 +606,11 @@ the player to unexplored ground behind a bone wall near the entrance, because th
   the AllocationBase of G is one 883 MB `MEM_PRIVATE` region, and H = base + 0x41DF70 = G + 0x24D230, so it is allocated once
   per process. Scan only that region for H with: [H−8] = pool P with u32 [P+0x20] = 0xA0; [H], [H+8] = first, last; [H+0x10] =
   count 1..20000; [first+8] = H; [last] = H; walking next from first returns to H after count nodes, all with the same +0x10.
+- **The head never moves (H):** a tester's log of 2026-11-02 (0.1.30) shows 6 searches in 8 minutes of open world, on half the cores:
+  4 found it at 0x1670040F458 each time, 2 found nothing (one took 24 s). Reads failed with no world change, before that search and
+  again as it ended; why (a walk torn by the list changing, nodes of two generations) is not known. So the app searches
+  once per process, reads a found head without the generation check, and searches again only once the pool stops holding 0xA0-byte
+  nodes. `MARKERS list not read 10 times in a row` and `MARKERS list read again after N failed reads` time those stretches.
   In a scratch tool that took 1.0 s to scan plus 0.9 s to check ≈ 4,500 doubly-linked candidates, with exactly one hit. A
   full-process scan (18.9 GB, 11.5 s) found the same single head. Resolved from scratch three times (about 09:08, 09:09, 09:13):
   always 0x1BD8041DF70. Base + 0x41DF70 can be tried first and validated (untested across restarts).

@@ -201,6 +201,8 @@ internal static class Program
                 sno => definitionOf(sno) is { } definition && ObjectiveClassifier.IsStructure(store.Name(sno), definition),
                 sceneLayers),
             sceneSnos, staticTiles: staticTiles.Build, health: health);
+        using var cpuLog = new CpuLog(session.PollTimes, () => session.State == SessionState.InDungeon, Console.WriteLine);
+        cpuLog.Start();
         if (menuScreens is not null) session.WorldChanged += (_, _, _) => menuScreens.Relocate();
         // The Horadric guardian's barriers: only the vessel a barrier names sounds, the guide leads to it, and its name is spoken
         // as the game shows it ("Gefäß des Cain").
@@ -478,6 +480,7 @@ internal static class Program
         hotkeys.DigitPressed += demo.Play;
         hotkeys.Start();
 
+        var warmUp = Task.CompletedTask;
         // Shift+F1 on the world map: the activated waypoints, nearest first; Enter puts the mouse cursor on one.
         using var mapKeys = config.WaypointListEnabled ? new MapListKeys(Console.WriteLine) : null;
         if (mapKeys is not null)
@@ -500,10 +503,10 @@ internal static class Program
             {
                 lock (cascGate) return MarkerPlaceOf(m, store, zones, SpeechLanguages.GameLocale(language.Current));
             }
-            // The game's text bundle (60,000 tables) loads on the first name, the regions on the first one asked (every subzone read):
-            // both now, not on the first Shift+F1.
+            // The game's text bundle loads on the first name, the regions on the first one asked (every subzone read): both now, not on
+            // the first Shift+F1.
             if (allWaypoints.Count > 0)
-                _ = Task.Run(() => { lock (cascGate) waypointCatalog.Zone(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
+                warmUp = Task.Run(() => { lock (cascGate) waypointCatalog.Zone(allWaypoints[0], SpeechLanguages.GameLocale(language.Current)); });
             var waypointList = new WaypointListBridge(
                 allWaypoints, w => { lock (cascGate) return waypointCatalog.Name(w, SpeechLanguages.GameLocale(language.Current)); },
                 readActivatedWaypoints,
@@ -604,6 +607,8 @@ internal static class Program
         updates.AppStarted();
 
         Console.WriteLine("Diablo 4 Assist running in the notification area; Ctrl+Alt+Shift+C opens the settings, Ctrl+Alt+Shift+Q exits.");
+        // What loading left behind stays in RAM until a collection, and an idle app allocates too little to start one: 150 MB measured.
+        warmUp.ContinueWith(_ => GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true), TaskScheduler.Default);
         exit.Wait();
         var farewell = AppStrings.For(language.Current);
         if (!updated) speech.Speak(restart ? farewell.Restarting : farewell.AssistantClosed, interrupt: true); // the updater said it already

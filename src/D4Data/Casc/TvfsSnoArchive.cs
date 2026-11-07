@@ -1,12 +1,13 @@
+using WiseOwl.Casc;
 using WiseOwl.Casc.Diablo4;
 
 namespace D4Data.Casc;
 
 /// <summary>
-/// Diablo IV's SNO files over any TVFS path reader: the same paths and shared-payload rule as WiseOwl's Diablo4Storage
-/// (MIT, Diablo4Storage.TryReadSno), for storages WiseOwl can't open.
+/// Diablo IV's SNO files over any TVFS path reader, Battle.net's CASC or Steam's static storage: the same paths and shared-payload
+/// rule as WiseOwl's Diablo4Storage (MIT, Diablo4Storage.TryReadSno), which would keep a whole CoreToc in memory (SnoToc).
 /// </summary>
-internal sealed class TvfsSnoArchive : ISnoArchive
+internal sealed class TvfsSnoArchive : IDisposable
 {
     public const string CoreTocPath = @"Base\CoreTOC.dat";
     public const string SharedPayloadsPath = @"Base\CoreTOCSharedPayloadsMapping.dat";
@@ -21,17 +22,18 @@ internal sealed class TvfsSnoArchive : ISnoArchive
         _readPath = readPath;
         _owner = owner;
         BuildVersion = buildVersion;
-        CoreToc = CoreToc.Parse(readPath(CoreTocPath) ?? throw new InvalidDataException($"{CoreTocPath} is not in the game's file system."));
+        Toc = new SnoToc(readPath(CoreTocPath) ?? throw new InvalidDataException($"{CoreTocPath} is not in the game's file system."));
         _sharedPayloads = new(() => readPath(SharedPayloadsPath) is { } bytes ? SharedPayloadMapping.Parse(bytes) : SharedPayloadMapping.Empty);
     }
 
     public string BuildVersion { get; }
 
-    public CoreToc CoreToc { get; }
+    public SnoToc Toc { get; }
 
     public SharedPayloadMapping SharedPayloads => _sharedPayloads.Value;
 
-    public bool TryReadSno(int group, int id, SnoFolder folder, out byte[] bytes)
+    /// <summary>False when the SNO has no file in <paramref name="folder"/>; throws CascEncryptedContentException when it is encrypted.</summary>
+    public bool TryReadSno(int id, SnoFolder folder, out byte[] bytes)
     {
         if (_readPath(Diablo4Storage.SnoPath(id, folder)) is { } direct)
         {
@@ -48,8 +50,12 @@ internal sealed class TvfsSnoArchive : ISnoArchive
         return false;
     }
 
-    public StringListCatalog? ReadStrings(string locale) =>
-        _readPath($@"Base\StringList-Text-{locale}.dat") is { } bytes ? StringListCatalog.Parse(bytes, locale, _ => string.Empty) : null;
+    /// <summary>The localized StringList bundle (<c>Base\StringList-Text-&lt;locale&gt;.dat</c>); null when that locale is not installed.</summary>
+    public TextBundle? ReadStrings(string locale)
+    {
+        try { return _readPath($@"Base\StringList-Text-{locale}.dat") is { } bytes ? new TextBundle(bytes) : null; }
+        catch (CascContentNotFoundException) { return null; } // listed but not downloaded
+    }
 
     private bool TryReadSharedPayload(int id, out byte[] bytes)
     {

@@ -125,6 +125,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             try { process = ProcessReader.Open(game.Id); }
             catch (InvalidOperationException e) { throw new GameUnreadableException(e.Message); }
         }
+        if (!process.KnowsResidentPages) Console.WriteLine("Memory: the game refused to say which pages are in RAM; scans read them all.");
         // Any failure from here on (the exe locked by an update, a read that throws) must not leak the process handle.
         try
         {
@@ -406,7 +407,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             if (flags is null) return ActorFilter.Placed(records);
             _playerAcdId = player?.AcdId;
             var named = NamedByActiveQuests(player, flags, records);
-            var marked = _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) ?? [];
+            (_polledMarkers, _markersPolled) = (_mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva), true);
+            var marked = _polledMarkers ?? [];
             List<PlacedMarker> Placed(QuestNames n) => [.. n.Markers.Concat(InWorld(n.SceneMarkers, marked, records))
                 .Concat(n.KindMarkers.Count == 0 ? [] : _blueprints.Place(n.KindMarkers,
                     [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))]))];
@@ -417,10 +419,11 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
                 && Vector2.Distance(new(m.Position.X, m.Position.Y), new(p.Position.X, p.Position.Y)) <= ActiveQuests.MarkerReach))];
             _questActorSnos = named.ActorSnos;
             var mapped = MarkedGizmos(marked);
+            var mappedBySno = mapped.ToLookup(g => g.Sno);
             _questGizmosAhead = [.. PlacedByTiles(named.ActorSnos).Select(g => (g.Sno, g.Position, false)),
                 .. mapped.Where(g => named.ActorSnos.Contains(g.Sno)).Select(g => (g.Sno, g.Position, true))];
             var actors = _invulnerability.Apply(ActorFilter.Placed(records, r => FlagsOf(r, flags),
-                r => Naming(r, named, places), r => mapped.Any(g => g.Sno == r.ActorSno &&
+                r => Naming(r, named, places), r => mappedBySno[r.ActorSno].Any(g =>
                     Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach),
                 _activeQuests?.Owned));
             return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Owned);
@@ -507,10 +510,17 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public int QuestPhaseChanges => _activeQuests?.PhaseChanges ?? 0;
 
-    public IReadOnlyList<MarkedActor>? ReadMapMarkers() =>
-        _offsets is { } offsets && _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva) is { } markers
-            ? [.. markers.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind, m.Flags))]
-            : null;
+    // The list an actor read just took: the open world's runs to thousands of nodes, one memory read each.
+    private IReadOnlyList<MapMarker>? _polledMarkers;
+    private bool _markersPolled;
+
+    public IReadOnlyList<MarkedActor>? ReadMapMarkers()
+    {
+        if (_offsets is not { } offsets) return null;
+        var markers = _markersPolled ? _polledMarkers : _mapMarkers?.Read(_process, _moduleBase, offsets.GameObjectPointerRva);
+        (_polledMarkers, _markersPolled) = (null, false);
+        return markers?.Select(m => new MarkedActor(m.ActorSno, m.Position.X, m.Position.Y, m.Position.Z, m.LevelAreaSno, m.Kind, m.Flags)).ToList();
+    }
 
     public IReadOnlySet<int>? ReadQuestActorSnos() => _activeQuests is null ? null : _questActorSnos;
 

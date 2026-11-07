@@ -6,12 +6,12 @@ using D4Memory.Scan;
 namespace D4Assist.Game;
 
 /// <summary>
-/// Reads the client's map-marker list on every actor poll; finds its head with a background scan, once per game process and
-/// again only after the head failed to validate for a while (research/dungeon-objectives.md §19).
+/// Reads the client's map-marker list on every actor poll; finds its head with a background scan, once per game process: the head
+/// is allocated once, and a read that fails says nothing of it (research/dungeon-objectives.md §19).
 /// </summary>
 public sealed class MapMarkerTracker(Func<IMemoryReader> openScanReader, Func<TimeSpan> clock, Action<string>? log = null)
 {
-    /// <summary>Failed reads in a row before the head is searched again: the game rebuilds the list in place (live 2026-10-04).</summary>
+    /// <summary>Reads in a row with no marker nodes behind the head before it is searched again; as many failed reads are logged.</summary>
     public const int RescanAfterFailures = 10;
 
     public static readonly TimeSpan FirstRetryDelay = TimeSpan.FromSeconds(5), MaxRetryDelay = TimeSpan.FromSeconds(60);
@@ -19,7 +19,7 @@ public sealed class MapMarkerTracker(Func<IMemoryReader> openScanReader, Func<Ti
     private readonly object _gate = new();
     private long _moduleBase;
     private long? _head;
-    private int _failures;
+    private int _failures, _unread;
     private bool _scanning;
     private TimeSpan _nextScanAt, _retryDelay = FirstRetryDelay;
 
@@ -37,17 +37,27 @@ public sealed class MapMarkerTracker(Func<IMemoryReader> openScanReader, Func<Ti
         lock (_gate)
         {
             if (moduleBase != _moduleBase) // new game process
-                (_moduleBase, _head, _failures, _nextScanAt, _retryDelay) = (moduleBase, null, 0, TimeSpan.Zero, FirstRetryDelay);
+                (_moduleBase, _head, _failures, _unread, _nextScanAt, _retryDelay) = (moduleBase, null, 0, 0, TimeSpan.Zero, FirstRetryDelay);
             head = _head;
         }
-        var markers = head is { } at ? MapMarkerReader.TryRead(memory, at) : null;
+        var markers = head is { } at ? MapMarkerReader.TryReadFound(memory, at) : null;
+        bool lost = markers is null && head is { } was && !MapMarkerReader.HoldsMarkers(memory, was);
         lock (_gate)
         {
-            if (markers is not null) _failures = 0;
-            else if (head is not null && ++_failures >= RescanAfterFailures && _head == head) (_head, _failures) = (null, 0);
+            if (!lost) _failures = 0;
+            else if (++_failures >= RescanAfterFailures && _head == head) (_head, _failures) = (null, 0);
+            CountUnreadLocked(head is not null && markers is null);
             if (_head is null) TryStartScanLocked(gameObjectPointerRva);
         }
         return markers;
+    }
+
+    // The open world's list changes while it is walked: a long run of failed reads shows how long the map's markers were missing.
+    private void CountUnreadLocked(bool unread)
+    {
+        if (unread && ++_unread == RescanAfterFailures) log?.Invoke($"MARKERS list not read {_unread} times in a row, its head kept");
+        else if (!unread && _unread >= RescanAfterFailures) log?.Invoke($"MARKERS list read again after {_unread} failed reads");
+        if (!unread) _unread = 0;
     }
 
     private void TryStartScanLocked(long gameObjectPointerRva)

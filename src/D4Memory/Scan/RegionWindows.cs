@@ -33,4 +33,14 @@ public static class RegionWindows
             offset += Math.Max(1, size - overlapBytes);
         }
     }
+
+    /// <summary>Like <see cref="ReadRegion"/>, over the pages the process holds in RAM only: reading any other page makes Windows
+    /// give the game memory for it (research/client-memory.md §8), and a page the game doesn't use holds nothing live.</summary>
+    public static IEnumerable<(long Address, ReadOnlyMemory<byte> Data)> ReadResident(
+        IMemoryReader reader, MemoryRegion region, byte[] buffer, int overlapBytes = DefaultOverlapBytes)
+    {
+        foreach (var run in reader.ResidentRuns(region))
+            foreach (var window in ReadRegion(reader, run, buffer, overlapBytes))
+                yield return window;
+    }
 }

@@ -574,3 +574,49 @@ restart while mounted (the player's RActor is still listed) and in a dungeon.
 - The tile-hash units for tiles larger than 32×32, and whether RVAs stay stable across restarts.
 - Validate the static CScene route (§1) live with a minimal probe.
 - The revealed-list signature (§2) matched 0 entries in the second dungeon; re-check it.
+
+## 8. What a heap scan costs (measured 2026-11-07, no game: a helper process, Ryzen 7 6800H)
+
+- **Reading a page gives it RAM (H):** `ReadProcessMemory` on a committed page the target never touched makes Windows back it: a helper
+  with 4 GB committed and untouched went from 0.02 to 4.02 GB of working set, and stays there. Live 2026-11-07, on an APU: the game held
+  15.34 GB of private read-write memory, 10.14 GB of it in RAM, so a whole-heap scan pulled in up to 5.2 GB more. `RegionWindows.ReadResident`
+  reads only pages in the working set (`QueryWorkingSetEx`, about 50 ms per 4 GB; 350 ms for the game's 11,800 regions).
+- **Memory shared with the GPU was most of a scan's cost (H, live 2026-11-07):** 5.97 of the 15.34 GB carry `PAGE_WRITECOMBINE` (protect 0x404, 10,002
+  regions, most of 1-64 MB). Reading them took 5.2 s of kernel CPU per GB at 0.18 GB/s, against 0.06-0.5 s per GB at 2-8 GB/s for the rest. Scans skip
+  them (`ProcessReader.Regions`, also `PAGE_NOCACHE`): every screen and the marker list were found without them, the marker list in 429 ms, was 1579.
+  The first look at the map, a whole-heap scan, took 1.5 s, was about 10 s, and found 64 bounties and 2 events. A discrete GPU was not measured.
+- **That query needs `PROCESS_QUERY_INFORMATION` (H):** with `PROCESS_QUERY_LIMITED_INFORMATION` it fails with error 5. The handle asks for it,
+  user-approved 2026-11-07, and falls back to the limited right if refused (`Memory: the game refused…` in the log; scans then read everything).
+- **A page out of RAM is never read:** Windows can't tell a page never touched from one trimmed under memory pressure, so an object on a trimmed
+  page is missed until the game touches it. The menu scan had a full pass on a miss: dropped, it took a miss from 0.5 to 1.4 s and put 3 GB
+  back into a helper's RAM. A screen so missed shows in `MENU located N/M … missing`, and is looked for at the next world change.
+- **Looking at each word was the cost, not copying (H):** the bounty scan over 6 GB in use took 24 s of user and 3.6 s of kernel CPU (4.4-5.9 s on 8
+  threads, 1.3 GB/s, about the 1.5 GB/s of the live scans); testing 8 words at once (`Vector256`), 0.3 s and 1.3 s (0.5 s on 4 threads).
+  Over 3 GB in use and 3 GB untouched: 4.8 s and 23 s of CPU before, 0.3 s and 0.9 s now, the helper staying at 3 GB (6 GB before).
+
+## 9. What the app itself costs (measured 2026-11-07, portable build, no game)
+
+| | 0.1.31 | Now |
+|---|---|---|
+| In RAM after start | 861 MB | 335 MB |
+| CPU to start | 7 s | 5 s |
+| Idle, of one core | 3.7 % | about 2 % |
+
+- **Names (H):** the store kept an upper-case copy of all 1.4 million SNO names, and WiseOwl's `CoreToc` their strings and objects, about 300 MB
+  for the few names the app asks for. `SnoToc` keeps CoreTOC.dat as bytes (42 MB) and reads a name when asked; `Diablo4Storage` is no longer opened,
+  since it parses a `CoreToc` and holds it (`TvfsSnoArchive` reads the same files, tested). Every entry reads the same as WiseOwl's.
+- **Texts (H):** `StringListCatalog` built all 680,000 strings of a language. `TextBundle` keeps the file and reads a table when asked.
+- **What loading leaves behind (H):** about 150 MB stayed committed: an idle app allocates too little to start a collection, so one runs after start.
+- **Compressed single file (H):** unpacks into private memory, 80 MB; off in the portable profile. The exe grows from 52 to 122 MB, its zip from 47 to 48.
+- **Left:** WiseOwl's CASC index, 148 MB (`Dictionary<ulong, EncodingKey>`, `Dictionary<ulong, ArchiveLocation>`), which needs another CASC reader to go.
+- **Idle CPU (H):** the pool's threads spun before sleeping on every short timer, about 240 wake-ups a second with nothing to do. Pool spinning is off
+  (`UnfairSemaphoreSpinLimit`), the cue players' timers stand still with nothing to play (`PausingTimer`), the pads poll at 32 ms, and empty XInput slots
+  are asked every 2 s (Microsoft's advice: the empty slot is XInputGetState's slow path). What is left is mostly a pad's own reports: a DualSense on USB
+  wakes its thread at 250 Hz; reading several reports per wake-up would need testing on the pads themselves.
+- **Per poll:** `PagedReads` reads the attribute and marker nodes a page at a time, once per poll for every actor; a pool's walk reads each chunk's
+  pointer once. Live 2026-11-07 (Release build, open world, 259 map markers, 16 processors): `CPU: 0.2% of the machine`, actors 3.7 ms, player 0.3 ms;
+  the game took about 17 %. A helltide not measured. The first minute after start costs more (1.0 %: JIT, the first searches).
+- **RAM in play (live 2026-11-07):** 762 MB a minute after start, 558 MB two minutes later without any collection forced: the GC gives regions back
+  slowly. The live heap is 307 MB, as idle. `dotnet-trace` reserves its buffer in the process (256 MB by default): `--buffersize 32`, or RAM reads high.
+- **Conversation search:** until a build's addresses are found it reads every pointer in the module's data every 5 s, about 5 % of one core. It ends at the
+  first conversation of a game update, and the addresses are kept next to the exe.

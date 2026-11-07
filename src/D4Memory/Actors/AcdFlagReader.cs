@@ -64,26 +64,32 @@ public sealed class AcdFlagReader
     // The live descriptor table held 1366 attributes, ids up to 0x571.
     private const uint MaxAttributeId = 0x1000;
 
-    private readonly IMemoryReader _reader;
+    // Attribute nodes lie together in the game's arenas: a poll reads their pages once for every actor.
+    private readonly PagedReads _reader;
     private readonly AcdReader _acds;
     private readonly Dictionary<uint, string> _flags;
 
-    private AcdFlagReader(IMemoryReader reader, AcdReader acds, Dictionary<uint, string> flags) =>
+    private AcdFlagReader(PagedReads reader, AcdReader acds, Dictionary<uint, string> flags) =>
         (_reader, _acds, _flags) = (reader, acds, flags);
 
     /// <summary>Null when the build has no ACD offsets, the pool is unreadable or none of the names is in the table.</summary>
     public static AcdFlagReader? TryOpen(IMemoryReader reader, long moduleBase, GameBuildOffsets offsets, IReadOnlyCollection<string> names)
     {
-        if (offsets.Acd is not { } acd || !AcdReader.TryOpen(reader, moduleBase, offsets, out var acds)) return null;
+        var pages = new PagedReads(reader);
+        if (offsets.Acd is not { } acd || !AcdReader.TryOpen(pages, moduleBase, offsets, out var acds)) return null;
         var table = new AttributeNameTable(reader, moduleBase, acd);
         var flags = new Dictionary<uint, string>();
         for (uint id = 0; id < MaxAttributeId && flags.Count < names.Count; id++)
             if (table.NameOf(id) is { } name && names.Contains(name)) flags[id] = name;
-        return flags.Count == 0 ? null : new AcdFlagReader(reader, acds, flags);
+        return flags.Count == 0 ? null : new AcdFlagReader(pages, acds, flags);
     }
 
     /// <summary>Re-reads the ACD pool header; call once per actor read, as actors load and leave.</summary>
-    public void Refresh() => _acds.Refresh();
+    public void Refresh()
+    {
+        _reader.Forget();
+        _acds.Refresh();
+    }
 
     /// <summary>The names found in the game's table; a missing one is never reported set.</summary>
     public IReadOnlyCollection<string> Known => _flags.Values;

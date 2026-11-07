@@ -111,6 +111,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>Rewrites each actor poll before it is raised (HoradricWard: only the vessel the barrier names sounds); null for none.</summary>
     public Func<IReadOnlyList<ActorState>, IReadOnlyList<ActorState>>? ActorRewrite { get; set; }
 
+    /// <summary>How long the polls ran, for the log (CpuLog).</summary>
+    public PollTimes PollTimes { get; } = new();
+
     /// <summary>Keeps a map marker of the world entered, by its name (LevelAreaWorlds.InWorld); null keeps every marker.</summary>
     public Func<MarkedActor, string, bool>? MarkerInWorld { get; set; }
 
@@ -394,8 +397,13 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     private void Guarded(string poll, ref int busy, Action read)
     {
         if (Interlocked.Exchange(ref busy, 1) == 1) return; // the last tick's read still runs
+        long started = TimeProvider.System.GetTimestamp();
         try { Guarded(poll, read); }
-        finally { Volatile.Write(ref busy, 0); }
+        finally
+        {
+            PollTimes.Add(poll, TimeProvider.System.GetElapsedTime(started));
+            Volatile.Write(ref busy, 0);
+        }
     }
 
     // An exception out of a timer callback ends the process. A read that throws (memory changing under it, a parse of

@@ -25,7 +25,8 @@ injects into or writes to the game process — see `src/D4Memory`'s safety polic
   run's log becomes `d4assist-log.old.txt`). Always logged, even without `--debug`: why memory can't be read
   (`Memory: cannot read the game yet, retrying: …`, once per reason; the open is retried every second, since the
   log names a world before the player is placed in it), the player actor and game build once reading, and every
-  `CUES muted/unmuted` reason.
+  `CUES muted/unmuted` reason. Once a minute of play, `CPU: …` gives the app's share of the machine and each poll's
+  average time (`CpuLog`): the first thing to read in a report of a loaded PC.
 - The game's memory addresses change with every game update; the app finds them at session start (`Memory: … game
   object at RVA …`). The game maps its image twice and the game object can be in either copy, so each is tried
   (`addresses in 0x…`), and the session reads from that copy. The conversation addresses can only be found while someone
@@ -516,7 +517,7 @@ a dungeon's markers after the player leaves it.
   while Diablo IV isn't the foreground window (another game, or the game closed: the pad is read globally),
   and while the game shows no gameplay (character select and creation, loading, cinematics: `Guide toggle ignored: no gameplay (…)`);
   every press past that gate logs `Guide toggle pressed.`, and each raw press its source first (`Pad: XInput D-pad left.`,
-  `Pad: HID D-pad left.`, `Keys: Ctrl+Alt+Shift+G.`). `Input/XInputPad` only observes the pad (polled every 16 ms, dynamic-loaded XInput, ported from the
+  `Pad: HID D-pad left.`, `Keys: Ctrl+Alt+Shift+G.`). `Input/XInputPad` only observes the pad (polled every 32 ms, empty slots every 2 s, dynamic-loaded XInput, ported from the
   D2R mod's `input_direction.cpp`; logs `Pad: XInput loaded from …`, `Pad: XInput slot N connected (type, subtype, flags, vendor,
   product)|disconnected`, and per connection `first input` (any state change, sticks included) and `first buttons 0x…`: a
   ROG Xbox Ally's slot 0 connected and reported neither in a whole prologue, tester 2026-11-01); the game still receives every press. PlayStation pads never reach XInput, so
@@ -524,7 +525,7 @@ a dungeon's markers after the player leaves it.
   in the Xbox full screen experience XInput gives a background app no buttons (ROG Xbox Ally, tester 2026-11-01: desktop mode
   worked), and the Ally's HID side (0x0B05:0x1B4C, hat 1-8) connected there but never reported D-pad left (0.1.29, tester
   2026-11-01). Shared, read-only handles; rescans every 3 s for pads plugged in later; samples each pad's last state every
-  16 ms; logs `Pad: … connected (hat min-max)`, per connection `first report: N bytes, id N, hat N|none` and `hat moved to N` (a hat that never
+  32 ms; logs `Pad: … connected (hat min-max)`, per connection `first report: N bytes, id N, hat N|none` and `hat moved to N` (a hat that never
   moves vs a pad that sends nothing), `first D-pad left`, a pad with no hat switch, or why it can't open one and `Input/CombinedPad` drops a second copy of the same
   press within 200 ms (Steam Input / DS4Windows also expose the pad as a virtual Xbox pad). Not saved to `d4assist.json`.
 - **Ctrl+Alt+Shift+1..8** (keyboard, while the game is in front) — sound examples, e.g. for a video without a fight's noise (user request

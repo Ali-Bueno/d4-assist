@@ -163,9 +163,17 @@ public sealed class PoolContainer
     /// <summary>Every readable, non-free slot in index order; unreadable chunks and slots are skipped.</summary>
     public IEnumerable<PoolSlot> OccupiedSlots()
     {
+        int chunk = -1;
+        ulong chunkBase = 0;
         for (int idx = 0; idx <= _maxIndex; idx++)
         {
-            if (!TryGetSlotAddress(idx, out long slot)) continue;
+            if (idx >> _shift != chunk)
+            {
+                chunk = idx >> _shift;
+                if (!TryReadU64(_reader, _chunks + 8L * chunk, out chunkBase)) chunkBase = 0;
+            }
+            if (chunkBase == 0) continue;
+            long slot = (long)chunkBase + (idx & _mask) * Stride;
             if (!TryReadU32(_reader, slot + IdOffsetInSlot, out uint id) || id == FreeSlotSentinel) continue;
             yield return new PoolSlot(slot, id);
         }
@@ -190,18 +198,21 @@ public sealed class PoolContainer
         return true;
     }
 
+    // These run thousands of times a poll: one buffer per thread instead of an array each.
+    [ThreadStatic] private static byte[]? t_word;
+
     public static bool TryReadU32(IMemoryReader reader, long address, out uint value)
     {
-        var buffer = new byte[sizeof(uint)];
-        if (!reader.TryRead(address, buffer, buffer.Length)) { value = 0; return false; }
+        var buffer = t_word ??= new byte[sizeof(ulong)];
+        if (!reader.TryRead(address, buffer, sizeof(uint))) { value = 0; return false; }
         value = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
         return true;
     }
 
     public static bool TryReadU64(IMemoryReader reader, long address, out ulong value)
     {
-        var buffer = new byte[sizeof(ulong)];
-        if (!reader.TryRead(address, buffer, buffer.Length)) { value = 0; return false; }
+        var buffer = t_word ??= new byte[sizeof(ulong)];
+        if (!reader.TryRead(address, buffer, sizeof(ulong))) { value = 0; return false; }
         value = BinaryPrimitives.ReadUInt64LittleEndian(buffer);
         return true;
     }

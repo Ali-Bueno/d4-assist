@@ -20,7 +20,7 @@ public class TvfsSnoArchiveRealDataTests
         var casc = storage.Casc;
         using var archive = new TvfsSnoArchive(path => casc.TryResolvePath(path, out var key) ? casc.Read(key) : null, casc.Build.Version);
 
-        Assert.Equal(storage.CoreToc.Entries.Count, archive.CoreToc.Entries.Count);
+        Assert.Equal(storage.CoreToc.Entries.Count, archive.Toc.Count);
         Assert.Equal(storage.SharedPayloads.Count, archive.SharedPayloads.Count);
         int compared = 0;
         foreach (var group in storage.CoreToc.Entries.GroupBy(e => e.Group))
@@ -32,7 +32,7 @@ public class TvfsSnoArchiveRealDataTests
                     try { expectedFound = storage.TryReadSno(entry.Group, entry.Id, folder, out expected); }
                     // Optional content may not be downloaded (e.g. other languages' speech on a deDE-only install).
                     catch (CascException e) when (e is CascContentNotFoundException or CascEncryptedContentException) { continue; }
-                    found = archive.TryReadSno((int)entry.Group, entry.Id, folder, out actual);
+                    found = archive.TryReadSno(entry.Id, folder, out actual);
                     Assert.Equal(expectedFound, found);
                     Assert.Equal(expected, actual);
                     compared++;
@@ -56,7 +56,7 @@ public class TvfsSnoArchiveRealDataTests
             // Optional content (e.g. high-resolution textures) may not be downloaded.
             try { expectedFound = storage.TryReadSno(0, target, SnoFolder.Payload, out expected); }
             catch (CascException e) when (e is CascContentNotFoundException or CascEncryptedContentException) { continue; }
-            Assert.Equal(expectedFound, archive.TryReadSno(0, target, SnoFolder.Payload, out var actual));
+            Assert.Equal(expectedFound, archive.TryReadSno(target, SnoFolder.Payload, out var actual));
             Assert.Equal(expected, actual);
             compared++;
         }

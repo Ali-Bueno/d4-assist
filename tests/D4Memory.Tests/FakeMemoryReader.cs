@@ -7,6 +7,11 @@ public sealed class FakeMemoryReader : IMemoryReader
 {
     private readonly List<(long Address, byte[] Data, uint Type, uint Protection)> _regions = [];
 
+    /// <summary>Stands for the working set; null holds every page in RAM.</summary>
+    public Func<MemoryRegion, IEnumerable<MemoryRegion>>? Resident { get; set; }
+
+    public IEnumerable<MemoryRegion> ResidentRuns(MemoryRegion region) => Resident?.Invoke(region) ?? [region];
+
     public void AddRegion(long address, byte[] data, uint type = 0, uint protection = 0) => _regions.Add((address, data, type, protection));
 
     public IReadOnlyList<MemoryRegion> Regions() => _regions.Select(r => new MemoryRegion(r.Address, r.Data.Length, r.Type, AllocationBase: r.Address, Protection: r.Protection)).ToList();

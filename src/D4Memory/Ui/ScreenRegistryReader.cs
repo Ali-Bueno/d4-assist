@@ -111,10 +111,6 @@ public static class ScreenRegistryReader
     // The registry sits in private read-write heap memory.
     private const uint HeapProtection = NativeMethods.PageReadWrite, HeapType = NativeMethods.MemPrivate;
 
-    // Half the cores, leaving the rest to the game. Live 2026-09-30 (16 cores, 15 GB heap): all 43 watched screens found
-    // in 0.5 s; a full-heap miss took 9.7 s (57 s sequentially).
-    private static readonly int ScanThreads = Math.Max(1, Environment.ProcessorCount / 2);
-
     private static readonly int RecordReadBytes = ModulePointerOffset + sizeof(long);
 
     // A scan looks for tens of keys: a table indexed by a key's low 16 bits rejects almost every heap word before the
@@ -163,17 +159,15 @@ public static class ScreenRegistryReader
         void ScanRegions(IEnumerable<MemoryRegion> scanned)
         {
             if (found.Count == keys.Count || cancel.IsCancellationRequested) return;
-            var options = new ParallelOptions { MaxDegreeOfParallelism = ScanThreads };
-            Parallel.ForEach(scanned, options, () => new byte[RegionWindows.DefaultWindowBytes], (region, loop, buffer) =>
+            BackgroundScan.ForEach(scanned, (region, loop, buffer) =>
             {
-                foreach (var (address, data) in RegionWindows.ReadRegion(memory, region, buffer))
+                foreach (var (address, data) in RegionWindows.ReadResident(memory, region, buffer))
                 {
                     if (loop.IsStopped || cancel.IsCancellationRequested) { loop.Stop(); break; }
                     if (FindInWindow(memory, module, keys, filter, exclude, found, address, data.Span)) foundIn.TryAdd(region.AllocationBase, 0);
                     if (found.Count == keys.Count) { loop.Stop(); break; }
                 }
-                return buffer;
-            }, _ => { });
+            });
         }
     }
 

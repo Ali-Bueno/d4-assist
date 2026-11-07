@@ -113,8 +113,8 @@ internal sealed class StaticCascStorage : IDisposable
     {
         const int sampled = 64;
         if (!files.TryResolve(TvfsSnoArchive.CoreTocPath, out var spans)) return false;
-        var toc = CoreToc.Parse(spans.Length == 1 ? Read(spans[0]) : spans.SelectMany(Read).ToArray());
-        return toc.Entries.Take(sampled).Any(e => files.TryResolve(Diablo4Storage.SnoPath(e.Id, SnoFolder.Meta), out _));
+        var toc = new SnoToc(spans.Length == 1 ? Read(spans[0]) : spans.SelectMany(Read).ToArray());
+        return toc.Ids.Take(sampled).Any(id => files.TryResolve(Diablo4Storage.SnoPath(id, SnoFolder.Meta), out _));
     }
 
     // A nested TVFS the build config names: its size and spec come from the config, else from the parent manifest. One that

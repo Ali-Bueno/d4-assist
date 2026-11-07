@@ -4,7 +4,7 @@ namespace D4Assist.Game;
 
 /// <summary>
 /// Keeps which bounty pins the open world map holds, when bounties end and what events come (MapBountyTableReader): the table is there only while the map is
-/// open and the first look takes about 10 s, so it is read in the background as the map opens and again every minute, never on a key press. The whispers' list
+/// open and the first look takes about 2 s, so it is read in the background as the map opens and again every minute, never on a key press. The whispers' list
 /// asks only for what the last read found. An end or an event stays known with the map closed: it is a time, right until it passes.
 /// </summary>
 /// <param name="read">One read of the table; null while no session is open.</param>
@@ -15,7 +15,7 @@ public sealed class MapBountyWatch(
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
 
     /// <summary>The pins of a read this recent stand for the map just opened until its own read lands: a world boss listed only by its pin
-    /// would otherwise drop out for the read's 10 s.</summary>
+    /// would otherwise drop out for the read's 2 s.</summary>
     public static readonly TimeSpan PinsKeptFor = TimeSpan.FromMinutes(5);
 
     /// <summary>An end or an event this long past is forgotten.</summary>

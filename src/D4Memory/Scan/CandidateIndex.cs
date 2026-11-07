@@ -1,16 +1,20 @@
 namespace D4Memory.Scan;
 
-/// <summary>Array-indexed candidate lookup so the per-int32 hot loop avoids dictionary hashing.</summary>
+/// <summary>Candidate lookup for the per-int32 hot loop: a bit per SNO rejects almost every word before any hashing.</summary>
 public sealed class CandidateIndex
 {
-    private readonly CandidateScene?[] _bySno;
+    private const int BitsPerWord = 64, WordShift = 6;
+
+    private readonly IReadOnlyDictionary<int, CandidateScene> _bySno;
+    private readonly ulong[] _known;
 
     public CandidateIndex(IReadOnlyDictionary<int, CandidateScene> candidates)
     {
+        _bySno = candidates;
         int maxSno = candidates.Count == 0 ? 0 : candidates.Keys.Max();
-        _bySno = new CandidateScene?[maxSno + 1];
-        foreach (var (sno, candidate) in candidates)
-            if (sno >= 0) _bySno[sno] = candidate;
+        _known = new ulong[maxSno / BitsPerWord + 1];
+        foreach (int sno in candidates.Keys)
+            if (sno >= 0) _known[sno >> WordShift] |= 1UL << sno;
         Count = candidates.Count;
     }
 
@@ -18,7 +22,7 @@ public sealed class CandidateIndex
 
     public bool TryGet(int sno, out CandidateScene candidate)
     {
-        if ((uint)sno < (uint)_bySno.Length && _bySno[sno] is { } found)
+        if ((uint)sno >> WordShift < (uint)_known.Length && (_known[sno >> WordShift] >> sno & 1) != 0 && _bySno.TryGetValue(sno, out var found))
         {
             candidate = found;
             return true;

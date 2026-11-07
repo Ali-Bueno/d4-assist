@@ -14,8 +14,10 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     public const ushort DpadLeftMask = 0x0004;
     // Windows XInput header: XUSER_MAX_COUNT.
     public const int MaxUsers = 4;
-    // One UI frame at 60 Hz; D2R polls once per UI tick (plugin.cpp:83) with no fixed rate.
-    public const int PollIntervalMs = 16;
+    // Twice in the shortest tap (about 60 ms): the pad only toggles the guide, and each poll wakes a thread.
+    public const int PollIntervalMs = 32;
+    // Asking an empty slot is the slow path of XInputGetState: Microsoft's advice is to look for new pads every few seconds.
+    public const long EmptySlotCheckMs = 2000;
     private const int ErrorSuccess = 0;
     // Same order as D2R (input_direction.cpp:117).
     private static readonly string[] LibraryCandidates = ["xinput1_4.dll", "xinput9_1_0.dll"];
@@ -59,6 +61,7 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     private nint _library;
     private readonly PressHold[] _buttons = [.. Enumerable.Range(0, MaxUsers).Select(_ => new PressHold())];
     private readonly Func<long> _nowMs = () => Environment.TickCount64;
+    private long _nextEmptyCheck;
     private readonly bool[] _connected = new bool[MaxUsers];
     // Logged once per connection: a pad that connects but never reports a button (seen on a ROG Xbox Ally) is told from one that
     // works, and one whose sticks move from one that sends nothing at all.
@@ -127,8 +130,12 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     /// <summary>Samples every slot once and raises an event for each slot whose D-pad left was just pressed or held.</summary>
     public void PollOnce()
     {
+        long now = _nowMs();
+        bool checkEmpty = now >= _nextEmptyCheck;
+        if (checkEmpty) _nextEmptyCheck = now + EmptySlotCheckMs;
         for (int slot = 0; slot < MaxUsers; slot++)
         {
+            if (!_connected[slot] && !checkEmpty) continue;
             var reading = _read(slot);
             if (reading.HasValue != _connected[slot])
             {

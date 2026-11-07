@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using D4Assist.Game;
 using D4Memory.Actors;
 using D4Memory.Scan;
 
@@ -40,6 +41,12 @@ public class MapMarkerReaderTests
 
         public void SetGeneration(long node, uint value) => U32(_heap, node - HeapBase + 0x10, value);
 
+        public void BreakRing() => U64(_heap, Second - HeapBase, Second);
+
+        public void MendRing() => U64(_heap, Second - HeapBase, Head);
+
+        public void ClearPool() => U32(_heap, Pool - HeapBase + 0x20, 0);
+
         private void Node(long at, long next, long prev, int sno, float x, float y)
         {
             long o = at - HeapBase;
@@ -78,4 +85,74 @@ public class MapMarkerReaderTests
 
         Assert.Null(MapMarkerReader.TryRead(memory, Head));
     }
+
+    [Fact]
+    public void A_head_found_earlier_reads_nodes_of_two_generations()
+    {
+        var memory = new FakeMemory();
+        memory.SetGeneration(Second, Generation + 2);
+
+        Assert.Equal([DoorSno, LeverSno], MapMarkerReader.TryReadFound(memory, Head)!.Select(m => m.ActorSno));
+    }
+
+    [Fact]
+    public void The_list_is_searched_once_however_many_reads_fail()
+    {
+        var memory = new FakeMemory();
+        int scans = 0;
+        var tracker = TrackerOver(memory, () => scans++);
+        ReadUntilFound(tracker, memory);
+
+        memory.BreakRing();
+        for (int read = 0; read < MapMarkerTracker.RescanAfterFailures * 3; read++) Assert.Null(Read(tracker, memory));
+        memory.MendRing();
+
+        Assert.NotNull(Read(tracker, memory));
+        Assert.Equal(1, scans);
+    }
+
+    [Fact]
+    public void Failed_reads_are_logged_once_a_run_is_long_and_when_it_ends()
+    {
+        var memory = new FakeMemory();
+        var logged = new List<string>();
+        var tracker = TrackerOver(memory, () => { }, logged.Add);
+        ReadUntilFound(tracker, memory);
+        logged.Clear();
+
+        memory.BreakRing();
+        for (int read = 0; read < MapMarkerTracker.RescanAfterFailures * 2; read++) Read(tracker, memory);
+        memory.MendRing();
+        Read(tracker, memory);
+
+        Assert.Equal(
+            [$"MARKERS list not read {MapMarkerTracker.RescanAfterFailures} times in a row, its head kept",
+             $"MARKERS list read again after {MapMarkerTracker.RescanAfterFailures * 2} failed reads"],
+            logged);
+    }
+
+    [Fact]
+    public void A_head_with_no_marker_nodes_behind_it_is_searched_again()
+    {
+        var memory = new FakeMemory();
+        int scans = 0;
+        var tracker = TrackerOver(memory, () => Interlocked.Increment(ref scans));
+        ReadUntilFound(tracker, memory);
+
+        memory.ClearPool();
+        for (int read = 0; read < MapMarkerTracker.RescanAfterFailures; read++) Assert.Null(Read(tracker, memory));
+        Assert.True(SpinWait.SpinUntil(() => { Read(tracker, memory); return Volatile.Read(ref scans) == 2; }, TimeSpan.FromSeconds(5)));
+    }
+
+    // A clock far ahead each read, so a retry is always due.
+    private static MapMarkerTracker TrackerOver(FakeMemory memory, Action onScan, Action<string>? log = null)
+    {
+        long ticks = 0;
+        return new MapMarkerTracker(() => { onScan(); return memory; }, () => TimeSpan.FromMinutes(Interlocked.Increment(ref ticks)), log);
+    }
+
+    private static IReadOnlyList<MapMarker>? Read(MapMarkerTracker tracker, FakeMemory memory) => tracker.Read(memory, ModuleBase, GameObjectRva);
+
+    private static void ReadUntilFound(MapMarkerTracker tracker, FakeMemory memory) =>
+        Assert.True(SpinWait.SpinUntil(() => Read(tracker, memory) is not null, TimeSpan.FromSeconds(5)));
 }

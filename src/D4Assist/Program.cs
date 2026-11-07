@@ -393,7 +393,7 @@ internal static class Program
                         // Character select and creation are menus with no screen of ours; the D-pad moves through them.
                         () => session.CurrentWorld is not { } world || WorldClassifier.IsMenuWorld(world.Name) || cueGate.ShowsNoGameplay,
                         () => Console.WriteLine($"Guide toggle ignored: no gameplay ({session.CurrentWorld?.Name ?? "no world"}).")),
-                    () => menus?.AnyOpen ?? false || StatueMenuOpen(session), () => Console.WriteLine(StatueMenuOpen(session)
+                    () => (menus?.AnyOpen ?? false) || StatueMenuOpen(session), () => Console.WriteLine(StatueMenuOpen(session)
                         ? "Guide toggle ignored: menu open (difficulty statue)." : $"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
                 hotkeys])
             : null;

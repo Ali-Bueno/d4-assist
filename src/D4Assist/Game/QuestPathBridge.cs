@@ -59,6 +59,10 @@ public sealed class QuestPathBridge
     /// <summary>Farther than this from the place the player has left (a teleport, a waypoint).</summary>
     public const float LeaveRangeUnits = MaxDistanceUnits + 300f;
 
+    /// <summary>A player this far off the path was moved, not walking (a teleport to a town: live 2026-11-07, 1021 units off,
+    /// a search every 3 s over a 1000-unit box): the guide stops and says so rather than search again.</summary>
+    public const float MovedAwayUnits = 150f;
+
     /// <summary>The ping aims this far along the path ahead of the player's spot on it (PathFollower).</summary>
     public const float LookaheadUnits = 8f;
 
@@ -124,6 +128,7 @@ public sealed class QuestPathBridge
     private PathFollower? _follower;
     private bool _pathFound;
     private int _request;
+    private bool _searching; // a search runs: the next waits for it (searches over a far target overlapped and took 2.6 GB live)
     private TimeSpan _lastPath;
     private int _pathWalls;
     private TimeSpan _lastAimLog;
@@ -223,7 +228,7 @@ public sealed class QuestPathBridge
         {
             _missingSince = null;
             _active = place with { Position = same.Position };
-            if (Vector2.Distance(same.Position, _pathTo) > OffPathUnits && _clock() - _lastPath >= RepathInterval && _player is { } player)
+            if (!_searching && Vector2.Distance(same.Position, _pathTo) > OffPathUnits && _clock() - _lastPath >= RepathInterval && _player is { } player)
             {
                 Log($"PATH legion target moved to ({same.Position.X:F1},{same.Position.Y:F1}), finding a new path");
                 FindPath(player);
@@ -349,6 +354,7 @@ public sealed class QuestPathBridge
         _lastPath = _clock();
         _pathTo = place.Position;
         _pathWalls = _wallsVersion();
+        _searching = true;
         var from = new Vector2(player.X, player.Y);
         _runInBackground(() =>
         {
@@ -362,6 +368,7 @@ public sealed class QuestPathBridge
             }
             lock (_gate)
             {
+                if (request == _request) _searching = false;
                 if (request != _request || active != _activeId) return; // a newer search, or the guide stopped or moved on
                 var took = (_clock() - started).TotalMilliseconds;
                 if (points is null)
@@ -418,7 +425,15 @@ public sealed class QuestPathBridge
         if (_follower is not { } follower) { _ping.Silence(); return; } // the path is being found
 
         var (aim, off, remaining) = follower.Follow(here, LookaheadUnits);
-        if (off > OffPathUnits && _clock() - _lastPath >= RepathInterval)
+        if (off > MovedAwayUnits)
+        {
+            Log($"PATH stopped: player moved {off:F0} units off the path, to ({here.X:F1},{here.Y:F1})");
+            _speech.Speak(AppStrings.For(_language.Current).GuideOff, interrupt: true);
+            Stop();
+            return;
+        }
+        if (_searching) { } // the next search waits for the running one; the ping keeps following the old path
+        else if (off > OffPathUnits && _clock() - _lastPath >= RepathInterval)
         {
             Log($"PATH off the path at ({here.X:F1},{here.Y:F1}), {off:F0} units, finding a new one");
             FindPath(player); // the ping keeps following the old path meanwhile
@@ -444,6 +459,7 @@ public sealed class QuestPathBridge
         _follower = null;
         _pathFound = false;
         _request++;
+        _searching = false;
         _activeId++;
         _held = false;
         _missingSince = null;

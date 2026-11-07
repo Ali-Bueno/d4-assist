@@ -49,11 +49,15 @@ public static class SurfacePathfinder
     /// <param name="fromZ">The player's height, to pick the floor they stand on; null for the lowest.</param>
     /// <param name="links">Traversals joining floors across gaps; null for none.</param>
     public static IReadOnlyList<Vector2>? Find(
-        IEnumerable<Vector3> surfaces, Vector2 from, Vector2 to, float? fromZ = null, IReadOnlyList<SurfaceLink>? links = null)
+        IEnumerable<Vector3> surfaces, Vector2 from, Vector2 to, float? fromZ = null, IReadOnlyList<SurfaceLink>? links = null) =>
+        SurfaceMap.Create(surfaces, links) is { } map ? Find(map, from, to, fromZ) : null;
+
+    /// <summary>The route over a map built once (<see cref="SurfaceMap.Create"/>), as <see cref="Find(IEnumerable{Vector3}, Vector2, Vector2, float?, IReadOnlyList{SurfaceLink}?)"/>:
+    /// building the map is most of a search's time and memory, so a new search in the same stretch reuses it. The map is only
+    /// read, so searches may run on it at the same time.</summary>
+    public static IReadOnlyList<Vector2>? Find(SurfaceMap map, Vector2 from, Vector2 to, float? fromZ = null)
     {
-        var map = SurfaceMap.Build(surfaces);
-        if (map is null || map.Snap(from, fromZ) is not { } start) return null;
-        if (links is not null) map.AddLinks(links);
+        if (map.Snap(from, fromZ) is not { } start) return null;
         var goals = map.NodesNear(to, TargetReachUnits);
         if (goals.Count == 0 && map.Snap(to, null) is { } nearTarget) goals.Add(nearTarget);
         if (goals.Count == 0) return null;
@@ -77,8 +81,9 @@ public static class SurfacePathfinder
         return points;
     }
 
-    /// <summary>The surface voxels as columns of floors: node = (column, floor), floors listed per column.</summary>
-    private sealed class SurfaceMap
+    /// <summary>The surface voxels as columns of floors: node = (column, floor), floors listed per column; with the traversal
+    /// links, fixed once created.</summary>
+    public sealed class SurfaceMap
     {
         private readonly int _x0, _y0, _width, _height;
         private readonly int[] _first; // per column: index of its first floor in _floors; columns end where the next starts
@@ -88,7 +93,16 @@ public static class SurfacePathfinder
         private SurfaceMap(int x0, int y0, int width, int height, int[] first, float[] floors) =>
             (_x0, _y0, _width, _height, _first, _floors) = (x0, y0, width, height, first, floors);
 
-        public static SurfaceMap? Build(IEnumerable<Vector3> surfaces)
+        /// <summary>The map of the surface voxels (world space, each voxel's low corner, Z its floor) joined by
+        /// <paramref name="links"/>; null for no voxels.</summary>
+        public static SurfaceMap? Create(IEnumerable<Vector3> surfaces, IReadOnlyList<SurfaceLink>? links = null)
+        {
+            var map = Build(surfaces);
+            if (map is not null && links is not null) map.AddLinks(links);
+            return map;
+        }
+
+        private static SurfaceMap? Build(IEnumerable<Vector3> surfaces)
         {
             var byColumn = new Dictionary<(int X, int Y), List<float>>();
             foreach (var v in surfaces)
@@ -135,7 +149,7 @@ public static class SurfacePathfinder
         }
 
         /// <summary>The floor nearest the point (the one closest to <paramref name="z"/>, or the lowest), within SnapUnits.</summary>
-        public int? Snap(Vector2 p, float? z)
+        internal int? Snap(Vector2 p, float? z)
         {
             var (cx, cy) = Cell(p);
             int radius = (int)MathF.Ceiling(SnapUnits / VoxelUnits);
@@ -160,7 +174,7 @@ public static class SurfacePathfinder
         }
 
         /// <summary>Joins the floors under each link's ends; a link with an end off the map is left out.</summary>
-        public void AddLinks(IReadOnlyList<SurfaceLink> links)
+        private void AddLinks(IReadOnlyList<SurfaceLink> links)
         {
             foreach (var link in links)
             {
@@ -179,7 +193,7 @@ public static class SurfacePathfinder
             targets.Add((to, units));
         }
 
-        public HashSet<int> NodesNear(Vector2 p, float radius)
+        internal HashSet<int> NodesNear(Vector2 p, float radius)
         {
             var (cx, cy) = Cell(p);
             int cells = (int)MathF.Ceiling(radius / VoxelUnits);
@@ -254,7 +268,7 @@ public static class SurfacePathfinder
             return false;
         }
 
-        public List<Vector2>? Search(int start, HashSet<int> goals, Vector2 target)
+        internal List<Vector2>? Search(int start, HashSet<int> goals, Vector2 target)
         {
             var cost = new Dictionary<int, float> { [start] = 0 };
             var previous = new Dictionary<int, int>();

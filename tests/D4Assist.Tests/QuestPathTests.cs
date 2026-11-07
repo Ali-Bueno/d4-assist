@@ -51,11 +51,15 @@ public class QuestPathTests
         // The path the search returns: straight from the player to the place in 5-unit steps, unless set.
         public Func<Vector3, Vector2, IReadOnlyList<Vector2>?> Path = (from, to) => Straight(new(from.X, from.Y), to);
 
-        public Rig(string world = World, IReadOnlyList<QuestMapPlace>? entrances = null, Action<float>? askedRange = null)
+        // Searches started but not run yet, when the rig holds them back (deferSearches).
+        public List<Action> Pending = [];
+
+        public Rig(string world = World, IReadOnlyList<QuestMapPlace>? entrances = null, Action<float>? askedRange = null, bool deferSearches = false)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             Bridge = new QuestPathBridge(Feed, w => w is World or StoryArea, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
-                Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock,
+                Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad,
+                runInBackground: work => { if (deferSearches) Pending.Add(work); else work(); }, clock: () => Clock,
                 entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; }, wallsVersion: () => Walls);
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
@@ -373,6 +377,46 @@ public class QuestPathTests
         Assert.Equal(new Vector3(astray, 0), rig.Searches[1].From);
         rig.Move(astray);
         Assert.Equal(2, rig.Searches.Count); // on the new path
+    }
+
+    // A helltide fight (live 2026-11-07): a search over a far target took longer than the wait between two, and they piled up.
+    [Fact]
+    public void Straying_while_a_search_runs_waits_for_it()
+    {
+        var rig = new Rig(deferSearches: true);
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        rig.Pending[0]();
+        var astray = KedBardu + new Vector2(20, 30);
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(astray);
+        Assert.Equal(2, rig.Pending.Count);
+
+        rig.Clock += QuestPathBridge.RepathInterval * 3;
+        rig.Move(astray);
+        Assert.Equal(2, rig.Pending.Count); // still running
+
+        rig.Pending[1]();
+        var further = astray + new Vector2(-30, 20);
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(further);
+        Assert.Equal(3, rig.Pending.Count);
+    }
+
+    // A teleport to a town with the guide on (live 2026-11-07): 1021 units off the path, a search every 3 s over a 1000-unit box.
+    [Fact]
+    public void A_player_moved_far_off_the_path_stops_the_guide()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        rig.Clock += QuestPathBridge.RepathInterval;
+
+        rig.Move(KedBardu + new Vector2(QuestPathBridge.MovedAwayUnits + 50, 0));
+
+        Assert.Equal(English.GuideOff, rig.Speech.Texts.Last());
+        Assert.Single(rig.Searches);
+        Assert.False(rig.Pings());
     }
 
     // The Darkened Way (tester 2026-11-01): a door listed locked only once the player came near leaves the path found before it

@@ -106,6 +106,12 @@ public sealed class OverworldPaths(
     /// <summary>How many searches built a map, and how many reused the last one (for the log and the tests).</summary>
     public (int Built, int Reused) MapUse { get; private set; }
 
+    /// <summary>Lets go of the last map (the guide stopped), so an idle app doesn't hold it.</summary>
+    public void Forget()
+    {
+        lock (_gate) _last = null;
+    }
+
     /// <summary>A closed door bars the floor within this height of its base: floors stacked in one column lie farther apart
     /// (BreakableProps.SameFloorUnits).</summary>
     public const float DoorFloorUnits = BreakableProps.SameFloorUnits;

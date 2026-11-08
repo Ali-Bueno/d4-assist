@@ -264,6 +264,7 @@ internal static class Program
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
         var waypointCatalog = new WaypointCatalog(store, schema);
+        var entranceCatalog = new DungeonEntranceCatalog(store, schema); // read once, by the guide and the map menu
         IReadOnlyList<Waypoint> allWaypoints;
         lock (cascGate) allWaypoints = waypointCatalog.All;
         Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivatedWaypoints =
@@ -467,10 +468,10 @@ internal static class Program
                 },
                 (world, from, to) => paths.Find(world, from, to, lockedDoors.Walls()),
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
-                entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate),
+                entrances: NearbyEntrances(entranceCatalog, store, schema, language, cascGate),
                 wallsVersion: () => lockedDoors.Version,
                 legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
-                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
+                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -567,7 +568,7 @@ internal static class Program
                     }
                 },
                 eventsReading: () => mapBounties.Reading,
-                placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), new StrongholdCatalog(store, schema), waypointCatalog, zones, store,
+                placeLists: MapPlaceLists(entranceCatalog, new StrongholdCatalog(store, schema), waypointCatalog, zones, store,
                     language, cascGate, () =>
                     {
                         int? tier = null;

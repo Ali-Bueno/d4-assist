@@ -48,6 +48,7 @@ public class QuestPathTests
         public TimeSpan Clock;
         public List<(string World, Vector3 From, Vector2 To)> Searches = [];
         public int Walls;
+        public int Forgets;
         // The path the search returns: straight from the player to the place in 5-unit steps, unless set.
         public Func<Vector3, Vector2, IReadOnlyList<Vector2>?> Path = (from, to) => Straight(new(from.X, from.Y), to);
 
@@ -60,7 +61,8 @@ public class QuestPathTests
             Bridge = new QuestPathBridge(Feed, w => w is World or StoryArea, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
                 Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad,
                 runInBackground: work => { if (deferSearches) Pending.Add(work); else work(); }, clock: () => Clock,
-                entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; }, wallsVersion: () => Walls);
+                entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; }, wallsVersion: () => Walls,
+                forgetPaths: () => Forgets++);
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
         }
@@ -401,6 +403,49 @@ public class QuestPathTests
         rig.Clock += QuestPathBridge.RepathInterval;
         rig.Move(further);
         Assert.Equal(3, rig.Pending.Count);
+    }
+
+    [Fact]
+    public void A_new_place_while_a_search_runs_waits_for_it_and_drops_the_old_path()
+    {
+        var rig = new Rig(deferSearches: true);
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        rig.Pad.Press(); // the next place while the first search runs
+        Assert.Single(rig.Pending);
+
+        rig.Pending[0]();
+        Assert.Equal(2, rig.Pending.Count); // the first search's end starts the waiting one
+        rig.Pending[1]();
+        Assert.Equal(FarCorpse, rig.Searches[^1].To);
+        Assert.True(rig.Pings());
+    }
+
+    [Fact]
+    public void A_search_that_throws_lets_the_next_one_run()
+    {
+        var rig = new Rig(deferSearches: true) { Path = (_, _) => throw new InvalidOperationException("broken map") };
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        Assert.Throws<InvalidOperationException>(() => rig.Pending[0]());
+
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(KedBardu + new Vector2(20, 30));
+        Assert.Equal(2, rig.Pending.Count);
+    }
+
+    [Fact]
+    public void Switching_the_guide_off_lets_go_of_the_kept_map_and_moving_on_keeps_it()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        int before = rig.Forgets; // entering the world stopped a guide that wasn't running
+        rig.Pad.Press();
+        rig.Pad.Press(); // the next place
+        Assert.Equal(before, rig.Forgets);
+
+        rig.Pad.Press(); // off
+        Assert.Equal(before + 1, rig.Forgets);
     }
 
     // A teleport to a town with the guide on (live 2026-11-07): 1021 units off the path, a search every 3 s over a 1000-unit box.

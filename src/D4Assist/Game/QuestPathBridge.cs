@@ -105,6 +105,7 @@ public sealed class QuestPathBridge
     private readonly Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> _questPlaces;
     private readonly Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>> _entrances;
     private readonly Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> _findPath;
+    private readonly Action _forgetPaths;
     private readonly GuidePingPlayer _ping;
     private readonly ISpeechSink _speech;
     private readonly LanguageSetting _language;
@@ -128,7 +129,8 @@ public sealed class QuestPathBridge
     private PathFollower? _follower;
     private bool _pathFound;
     private int _request;
-    private bool _searching; // a search runs: the next waits for it (searches over a far target overlapped and took 2.6 GB live)
+    private bool _searching; // a search runs, until its worker ends: the next waits for it (overlapping far searches took 2.6 GB live)
+    private bool _searchPending; // a search asked for while one ran: it starts when that one ends
     private TimeSpan _lastPath;
     private int _pathWalls;
     private TimeSpan _lastAimLog;
@@ -160,6 +162,7 @@ public sealed class QuestPathBridge
     /// <param name="legionMarkers">Every map marker in a legion's area near a spot, for the debug log (LegionTargets.Describe); null
     /// for none.</param>
     /// <param name="directionStyle">How a spot under attack's side is said (screen or compass).</param>
+    /// <param name="forgetPaths">Lets go of what the searches keep (OverworldPaths.Forget) once the guide stops; null for nothing.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
@@ -167,8 +170,10 @@ public sealed class QuestPathBridge
         Action<string>? log = null, Func<TimeSpan>? clock = null, Func<bool>? routeActive = null,
         Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null, Func<int>? wallsVersion = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, IReadOnlyList<LegionTarget>>? legionTargets = null,
-        Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen)
+        Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen,
+        Action? forgetPaths = null)
     {
+        _forgetPaths = forgetPaths ?? (() => { });
         _legionTargets = legionTargets ?? ((_, _) => []);
         _legionMarkers = legionMarkers ?? ((_, _) => null);
         _directionStyle = directionStyle;
@@ -333,7 +338,7 @@ public sealed class QuestPathBridge
     // last siege tower of "Verwundete Seelen" was the fifth of five, and one press each time led elsewhere).
     private void Start(QuestMapPlace place, Vector2 here, string reason, int number, int count)
     {
-        Stop();
+        Reset();
         _active = place;
         float distance = Vector2.Distance(here, place.Position);
         string legion = place.Legion is { } kind ? $", legion {kind}" : "";
@@ -350,6 +355,12 @@ public sealed class QuestPathBridge
     private void FindPath(Vector3 player)
     {
         if (_active is not { } place || _world is not { } world) return;
+        if (_searching)
+        {
+            if (!_searchPending) Log("PATH waiting for the running search");
+            _searchPending = true;
+            return;
+        }
         int request = ++_request, active = _activeId;
         _lastPath = _clock();
         _pathTo = place.Position;
@@ -359,33 +370,47 @@ public sealed class QuestPathBridge
         _runInBackground(() =>
         {
             var started = _clock();
-            IReadOnlyList<Vector2>? points;
+            IReadOnlyList<Vector2>? points = null;
             try { points = _findPath(world, player, place.Position); }
             catch (Exception e) when (e is InvalidDataException or IOException or ArgumentException)
             {
                 Log($"PATH search failed: {e.Message}");
-                points = null;
             }
-            lock (_gate)
+            finally
             {
-                if (request == _request) _searching = false;
-                if (request != _request || active != _activeId) return; // a newer search, or the guide stopped or moved on
-                var took = (_clock() - started).TotalMilliseconds;
-                if (points is null)
-                {
-                    Log($"PATH no path from ({from.X:F1},{from.Y:F1}) ({took:F0} ms); leading straight");
-                    if (!_pathFound) _speech.Speak(AppStrings.For(_language.Current).PathNotFound, interrupt: false);
-                    points = [place.Position];
-                }
-                else
-                {
-                    Log($"PATH {points.Count} points from ({from.X:F1},{from.Y:F1}), {Length(from, points):F0} units ({took:F0} ms)");
-                    _pathFound = true;
-                }
-                _follower = new PathFollower([from, .. points]);
-                if (_player is { } now) Lead(now);
+                lock (_gate) Found(request, active, place, from, points, _clock() - started);
             }
         });
+    }
+
+    // A search ended, however it ended: one asked for meanwhile starts now, from where the player is.
+    private void Found(int request, int active, QuestMapPlace place, Vector2 from, IReadOnlyList<Vector2>? points, TimeSpan took)
+    {
+        _searching = false;
+        if (_searchPending)
+        {
+            _searchPending = false;
+            if (_player is { } player) FindPath(player);
+            return;
+        }
+        if (request != _request || active != _activeId) // the guide stopped or moved on
+        {
+            if (_active is null) _forgetPaths(); // this search kept its map after the stop let go of the last one
+            return;
+        }
+        if (points is null)
+        {
+            Log($"PATH no path from ({from.X:F1},{from.Y:F1}) ({took.TotalMilliseconds:F0} ms); leading straight");
+            if (!_pathFound) _speech.Speak(AppStrings.For(_language.Current).PathNotFound, interrupt: false);
+            points = [place.Position];
+        }
+        else
+        {
+            Log($"PATH {points.Count} points from ({from.X:F1},{from.Y:F1}), {Length(from, points):F0} units ({took.TotalMilliseconds:F0} ms)");
+            _pathFound = true;
+        }
+        _follower = new PathFollower([from, .. points]);
+        if (_player is { } now) Lead(now);
     }
 
     private void Lead(Vector3 player)
@@ -452,14 +477,22 @@ public sealed class QuestPathBridge
         _ping.Aim(right, up, remaining + off);
     }
 
+    // The guide ends: the map the searches kept goes too (up to a few hundred MB).
     private void Stop()
+    {
+        Reset();
+        _forgetPaths();
+    }
+
+    // A search still running goes on to its end (it can't be cut short) and its path is dropped.
+    private void Reset()
     {
         if (_active is not null) _ping.Silence();
         _active = null;
         _follower = null;
         _pathFound = false;
         _request++;
-        _searching = false;
+        _searchPending = false;
         _activeId++;
         _held = false;
         _missingSince = null;

@@ -60,6 +60,18 @@ public class OverworldPathsTests
     }
 
     [Fact]
+    public void A_forgotten_map_is_built_anew()
+    {
+        var paths = Paths();
+        var to = new Vector2(80, 48);
+        paths.Find("W", new Vector3(10, 48, 0), to, null);
+
+        paths.Forget();
+        Assert.NotNull(paths.Find("W", new Vector3(12, 48, 0), to, null));
+        Assert.Equal((2, 0), paths.MapUse);
+    }
+
+    [Fact]
     public void A_locked_door_on_the_way_sends_the_path_round()
     {
         var from = new Vector3(10, 48, 0);

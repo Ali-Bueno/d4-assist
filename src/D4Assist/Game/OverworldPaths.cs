@@ -90,6 +90,22 @@ public sealed class OverworldPaths(
     private readonly Dictionary<int, IReadOnlyList<Vector3>?> _scenes = [];
     private readonly Dictionary<int, IReadOnlyList<TraversalPoint>> _traversals = [];
 
+    /// <summary>A new search reuses the last map while its start and target lie this far inside the map's box: building the map
+    /// took most of each search (0.2-1.3 s and 67-475 MB, 40-1400 units, Temis 2026-11-07), and the guide searches again each
+    /// time the player strays off the path, every few seconds in a helltide fight.</summary>
+    public const float ReuseInsideUnits = 50f;
+
+    private sealed record MapBox(string World, float MinX, float MinY, float MaxX, float MaxY, int Doors, SurfacePathfinder.SurfaceMap Map)
+    {
+        public bool Holds(Vector2 p) =>
+            p.X >= MinX + ReuseInsideUnits && p.X <= MaxX - ReuseInsideUnits && p.Y >= MinY + ReuseInsideUnits && p.Y <= MaxY - ReuseInsideUnits;
+    }
+
+    private MapBox? _last;
+
+    /// <summary>How many searches built a map, and how many reused the last one (for the log and the tests).</summary>
+    public (int Built, int Reused) MapUse { get; private set; }
+
     /// <summary>A closed door bars the floor within this height of its base: floors stacked in one column lie farther apart
     /// (BreakableProps.SameFloorUnits).</summary>
     public const float DoorFloorUnits = BreakableProps.SameFloorUnits;
@@ -102,6 +118,14 @@ public sealed class OverworldPaths(
     {
         var start = new Vector2(from.X, from.Y);
         if (Vector2.Distance(start, to) > MaxDistanceUnits) return null;
+        int doorKey = DoorKey(doors);
+        MapBox? last;
+        lock (_gate) last = _last;
+        if (last is not null && last.World == worldName && last.Doors == doorKey && last.Holds(start) && last.Holds(to))
+        {
+            lock (_gate) MapUse = (MapUse.Built, MapUse.Reused + 1);
+            return SurfacePathfinder.Find(last.Map, start, to, from.Z);
+        }
         float minX = MathF.Min(start.X, to.X) - MarginUnits, maxX = MathF.Max(start.X, to.X) + MarginUnits;
         float minY = MathF.Min(start.Y, to.Y) - MarginUnits, maxY = MathF.Max(start.Y, to.Y) + MarginUnits;
         var voxels = new List<Vector3>();
@@ -126,7 +150,27 @@ public sealed class OverworldPaths(
             voxels.RemoveAll(v => barred.TryGetValue(((int)MathF.Floor(v.X), (int)MathF.Floor(v.Y)), out var floors)
                 && floors.Exists(z => MathF.Abs(v.Z - z) <= DoorFloorUnits));
         }
-        return SurfacePathfinder.Find(voxels, start, to, from.Z, Links(ends));
+        if (SurfacePathfinder.SurfaceMap.Create(voxels, Links(ends)) is not { } map) return null;
+        lock (_gate)
+        {
+            _last = new MapBox(worldName, minX, minY, maxX, maxY, doorKey, map);
+            MapUse = (MapUse.Built + 1, MapUse.Reused);
+        }
+        return SurfacePathfinder.Find(map, start, to, from.Z);
+    }
+
+    // The same closed doors give the same key: a door that opens or locks builds the map anew.
+    private static int DoorKey(IReadOnlyList<DoorWall>? doors)
+    {
+        if (doors is not { Count: > 0 }) return 0;
+        int key = doors.Count;
+        foreach (var door in doors)
+        {
+            int cells = 0;
+            foreach (var cell in door.Cells) cells += cell.GetHashCode(); // order-free
+            key = HashCode.Combine(key, door.Z, door.Cells.Count, cells);
+        }
+        return key;
     }
 
     /// <summary>Each door's cells and one cell round them, by the heights of the doors there: the player's body doesn't pass a

@@ -490,6 +490,25 @@ a dungeon's markers after the player leaves it.
 - **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
   desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
+- **A place chosen in the map menu** (Enter in Dungeons, Keller or Stützpunkte, user request 2026-11-06; also when the cursor
+  can only reach a stopover) comes first, within 1500 units, spoken "Gewähltes Ziel: <name>, N Meter." (`MapMenuStrings`,
+  `QuestPathBridge.Choose`, debug `MAPLIST chosen` / `PATH chosen in the map list`); a new choice stops a running guide;
+  reached it says "Ziel erreicht." and is no longer offered.
+- **Inside a legion event** (user request 2026-11-04) the event's targets come first (`Game/LegionTargets`): the map
+  markers in the event's level area (`*_ZoneEvent`) that are its boss (`*_boss`), a structure to destroy (`Structure_*`), a
+  captain (`*_ZE_*Captain*`) or a reward chest (`ZE_Chest_Reward*`, last), within 150 units, nearest first; spoken "Legion:
+  Struktur, N Meter.". At a target it chimes, says "Legionsziel erreicht." and holds silent while the player stays within 10
+  units; when the map stops marking it for 1.5 s (destroyed, killed, opened) it leads on to the nearest target left by
+  itself, and says "Keine Legionsziele mehr auf der Karte." after the last. A walking captain's marker is followed (25 units).
+  Seen live: the Dry Steppes legion (`ZE_Invasion_Demon`). Defense legions (user report 2026-11-05: Skovos' island defense found
+  no target): a marked map ping (`*Defense_MapPing*`, Skovos' `ZE_IslandDefense_MapPing_1..3`, Chakhir's
+  `ZE_TowerDefense_MapPing_1..4`) is taken for a spot under attack (assumed from the game data, not seen live) and comes first,
+  spoken "Legion: Angriff, <side>, N Meter." with its side on the screen from the middle (the high-HP building
+  `*_Structure_HighHP`, the middle's own ping, else the buildings' midpoint; within 10 units no side); with none marked the
+  buildings still standing (`ZE_*Defense_Structure*`, `ZE_Towerdefense_Inhibitor_*`) are the goals ("Gebäude verteidigen"), and a
+  held building gives way to a spot under attack once one is marked; the island's `pirate_ranged_dreg_miniboss` counts as a boss.
+  `--debug`: `PATH … legion <kind>`, `PATH legion target done`, `PATH reached legion target`, and on each press inside a legion
+  `PATH legion area markers: <name> kind <k> flags 0x… (x,y) <distance>; …` (every map marker in the event's level area).
 - After the quest places come the dungeon and cellar entrances within 150 units (`DungeonEntranceCatalog`: the map's portal
   markers of dungeon type or named `*Cellar*`, not hidden; 534 in the open world in 3.2.4), nearest first, spoken "Entrada:
   <dungeon>, N metros." and, on arrival, "Has llegado a la entrada." (tester 2026-10-31: the game's navigation assist ended
@@ -536,7 +555,18 @@ a dungeon's markers after the player leaves it.
 - **Ctrl+Alt+Shift+G** (keyboard, while the game is in front) — the D-pad left toggle for keyboard players (user request 2026-10-02), also
   while a game menu is open (no menu uses it). `Input/GlobalHotkeys` joins the pads' `CombinedPad` after the menu gate.
 - **Ctrl+Alt+Shift+E** (keyboard, while the game is in front) — holding D-pad left: the guide's mode, objectives or exploring.
-- **Shift+F1** (keyboard, world map only) — the waypoint list (user request 2026-10-18; `WaypointListEnabled`):
+- **Shift+F1** (keyboard, world map only) — the map menu (user request 2026-11-06): "Kartenmenü. Wegpunkte, 1 von 3." with
+  Wegpunkte, Dungeons, Keller and Stützpunkte (`MapPlaceList`, `Program.MapPlaceLists`; strongholds = `StrongholdCatalog`, the 21
+  `zone_progress` `arCamps` quests at their `vecStartLocation`, freed or not, region of the nearest waypoint); Enter opens a list, Escape in a list goes back to
+  the menu, in the menu it closes. Dungeons are the `DGN_*` entrances of `DungeonEntranceCatalog` (146 in the open world,
+  build 3.2.4; quest dungeons, the Undercity's districts and seasonal places are `EntranceKind.Other` and not listed), cellars
+  its `OWC_*` ones (175; quest cellars are `EntranceKind.QuestCellar`); both drop a portal whose map condition is another season's (`Season_Active_SeasonN`,
+  `Season_Only_Not_SN`; the season is the highest plain `Season_Active_SeasonN` in the data) or the Torment tier's (the Throne
+  of Hatred), and say the region they lie in. Boss lairs (`EntranceKind.BossLair`, 10 portals into `Boss_*` worlds) and the
+  strongholds (`CMP_*` quests) are not offered yet: the Torment tier and the map's revealed strongholds are not readable yet.
+  On Enter in any list the map zooms out when that brings the entry into view; an entry too far even all the way out puts
+  the cursor on the activated waypoint nearest to it that the cursor reaches (zooming out all the way for it first).
+  `--debug`: `MAPLIST <kind>: N in world W`. The waypoint list (user request 2026-10-18; `WaypointListEnabled`):
   the waypoints the local player's `PlayerSavedData.arWaypointsActivated` lists (`ActivatedWaypointsReader`; nothing when
   it is unreadable, never all of them) in the current world (`WaypointCatalog`, names from the game's StringLists),
   nearest first. Up/down speak `name, region, N meters, direction. i of n` (the region: `WaypointCatalog.Zone`, the Zone of the

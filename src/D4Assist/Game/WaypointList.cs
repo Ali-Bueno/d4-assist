@@ -74,3 +74,17 @@ public sealed record HelltidePlace(string Name, string? Region, string? Area);
 /// <summary>A whisper of the map's events menu: its name and region in the current language (null when unknown), its spot and world, the grim
 /// favors it pays, the minutes it has left and until it starts as of the asking (null when not known or not coming), and whether it is a legion or a world boss, which the menu lists apart.</summary>
 public sealed record WhisperEvent(string Name, string? Region, double X, double Y, int WorldSno, int Favors, Func<int?>? MinutesLeft = null, bool IsEvent = false, Func<int?>? MinutesToStart = null);
+
+/// <summary>A list of the map menu on Shift+F1 (user request 2026-11-06).</summary>
+public enum MapListKind { Waypoints, Dungeons, Cellars, Strongholds, Lairs }
+
+/// <summary>A place of a map menu list other than the waypoints: its name and region in the current language (region null when
+/// unknown), its world and spot.</summary>
+public sealed record MapPlace(string Name, string? Region, int WorldSno, double X, double Y);
+
+/// <summary>A list of the map menu: its kind, its places (asked anew each time it opens, so names follow the language and
+/// filters read the game anew), and whether the menu offers it now (null: always).</summary>
+public sealed record MapPlaceList(MapListKind Kind, Func<IReadOnlyList<MapPlace>> Places, Func<bool>? Shown = null);
+
+/// <summary>A place chosen with Enter in a map menu list (not the waypoints): D-pad left leads to it (user request 2026-11-06).</summary>
+public sealed record MapPlaceChoice(string Name, int WorldSno, double X, double Y);

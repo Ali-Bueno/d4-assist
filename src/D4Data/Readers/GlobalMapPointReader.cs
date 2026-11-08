@@ -8,16 +8,21 @@ namespace D4Data.Readers;
 public enum MapPointKind { Waypoint, Portal, PortalDestination, HiddenCache, Other }
 
 /// <summary>What a portal marker says about where it leads (GlobalMarkerActorPortalData).</summary>
+/// <param name="PhasingVisibilityCondition">snoPhasingVisibilityCondition: the condition the portal is there under, -1 (or 0) for
+/// none; every boss lair's names a world tier (<c>PlayerWorldTier_GameWorldTier_IsWorldTier_Torment_1orGreater</c>).</param>
 public sealed record PortalInfo(
     uint EntranceNameToFind, uint PortalType, int SpecifiedWorld, int DestSubzone, int DestSubzoneType, uint DestSubzoneFlags,
-    uint DungeonArchetype, int DestLevelArea, int DestObjectiveQuest, bool HiddenMapIcon);
+    uint DungeonArchetype, int DestLevelArea, int DestObjectiveQuest, bool HiddenMapIcon, int PhasingVisibilityCondition = -1);
 
 /// <summary>One marker actor of a Global GlobalWaypointData record: a waypoint, dungeon entrance or other map point.</summary>
 /// <param name="EntranceName">dwEntranceName of a waypoint / destination marker (0 for the other kinds).</param>
 /// <param name="ZoneLabel">hZoneLabel of a waypoint marker (0 for the other kinds).</param>
+/// <param name="FogOfWarSno">snoFogOfWar: the fog of war the point's map icon is under, -1 (or 0) for none.</param>
+/// <param name="EnableConditionSno">snoCampaignEnableCondition: the condition that shows the point, -1 (or 0) for none.</param>
 public sealed record MapPoint(
     int GlobalSno, MapPointKind Kind, string TypeName, int MarkerSet, int MarkerPathId, int ActorSno, int ActorType, int GizmoType,
-    int WorldSno, Vector3 Position, int LevelAreaSno, int Subzones, uint EntranceName, uint ZoneLabel, PortalInfo? Portal);
+    int WorldSno, Vector3 Position, int LevelAreaSno, int Subzones, uint EntranceName, uint ZoneLabel, PortalInfo? Portal,
+    int FogOfWarSno = -1, int EnableConditionSno = -1);
 
 /// <summary>Reads GlobalWaypointData.arGlobalMarkerActors from every Global SNO that holds one; all offsets come from the schema.</summary>
 public sealed class GlobalMapPointReader(SnoStore store, TypeSchema schema)
@@ -53,7 +58,8 @@ public sealed class GlobalMapPointReader(SnoStore store, TypeSchema schema)
         int transform = Field("tWorldTransform");
         return new MapPoint(globalSno, kind, typeName, g.I32(Field("snoMarkerSet")), g.I32(Field("dwMarkerPathID")), g.I32(Field("snoActor")),
             g.I32(Field("eActorType")), g.I32(Field("eGizmoType")), g.I32(Field("snoWorld")), g.Vec3(transform + schema.Offset(Transform, "wp")),
-            g.I32(Field("snoLevelArea")), g.ArrayDescriptor(Field("arSubzones")).Size / sizeof(int), data.EntranceName, data.ZoneLabel, data.Portal);
+            g.I32(Field("snoLevelArea")), g.ArrayDescriptor(Field("arSubzones")).Size / sizeof(int), data.EntranceName, data.ZoneLabel, data.Portal,
+            g.I32(Field("snoFogOfWar")), g.I32(Field("snoCampaignEnableCondition")));
     }
 
     private readonly record struct Variant(uint EntranceName, uint ZoneLabel, PortalInfo? Portal);
@@ -75,7 +81,7 @@ public sealed class GlobalMapPointReader(SnoStore store, TypeSchema schema)
             PortalMarker => (MapPointKind.Portal, type, new Variant(0, 0, new PortalInfo(
                 U(type, "dwEntranceNameToFind"), U(type, "dwPortalType"), I(type, "snoSpecifiedWorld"), I(type, "snoPortalDestSubzone"),
                 I(type, "ePortalDestSubzoneType"), U(type, "dwPortalDestSubzoneFlags"), U(type, "gbidDungeonArchetype"), I(type, "snoPortalDestLevelArea"),
-                I(type, "snoPortalDestObjectiveQuest"), I(type, "fHiddenMapIcon") != 0))),
+                I(type, "snoPortalDestObjectiveQuest"), I(type, "fHiddenMapIcon") != 0, I(type, "snoPhasingVisibilityCondition")))),
             _ => (MapPointKind.Other, type, default),
         };
     }

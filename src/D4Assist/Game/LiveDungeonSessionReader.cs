@@ -545,6 +545,11 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public MapView? ReadMapView() => _offsets is { } offsets ? MapViewReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
+    public int? ReadWorldTier() => _offsets is { } offsets ? WorldTierReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
+    public bool? ReadWorldTierMenuOpen() =>
+        _offsets is { } offsets ? WorldTierMenuReader.IsOpen(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
     private MapBountyTableReader? _mapBounties;
 
     public MapBounties? ReadMapBounties(IReadOnlySet<int> quests, MapBountyScanMemory memory) =>

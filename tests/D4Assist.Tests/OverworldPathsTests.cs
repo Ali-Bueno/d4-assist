@@ -41,6 +41,25 @@ public class OverworldPathsTests
         new(Enumerable.Range(40, 4).SelectMany(x => Enumerable.Range(46, 4).Select(y => (x, y))).ToHashSet(), z);
 
     [Fact]
+    public void A_new_search_in_the_same_stretch_reuses_the_map_and_a_door_change_builds_it_anew()
+    {
+        var paths = Paths();
+        var to = new Vector2(80, 48);
+
+        var first = paths.Find("W", new Vector3(10, 48, 0), to, null);
+        var again = paths.Find("W", new Vector3(12, 48, 0), to, null);
+        Assert.Equal((1, 1), paths.MapUse);
+        Assert.NotNull(first);
+        Assert.Equal(first.Count, again!.Count);
+
+        var shut = paths.Find("W", new Vector3(12, 48, 0), to, [Door(0)]);
+        Assert.Equal((2, 1), paths.MapUse);
+        Assert.True(Length(new(12, 48), shut!) > 120f); // round the door, as on a fresh map
+        paths.Find("W", new Vector3(12, 48, 0), to, null);
+        Assert.Equal((3, 1), paths.MapUse);
+    }
+
+    [Fact]
     public void A_locked_door_on_the_way_sends_the_path_round()
     {
         var from = new Vector3(10, 48, 0);

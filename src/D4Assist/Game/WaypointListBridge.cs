@@ -8,6 +8,11 @@ using D4Memory.Ui;
 namespace D4Assist.Game;
 
 /// <summary>
+/// The map menu on the world map (user request 2026-11-06): Shift+F1 opens it with the waypoints first, then the other lists it
+/// is given (dungeons, cellars; each only while it is offered); Enter opens a list, Escape in a list goes back to the menu and in
+/// the menu closes it. Without other lists Shift+F1 opens the waypoint list at once. Every list is nearest first; Enter zooms
+/// the map out when that brings the entry into view, and an entry too far even zoomed out all the way puts the cursor on the
+/// activated waypoint nearest to it that the cursor reaches (zooming out for it), to travel there and choose the entry again.
 /// The waypoint list on the world map: Shift+F1 (only while the map shows and the game has the focus) lists the activated
 /// waypoints of this world, nearest first; up and down read them, Enter puts the mouse cursor on the chosen one and closes
 /// the list, Escape closes it. Everything it says also goes to the braille display (ISpeechSink.Output, user request
@@ -47,6 +52,8 @@ namespace D4Assist.Game;
 /// null for any other marker; null for no goblin list (Shift+F3, user request 2026-10-29).</param>
 /// <param name="readWhispers">The whispers up now; null when the world states are unreadable. Null for no whispers' entry in the events menu.</param>
 /// <param name="eventsReading">True while the map's first read since it opened still runs (MapBountyWatch.Reading): no event listed yet is no answer.</param>
+/// <param name="placeChosen">Told the entry Enter chose in a map menu list other than the waypoints, whether or not the cursor can reach it:
+/// D-pad left then leads there (QuestPathBridge.Choose, user request 2026-11-06).</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
@@ -54,7 +61,8 @@ public sealed class WaypointListBridge(
     Func<MarkedActor, HelltidePlace?>? helltidePlace = null, Func<IReadOnlyList<HelltideRegion>?>? readHelltides = null,
     Func<HelltideRegion, string>? regionName = null, Func<DateTime>? now = null, Action<int>? wait = null, bool helltideEndsEarly = false,
     Func<HelltideRegion, IReadOnlyList<(string Name, double X, double Y)>>? bountiesOf = null,
-    Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null)
+    Func<MarkedActor, HelltidePlace?>? goblinPlace = null, Func<IReadOnlyList<WhisperEvent>?>? readWhispers = null, Func<bool>? eventsReading = null,
+    IReadOnlyList<MapPlaceList>? placeLists = null, Action<MapPlaceChoice>? placeChosen = null)
 {
     private readonly object _gate = new();
     private readonly WaypointList _list = new();
@@ -65,12 +73,14 @@ public sealed class WaypointListBridge(
     private Mode _mode;
     private IReadOnlyList<HelltideRegion> _regions = [];
     private IReadOnlySet<HelltideRegion> _markedOnly = new HashSet<HelltideRegion>();
-    private int _regionIndex, _menuIndex;
+    private int _regionIndex, _menuIndex, _mapMenuIndex;
+    // The open list came from the map menu: Escape goes back to it.
+    private bool _inMapMenu;
     private IReadOnlyDictionary<(string Name, double X, double Y), WhisperEvent> _whispers = new Dictionary<(string, double, double), WhisperEvent>();
 
     // What the open list holds: waypoints (Shift+F1); the events menu and from it the active helltides, one helltide's objects or
     // the whispers (Shift+F2); the treasure goblins the map shows (Shift+F3).
-    private enum Mode { Waypoints, EventsMenu, Regions, Objects, Whispers, Goblins }
+    private enum Mode { Waypoints, EventsMenu, Regions, Objects, Whispers, Goblins, MapMenu, Places }
 
     // Zoomed farther out than this the map shows the helltide's objects as no icon the cursor can point at (live 2026-10-25:
     // gifts said at zoom 1100, not at 1934 or 3046; the steps between are 1100 and 1934).
@@ -160,22 +170,92 @@ public sealed class WaypointListBridge(
         lock (_gate)
         {
             if (!_mapOpen) return;
-            if (readActivated(_levelAreas) is not { } activated)
+            if (placeLists is not { Count: > 0 })
             {
-                log?.Invoke("WAYPOINTS activated list unreadable");
-                CloseLocked(spoken: false);
-                speech.Output(Text.Unreadable, interrupt: true);
+                OpenWaypointsLocked();
                 return;
             }
-            int world = currentWorld();
-            var here = waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
-            var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
-            _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
-            _mode = Mode.Waypoints;
-            log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
-            keys.SetListKeys(_list.IsOpen);
-            speech.Output(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
+            CloseLocked(spoken: false);
+            ShowMapMenu();
         }
+    }
+
+    private MapMenuStrings MapText => MapMenuStrings.For(language.Current);
+
+    // The waypoints first, then each list offered now.
+    private List<MapListKind> MapMenuEntries() =>
+        [MapListKind.Waypoints, .. (placeLists ?? []).Where(l => l.Shown?.Invoke() != false).Select(l => l.Kind)];
+
+    private void ShowMapMenu()
+    {
+        _list.Close();
+        (_regions, _mode, _inMapMenu) = ([], Mode.MapMenu, false);
+        keys.SetListKeys(true);
+        speech.Output($"{MapText.MenuOpened} {MapMenuEntryText()}", interrupt: true);
+    }
+
+    private string MapMenuEntryText()
+    {
+        var entries = MapMenuEntries();
+        _mapMenuIndex = Math.Clamp(_mapMenuIndex, 0, entries.Count - 1);
+        return $"{MapText.Name(entries[_mapMenuIndex])}, {string.Format(HelltideStrings.For(language.Current).PositionFormat, _mapMenuIndex + 1, entries.Count)}";
+    }
+
+    // A list with nothing to show says so and the menu stays.
+    private void ChooseMapMenu()
+    {
+        var entries = MapMenuEntries();
+        var kind = entries[Math.Clamp(_mapMenuIndex, 0, entries.Count - 1)];
+        if (kind == MapListKind.Waypoints)
+        {
+            OpenWaypointsLocked();
+            if (_list.IsOpen) _inMapMenu = true;
+            else (_mode, _inMapMenu) = (Mode.MapMenu, false);
+            keys.SetListKeys(true);
+            return;
+        }
+        var list = placeLists!.First(l => l.Kind == kind);
+        int world = currentWorld();
+        var places = list.Places().Where(p => p.WorldSno == world).ToList();
+        log?.Invoke($"MAPLIST {kind}: {places.Count} in world {world}");
+        string name = MapText.Name(kind);
+        if (places.Count == 0)
+        {
+            speech.Output(string.Format(MapText.EmptyFormat, name), interrupt: true);
+            return;
+        }
+        var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
+        _list.Open(WaypointList.Build(places.Select(pl => (pl.Name, pl.Region, pl.X, pl.Y)), fromX, fromY));
+        (_mode, _inMapMenu) = (Mode.Places, true);
+        speech.Output($"{string.Format(MapText.ListOpenedFormat, name, _list.Count)} {EntryText()}", interrupt: true);
+    }
+
+    private void OpenWaypointsLocked()
+    {
+        if (readActivated(_levelAreas) is not { } activated)
+        {
+            log?.Invoke("WAYPOINTS activated list unreadable");
+            CloseLocked(spoken: false);
+            speech.Output(Text.Unreadable, interrupt: true);
+            return;
+        }
+        int world = currentWorld();
+        var here = waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno);
+        var (fromX, fromY) = _player is { } p ? (p.X, p.Y) : readMapView() is { } view ? (view.CenterX, view.CenterY) : (0f, 0f);
+        _list.Open(WaypointList.Build(here.Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY));
+        _mode = Mode.Waypoints;
+        log?.Invoke($"WAYPOINTS {activated.Count} activated, {_list.Count} in world {world}");
+        keys.SetListKeys(_list.IsOpen);
+        speech.Output(_list.IsOpen ? $"{string.Format(Text.OpenedFormat, _list.Count)} {EntryText()}" : Text.Empty, interrupt: true);
+    }
+
+    // The activated waypoints of the player's world, as entries measured from a spot: the stopovers toward an entry too far.
+    private IReadOnlyList<WaypointEntry> ActivatedHere(double fromX, double fromY)
+    {
+        if (readActivated(_levelAreas) is not { } activated) return [];
+        int world = currentWorld();
+        return WaypointList.Build(waypoints.Where(w => w.WorldSno == world && activated.Contains(w.LevelAreaSno)).DistinctBy(w => w.LevelAreaSno)
+            .Select(w => (nameOf(w), regionOf?.Invoke(w), (double)w.Position.X, (double)w.Position.Y)), fromX, fromY);
     }
 
     private void OpenEvents()
@@ -291,6 +371,9 @@ public sealed class WaypointListBridge(
                 case Mode.Objects or Mode.Regions or Mode.Whispers:
                     ShowMenu();
                     break;
+                case Mode.Waypoints or Mode.Places when _inMapMenu:
+                    ShowMapMenu();
+                    break;
                 default:
                     CloseLocked(spoken: true);
                     break;
@@ -385,6 +468,12 @@ public sealed class WaypointListBridge(
                 speech.Output(MenuText(), interrupt: true);
                 return;
             }
+            if (_mode == Mode.MapMenu)
+            {
+                _mapMenuIndex = Math.Clamp(_mapMenuIndex + regionStep, 0, MapMenuEntries().Count - 1);
+                speech.Output(MapMenuEntryText(), interrupt: true);
+                return;
+            }
             if (_mode == Mode.Regions)
             {
                 _regionIndex = Math.Clamp(_regionIndex + regionStep, 0, _regions.Count - 1);
@@ -406,6 +495,11 @@ public sealed class WaypointListBridge(
                 ChooseMenu();
                 return;
             }
+            if (_mode == Mode.MapMenu)
+            {
+                ChooseMapMenu();
+                return;
+            }
             if (_mode == Mode.Regions)
             {
                 ChooseRegion();
@@ -413,6 +507,11 @@ public sealed class WaypointListBridge(
             }
             if (_list.Current is not { } entry) return;
             if (_mode == Mode.Goblins) entry = Fresh(entry);
+            if (_mode == Mode.Places)
+            {
+                log?.Invoke($"MAPLIST chosen {entry.Name} at ({entry.X:F0},{entry.Y:F0}) for D-pad left");
+                placeChosen?.Invoke(new MapPlaceChoice(entry.Name, currentWorld(), entry.X, entry.Y));
+            }
             if (readMapView() is not { } view || mouse.ClientSize() is not { } size)
             {
                 speech.Output(Text.MapUnreadable, interrupt: true);
@@ -420,10 +519,10 @@ public sealed class WaypointListBridge(
             }
             // Helltide objects and goblins are small icons the cursor can point at only zoomed in.
             float farthestZoom = _mode switch { Mode.Objects or Mode.Goblins => HelltideMaxZoom, Mode.Whispers => WhisperMaxZoom, _ => MapProjection.MaxZoom };
-            // A whisper may lie anywhere: zooming out brings it into view when the map is only zoomed in too far; one out of view
-            // even zoomed out all the way leaves the zoom alone and says its direction (below).
-            if (_mode == Mode.Whispers && MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is null
-                && MapProjection.ToClient(view with { Zoom = WhisperMaxZoom }, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not null)
+            // Zooming out brings an entry into view when the map is only zoomed in too far (whispers; the map menu's lists, user
+            // request 2026-11-06); one out of view even zoomed out all the way takes a stopover (below).
+            if (farthestZoom >= MapProjection.MaxZoom && MapProjection.ToClient(view, entry.X, entry.Y, size.Width, size.Height, TargetInset) is null
+                && MapProjection.ToClient(view with { Zoom = farthestZoom }, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not null)
                 view = ZoomOut(entry, view, size);
             if (view.Zoom > farthestZoom)
             {
@@ -445,8 +544,11 @@ public sealed class WaypointListBridge(
                     speech.Output(string.Format(Text.ZoomOutFormat, entry.Name), interrupt: true);
                     return;
                 }
-                // A stopover is a waypoint to travel to; from another whisper the map wouldn't move.
-                if (_mode != Mode.Whispers && Hop(entry, view, size) is { } hop && mouse.MoveTo(hop.Pixel.X, hop.Pixel.Y))
+                // A stopover is an activated waypoint to travel to, the one nearest to the entry the cursor reaches; zoomed out all
+                // the way the most of them are in reach (user request 2026-11-06).
+                if (farthestZoom >= MapProjection.MaxZoom && view.Zoom < MapProjection.MaxZoom - SettledWithin)
+                    view = ZoomOut(entry with { X = view.CenterX, Y = view.CenterY }, view, size, all: true);
+                if (Hop(entry, view, size) is { } hop && mouse.MoveTo(hop.Pixel.X, hop.Pixel.Y))
                 {
                     log?.Invoke($"WAYPOINT hop {hop.Entry.Name} -> ({hop.Pixel.X},{hop.Pixel.Y}) on the way to {entry.Name}");
                     CloseLocked(spoken: false);
@@ -485,10 +587,12 @@ public sealed class WaypointListBridge(
         Zoom(entry, view, size, inward: true, v => v.Zoom <= HelltideMaxZoom, out var zoomed) ? zoomed : null;
 
     // Out until the entry is in view or the map is out all the way (or stops answering); the view it ended on.
-    private MapView ZoomOut(WaypointEntry entry, MapView view, (int Width, int Height) size)
+    // With all, out all the way.
+    private MapView ZoomOut(WaypointEntry entry, MapView view, (int Width, int Height) size, bool all = false)
     {
         Zoom(entry, view, size, inward: false,
-            v => MapProjection.ToClient(v, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not null || v.Zoom >= MapProjection.MaxZoom, out var zoomed);
+            v => (!all && MapProjection.ToClient(v, entry.X, entry.Y, size.Width, size.Height, TargetInset) is not null)
+                || v.Zoom >= MapProjection.MaxZoom - SettledWithin, out var zoomed);
         return zoomed;
     }
 
@@ -572,20 +676,23 @@ public sealed class WaypointListBridge(
     // out of view and a stopover from which it is farther in takes over (Temis -> Kurast Bazaar, Wejinhani at y 139).
     private const double TargetInset = 60;
 
+    // The activated waypoint nearest to the target that the cursor reaches in this view and that lies nearer to it than the view's
+    // center (user request 2026-11-06: "the nearest waypoint"); null for none.
     private (WaypointEntry Entry, (int X, int Y) Pixel)? Hop(WaypointEntry target, MapView view, (int Width, int Height) size)
     {
         double Remaining(double x, double y) => Math.Sqrt(Math.Pow(target.X - x, 2) + Math.Pow(target.Y - y, 2));
         double fromHere = Remaining(view.CenterX, view.CenterY);
-        return _list.Entries
-            .Where(e => e != target && Remaining(e.X, e.Y) < fromHere)
+        return ActivatedHere(view.CenterX, view.CenterY)
+            .Where(e => Remaining(e.X, e.Y) > SamePlaceUnits && Remaining(e.X, e.Y) < fromHere)
             .Select(e => (Entry: e, Pixel: MapProjection.ToClient(view, e.X, e.Y, size.Width, size.Height, StopoverInset)))
             .Where(c => c.Pixel is not null)
-            .OrderBy(c => MapProjection.ToClient(view with { CenterX = (float)c.Entry.X, CenterY = (float)c.Entry.Y }, target.X, target.Y,
-                size.Width, size.Height, TargetInset) is null ? 1 : 0)
-            .ThenBy(c => Remaining(c.Entry.X, c.Entry.Y))
+            .OrderBy(c => Remaining(c.Entry.X, c.Entry.Y))
             .Select(c => ((WaypointEntry, (int, int))?)(c.Entry, c.Pixel!.Value))
             .FirstOrDefault();
     }
+
+    // A waypoint this close to the target is the target itself.
+    private const double SamePlaceUnits = 1;
 
     private void Close(bool spoken)
     {
@@ -594,9 +701,9 @@ public sealed class WaypointListBridge(
 
     private void CloseLocked(bool spoken)
     {
-        if (_mode is not (Mode.Regions or Mode.EventsMenu) && !_list.IsOpen) return;
+        if (_mode is not (Mode.Regions or Mode.EventsMenu or Mode.MapMenu) && !_list.IsOpen) return;
         _list.Close();
-        _mode = Mode.Waypoints;
+        (_mode, _inMapMenu) = (Mode.Waypoints, false);
         keys.SetListKeys(false);
         if (spoken) speech.Output(Text.Closed, interrupt: true);
     }

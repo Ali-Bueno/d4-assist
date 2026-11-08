@@ -393,7 +393,8 @@ internal static class Program
                         // Character select and creation are menus with no screen of ours; the D-pad moves through them.
                         () => session.CurrentWorld is not { } world || WorldClassifier.IsMenuWorld(world.Name) || cueGate.ShowsNoGameplay,
                         () => Console.WriteLine($"Guide toggle ignored: no gameplay ({session.CurrentWorld?.Name ?? "no world"}).")),
-                    () => menus?.AnyOpen ?? false, () => Console.WriteLine($"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
+                    () => (menus?.AnyOpen ?? false) || StatueMenuOpen(session), () => Console.WriteLine(StatueMenuOpen(session)
+                        ? "Guide toggle ignored: menu open (difficulty statue)." : $"Guide toggle ignored: menu open ({menus?.OpenScreens}).")),
                 hotkeys])
             : null;
         if (pad is not null)
@@ -448,6 +449,7 @@ internal static class Program
         if (guidePing is not null && routesEnabled)
         {
             var paths = OverworldPaths.FromGameData(store, schema, cascGate);
+            var legionTargets = new LegionTargets(store.Name);
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
                 session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
@@ -466,7 +468,9 @@ internal static class Program
                 (world, from, to) => paths.Find(world, from, to, lockedDoors.Walls()),
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(new DungeonEntranceCatalog(store, schema), store, schema, language, cascGate),
-                wallsVersion: () => lockedDoors.Version);
+                wallsVersion: () => lockedDoors.Version,
+                legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
+                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -562,7 +566,16 @@ internal static class Program
                             .ToList();
                     }
                 },
-                eventsReading: () => mapBounties.Reading);
+                eventsReading: () => mapBounties.Reading,
+                placeLists: MapPlaceLists(new DungeonEntranceCatalog(store, schema), new StrongholdCatalog(store, schema), waypointCatalog, zones, store,
+                    language, cascGate, () =>
+                    {
+                        int? tier = null;
+                        session.Query(r => tier = r.ReadWorldTier());
+                        return tier;
+                    }),
+                // D-pad left leads to the place Enter chose (user request 2026-11-06).
+                placeChosen: choice => pathBridge?.Choose(store.Name(choice.WorldSno) ?? "", choice.Name, new Vector2((float)choice.X, (float)choice.Y)));
             session.WorldChanged += (_, _, _) => waypointList.OnWorldChanged();
             session.PlayerMoved += waypointList.OnPlayerMoved;
             session.MapMarkersRead += waypointList.OnMapMarkers;
@@ -937,7 +950,67 @@ internal static class Program
         catch (ArgumentException) { return null; }
     }
 
-    // The dungeon and cellar entrances of a world within a distance of a spot, as places D-pad left leads to, named in the spoken language.
+    // The map menu's lists besides the waypoints (Shift+F1, user request 2026-11-06): the dungeons and the cellars the map shows,
+    // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds, freed or not
+    // (user request: to find the places near one before it is freed; which are freed is not read yet), with the region of the
+    // waypoint nearest to each; and the boss lairs, only on a Torment tier, as the map shows them (each portal names the tier it
+    // is there from: Torment 1, Mephisto's Torment 10; the campaign each also asks for is taken as done).
+    private static IReadOnlyList<MapPlaceList> MapPlaceLists(DungeonEntranceCatalog catalog, StrongholdCatalog strongholds,
+        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate, Func<int?> worldTier)
+    {
+        IReadOnlyList<MapPlace> Strongholds()
+        {
+            lock (cascGate)
+            {
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                return
+                [
+                    .. strongholds.All.Select(s => new MapPlace(strongholds.Name(s, locale),
+                        waypoints.All.Where(w => w.WorldSno == s.WorldSno)
+                            .MinBy(w => Vector2.Distance(new Vector2(w.Position.X, w.Position.Y), new Vector2(s.Position.X, s.Position.Y))) is { } near
+                            ? waypoints.Zone(near, locale) : null,
+                        s.WorldSno, s.Position.X, s.Position.Y)),
+                ];
+            }
+        }
+
+        IReadOnlyList<MapPlace> Of(EntranceKind kind)
+        {
+            int? tier = worldTier(); // read before taking the data lock, as the whispers are
+            lock (cascGate)
+            {
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                var places = new List<MapPlace>();
+                foreach (var e in catalog.All.Where(e => e.Kind == kind && catalog.Shown(e, tier)))
+                {
+                    var place = new MapPlace(catalog.Name(e, locale), e.LevelAreaSno > 0 ? zones.Name(e.LevelAreaSno, locale) : null, e.WorldSno, e.Position.X, e.Position.Y);
+                    if (!places.Any(p => p.Name == place.Name && Math.Abs(p.X - place.X) + Math.Abs(p.Y - place.Y) < SameEntranceUnits)) places.Add(place);
+                }
+                return places;
+            }
+        }
+        return
+        [
+            new(MapListKind.Dungeons, () => Of(EntranceKind.Dungeon)), new(MapListKind.Cellars, () => Of(EntranceKind.Cellar)),
+            new(MapListKind.Strongholds, Strongholds),
+            new(MapListKind.Lairs, () => Of(EntranceKind.BossLair), () => worldTier() >= WorldTierCondition.FirstTorment),
+        ];
+    }
+
+    // The difficulty statue's menu is no screen of the registry, so the menu watch misses it; its own pointer tells (live
+    // 2026-11-07: D-pad left in it started the guide).
+    private static bool StatueMenuOpen(GameSession session)
+    {
+        bool open = false;
+        session.Query(r => open = r.ReadWorldTierMenuOpen() == true);
+        return open;
+    }
+
+    // Two portals of one name this close are one entrance (a dungeon's door with its own way back out beside it).
+    private const double SameEntranceUnits = 10;
+
+    // The dungeon and cellar entrances of a world within a distance of a spot, as places D-pad left leads to, named in the spoken language;
+    // not quest cellars, which stand there only while their quest runs.
     private static Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>> NearbyEntrances(
         DungeonEntranceCatalog catalog, SnoStore store, TypeSchema schema, LanguageSetting language, object cascGate) =>
         (worldName, here, range) =>
@@ -948,7 +1021,8 @@ internal static class Program
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 return
                 [
-                    .. catalog.All.Where(e => e.WorldSno == world && Vector2.Distance(here, new Vector2(e.Position.X, e.Position.Y)) <= range)
+                    .. catalog.All.Where(e => e.WorldSno == world && e.Kind != EntranceKind.QuestCellar
+                            && Vector2.Distance(here, new Vector2(e.Position.X, e.Position.Y)) <= range)
                         .Select(e => new QuestMapPlace(0, catalog.Name(e, locale), 0, new Vector2(e.Position.X, e.Position.Y), Entrance: true)),
                 ];
             }

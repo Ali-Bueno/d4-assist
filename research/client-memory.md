@@ -538,6 +538,24 @@ restart while mounted (the player's RActor is still listed) and in a dungeon.
   waypoints within the beacon reach (60) whose LevelArea is missing from this list, re-read every 2 s while one is near.
   The catalog position is the global marker's; whether it matches the `Waypoint_Temp` actor is unchecked.
 
+### World tier (live 2026-11-07, build 3.2.4.74043, user at the Skovos difficulty statue)
+
+- **G + 0x990: u32 eWorldTier**, the difficulty the statue sets: 0 Normal, 1 Hard, 2 Expert, 3 Penitent, 4 Torment 1 … 15
+  Torment 12 (the counting is the ConditionDefinitions': `WorldTier_IsWorldTier_Torment_1` = equal 4,
+  `WorldTier_ItemSource_Torment_12orGreater` = at least 15). Read 5, 4 (first run) and 7, 5, 0, 3 as the user set Torment 2,
+  Torment 1, Torment 4, Torment 2, Normal, Penitent; the only spot behind a module pointer (16 module words, all reaching the
+  same heap address, the game object's at +0x990) that followed every change. `WorldTierReader`.
+- **The statue's menu** is no screen of the registry (a `screens` watch saw nothing at the statue; map and inventory toggled as usual). `[[G + 0xC78] + 0x3F0]` (the map view's object) is a pointer set while it is open, 0 otherwise: three openings, 0 through the map, the inventory and the blacksmith (module RVA 0x30471A8 flips 0/1 with it). Found by a diff of the module image and G's pointees, two closed and two open snapshots (71 words kept). `WorldTierMenuReader`; D-pad left is swallowed there (it started the guide before).
+- G + 0x994 held 7 throughout: the highest tier the character has unlocked (Torment 4, user). Not read.
+- Dead ends: a value-diff over the heap (2026-11-06 and again 2026-11-07 with `snap` skipping regions over 256 MB) never kept
+  the spot, because G's block lies in a larger region; the stale hits that stepped through some changes were copies (menu
+  state). The player ACD has no tier attribute (`Difficulty_Tier_Offset_On_Player` is absent).
+- **What shows a boss lair on the map:** each lair portal's `GlobalMarkerActorPortalData.snoPhasingVisibilityCondition`,
+  `PlayerWorldTier_GameWorldTier_IsWorldTier_Torment_1orGreater` (game tier and player tier at least 4; Belial's `S08_…`,
+  Urivar's and the Harbinger's `Campaign_X1_Complete_…`), Mephisto's `Campaign_X2_Complete_…_Torment_10orGreater` (13).
+  `WorldTierCondition` reads the floor; `DungeonEntrance.MinWorldTier`. Other portals with a floor: the Throne of Hatred and
+  the Butcher's S12 lair (4), seasonal capstones and `MJD_*`/`X1R_*` places (`EntranceKind.Other`, not listed).
+
 ### Currencies (live 2026-10-28, build 3.2.3.73883, Scosglen helltide)
 
 - **The local player's currencies sit at slot + 0x7688** (H): 98 entries 16 bytes apart, one per `eCurrencyType` (as many

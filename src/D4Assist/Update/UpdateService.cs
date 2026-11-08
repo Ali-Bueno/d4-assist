@@ -130,7 +130,7 @@ public sealed class UpdateService(
             if (!_appStarted.Task.IsCompleted) log("Update downloaded; it is installed once the app has finished starting.");
             await _appStarted.Task;
             var report = FileReplacement.Apply(appFolder, files, exeName, UpdatePackage.BackupPath(release.Version));
-            log($"Updated to {release.Version.ToString(3)}: copied {string.Join(", ", report.Copied)}; kept {string.Join(", ", report.Kept)}.");
+            log($"Updated to {release.Version.ToString(3)}: copied {string.Join(", ", report.Copied)}; kept {string.Join(", ", report.Kept)}; {report.Unchanged.Count} unchanged.");
         }
         catch (UnauthorizedAccessException e)
         {

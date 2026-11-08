@@ -52,6 +52,16 @@ It talks in the same language your game is in (13 languages). Only English and
 Spanish were written by me; the rest are machine translations, so if something
 sounds weird in your language, let me know.
 
+On Linux (Steam with Proton), run D4Assist.exe in the game's Proton prefix,
+with its "wine" folder (the one next to D4Assist.exe) in WINEDLLPATH: that's
+how it reaches Linux's speech. Speech Dispatcher, Orca or Spiel has to be
+running. With protontricks, for example:
+WINEDLLPATH="/path/to/D4Assist/wine" protontricks-launch --appid 2344520 /path/to/D4Assist/D4Assist.exe
+Cthulhu's Wine Access (its NVDA stand-in) doesn't work with it any more: the
+screen reader library it uses can't check NVDA under Wine. If it finds no
+voice at all, d4assist-log.txt says so, with the path to put in WINEDLLPATH.
+I haven't tried it on Linux myself yet, so let me know how it goes.
+
 
 What it does
 

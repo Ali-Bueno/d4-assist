@@ -2,8 +2,9 @@ bin/
 obj/
 artifacts/
 data/
-# Native binaries (PRISM comes from the Prismatoid NuGet package; templates' copies aren't needed here)
+# Native binaries (templates' copies aren't needed here), except the prebuilt PRISM the app ships (third_party/prism/README.md)
 *.dll
 *.lib
 *.exe
 *.pdb
+!third_party/prism/*.dll

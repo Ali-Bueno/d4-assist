@@ -30,7 +30,7 @@ internal static class SoundTestMode
 
     public static int Run(bool noSpeech)
     {
-        using ISpeechSink speech = noSpeech ? new ConsoleSpeechSink() : new PrismSpeechSink();
+        using ISpeechSink speech = (noSpeech ? null : PrismSpeechSink.TryCreate(out _)) ?? (ISpeechSink)new ConsoleSpeechSink();
         using var player = new RadarCuePlayer(new WaveOutAudioOut());
 
         speech.Speak("Prueba de sonidos del radar", interrupt: true);

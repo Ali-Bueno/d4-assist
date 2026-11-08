@@ -1,10 +1,10 @@
 namespace D4Assist.Update;
 
 /// <summary>What a replacement did, by path relative to the app folder.</summary>
-public sealed record ReplacementReport(IReadOnlyList<string> Copied, IReadOnlyList<string> Kept);
+public sealed record ReplacementReport(IReadOnlyList<string> Copied, IReadOnlyList<string> Kept, IReadOnlyList<string> Unchanged);
 
 /// <summary>
-/// Puts an extracted release over the app folder. The running exe is renamed to ".old" (Windows allows that), the new
+/// Puts an extracted release over the app folder. The running exe is renamed to ".old" (Windows allows that), the changed
 /// files are copied in, and any failure puts everything back. The player's d4assist.json is never overwritten.
 /// </summary>
 public static class FileReplacement
@@ -13,6 +13,7 @@ public static class FileReplacement
     public const string ReleaseExeName = "D4Assist.exe";
 
     private const string OldSuffix = ".old";
+    private const string NewSuffix = ".new";
     private const string WriteProbeName = "d4assist-write-test.tmp";
     private const string ConfigFileName = "d4assist.json";
     // The old process may still hold its exe for a moment after the new copy starts.
@@ -56,6 +57,7 @@ public static class FileReplacement
         var backups = new List<(string Original, string Backup)>();
         var copied = new List<string>();
         var kept = new List<string>();
+        var unchanged = new List<string>();
         File.Delete(oldExe);
         File.Move(runningExe, oldExe);
         try
@@ -70,10 +72,15 @@ public static class FileReplacement
                     kept.Add(relative);
                     continue;
                 }
+                if (!isExe && File.Exists(target) && SameBytes(source, target))
+                {
+                    unchanged.Add(relative);
+                    continue;
+                }
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 if (!isExe && File.Exists(target)) backups.Add((target, Backup(backupFolder, target, appFolder)));
                 else created.Add(target);
-                File.Copy(source, target, overwrite: true);
+                Place(source, target);
                 copied.Add(relative);
             }
         }
@@ -82,8 +89,25 @@ public static class FileReplacement
             RollBack(runningExe, oldExe, created, backups);
             throw;
         }
-        return new ReplacementReport(copied, kept);
+        return new ReplacementReport(copied, kept, unchanged);
     }
+
+    // Written beside the old file and moved over it: a library the running app has mapped (Wine's wine/*.dll.so, read from
+    // WINEDLLPATH) keeps its old file instead of being cut short under it.
+    private static void Place(string source, string target)
+    {
+        var temp = target + NewSuffix;
+        File.Copy(source, temp, overwrite: true);
+        try { File.Move(temp, target, overwrite: true); }
+        catch
+        {
+            Try(() => File.Delete(temp));
+            throw;
+        }
+    }
+
+    private static bool SameBytes(string a, string b) =>
+        new FileInfo(a).Length == new FileInfo(b).Length && File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
 
     private static string Backup(string backupFolder, string target, string appFolder)
     {

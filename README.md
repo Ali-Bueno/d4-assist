@@ -37,6 +37,17 @@ of the game: update now, remind me later, or skip that version.
 It talks in the same language your game is in (13 languages). Only English and Spanish were written by me; the rest
 are machine translations, so if something sounds weird in your language, let me know.
 
+**On Linux (Steam with Proton)**, run `D4Assist.exe` in the game's Proton prefix with its `wine` folder (next to
+`D4Assist.exe`) in `WINEDLLPATH`: that's how it reaches Linux's speech, through PRISM's Wine bridges. Speech Dispatcher,
+Orca or Spiel has to be running. With protontricks, for example:
+
+```sh
+WINEDLLPATH="/path/to/D4Assist/wine" protontricks-launch --appid 2344520 /path/to/D4Assist/D4Assist.exe
+```
+
+Cthulhu's Wine Access (its NVDA stand-in) doesn't work with it any more: PRISM can't check NVDA under Wine. If it finds
+no voice at all, `d4assist-log.txt` says so, with the path to put in `WINEDLLPATH`. Not tried on Linux by me yet.
+
 ## What it does
 
 All the directions are the ones from your stick, on the screen: up, down, left, right and the diagonals. If it says an

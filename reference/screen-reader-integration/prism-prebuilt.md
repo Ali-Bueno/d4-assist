@@ -45,6 +45,21 @@
   pinned to an affected version, the workaround is to enumerate the registry and pick the highest-priority
   backend reporting `IS_SUPPORTED_AT_RUNTIME` instead of `acquire_best` — and retire that workaround once
   you upgrade to ≥ v0.17.0.
+- **Wine / Proton: NVDA works only on cores before v0.16.2 (verified in source 2026-11-08).** From v0.16.2 (`83f73a8`)
+  the NVDA backend also requires `RpcMgmtInqIfIds` to list the NvdaController interface (v0.18.3
+  `source/backends/nvda.cpp:51-72, 164-169`). In Wine that call is a stub that always returns `RPC_S_INVALID_BINDING`
+  (`dlls/rpcrt4/rpc_server.c:1650`), so NVDA never initializes there, even against a working substitute: Cthulhu's
+  "Wine Access" (`cthulhu-wine-access.exe`) serves the real `NvdaCtlr.<session>.<desktop>` RPC endpoint in the prefix.
+  v0.12.2 checks `testIfRunning` only, so D4 Assist 0.1.32 (Prismatoid 0.3.0 bundles v0.12.2 byte for byte) spoke through
+  Wine Access under Proton. From v0.18.3 the Wine bridges (Orca, Speech Dispatcher, Spiel) are the way instead: placeholder
+  DLLs from `prism-linux-x64.zip` `dynamic/release/wine/placeholders/` found by plain `LoadLibrary` (so beside the exe),
+  else in `prism.dll`'s own folder (`source/optional_library.cpp:56-64`), and the `.dll.so` halves in a folder listed in
+  `WINEDLLPATH` when the process starts (upstream `doc/src/wine-bridges.md`). The same tester's Orca bridge reached
+  Cthulhu in another mod (Grimdark, reported to the D2R mod). D4 Assist ships v0.18.3 this way from 2026-11-08
+  (`third_party/prism/README.md`); the D2R mod's `docs/proton.md` is the worked example for an injected mod.
+- **Prismatoid vs. newer cores:** 0.3.0 passes `PrismConfig { version = 2 }`, which v0.18.3's `prism_init` accepts
+  (versions 1-4). 0.4.0 (core v0.17.3) marshals its own 48-byte config from `prism_config_init`, which in v0.18.3
+  (`PRISM_CONFIG_VERSION` 4) writes 56 bytes, so 0.4.0 must not drive a v0.18.3 `prism.dll`.
 - **Official bindings — "Prismatoid"** (an in-progress effort upstream): **.NET** — `Prismatoid` on
   NuGet (v0.3.0 as of 2026-07, MPL-2.0) targets **.NET 10** → fine for standalone tools, NOT loadable
   inside BepInEx (net472/net6) or other injected .NET hosts, which keep the P/Invoke dynamic-load path

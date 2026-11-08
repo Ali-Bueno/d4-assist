@@ -52,11 +52,15 @@ Controller input and the rest of the announcement content are future work — se
 ## Requirements
 
 - **PRISM**: this app uses the official **Prismatoid** .NET binding (NuGet, targets net10.0 — loads fine in
-  a standalone app; see `reference/screen-reader-integration/prism-prebuilt.md`). Its NuGet package bundles
-  the matching native `prism.dll` per platform (`runtimes/win-x64/native/`), copied to the output
-  automatically by the SDK — nothing to download or ship by hand.
+  a standalone app; see `reference/screen-reader-integration/prism-prebuilt.md`). Its own native `prism.dll`
+  (v0.12.2) is left out (`ExcludeAssets="native"`): the app ships PRISM v0.18.3 from `third_party/prism/`
+  ([README](../../third_party/prism/README.md)), whose Wine bridges reach Linux's speech under Proton. `prism.dll` and the
+  three bridge placeholders go inside the portable exe (extracted together, where PRISM looks for the placeholders);
+  the Linux halves stay in `wine/` beside the exe, for `WINEDLLPATH`. Under Wine the log says `Wine <version>; PRISM's
+  Linux bridges in <Unix path>; WINEDLLPATH …` (`Speech/WineHost`), and with no backend the app stops with the path to set.
 - **A screen reader**: NVDA (the project's target), JAWS or SAPI — whichever PRISM picks as the best
-  available backend at startup (logged to the console).
+  available backend at startup (logged to the console). Under Proton: Speech Dispatcher, Orca or Spiel through the
+  bridges; PRISM's NVDA backend never starts under Wine from v0.16.2 (Cthulhu's Wine Access worked with v0.12.2).
 - **Diablo IV accessibility options**: not required for this app itself (it doesn't touch the game's own TTS
   route), but the user's overall setup expects **Use Screen Reader** + **Use 3rd-Party Screen Reader** on,
   per `research/runtime-signals.md` §1.
@@ -104,8 +108,9 @@ notes): Update now, Remind me later (also Escape: nothing saved, asked again nex
 checks stay quiet about that version, a newer one or a manual check asks again). An automatic check holds the question back
 while the game window is in the foreground (`ForegroundGate`, polled every 5 s); a manual check asks at once and releases a
 waiting one. On Update `UpdatePackage` downloads `D4Assist.zip` to `%TEMP%\D4AssistUpdate\<version>`, checks the release's SHA-256 and unpacks it, and
-`FileReplacement` renames the running exe to `D4Assist.exe.old`, copies the new files (an existing `d4assist.json` is never
-overwritten), rolls back on any failure, and the app restarts through the tray's restart path. The `.old` file is deleted at
+`FileReplacement` renames the running exe to `D4Assist.exe.old`, copies the changed files (an existing `d4assist.json` is never
+overwritten; an unchanged file is left alone, and a changed one is written beside and moved over it, so a `wine/*.dll.so` Wine
+has mapped isn't cut short under the running app), rolls back on any failure, and the app restarts through the tray's restart path. The `.old` file is deleted at
 the next start. Only the single-file portable build replaces itself; a dev build only logs that it skipped the check.
 
 ## Notification area and settings window
@@ -641,7 +646,7 @@ Output goes to `d4assist-log.txt` (there is no console window).
 
 ## Layout
 
-- `Speech/` — `ISpeechSink` (the single sink, CLAUDE.md §9), `PrismSpeechSink` (Prismatoid), `ConsoleSpeechSink`.
+- `Speech/` — `ISpeechSink` (the single sink, CLAUDE.md §9), `PrismSpeechSink` (Prismatoid), `ConsoleSpeechSink`, `WineHost` (Wine version and Unix paths for the log).
 - `Strings/` — `AppStrings`, every app-level spoken string in one place (one instance per language); `SettingsStrings`,
   the tray menu and settings window text.
 - `Config/` — `AppConfig` (`d4assist.json` loading and saving), the sound settings (`SoundSettings`, `SoundCatalog`,

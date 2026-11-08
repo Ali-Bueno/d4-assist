@@ -273,6 +273,28 @@ public sealed class FileReplacementTests : IDisposable
         Assert.DoesNotContain("d4assist.json", report.Copied);
     }
 
+    // Under Wine the app has PRISM's wine/*.dll.so mapped while it updates: a file rewritten in place would be cut short under it.
+    [Fact]
+    public void An_unchanged_file_is_not_written_and_a_changed_one_in_a_subfolder_is_replaced()
+    {
+        Directory.CreateDirectory(Path.Combine(App, "wine"));
+        Directory.CreateDirectory(Path.Combine(Files, "wine"));
+        Put(App, "wine/bridge.dll.so", "same");
+        Put(Files, "wine/bridge.dll.so", "same");
+        Put(App, "wine/other.dll.so", "old");
+        Put(Files, "wine/other.dll.so", "new");
+        var written = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(Path.Combine(App, "wine/bridge.dll.so"), written);
+
+        var report = FileReplacement.Apply(App, Files, Exe, Backup);
+
+        Assert.Equal(written, File.GetLastWriteTimeUtc(Path.Combine(App, "wine/bridge.dll.so")));
+        Assert.Contains(Path.Combine("wine", "bridge.dll.so"), report.Unchanged);
+        Assert.Equal("new", Read("wine/other.dll.so"));
+        Assert.Contains(Path.Combine("wine", "other.dll.so"), report.Copied);
+        Assert.Empty(Directory.EnumerateFiles(App, "*.new", SearchOption.AllDirectories));
+    }
+
     [Fact]
     public void The_update_state_file_is_left_alone()
     {

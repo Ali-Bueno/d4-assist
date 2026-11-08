@@ -9,12 +9,32 @@ namespace D4Assist.Speech;
 /// </summary>
 public sealed class PrismSpeechSink : ISpeechSink
 {
-    private readonly PrismContext _context = new();
+    private readonly PrismContext _context;
     private readonly IPrismBackend _backend;
 
-    public PrismSpeechSink()
+    private PrismSpeechSink(PrismContext context, IPrismBackend backend)
     {
-        _backend = _context.AcquireBestBackend();
+        _context = context;
+        _backend = backend;
+    }
+
+    /// <summary>The sink on PRISM's best backend, or null with PRISM's reason when it finds no screen reader or voice
+    /// (under Wine: no bridge reached Linux's speech).</summary>
+    public static PrismSpeechSink? TryCreate(out string? failure)
+    {
+        PrismContext? context = null;
+        try
+        {
+            context = new PrismContext();
+            failure = null;
+            return new PrismSpeechSink(context, context.AcquireBestBackend());
+        }
+        catch (PrismException e)
+        {
+            context?.Dispose();
+            failure = e.Message;
+            return null;
+        }
     }
 
     public string BackendName => _backend.Name;

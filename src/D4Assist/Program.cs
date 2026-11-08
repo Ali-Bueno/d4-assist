@@ -91,7 +91,11 @@ internal static class Program
         if ((GameLocale.ReadLauncherLocale(installPath) ?? logWatcher.ReadLastTextLocaleAtStartup()) is { } startLocale) follower.OnTextLocale(startLocale);
         logWatcher.TextLocaleChanged += follower.OnTextLocale;
 
-        using ISpeechSink speech = noSpeech || !config.SpeechEnabled ? new ConsoleSpeechSink() : new PrismSpeechSink();
+        if (WineHost.Describe(AppContext.BaseDirectory) is { } wine) Console.WriteLine(wine);
+        ISpeechSink? prism = null;
+        if (!noSpeech && config.SpeechEnabled && (prism = PrismSpeechSink.TryCreate(out var speechFailure)) is null)
+            return Fail($"No screen reader or voice found (PRISM: {speechFailure}). {WineHost.StartHint(AppContext.BaseDirectory)}".TrimEnd());
+        using ISpeechSink speech = prism ?? new ConsoleSpeechSink();
         Console.WriteLine($"Speech backend: {speech.BackendName}");
         speech.Speak(AppStrings.For(language.Current).AssistantActive, interrupt: true);
         if (debug) speech.Speak(AppStrings.For(language.Current).DebugMode, interrupt: false);

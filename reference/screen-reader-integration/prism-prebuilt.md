@@ -55,8 +55,16 @@
   DLLs from `prism-linux-x64.zip` `dynamic/release/wine/placeholders/` found by plain `LoadLibrary` (so beside the exe),
   else in `prism.dll`'s own folder (`source/optional_library.cpp:56-64`), and the `.dll.so` halves in a folder listed in
   `WINEDLLPATH` when the process starts (upstream `doc/src/wine-bridges.md`). The same tester's Orca bridge reached
-  Cthulhu in another mod (Grimdark, reported to the D2R mod). D4 Assist ships v0.18.3 this way from 2026-11-08
-  (`third_party/prism/README.md`); the D2R mod's `docs/proton.md` is the worked example for an injected mod.
+  Cthulhu in Grimdark and in the D2R mod (1.0.12). **Under Wine, ask for the bridged backends by id, highest priority
+  first, never `acquire_best`:** Proton's SAPI (`protontts` over eSpeak-NG, whose data the Steam runtime lacks) reports a
+  voice and stays mute, and v0.18.3 ranks it 97 like Speech Dispatcher (Orca 100), so `acquire_best` returns SAPI
+  whenever Orca's bridge can't load (D2R mod, 2026-11-08/09). Prismatoid: `AvailableBackends` + `AcquireBackend(id)`;
+  PRISM's log at debug (`prism_set_log_handler`/`prism_set_log_level`, P/Invoke in Prismatoid 0.3.0) says why a bridge
+  failed. `protontricks-launch` does not pass `WINEDLLPATH` on (same prefix: through it SAPI, through `proton` directly
+  Orca): start the process with Proton itself. Orca/Cthulhu is the route heard so far; the Speech Dispatcher bridge also
+  needs `libspeechd.so.2`, which SteamLinuxRuntime_4 lacks. D4 Assist ships v0.18.3 this way from 2026-11-08
+  (`third_party/prism/README.md`, `PrismSpeechSink`); the D2R mod's `docs/proton.md` is the worked example for an
+  injected mod.
 - **Prismatoid vs. newer cores:** 0.3.0 passes `PrismConfig { version = 2 }`, which v0.18.3's `prism_init` accepts
   (versions 1-4). 0.4.0 (core v0.17.3) marshals its own 48-byte config from `prism_config_init`, which in v0.18.3
   (`PRISM_CONFIG_VERSION` 4) writes 56 bytes, so 0.4.0 must not drive a v0.18.3 `prism.dll`.

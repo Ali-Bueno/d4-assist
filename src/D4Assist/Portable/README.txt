@@ -52,14 +52,20 @@ It talks in the same language your game is in (13 languages). Only English and
 Spanish were written by me; the rest are machine translations, so if something
 sounds weird in your language, let me know.
 
-On Linux (Steam with Proton), run D4Assist.exe in the game's Proton prefix,
-with its "wine" folder (the one next to D4Assist.exe) in WINEDLLPATH: that's
-how it reaches Linux's speech. Speech Dispatcher, Orca or Spiel has to be
-running. With protontricks, for example:
-WINEDLLPATH="/path/to/D4Assist/wine" protontricks-launch --appid 2344520 /path/to/D4Assist/D4Assist.exe
-Cthulhu's Wine Access (its NVDA stand-in) doesn't work with it any more: the
-screen reader library it uses can't check NVDA under Wine. If it finds no
-voice at all, d4assist-log.txt says so, with the path to put in WINEDLLPATH.
+On Linux (Steam with Proton), start D4Assist.exe with Proton in the game's
+prefix, with its "wine" folder (the one next to D4Assist.exe) in WINEDLLPATH:
+that's how it reaches Linux's speech, and Wine only reads WINEDLLPATH when the
+program starts. Orca or Cthulhu has to be running (Speech Dispatcher and Spiel
+have bridges too, but nobody has heard them yet). From the D4Assist folder,
+with the Proton your game uses:
+export STEAM_COMPAT_DATA_PATH="$HOME/.local/share/Steam/steamapps/compatdata/2344520"
+export STEAM_COMPAT_CLIENT_INSTALL_PATH="$HOME/.local/share/Steam"
+WINEDLLPATH="$PWD/wine" "$HOME/.local/share/Steam/steamapps/common/Proton - Experimental/proton" run ./D4Assist.exe
+Don't use protontricks-launch: it doesn't pass WINEDLLPATH on. Cthulhu's Wine
+Access (its NVDA stand-in) doesn't work with it any more either: the screen
+reader library it uses can't check NVDA under Wine. Under Wine it never uses
+Wine's own Windows voice, which is silent under Proton. If it finds no voice,
+d4assist-log.txt says why, with the path to put in WINEDLLPATH.
 I haven't tried it on Linux myself yet, so let me know how it goes.
 
 

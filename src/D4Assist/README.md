@@ -58,9 +58,13 @@ Controller input and the rest of the announcement content are future work — se
   three bridge placeholders go inside the portable exe (extracted together, where PRISM looks for the placeholders);
   the Linux halves stay in `wine/` beside the exe, for `WINEDLLPATH`. Under Wine the log says `Wine <version>; PRISM's
   Linux bridges in <Unix path>; WINEDLLPATH …` (`Speech/WineHost`), and with no backend the app stops with the path to set.
+  Under Wine it tries only the bridged backends, highest priority first (`PrismSpeechSink.WineBridgesByPriority`), never
+  `acquire_best`: Proton's SAPI says it has a voice and stays mute, and it ties with Speech Dispatcher at 97, so
+  `acquire_best` picks it whenever Orca's bridge can't load. While it chooses, PRISM's own log goes to ours at debug
+  (`Speech/PrismLog`, P/Invoke: Prismatoid 0.3.0 has no log API), which says why a bridge didn't load.
 - **A screen reader**: NVDA (the project's target), JAWS or SAPI — whichever PRISM picks as the best
-  available backend at startup (logged to the console). Under Proton: Speech Dispatcher, Orca or Spiel through the
-  bridges; PRISM's NVDA backend never starts under Wine from v0.16.2 (Cthulhu's Wine Access worked with v0.12.2).
+  available backend at startup (logged to the console). Under Proton: Orca (Cthulhu), Speech Dispatcher or Spiel through
+  the bridges; PRISM's NVDA backend never starts under Wine from v0.16.2 (Cthulhu's Wine Access worked with v0.12.2).
 - **Diablo IV accessibility options**: not required for this app itself (it doesn't touch the game's own TTS
   route), but the user's overall setup expects **Use Screen Reader** + **Use 3rd-Party Screen Reader** on,
   per `research/runtime-signals.md` §1.
@@ -646,7 +650,8 @@ Output goes to `d4assist-log.txt` (there is no console window).
 
 ## Layout
 
-- `Speech/` — `ISpeechSink` (the single sink, CLAUDE.md §9), `PrismSpeechSink` (Prismatoid), `ConsoleSpeechSink`, `WineHost` (Wine version and Unix paths for the log).
+- `Speech/` — `ISpeechSink` (the single sink, CLAUDE.md §9), `PrismSpeechSink` (Prismatoid), `ConsoleSpeechSink`, `WineHost` (Wine version and Unix paths for the log), `PrismLog` (PRISM's own log while a
+  backend is chosen under Wine).
 - `Strings/` — `AppStrings`, every app-level spoken string in one place (one instance per language); `SettingsStrings`,
   the tray menu and settings window text.
 - `Config/` — `AppConfig` (`d4assist.json` loading and saving), the sound settings (`SoundSettings`, `SoundCatalog`,

@@ -40,7 +40,7 @@ public static class WineHost
     /// <summary>Under Wine, how to start the app so PRISM reaches Linux's speech; null on Windows.</summary>
     public static string? StartHint(string appFolder) =>
         Version is null ? null
-            : $"Under Linux, start D4Assist.exe with WINEDLLPATH=\"{BridgeFolder(appFolder)}\", with Speech Dispatcher, Orca or Spiel running. See README.txt.";
+            : $"Under Linux, start D4Assist.exe with Proton and WINEDLLPATH=\"{BridgeFolder(appFolder)}\" (protontricks-launch doesn't pass it on), with Orca or Cthulhu running. See README.txt.";
 
     private static string BridgeFolder(string appFolder)
     {

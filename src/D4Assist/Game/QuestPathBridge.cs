@@ -167,6 +167,14 @@ public sealed class QuestPathBridge
     private (string World, QuestMapPlace Place)? _chosen;
     private TimeSpan? _missingSince;
 
+    // The stronghold guide (StrongholdTargeting): on until switched off or the stronghold is left or freed.
+    private readonly Func<IReadOnlyList<MarkedActor>, Vector2, bool, StrongholdTargets?> _strongholdTargets;
+    private bool _strongholdOn;
+    private bool _explore;
+    private uint? _strongholdPhase;
+    private readonly List<Vector2> _reached = [];
+    private bool _toldNone;
+
     /// <summary>True where D-pad left leads to quest places: the exploration guide then leaves the press to it.</summary>
     public bool TakesPad { get { lock (_gate) return _leads; } }
 
@@ -192,6 +200,9 @@ public sealed class QuestPathBridge
     /// <param name="propsOnPath">True when a standing prop bars the path's points (OverworldPaths.Bars): only then is the path found
     /// again, as props come and go all the time while the player walks; null for never.</param>
     /// <param name="blockedSpots">Where the player stood stuck, by world, kept across runs (BlockedSpots.Load); null for this run only.</param>
+    /// <param name="strongholdTargets">The running stronghold the player stands in with its targets, exploring or not
+    /// (StrongholdTargeting.At); null when there is none. Inside one D-pad left switches the stronghold guide on and off, and
+    /// holding it switches between the step's targets and exploring; null for no stronghold guide.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
@@ -201,8 +212,9 @@ public sealed class QuestPathBridge
         Func<IReadOnlyList<MarkedActor>, Vector2, IReadOnlyList<LegionTarget>>? legionTargets = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen,
         Action? forgetPaths = null, Func<int>? propsVersion = null, Func<IReadOnlyList<Vector2>, bool>? propsOnPath = null,
-        BlockedSpots? blockedSpots = null)
+        BlockedSpots? blockedSpots = null, Func<IReadOnlyList<MarkedActor>, Vector2, bool, StrongholdTargets?>? strongholdTargets = null)
     {
+        _strongholdTargets = strongholdTargets ?? ((_, _, _) => null);
         _spots = blockedSpots ?? new BlockedSpots();
         _propsVersion = propsVersion ?? (() => 0);
         _propsOnPath = propsOnPath ?? (_ => false);
@@ -228,7 +240,11 @@ public sealed class QuestPathBridge
         feed.WorldChanged += (_, name, _) => { lock (_gate) EnterWorld(name); };
         // A torn read gives positions like (-431602080, -431602080) (live 2026-10-19): it ended the guide as "left".
         feed.PlayerMoved += p => { if (ActorFilter.InWorld(new Vector3(p.X, p.Y, p.Z))) lock (_gate) OnPlayer(new Vector3(p.X, p.Y, p.Z)); };
-        if (pad is not null) pad.DpadLeftPressed += OnTogglePressed;
+        if (pad is not null)
+        {
+            pad.DpadLeftPressed += OnTogglePressed;
+            pad.DpadLeftHeld += OnHeld;
+        }
     }
 
     /// <summary>Every actor the game's map marks (GameSession.MapMarkersRead).</summary>
@@ -237,7 +253,8 @@ public sealed class QuestPathBridge
         lock (_gate)
         {
             (_markers, _markersRead) = (markers, true);
-            if (_active?.Legion is not null) TrackLegionTarget();
+            if (_strongholdOn) UpdateStronghold();
+            else if (_active?.Legion is not null) TrackLegionTarget();
         }
     }
 
@@ -299,6 +316,90 @@ public sealed class QuestPathBridge
         Start(LegionPlace(targets[0]), from, "legion target done, the nearest left", 1, 1);
     }
 
+    // D-pad left held in a stronghold: the step's targets or exploring, as the dungeon guide (GuideObjectivesMode, GuideExploreMode).
+    private void OnHeld()
+    {
+        lock (_gate)
+        {
+            if (!_leads || _player is not { } player) return;
+            var here = new Vector2(player.X, player.Y);
+            if (!_strongholdOn && _strongholdTargets(_markers, here, _explore) is null) return;
+            _explore = !_explore;
+            Log($"PATH stronghold guide {(_explore ? "exploring" : "on the step's targets")}");
+            var strings = AppStrings.For(_language.Current);
+            _speech.Speak(_explore ? strings.GuideExploreMode : strings.GuideObjectivesMode, interrupt: true);
+            if (!_strongholdOn) return;
+            Reset();
+            _toldNone = false;
+            UpdateStronghold();
+        }
+    }
+
+    // The stronghold guide's target after a map read, a target reached and left, or a switch: keeps following the active one while
+    // the map still marks it (a monster walks), moves on when it is gone, a better one shows up or the quest's step moved on, and
+    // goes off once the player leaves the stronghold or it is freed (its quest no longer in progress).
+    private void UpdateStronghold()
+    {
+        if (_player is not { } player) return;
+        var here = new Vector2(player.X, player.Y);
+        if (_strongholdTargets(_markers, here, _explore) is not { } stronghold)
+        {
+            Log($"PATH stronghold guide off: left or freed at ({here.X:F1},{here.Y:F1})");
+            Stop();
+            _speech.Speak(AppStrings.For(_language.Current).GuideOff, interrupt: true);
+            return;
+        }
+        bool moved = stronghold.Phase != _strongholdPhase;
+        if (moved)
+        {
+            Log($"PATH stronghold quest {stronghold.QuestSno} moved on: phase {_strongholdPhase?.ToString() ?? "unknown"} -> {stronghold.Phase?.ToString() ?? "unknown"}");
+            _strongholdPhase = stronghold.Phase;
+            _reached.Clear();
+            _toldNone = false;
+        }
+        var open = stronghold.Targets
+            .Where(t => !_reached.Exists(r => Vector2.Distance(r, t.Place.Position) <= SamePlaceUnits))
+            .OrderBy(t => t.Tier).ThenBy(t => Vector2.Distance(here, t.Place.Position)).ToList();
+        if (_active is { } active && !moved)
+        {
+            if (_held && Vector2.Distance(here, active.Position) <= HoldUnits) return; // holding at a target reached
+            var same = open.Where(t => t.Place.ActorSno == active.ActorSno && Vector2.Distance(t.Place.Position, active.Position) <= TrackUnits)
+                .OrderBy(t => Vector2.Distance(t.Place.Position, active.Position)).FirstOrDefault();
+            if (same is not null && !_held && same.Tier <= open[0].Tier)
+            {
+                _missingSince = null;
+                _active = active with { Position = same.Place.Position };
+                if (!_searching && Vector2.Distance(same.Place.Position, _pathTo) > OffPathUnits && _clock() - _lastPath >= RepathInterval)
+                {
+                    Log($"PATH stronghold target moved to ({same.Place.Position.X:F1},{same.Place.Position.Y:F1}), finding a new path");
+                    FindPath(player);
+                }
+                return;
+            }
+            if (same is null && !_held)
+            {
+                _missingSince ??= _clock();
+                if (_clock() - _missingSince < GoneAfter) return; // one read without it may be torn
+                Log($"PATH stronghold target gone: {active.QuestName} at ({active.Position.X:F1},{active.Position.Y:F1})");
+            }
+        }
+        if (open.Count == 0)
+        {
+            if (_active is not null) Reset();
+            if (!_toldNone)
+            {
+                Log($"PATH stronghold guide: no target left in {stronghold.Name} ({stronghold.Targets.Count} marked, all reached or none)");
+                _speech.Speak(AppStrings.For(_language.Current).NoQuestPlace, interrupt: false);
+                _toldNone = true;
+            }
+            return;
+        }
+        _toldNone = false;
+        var best = open[0];
+        Log($"PATH stronghold targets: {string.Join("; ", open.Take(8).Select(t => $"{t.Place.QuestName} tier {t.Tier} ({t.Place.Position.X:F0},{t.Place.Position.Y:F0}) {Vector2.Distance(here, t.Place.Position):F0}"))}");
+        Start(best.Place, here, $"stronghold, tier {best.Tier}", 1, 1);
+    }
+
     private QuestMapPlace LegionPlace(LegionTarget target)
     {
         string name = LegionStrings.For(_language.Current).Name(target.Kind);
@@ -340,7 +441,25 @@ public sealed class QuestPathBridge
                 return;
             }
             var here = new Vector2(player.X, player.Y);
+            if (_strongholdOn)
+            {
+                Log("PATH stronghold guide off");
+                Stop();
+                _speech.Speak(strings.GuideOff, interrupt: true);
+                return;
+            }
             if (_active is null && ChosenTooFar(here)) return;
+            if (_active is null && (_chosen is null || _chosen.Value.World != _world) && _strongholdTargets(_markers, here, _explore) is { } stronghold)
+            {
+                Log($"PATH stronghold guide on in {stronghold.Name} (quest {stronghold.QuestSno} at phase {stronghold.Phase?.ToString() ?? "unknown"}), {(_explore ? "exploring" : "step targets")}");
+                _speech.Speak(strings.GuideOn, interrupt: true);
+                _strongholdOn = true;
+                _strongholdPhase = stronghold.Phase;
+                _reached.Clear();
+                _toldNone = false;
+                UpdateStronghold();
+                return;
+            }
             if (_log is not null && _legionMarkers(_markers, here) is { } inLegion) Log($"PATH legion area markers: {inLegion}");
             var places = Places(here);
             Log($"PATH places: {string.Join("; ", places.Select(p => $"{p.QuestName} ({p.Position.X:F0},{p.Position.Y:F0}) {Vector2.Distance(here, p.Position):F0}"))}");
@@ -477,7 +596,24 @@ public sealed class QuestPathBridge
             Stop();
             return;
         }
-        if (place.Legion is not null)
+        if (_strongholdOn)
+        {
+            float to = Vector2.Distance(here, place.Position);
+            if (!_held && to <= ArriveUnits)
+            {
+                Log($"PATH reached stronghold target {place.QuestName} at ({here.X:F1},{here.Y:F1}); holding while the player stays");
+                _ping.PlayArrived();
+                _reached.Add(place.Position);
+                _held = true;
+            }
+            else if (_held && to > HoldUnits)
+            {
+                UpdateStronghold(); // stepped away from a target reached: on to the next
+                return;
+            }
+            if (_held) { _ping.Silence(); return; }
+        }
+        else if (place.Legion is not null)
         {
             float to = Vector2.Distance(here, place.Position);
             if (!_held && to <= ArriveUnits)
@@ -585,6 +721,7 @@ public sealed class QuestPathBridge
 
     private void Stop()
     {
+        _strongholdOn = false;
         Reset();
         _forgetPaths();
     }

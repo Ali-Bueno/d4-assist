@@ -476,6 +476,31 @@ internal static class Program
             session.ActorsUpdated += layerBlockers.Update;
             session.QuestMovedOn += layerBlockers.QuestMovedOn;
             var legionTargets = new LegionTargets(store.Name);
+            // The stronghold guide (user request 2026-11-11): the strongholds, and the quests in progress, read at most every few
+            // seconds (each map read asks).
+            var strongholdCatalog = new StrongholdCatalog(store, schema);
+            IReadOnlyList<Stronghold> strongholds;
+            lock (cascGate) strongholds = strongholdCatalog.All;
+            IReadOnlyList<int> running = [];
+            var runningRead = TimeSpan.MinValue;
+            var runningClock = System.Diagnostics.Stopwatch.StartNew();
+            StrongholdTargets? StrongholdTargetsAt(IReadOnlyList<MarkedActor> marks, System.Numerics.Vector2 here, bool explore)
+            {
+                if (!strongholds.Any(s => System.Numerics.Vector2.Distance(here, new(s.Position.X, s.Position.Y)) <= StrongholdTargeting.StrongholdUnits))
+                    return null;
+                if (runningClock.Elapsed - runningRead >= RunningQuestsInterval)
+                {
+                    IReadOnlyList<int>? owned = null;
+                    session.Query(r => owned = r.ReadOwnedQuests());
+                    if (owned is not null) running = owned;
+                    runningRead = runningClock.Elapsed;
+                }
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                lock (cascGate)
+                    return StrongholdTargeting.At(here, marks, explore, strongholds, [.. running], questHistory.Last, questScripts.PhaseObjects,
+                        s => strongholdCatalog.Name(s, locale), m => InGameActorName(store, locale, m.ActorSno),
+                        m => GameQuestMarkers.Is(m, store.Name));
+            }
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
                 session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
@@ -506,7 +531,8 @@ internal static class Program
                 directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget,
                 propsVersion: openWorldProps is null ? null : () => openWorldProps.Version,
                 propsOnPath: openWorldProps is null ? null : path => OverworldPaths.Bars(openWorldProps.Walls(), path),
-                blockedSpots: BlockedSpots.Load(AppContext.BaseDirectory, log: Console.WriteLine));
+                blockedSpots: BlockedSpots.Load(AppContext.BaseDirectory, log: Console.WriteLine),
+                strongholdTargets: StrongholdTargetsAt);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -981,6 +1007,15 @@ internal static class Program
 
         bool IsQuestSymbol(MarkedActor marker) => GameQuestMarkers.Is(marker, store.Name);
     }
+
+    // The stronghold guide reads the quests in progress at most this often.
+    private static readonly TimeSpan RunningQuestsInterval = TimeSpan.FromSeconds(3);
+
+    // An actor's name as the game shows it (its UIName, else the first line of its Name); null for one without (a trigger).
+    private static string? InGameActorName(SnoStore store, string locale, int actorSno) =>
+        store.Name(actorSno) is { } actor
+            ? StripGrammarTag(store.Text(locale, "Actor_" + actor, "UIName") ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0])
+            : null;
 
     // Open-world props farther than this from the player are forgotten: the client lists actors well within it.
     private const float OpenWorldPropUnits = 250f;

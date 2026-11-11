@@ -357,9 +357,14 @@ public sealed class QuestPathBridge
             _reached.Clear();
             _toldNone = false;
         }
-        var open = stronghold.Targets
-            .Where(t => !_reached.Exists(r => Vector2.Distance(r, t.Place.Position) <= SamePlaceUnits))
-            .OrderBy(t => t.Tier).ThenBy(t => Vector2.Distance(here, t.Place.Position)).ToList();
+        var open = Open(stronghold, here);
+        // A step with no target left (none named, or all reached) explores, as the dungeon guide does once its objectives are done:
+        // "Kill the high priests" named only the cave's, already killed, and the player had to switch to exploring (live 2026-11-11).
+        if (open.Count == 0 && !_explore && _strongholdTargets(_markers, here, true) is { } explored)
+        {
+            open = Open(explored, here);
+            if (open.Count > 0 && (_active is null || _held)) Log("PATH stronghold step has no target left: exploring");
+        }
         if (_active is { } active && !moved)
         {
             if (_held && Vector2.Distance(here, active.Position) <= HoldUnits) return; // holding at a target reached
@@ -399,6 +404,12 @@ public sealed class QuestPathBridge
         Log($"PATH stronghold targets: {string.Join("; ", open.Take(8).Select(t => $"{t.Place.QuestName} tier {t.Tier} ({t.Place.Position.X:F0},{t.Place.Position.Y:F0}) {Vector2.Distance(here, t.Place.Position):F0}"))}");
         Start(best.Place, here, $"stronghold, tier {best.Tier}", 1, 1);
     }
+
+    // The targets not reached yet, best first.
+    private List<StrongholdTarget> Open(StrongholdTargets stronghold, Vector2 here) =>
+        [.. stronghold.Targets
+            .Where(t => !_reached.Exists(r => Vector2.Distance(r, t.Place.Position) <= SamePlaceUnits))
+            .OrderBy(t => t.Tier).ThenBy(t => Vector2.Distance(here, t.Place.Position))];
 
     private QuestMapPlace LegionPlace(LegionTarget target)
     {

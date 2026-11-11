@@ -188,6 +188,22 @@ public class StrongholdGuideTests
         Assert.Equal(Priest3, rig.Target);
     }
 
+    // Live 2026-11-11: "Kill the high priests" named only the cave's, killed already; the guide said "no target".
+    [Fact]
+    public void A_step_with_no_target_left_explores_by_itself()
+    {
+        var rig = new Rig();
+        rig.Move(Altar);
+        rig.Phase = KillPhase;
+        rig.MapMarks.RemoveAll(m => m.ActorSno is PriestSno or Priest3Sno); // this step's and the next one's, killed
+        rig.Read();
+
+        rig.Pad.Press();
+
+        Assert.Equal(Trigger, rig.Target); // the nearest place the quest names anywhere
+        Assert.DoesNotContain(AppStrings.English.NoQuestPlace, rig.Speech.Texts);
+    }
+
     [Fact]
     public void Freeing_the_stronghold_switches_the_guide_off()
     {

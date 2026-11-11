@@ -151,4 +151,21 @@ public class SurfacePathfinderTests
         Assert.NotNull(path);
         Assert.Equal(new Vector2(35, 10), path[^1]);
     }
+
+    // Altar of Ruin 2026-11-11: the way turned round a wall's corner, and points every 5 units cut the corner through the wall.
+    [Fact]
+    public void Each_leg_of_the_path_keeps_to_the_floor_round_a_corner()
+    {
+        // An L: a corridor east (y 0..4, x 0..20), then north (x 16..20, y 0..20).
+        var ground = Floor(0, 20, 0, 4, (_, _) => 0).Concat(Floor(16, 20, 4, 20, (_, _) => 0)).ToList();
+        bool OnFloor(Vector2 p) => (p.Y is >= 0 and < 4 && p.X is >= 0 and < 20) || (p.X is >= 16 and < 20 && p.Y is >= 0 and < 20);
+
+        var path = SurfacePathfinder.Find(ground, new(2, 2), new(18, 18), fromZ: 0);
+
+        Assert.NotNull(path);
+        var legs = new[] { new Vector2(2, 2) }.Concat(path).ToList();
+        for (int i = 1; i < legs.Count; i++)
+            for (float t = 0; t <= 1; t += 0.05f)
+                Assert.True(OnFloor(Vector2.Lerp(legs[i - 1], legs[i], t)), $"leg {legs[i - 1]} -> {legs[i]} leaves the floor");
+    }
 }

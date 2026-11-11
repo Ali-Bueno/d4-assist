@@ -14,6 +14,13 @@ public sealed class PathFollower
     /// path that doubles back near itself must not let them jump to its far end.</summary>
     private const float SearchAheadUnits = 15f;
 
+    /// <summary>A path point where the way turns more than this is a corner the aim stops at (it would cut through the wall
+    /// the path turns round: the Altar of Ruin's east wall, live 2026-11-11) until the player is within <see cref="CornerNearUnits"/>.</summary>
+    public const float CornerDegrees = 30f;
+
+    /// <summary>Within this distance along the path of a corner the aim goes on past it.</summary>
+    public const float CornerNearUnits = 1.5f;
+
     private readonly IReadOnlyList<Vector2> _path;
     private readonly float[] _lengthTo; // path length from the start to each point
     private int _leg;
@@ -44,7 +51,21 @@ public sealed class PathFollower
             (best, _leg, along) = (distance, leg, _lengthTo[leg] + t * (_lengthTo[leg + 1] - _lengthTo[leg]));
         }
         _along = along;
-        return (PointAt(along + lookahead), best, _lengthTo[^1] - along);
+        return (PointAt(Math.Min(along + lookahead, NextCorner(along, along + lookahead))), best, _lengthTo[^1] - along);
+    }
+
+    // The path length to the first corner more than CornerNearUnits ahead and before until; past the end when there is none.
+    private float NextCorner(float along, float until)
+    {
+        float cos = MathF.Cos(CornerDegrees * MathF.PI / 180);
+        for (int i = _leg + 1; i < _path.Count - 1 && _lengthTo[i] < until; i++)
+        {
+            if (_lengthTo[i] - along <= CornerNearUnits) continue;
+            Vector2 a = _path[i] - _path[i - 1], b = _path[i + 1] - _path[i];
+            if (a.LengthSquared() == 0 || b.LengthSquared() == 0) continue;
+            if (Vector2.Dot(Vector2.Normalize(a), Vector2.Normalize(b)) < cos) return _lengthTo[i];
+        }
+        return float.MaxValue;
     }
 
     private Vector2 PointAt(float length)

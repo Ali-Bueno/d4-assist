@@ -69,20 +69,27 @@ public static class SurfacePathfinder
         if (goals.Count == 0 && map.Snap(to, null) is { } nearTarget) goals.Add(nearTarget);
         if (goals.Count == 0) return null;
         var path = map.Search(start, goals, to, prop);
-        return path is null ? null : Sample(path, to);
+        return path is null ? null : Sample(map, path, to, prop);
     }
 
-    // Points along the path every PointSpacingUnits, ending at the target itself.
-    private static List<Vector2> Sample(List<Vector2> path, Vector2 target)
+    // Points along the path at most PointSpacingUnits apart, ending at the target itself, each in a straight line over floor
+    // (and past no prop) from the one before: a turn round a wall's corner gets a point at the corner. Every 5 units along the
+    // path cut the corner of the Altar of Ruin's east wall, and the ping aimed into it (live 2026-11-11).
+    private static List<Vector2> Sample(SurfaceMap map, List<(Vector2 At, float Z)> path, Vector2 target, Func<Vector2, float, bool>? prop)
     {
         var points = new List<Vector2>();
-        float walked = 0;
-        for (int i = 1; i < path.Count; i++)
+        int anchor = 0;
+        while (anchor < path.Count - 1)
         {
-            walked += Vector2.Distance(path[i - 1], path[i]);
-            if (walked < PointSpacingUnits) continue;
-            points.Add(path[i]);
-            walked = 0;
+            int next = anchor + 1;
+            for (int i = anchor + 2; i < path.Count; i++)
+            {
+                if (Vector2.Distance(path[anchor].At, path[i].At) > PointSpacingUnits) break;
+                if (!map.Clear(path[anchor].At, path[anchor].Z, path[i].At, prop)) break;
+                next = i;
+            }
+            points.Add(path[next].At);
+            anchor = next;
         }
         if (points.Count == 0 || Vector2.Distance(points[^1], target) > 0.01f) points.Add(target);
         return points;
@@ -200,6 +207,26 @@ public static class SurfacePathfinder
             targets.Add((to, units));
         }
 
+        /// <summary>True when a straight walk from <paramref name="from"/> (on the floor at <paramref name="z"/>) to
+        /// <paramref name="to"/> stays on floor, stepping at most MaxStepUnits between neighbouring voxels, and onto no prop.</summary>
+        internal bool Clear(Vector2 from, float z, Vector2 to, Func<Vector2, float, bool>? prop = null)
+        {
+            float length = Vector2.Distance(from, to);
+            int steps = Math.Max(1, (int)MathF.Ceiling(length / (VoxelUnits / 2)));
+            for (int i = 1; i <= steps; i++)
+            {
+                var p = Vector2.Lerp(from, to, i / (float)steps);
+                var (x, y) = Cell(p);
+                var (first, last) = Floors(x, y);
+                int? floor = null;
+                for (int n = first; n < last; n++)
+                    if (MathF.Abs(Height(n) - z) <= MaxStepUnits && (floor is null || MathF.Abs(Height(n) - z) < MathF.Abs(Height(floor.Value) - z))) floor = n;
+                if (floor is not { } f || (prop is not null && prop(Centre(x, y), Height(f)))) return false;
+                z = Height(f);
+            }
+            return true;
+        }
+
         internal HashSet<int> NodesNear(Vector2 p, float radius)
         {
             var (cx, cy) = Cell(p);
@@ -275,7 +302,7 @@ public static class SurfacePathfinder
             return false;
         }
 
-        internal List<Vector2>? Search(int start, HashSet<int> goals, Vector2 target, Func<Vector2, float, bool>? prop = null)
+        internal List<(Vector2 At, float Z)>? Search(int start, HashSet<int> goals, Vector2 target, Func<Vector2, float, bool>? prop = null)
         {
             var cost = new Dictionary<int, float> { [start] = 0 };
             var previous = new Dictionary<int, int>();
@@ -315,13 +342,13 @@ public static class SurfacePathfinder
 
         private float Remaining(int x, int y, Vector2 target) => Vector2.Distance(Centre(x, y), target);
 
-        private List<Vector2> Trace(int node, Dictionary<int, int> previous)
+        private List<(Vector2 At, float Z)> Trace(int node, Dictionary<int, int> previous)
         {
-            var path = new List<Vector2>();
+            var path = new List<(Vector2 At, float Z)>();
             for (int n = node; ; n = previous[n])
             {
                 var (x, y) = CellOf(n);
-                path.Add(Centre(x, y));
+                path.Add((Centre(x, y), Height(n)));
                 if (!previous.ContainsKey(n)) break;
             }
             path.Reverse();

@@ -495,7 +495,9 @@ internal static class Program
                 {
                     var props = openWorldProps?.Walls();
                     if (debug) Console.WriteLine($"PATH props standing near: {props?.Count ?? 0}");
-                    return paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls()], props);
+                    // Spots the player stood stuck at bar the way as doors do (QuestPathBridge.Blocked).
+                    var blocked = pathBridge?.Blocked ?? [];
+                    return paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls(), .. blocked], props);
                 },
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(entranceCatalog, store, schema, language, cascGate),

@@ -501,6 +501,53 @@ public class QuestPathTests
         Assert.Equal(2, rig.Searches.Count);
     }
 
+    // Altar of Ruin 2026-11-11: the static surfaces called floor what the stronghold's fortifications blocked; the player stood
+    // at the same spot for minutes while the guide pointed on.
+    [Fact]
+    public void Standing_stuck_on_the_path_blocks_the_way_ahead_and_finds_another()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        Assert.Single(rig.Searches);
+
+        for (int i = 0; i <= QuestPathBridge.StuckAfter.TotalSeconds * 10 + 1; i++) rig.Move(KedBardu);
+
+        var wall = Assert.Single(rig.Bridge.Blocked);
+        var ahead = KedBardu + Vector2.Normalize(LostPlains - KedBardu) * 2.5f;
+        Assert.Contains(((int)MathF.Floor(ahead.X), (int)MathF.Floor(ahead.Y)), wall.Cells);
+        Assert.DoesNotContain(((int)MathF.Floor(KedBardu.X), (int)MathF.Floor(KedBardu.Y)), wall.Cells);
+        Assert.Equal(2, rig.Searches.Count);
+        Assert.Contains(PathStrings.English.Blocked, rig.Speech.Texts);
+    }
+
+    [Fact]
+    public void Walking_on_along_the_path_never_counts_as_stuck()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        var step = Vector2.Normalize(LostPlains - KedBardu) * 0.3f;
+
+        for (int i = 1; i <= 150; i++) rig.Move(KedBardu + step * i);
+
+        Assert.Empty(rig.Bridge.Blocked);
+    }
+
+    [Fact]
+    public void A_blocked_spot_walked_through_is_open_again()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        for (int i = 0; i <= QuestPathBridge.StuckAfter.TotalSeconds * 10 + 1; i++) rig.Move(KedBardu);
+        Assert.Single(rig.Bridge.Blocked);
+
+        rig.Move(KedBardu + Vector2.Normalize(LostPlains - KedBardu) * 3f);
+
+        Assert.Empty(rig.Bridge.Blocked);
+    }
+
     [Fact]
     public void Walking_beside_the_path_keeps_it_and_does_not_search_again()
     {

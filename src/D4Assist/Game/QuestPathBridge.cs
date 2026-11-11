@@ -72,6 +72,23 @@ public sealed class QuestPathBridge
     /// <summary>Farther than this from the path, the player has strayed and a new path is found.</summary>
     public const float OffPathUnits = 12f;
 
+    /// <summary>A player on the path who stays within <see cref="StuckMoveUnits"/> of one spot this long, the walk left not
+    /// shrinking, is stuck: the static surfaces call floor what the game blocks (a stronghold's fortifications, Altar of Ruin
+    /// 2026-11-11), so the way ahead counts as blocked and another is found.</summary>
+    public static readonly TimeSpan StuckAfter = TimeSpan.FromSeconds(8);
+
+    /// <summary>Moving less than this (or getting this much nearer) counts as not getting on.</summary>
+    public const float StuckMoveUnits = 2f;
+
+    /// <summary>The blocked patch lies from this far ahead of the stuck player ...</summary>
+    public const float BlockedFromUnits = 1f;
+
+    /// <summary>... to this far, toward the aim.</summary>
+    public const float BlockedToUnits = 4f;
+
+    /// <summary>The blocked patch reaches this far to each side of the way toward the aim.</summary>
+    public const float BlockedHalfWidthUnits = 1.5f;
+
     /// <summary>A new path is found at most this often while the player strays (a fight drags them around).</summary>
     public static readonly TimeSpan RepathInterval = TimeSpan.FromSeconds(3);
 
@@ -127,6 +144,11 @@ public sealed class QuestPathBridge
     private QuestMapPlace? _active;
     private Vector3? _player;
     private PathFollower? _follower;
+    private Vector2 _stuckAt;
+    private float _stuckRemaining;
+    private TimeSpan? _stuckSince;
+    private readonly List<(DoorWall Wall, Vector2 StuckAt)> _blocked = [];
+    private IReadOnlyList<DoorWall> _blockedSnapshot = [];
     private bool _pathFound;
     private int _request;
     private bool _searching; // a search runs, until its worker ends: the next waits for it (overlapping far searches took 2.6 GB live)
@@ -282,9 +304,15 @@ public sealed class QuestPathBridge
         return new(0, name, target.ActorSno, target.Position, Legion: target.Kind);
     }
 
+    /// <summary>The spots where the player stood stuck on the path in this world (each the way ahead of them, at their height):
+    /// walls for the path search (OverworldPaths.Find doors) until the player walks through one.</summary>
+    public IReadOnlyList<DoorWall> Blocked => _blockedSnapshot;
+
     private void EnterWorld(string worldName)
     {
         Stop();
+        _blocked.Clear();
+        _blockedSnapshot = [];
         _player = null;
         _markers = [];
         _markersRead = false;
@@ -474,6 +502,7 @@ public sealed class QuestPathBridge
             return;
         }
         if (_follower is not { } follower) { _ping.Silence(); return; } // the path is being found
+        OpenWalkedThrough(player);
 
         var (aim, off, remaining) = follower.Follow(here, LookaheadUnits);
         if (off > MovedAwayUnits)
@@ -503,6 +532,7 @@ public sealed class QuestPathBridge
                 FindPath(player);
             }
         }
+        else TrackStuck(player, aim, off, remaining);
         if (_clock() - _lastAimLog >= AimLogInterval)
         {
             _lastAimLog = _clock();
@@ -513,6 +543,53 @@ public sealed class QuestPathBridge
     }
 
     // The guide ends: the map the searches kept goes too (up to a few hundred MB).
+    // The player stays on one spot on the path: once StuckAfter has passed, the way ahead counts as blocked.
+    private void TrackStuck(Vector3 player, Vector2 aim, float off, float remaining)
+    {
+        var here = new Vector2(player.X, player.Y);
+        if (off > OffPathUnits || _stuckSince is null
+            || Vector2.Distance(here, _stuckAt) > StuckMoveUnits || remaining < _stuckRemaining - StuckMoveUnits)
+        {
+            (_stuckAt, _stuckRemaining, _stuckSince) = (here, remaining, _clock());
+            return;
+        }
+        if (_clock() - _stuckSince < StuckAfter) return;
+        _stuckSince = null;
+        if (Vector2.Distance(here, aim) < BlockedFromUnits) return; // at the end or a corner: nothing ahead to block
+        var ahead = Vector2.Normalize(aim - here);
+        var side = new Vector2(-ahead.Y, ahead.X);
+        var cells = new HashSet<(int X, int Y)>();
+        for (float along = BlockedFromUnits; along <= BlockedToUnits; along += 0.5f)
+            for (float across = -BlockedHalfWidthUnits; across <= BlockedHalfWidthUnits; across += 0.5f)
+            {
+                var p = here + ahead * along + side * across;
+                cells.Add(((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y)));
+            }
+        cells.Remove(((int)MathF.Floor(here.X), (int)MathF.Floor(here.Y)));
+        _blocked.Add((new DoorWall(cells, player.Z), here));
+        _blockedSnapshot = [.. _blocked.Select(b => b.Wall)];
+        Log($"PATH stuck at ({here.X:F1},{here.Y:F1}) for {StuckAfter.TotalSeconds:F0} s: the way toward ({aim.X:F1},{aim.Y:F1}) counts as blocked, finding another");
+        _speech.Speak(PathStrings.For(_language.Current).Blocked, interrupt: false);
+        FindPath(player);
+    }
+
+    /// <summary>A blocked spot the player stands in this far past where they stood stuck was open after all (they stood still
+    /// there in a fight); nearer, they only sway at the spot.</summary>
+    public const float WalkedThroughUnits = BlockedFromUnits + 1f;
+
+    // A blocked spot the player walked into was open after all: it stops blocking.
+    private void OpenWalkedThrough(Vector3 player)
+    {
+        if (_blocked.Count == 0) return;
+        var here = new Vector2(player.X, player.Y);
+        var cell = ((int)MathF.Floor(player.X), (int)MathF.Floor(player.Y));
+        int removed = _blocked.RemoveAll(b => b.Wall.Cells.Contains(cell) && MathF.Abs(b.Wall.Z - player.Z) <= OverworldPaths.DoorFloorUnits
+            && Vector2.Distance(here, b.StuckAt) >= WalkedThroughUnits);
+        if (removed == 0) return;
+        _blockedSnapshot = [.. _blocked.Select(b => b.Wall)];
+        Log($"PATH walked through a blocked spot at ({player.X:F1},{player.Y:F1}): open again");
+    }
+
     private void Stop()
     {
         Reset();
@@ -531,6 +608,7 @@ public sealed class QuestPathBridge
         _activeId++;
         _held = false;
         _missingSince = null;
+        _stuckSince = null;
     }
 
     private static float Length(Vector2 from, IReadOnlyList<Vector2> points)

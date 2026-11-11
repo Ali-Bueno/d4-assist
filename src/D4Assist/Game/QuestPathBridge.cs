@@ -147,8 +147,7 @@ public sealed class QuestPathBridge
     private Vector2 _stuckAt;
     private float _stuckRemaining;
     private TimeSpan? _stuckSince;
-    private readonly List<(DoorWall Wall, Vector2 StuckAt)> _blocked = [];
-    private IReadOnlyList<DoorWall> _blockedSnapshot = [];
+    private readonly BlockedSpots _spots;
     private bool _pathFound;
     private int _request;
     private bool _searching; // a search runs, until its worker ends: the next waits for it (overlapping far searches took 2.6 GB live)
@@ -192,6 +191,7 @@ public sealed class QuestPathBridge
     /// <param name="propsVersion">Changes when a prop starts or stops standing (BreakableProps.Version); null for never.</param>
     /// <param name="propsOnPath">True when a standing prop bars the path's points (OverworldPaths.Bars): only then is the path found
     /// again, as props come and go all the time while the player walks; null for never.</param>
+    /// <param name="blockedSpots">Where the player stood stuck, by world, kept across runs (BlockedSpots.Load); null for this run only.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
@@ -200,8 +200,10 @@ public sealed class QuestPathBridge
         Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null, Func<int>? wallsVersion = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, IReadOnlyList<LegionTarget>>? legionTargets = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen,
-        Action? forgetPaths = null, Func<int>? propsVersion = null, Func<IReadOnlyList<Vector2>, bool>? propsOnPath = null)
+        Action? forgetPaths = null, Func<int>? propsVersion = null, Func<IReadOnlyList<Vector2>, bool>? propsOnPath = null,
+        BlockedSpots? blockedSpots = null)
     {
+        _spots = blockedSpots ?? new BlockedSpots();
         _propsVersion = propsVersion ?? (() => 0);
         _propsOnPath = propsOnPath ?? (_ => false);
         _forgetPaths = forgetPaths ?? (() => { });
@@ -304,15 +306,13 @@ public sealed class QuestPathBridge
         return new(0, name, target.ActorSno, target.Position, Legion: target.Kind);
     }
 
-    /// <summary>The spots where the player stood stuck on the path in this world (each the way ahead of them, at their height):
-    /// walls for the path search (OverworldPaths.Find doors) until the player walks through one.</summary>
-    public IReadOnlyList<DoorWall> Blocked => _blockedSnapshot;
+    /// <summary>The spots where the player stood stuck on the path in this world, in this run or an earlier one (each the way
+    /// ahead of them, at their height): walls for the path search (OverworldPaths.Find doors) until the player walks through one.</summary>
+    public IReadOnlyList<DoorWall> Blocked => _world is { } world ? _spots.Walls(world) : [];
 
     private void EnterWorld(string worldName)
     {
         Stop();
-        _blocked.Clear();
-        _blockedSnapshot = [];
         _player = null;
         _markers = [];
         _markersRead = false;
@@ -566,8 +566,7 @@ public sealed class QuestPathBridge
                 cells.Add(((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y)));
             }
         cells.Remove(((int)MathF.Floor(here.X), (int)MathF.Floor(here.Y)));
-        _blocked.Add((new DoorWall(cells, player.Z), here));
-        _blockedSnapshot = [.. _blocked.Select(b => b.Wall)];
+        if (_world is { } world) _spots.Add(world, cells, player.Z, here);
         Log($"PATH stuck at ({here.X:F1},{here.Y:F1}) for {StuckAfter.TotalSeconds:F0} s: the way toward ({aim.X:F1},{aim.Y:F1}) counts as blocked, finding another");
         _speech.Speak(PathStrings.For(_language.Current).Blocked, interrupt: false);
         FindPath(player);
@@ -580,13 +579,7 @@ public sealed class QuestPathBridge
     // A blocked spot the player walked into was open after all: it stops blocking.
     private void OpenWalkedThrough(Vector3 player)
     {
-        if (_blocked.Count == 0) return;
-        var here = new Vector2(player.X, player.Y);
-        var cell = ((int)MathF.Floor(player.X), (int)MathF.Floor(player.Y));
-        int removed = _blocked.RemoveAll(b => b.Wall.Cells.Contains(cell) && MathF.Abs(b.Wall.Z - player.Z) <= OverworldPaths.DoorFloorUnits
-            && Vector2.Distance(here, b.StuckAt) >= WalkedThroughUnits);
-        if (removed == 0) return;
-        _blockedSnapshot = [.. _blocked.Select(b => b.Wall)];
+        if (_world is not { } world || _spots.OpenWalkedThrough(world, player, WalkedThroughUnits, OverworldPaths.DoorFloorUnits) == 0) return;
         Log($"PATH walked through a blocked spot at ({player.X:F1},{player.Y:F1}): open again");
     }
 

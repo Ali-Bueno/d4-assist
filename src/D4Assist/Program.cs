@@ -494,9 +494,9 @@ internal static class Program
                 (world, from, to) =>
                 {
                     var props = openWorldProps?.Walls();
-                    if (debug) Console.WriteLine($"PATH props standing near: {props?.Count ?? 0}");
-                    // Spots the player stood stuck at bar the way as doors do (QuestPathBridge.Blocked).
+                    // Spots the player stood stuck at, in this run or an earlier one, bar the way as doors do (QuestPathBridge.Blocked).
                     var blocked = pathBridge?.Blocked ?? [];
+                    if (debug) Console.WriteLine($"PATH props standing near: {props?.Count ?? 0}; spots known blocked: {blocked.Count}");
                     return paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls(), .. blocked], props);
                 },
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
@@ -505,7 +505,8 @@ internal static class Program
                 legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
                 directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget,
                 propsVersion: openWorldProps is null ? null : () => openWorldProps.Version,
-                propsOnPath: openWorldProps is null ? null : path => OverworldPaths.Bars(openWorldProps.Walls(), path));
+                propsOnPath: openWorldProps is null ? null : path => OverworldPaths.Bars(openWorldProps.Walls(), path),
+                blockedSpots: BlockedSpots.Load(AppContext.BaseDirectory, log: Console.WriteLine));
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();

@@ -55,14 +55,15 @@ public class QuestPathTests
         // Searches started but not run yet, when the rig holds them back (deferSearches).
         public List<Action> Pending = [];
 
-        public Rig(string world = World, IReadOnlyList<QuestMapPlace>? entrances = null, Action<float>? askedRange = null, bool deferSearches = false)
+        public Rig(string world = World, IReadOnlyList<QuestMapPlace>? entrances = null, Action<float>? askedRange = null, bool deferSearches = false,
+            BlockedSpots? blockedSpots = null)
         {
             Ping = new GuidePingPlayer(Mixer, () => Now, autoTick: false);
             Bridge = new QuestPathBridge(Feed, w => w is World or StoryArea, QuestPlaces, (w, from, to) => { Searches.Add((w, from, to)); return Path(from, to); },
                 Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad,
                 runInBackground: work => { if (deferSearches) Pending.Add(work); else work(); }, clock: () => Clock,
                 entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; }, wallsVersion: () => Walls,
-                forgetPaths: () => Forgets++);
+                forgetPaths: () => Forgets++, blockedSpots: blockedSpots);
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
         }
@@ -532,6 +533,21 @@ public class QuestPathTests
         for (int i = 1; i <= 150; i++) rig.Move(KedBardu + step * i);
 
         Assert.Empty(rig.Bridge.Blocked);
+    }
+
+    [Fact]
+    public void A_spot_found_blocked_bars_the_way_after_a_trip_away_and_in_the_next_run()
+    {
+        var spots = new BlockedSpots();
+        var rig = new Rig(blockedSpots: spots);
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        for (int i = 0; i <= QuestPathBridge.StuckAfter.TotalSeconds * 10 + 1; i++) rig.Move(KedBardu);
+
+        rig.Feed.RaiseWorld(StoryArea);
+        rig.Feed.RaiseWorld(World);
+        Assert.Single(rig.Bridge.Blocked);
+        Assert.Single(new Rig(blockedSpots: spots).Bridge.Blocked); // the app started again with the same store
     }
 
     [Fact]

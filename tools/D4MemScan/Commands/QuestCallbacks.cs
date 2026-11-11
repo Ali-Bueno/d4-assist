@@ -22,7 +22,7 @@ internal static class QuestCallbacks
             {
                 var tokens = quest.Array(callback + schema.Offset("QuestCallback", "arSnonameTokens"), schema.Size("DT_SNO_NAME"))
                     .Select(t => $"{quest.I32(t)}:{store.Name(quest.I32(t + 4))}");
-                Console.WriteLine($"  callback event {quest.I32(callback + map + schema.Offset("ScriptMessageMap", "eEventType"))} " +
+                Console.WriteLine($"  callback uid {quest.U32(callback + schema.Offset("QuestCallback", "dwUID"))} event {quest.I32(callback + map + schema.Offset("ScriptMessageMap", "eEventType"))} " +
                     $"indicator {quest.I32(callback + schema.Offset("QuestCallback", "eIndicatorType"))} " +
                     $"world {store.Name(quest.I32(callback + schema.Offset("QuestCallback", "snoWorld")))} needed {quest.I32(callback + schema.Offset("QuestCallback", "nNeeded"))} " +
                     $"tokens [{string.Join(", ", tokens)}]");

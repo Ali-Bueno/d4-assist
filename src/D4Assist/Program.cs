@@ -942,6 +942,22 @@ internal static class Program
                 (remembered.Count > 0 ? "; remembered: " + string.Join(", ", remembered.Select(q => $"{q} at {questHistory.Last(q)}")) : ""));
         }
 
+        // The index names only markers a quest's scripts hold by handle; a phase's actor group (resolved in PhaseObjects) names
+        // its markers too: "Kill the high priests" named the cave's priest only by group (Altar of Ruin 2026-11-11), and the
+        // guide never offered him while "Explore the cave" waited on his keystone.
+        lock (cascGate)
+            foreach (int quest in inProgress)
+            {
+                var phases = questScripts.PhaseObjects(quest);
+                foreach (var marker in markers.Where(m => !IsQuestSymbol(m)))
+                {
+                    var at = new System.Numerics.Vector2(marker.X, marker.Y);
+                    if (!named.Contains((marker, quest)) && phases.Any(p => p.Markers.Any(m => m.Sno == marker.ActorSno
+                        && System.Numerics.Vector2.Distance(new(m.Position.X, m.Position.Y), at) <= ActiveQuests.MarkerReach)))
+                        named.Add((marker, quest));
+                }
+            }
+
         var places = new List<QuestMapPlace>();
         lock (cascGate)
         {

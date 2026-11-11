@@ -482,19 +482,21 @@ internal static class Program
             IReadOnlyList<Stronghold> strongholds;
             lock (cascGate) strongholds = strongholdCatalog.All;
             IReadOnlyList<int> running = [];
-            var runningRead = TimeSpan.MinValue;
+            TimeSpan? runningRead = null; // never read yet
+            var runningGate = new object(); // asked from the pad's thread and the map read's
             var runningClock = System.Diagnostics.Stopwatch.StartNew();
             StrongholdTargets? StrongholdTargetsAt(IReadOnlyList<MarkedActor> marks, System.Numerics.Vector2 here, bool explore)
             {
                 if (!strongholds.Any(s => System.Numerics.Vector2.Distance(here, new(s.Position.X, s.Position.Y)) <= StrongholdTargeting.StrongholdUnits))
                     return null;
-                if (runningClock.Elapsed - runningRead >= RunningQuestsInterval)
-                {
-                    IReadOnlyList<int>? owned = null;
-                    session.Query(r => owned = r.ReadOwnedQuests());
-                    if (owned is not null) running = owned;
-                    runningRead = runningClock.Elapsed;
-                }
+                lock (runningGate)
+                    if (runningRead is not { } read || runningClock.Elapsed - read >= RunningQuestsInterval)
+                    {
+                        IReadOnlyList<int>? owned = null;
+                        session.Query(r => owned = r.ReadOwnedQuests());
+                        if (owned is not null) running = owned;
+                        runningRead = runningClock.Elapsed;
+                    }
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 lock (cascGate)
                     return StrongholdTargeting.At(here, marks, explore, strongholds, [.. running], questHistory.Last, questScripts.PhaseObjects,

@@ -133,6 +133,10 @@ public sealed class QuestPathBridge
     private bool _searchPending; // a search asked for while one ran: it starts when that one ends
     private TimeSpan _lastPath;
     private int _pathWalls;
+    private int _pathProps;
+    private IReadOnlyList<Vector2> _pathPoints = [];
+    private readonly Func<int> _propsVersion;
+    private readonly Func<IReadOnlyList<Vector2>, bool> _propsOnPath;
     private TimeSpan _lastAimLog;
     // Which start the active place is: a legion target's place moves with its marker, so the place itself can't tell.
     private int _activeId;
@@ -163,6 +167,9 @@ public sealed class QuestPathBridge
     /// for none.</param>
     /// <param name="directionStyle">How a spot under attack's side is said (screen or compass).</param>
     /// <param name="forgetPaths">Lets go of what the searches keep (OverworldPaths.Forget) once the guide stops; null for nothing.</param>
+    /// <param name="propsVersion">Changes when a prop starts or stops standing (BreakableProps.Version); null for never.</param>
+    /// <param name="propsOnPath">True when a standing prop bars the path's points (OverworldPaths.Bars): only then is the path found
+    /// again, as props come and go all the time while the player walks; null for never.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
@@ -171,8 +178,10 @@ public sealed class QuestPathBridge
         Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null, Func<int>? wallsVersion = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, IReadOnlyList<LegionTarget>>? legionTargets = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen,
-        Action? forgetPaths = null)
+        Action? forgetPaths = null, Func<int>? propsVersion = null, Func<IReadOnlyList<Vector2>, bool>? propsOnPath = null)
     {
+        _propsVersion = propsVersion ?? (() => 0);
+        _propsOnPath = propsOnPath ?? (_ => false);
         _forgetPaths = forgetPaths ?? (() => { });
         _legionTargets = legionTargets ?? ((_, _) => []);
         _legionMarkers = legionMarkers ?? ((_, _) => null);
@@ -380,6 +389,7 @@ public sealed class QuestPathBridge
         _lastPath = _clock();
         _pathTo = place.Position;
         _pathWalls = _wallsVersion();
+        _pathProps = _propsVersion();
         _searching = true;
         var from = new Vector2(player.X, player.Y);
         _runInBackground(() =>
@@ -424,7 +434,8 @@ public sealed class QuestPathBridge
             Log($"PATH {points.Count} points from ({from.X:F1},{from.Y:F1}), {Length(from, points):F0} units ({took.TotalMilliseconds:F0} ms)");
             _pathFound = true;
         }
-        _follower = new PathFollower([from, .. points]);
+        _pathPoints = [from, .. points];
+        _follower = new PathFollower(_pathPoints);
         if (_player is { } now) Lead(now);
     }
 
@@ -482,6 +493,15 @@ public sealed class QuestPathBridge
         {
             Log("PATH doors changed, finding a new one"); // a door listed locked only once the player came near
             FindPath(player);
+        }
+        else if (_propsVersion() != _pathProps && _clock() - _lastPath >= RepathInterval)
+        {
+            _pathProps = _propsVersion();
+            if (_propsOnPath(_pathPoints))
+            {
+                Log("PATH a prop stands on the path, finding a new one"); // crates, rubble: listed only once the player comes near
+                FindPath(player);
+            }
         }
         if (_clock() - _lastAimLog >= AimLogInterval)
         {

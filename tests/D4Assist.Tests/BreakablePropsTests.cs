@@ -124,4 +124,33 @@ public class BreakablePropsTests
 
         Assert.NotEmpty(props.Update([Table], At(5, 28)));
     }
+
+    [Fact]
+    public void Walls_give_each_standing_prop_at_its_base_and_the_version_moves_on_change()
+    {
+        var props = Props();
+        int before = props.Version;
+
+        props.Update([Table], At(5, 28));
+
+        var wall = Assert.Single(props.Walls());
+        Assert.Equal(DoorObstacles.Footprint(Table, TableCenter, TableHalf).Cells.ToHashSet(), wall.Cells);
+        Assert.Equal(0f, wall.Z); // base = Z + centre.Z - half.Z
+        int standing = props.Version;
+        Assert.NotEqual(before, standing);
+        props.Update([Table], At(5, 28));
+        Assert.Equal(standing, props.Version); // nothing changed
+    }
+
+    [Fact]
+    public void Open_world_props_far_from_the_player_are_forgotten()
+    {
+        var props = new BreakableProps(sno => Actors.TryGetValue(sno, out var a) ? a.Name : null,
+            sno => Actors.TryGetValue(sno, out var a) ? a.Info : null, forgetBeyondUnits: 100);
+        props.Update([Table], At(5, 28));
+
+        Assert.Empty(props.Update([], At(500, 28)));
+        Assert.Empty(props.Walls());
+        Assert.NotEmpty(props.Update([Table], At(5, 28))); // seen again: stands again
+    }
 }

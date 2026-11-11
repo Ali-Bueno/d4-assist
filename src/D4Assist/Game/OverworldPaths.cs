@@ -120,17 +120,22 @@ public sealed class OverworldPaths(
     /// <param name="doors">Closed doors the player can't open yet (LockedDoors.Walls): their floor is no way. The Darkened Way's
     /// invisible doors stand on the straight way from Lilith's petal down to the Ancient City (tester 2026-10-31,
     /// research/dungeon-data.md §4.1c). Collision props a standing layer places bar the same way (LayerBlockers.Walls).</param>
-    public IReadOnlyList<Vector2>? Find(string worldName, Vector3 from, Vector2 to, IReadOnlyList<DoorWall>? doors = null)
+    /// <param name="props">Props standing on floor the static surfaces call free (BreakableProps.Walls: crates, tables, rubble
+    /// barricades in a stronghold, Altar of Ruin 2026-11-11): the walk goes round them where it can
+    /// (SurfacePathfinder.PropPenalty). They weigh in the search, not the map, so they come and go without a new map.</param>
+    public IReadOnlyList<Vector2>? Find(
+        string worldName, Vector3 from, Vector2 to, IReadOnlyList<DoorWall>? doors = null, IReadOnlyList<DoorWall>? props = null)
     {
         var start = new Vector2(from.X, from.Y);
         if (Vector2.Distance(start, to) > MaxDistanceUnits) return null;
+        var blocked = OnProp(props);
         int doorKey = DoorKey(doors);
         MapBox? last;
         lock (_gate) last = _last;
         if (last is not null && last.World == worldName && last.Doors == doorKey && last.Holds(start) && last.Holds(to))
         {
             lock (_gate) MapUse = (MapUse.Built, MapUse.Reused + 1);
-            return SurfacePathfinder.Find(last.Map, start, to, from.Z);
+            return SurfacePathfinder.Find(last.Map, start, to, from.Z, blocked);
         }
         float minX = MathF.Min(start.X, to.X) - MarginUnits, maxX = MathF.Max(start.X, to.X) + MarginUnits;
         float minY = MathF.Min(start.Y, to.Y) - MarginUnits, maxY = MathF.Max(start.Y, to.Y) + MarginUnits;
@@ -162,7 +167,47 @@ public sealed class OverworldPaths(
             _last = new MapBox(worldName, minX, minY, maxX, maxY, doorKey, map);
             MapUse = (MapUse.Built + 1, MapUse.Reused);
         }
-        return SurfacePathfinder.Find(map, start, to, from.Z);
+        return SurfacePathfinder.Find(map, start, to, from.Z, blocked);
+    }
+
+    /// <summary>Within this distance of a path's line a prop's cell bars the path (the player's body passes a cell from it).</summary>
+    public const float PropBarsUnits = 1f;
+
+    /// <summary>True when a prop's cell lies within <see cref="PropBarsUnits"/> of the path's line (its points in order).</summary>
+    public static bool Bars(IReadOnlyList<DoorWall> props, IReadOnlyList<Vector2> path)
+    {
+        if (props.Count == 0 || path.Count < 2) return false;
+        foreach (var prop in props)
+            foreach (var (x, y) in prop.Cells)
+            {
+                var centre = new Vector2(x + 0.5f, y + 0.5f);
+                for (int i = 1; i < path.Count; i++)
+                    if (DistanceToSegment(centre, path[i - 1], path[i]) <= PropBarsUnits) return true;
+            }
+        return false;
+    }
+
+    private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        var ab = b - a;
+        float length = ab.LengthSquared();
+        float t = length == 0 ? 0 : Math.Clamp(Vector2.Dot(p - a, ab) / length, 0, 1);
+        return Vector2.Distance(p, a + t * ab);
+    }
+
+    // A floor holds a prop where the prop covers its 1-unit cell and stands at its height.
+    private static Func<Vector2, float, bool>? OnProp(IReadOnlyList<DoorWall>? props)
+    {
+        if (props is not { Count: > 0 }) return null;
+        var cells = new Dictionary<(int X, int Y), List<float>>();
+        foreach (var prop in props)
+            foreach (var cell in prop.Cells)
+            {
+                if (!cells.TryGetValue(cell, out var floors)) cells[cell] = floors = [];
+                if (!floors.Contains(prop.Z)) floors.Add(prop.Z);
+            }
+        return (p, z) => cells.TryGetValue(((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y)), out var floors)
+            && floors.Exists(f => MathF.Abs(z - f) <= DoorFloorUnits);
     }
 
     // The same closed doors give the same key: a door that opens or locks builds the map anew.

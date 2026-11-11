@@ -260,11 +260,15 @@ internal static class Program
         Func<int, bool> walkedAround = sno => definitionOf(sno) is { } prop
             && (prop.GizmoType == Conventions.GizmoBreakable
                 || (ObjectiveClassifier.IsStructure(store.Name(sno), prop) && !namedByAnyQuest(sno)));
+        // The open world's props (crates, tables, a stronghold's rubble barricades) bar the guide's overworld paths; only those near
+        // the player are kept, and not logged one by one (a helltide passes hundreds).
+        var openWorldProps = config.BreakablePropsAvoided
+            ? new BreakableProps(store.Name, definitionOf, isProp: walkedAround, forgetBeyondUnits: OpenWorldPropUnits) : null;
         var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
             radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates,
             config.BreakablePropsAvoided ? new BreakableProps(store.Name, definitionOf, debug ? Console.WriteLine : null, walkedAround) : null,
-            cells => { navigation.SetPropCells(cells); radarWorld.SetProps(cells); });
+            cells => { navigation.SetPropCells(cells); radarWorld.SetProps(cells); }, openWorldProps);
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
@@ -487,12 +491,19 @@ internal static class Program
                     }
                     return QuestMapPlaces(markers, owned, FindPhases, questHistory, store, questScripts, language, cascGate, debug ? Console.WriteLine : null);
                 },
-                (world, from, to) => paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls()]),
+                (world, from, to) =>
+                {
+                    var props = openWorldProps?.Walls();
+                    if (debug) Console.WriteLine($"PATH props standing near: {props?.Count ?? 0}");
+                    return paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls()], props);
+                },
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(entranceCatalog, store, schema, language, cascGate),
                 wallsVersion: () => lockedDoors.Version + layerBlockers.Version,
                 legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
-                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget);
+                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget,
+                propsVersion: openWorldProps is null ? null : () => openWorldProps.Version,
+                propsOnPath: openWorldProps is null ? null : path => OverworldPaths.Bars(openWorldProps.Walls(), path));
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -951,6 +962,9 @@ internal static class Program
 
         bool IsQuestSymbol(MarkedActor marker) => GameQuestMarkers.Is(marker, store.Name);
     }
+
+    // Open-world props farther than this from the player are forgotten: the client lists actors well within it.
+    private const float OpenWorldPropUnits = 250f;
 
     // Quest objects this near a game quest marker name its quest.
     private const float QuestSymbolNamingUnits = 60f;

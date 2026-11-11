@@ -123,4 +123,32 @@ public class SurfacePathfinderTests
 
         Assert.Null(SurfacePathfinder.Find(Ledges(), new(5, 10), new(35, 10), fromZ: -4, links: [lost]));
     }
+
+    [Fact]
+    public void A_prop_is_walked_round_where_the_ground_allows()
+    {
+        var ground = Floor(0, 40, 0, 20, (_, _) => 0).ToList();
+        var map = SurfacePathfinder.SurfaceMap.Create(ground)!;
+        // A crate across y 8..12 at x 19..21.
+        bool Crate(Vector2 p, float z) => p.X is >= 19 and < 21 && p.Y is >= 8 and < 12;
+
+        var path = SurfacePathfinder.Find(map, new(5, 10), new(35, 10), fromZ: 0, prop: Crate);
+
+        Assert.NotNull(path);
+        Assert.DoesNotContain(path, p => Crate(p, 0));
+        Assert.InRange(Length(new(5, 10), path), 30f, 36f);
+    }
+
+    [Fact]
+    public void A_prop_filling_the_only_way_is_walked_through()
+    {
+        // A corridor 4 units wide, the crate across all of it: the player breaks it.
+        var corridor = Floor(0, 40, 8, 12, (_, _) => 0).ToList();
+        var map = SurfacePathfinder.SurfaceMap.Create(corridor)!;
+
+        var path = SurfacePathfinder.Find(map, new(5, 10), new(35, 10), fromZ: 0, prop: (p, _) => p.X is >= 19 and < 21);
+
+        Assert.NotNull(path);
+        Assert.Equal(new Vector2(35, 10), path[^1]);
+    }
 }

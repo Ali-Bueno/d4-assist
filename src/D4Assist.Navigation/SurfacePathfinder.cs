@@ -34,6 +34,9 @@ public static class SurfacePathfinder
     /// <summary>What using a traversal costs on top of its length, so an equal walk is preferred to stopping to use it.</summary>
     public const float TraversalUnits = 2f;
 
+    /// <summary>The extra cost, per unit walked, of a step onto a prop's floor (RoomPathfinder.PropPenalty).</summary>
+    public const float PropPenalty = 50f;
+
     private static readonly (int Dx, int Dy, float Length)[] Moves =
     [
         (-1, 0, 1f), (1, 0, 1f), (0, -1, 1f), (0, 1, 1f),
@@ -55,13 +58,17 @@ public static class SurfacePathfinder
     /// <summary>The route over a map built once (<see cref="SurfaceMap.Create"/>), as <see cref="Find(IEnumerable{Vector3}, Vector2, Vector2, float?, IReadOnlyList{SurfaceLink}?)"/>:
     /// building the map is most of a search's time and memory, so a new search in the same stretch reuses it. The map is only
     /// read, so searches may run on it at the same time.</summary>
-    public static IReadOnlyList<Vector2>? Find(SurfaceMap map, Vector2 from, Vector2 to, float? fromZ = null)
+    /// <param name="prop">True for a floor (its voxel's centre and height) a prop stands on that the static surfaces call free
+    /// (crates, tables, rubble): a step onto it costs <see cref="PropPenalty"/> more per unit, as in RoomPathfinder, so the walk
+    /// goes round where it can and through (the player breaks it) where nothing else leads on. Props weigh in the search only, so
+    /// the map stays the same while they come and go.</param>
+    public static IReadOnlyList<Vector2>? Find(SurfaceMap map, Vector2 from, Vector2 to, float? fromZ = null, Func<Vector2, float, bool>? prop = null)
     {
         if (map.Snap(from, fromZ) is not { } start) return null;
         var goals = map.NodesNear(to, TargetReachUnits);
         if (goals.Count == 0 && map.Snap(to, null) is { } nearTarget) goals.Add(nearTarget);
         if (goals.Count == 0) return null;
-        var path = map.Search(start, goals, to);
+        var path = map.Search(start, goals, to, prop);
         return path is null ? null : Sample(path, to);
     }
 
@@ -268,7 +275,7 @@ public static class SurfacePathfinder
             return false;
         }
 
-        internal List<Vector2>? Search(int start, HashSet<int> goals, Vector2 target)
+        internal List<Vector2>? Search(int start, HashSet<int> goals, Vector2 target, Func<Vector2, float, bool>? prop = null)
         {
             var cost = new Dictionary<int, float> { [start] = 0 };
             var previous = new Dictionary<int, int>();
@@ -285,7 +292,9 @@ public static class SurfacePathfinder
                 foreach (var (next, x, y, length) in Steps(current.Node, current.X, current.Y))
                 {
                     if (closed.Contains(next)) continue;
-                    float step = length * VoxelUnits * (1 + EdgePenalty(Clearance(next, x, y, clearance)));
+                    float penalty = EdgePenalty(Clearance(next, x, y, clearance));
+                    if (prop is not null && prop(Centre(x, y), Height(next))) penalty += PropPenalty;
+                    float step = length * VoxelUnits * (1 + penalty);
                     if (cost.TryGetValue(next, out float known) && known <= here + step) continue;
                     cost[next] = here + step;
                     previous[next] = current.Node;

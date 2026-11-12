@@ -48,6 +48,8 @@ public class QuestPathTests
         public TimeSpan Clock;
         public List<(string World, Vector3 From, Vector2 To)> Searches = [];
         public int Walls;
+        public int PropsVersion;
+        public HashSet<(int X, int Y)> Props = [];
         public int Forgets;
         // The path the search returns: straight from the player to the place in 5-unit steps, unless set.
         public Func<Vector3, Vector2, IReadOnlyList<Vector2>?> Path = (from, to) => Straight(new(from.X, from.Y), to);
@@ -63,7 +65,8 @@ public class QuestPathTests
                 Ping, Speech, new LanguageSetting(SpeechLanguage.English), Pad,
                 runInBackground: work => { if (deferSearches) Pending.Add(work); else work(); }, clock: () => Clock,
                 entrances: (w, _, range) => { askedRange?.Invoke(range); return w == world ? entrances ?? [] : []; }, wallsVersion: () => Walls,
-                forgetPaths: () => Forgets++, blockedSpots: blockedSpots);
+                forgetPaths: () => Forgets++, blockedSpots: blockedSpots, propsVersion: () => PropsVersion,
+                propsOnPath: (path, known) => OverworldPaths.Bars([new DoorWall(Props, 0)], path, known), propCells: () => new HashSet<(int X, int Y)>(Props));
             Feed.RaiseWorld(world);
             Bridge.OnMapMarkers(Markers);
         }
@@ -400,6 +403,78 @@ public class QuestPathTests
         Assert.Equal(2, rig.Searches.Count); // on the new path
     }
 
+    // Malnok 2026-11-12: every step aside found a whole new way (565, 579, 602, 671, 820 units) and the ping swung with it.
+    [Fact]
+    public void A_player_who_strayed_is_led_back_to_the_path_and_on_along_it()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        var ahead = Vector2.Normalize(LostPlains - KedBardu);
+        var side = new Vector2(-ahead.Y, ahead.X);
+        rig.Move(KedBardu + ahead * 10);
+        var astray = KedBardu + ahead * 10 + side * 20;
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(astray);
+        Assert.Single(rig.Searches); // a step aside comes back by itself
+
+        rig.Clock += QuestPathBridge.OffPathFor;
+        rig.Move(astray);
+
+        Assert.Equal(2, rig.Searches.Count);
+        Assert.True(Vector2.Distance(KedBardu + ahead * (10 + QuestPathBridge.RejoinAheadUnits), rig.Searches[1].To) < 0.01f);
+        Assert.True(rig.Pings());
+        var join = rig.Searches[1].To;
+        foreach (var p in Straight(astray, join).Concat(Straight(join, LostPlains))) rig.Move(p); // back, then on along the old path
+        Assert.Equal(English.PathEnd, rig.Speech.Texts.Last());
+    }
+
+    [Fact]
+    public void A_player_far_off_the_path_gets_a_whole_new_way()
+    {
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+        var ahead = Vector2.Normalize(LostPlains - KedBardu);
+        var astray = KedBardu + new Vector2(-ahead.Y, ahead.X) * (QuestPathBridge.RejoinMaxOffUnits + 20);
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(astray);
+        rig.Clock += QuestPathBridge.OffPathFor;
+        rig.Move(astray);
+
+        Assert.Equal(LostPlains, rig.Searches[^1].To);
+    }
+
+    // Malnok 2026-11-12: a prop the search had weighed and gone past still counted as barring the path, and the same path was found
+    // again every 3 s, 175 times.
+    [Fact]
+    public void Only_a_prop_new_since_the_search_and_close_ahead_finds_the_path_again()
+    {
+        var rig = new Rig();
+        var ahead = Vector2.Normalize(LostPlains - KedBardu);
+        (int, int) Cell(float along) { var p = KedBardu + ahead * along; return ((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y)); }
+        rig.Props.Add(Cell(15));
+        rig.Move(KedBardu);
+        rig.Pad.Press();
+
+        rig.PropsVersion++;
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(KedBardu + ahead * 3); // walking on: never stuck
+        Assert.Single(rig.Searches); // the search knew it
+
+        rig.Props.Add(Cell(QuestPathBridge.PropAheadUnits + 20));
+        rig.PropsVersion++;
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(KedBardu + ahead * 6); // walking on: never stuck
+        Assert.Single(rig.Searches); // new, but far ahead: found again once nearer
+
+        rig.Props.Add(Cell(20));
+        rig.PropsVersion++;
+        rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(KedBardu + ahead * 9); // walking on: never stuck
+        Assert.Equal(2, rig.Searches.Count);
+    }
+
     // A helltide fight (live 2026-11-07): a search over a far target took longer than the wait between two, and they piled up.
     [Fact]
     public void Straying_while_a_search_runs_waits_for_it()
@@ -411,6 +486,8 @@ public class QuestPathTests
         var astray = KedBardu + new Vector2(20, 30);
         rig.Clock += QuestPathBridge.RepathInterval;
         rig.Move(astray);
+        rig.Clock += QuestPathBridge.OffPathFor;
+        rig.Move(astray);
         Assert.Equal(2, rig.Pending.Count);
 
         rig.Clock += QuestPathBridge.RepathInterval * 3;
@@ -420,6 +497,8 @@ public class QuestPathTests
         rig.Pending[1]();
         var further = astray + new Vector2(-30, 20);
         rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(further);
+        rig.Clock += QuestPathBridge.OffPathFor;
         rig.Move(further);
         Assert.Equal(3, rig.Pending.Count);
     }
@@ -449,6 +528,8 @@ public class QuestPathTests
         Assert.Throws<InvalidOperationException>(() => rig.Pending[0]());
 
         rig.Clock += QuestPathBridge.RepathInterval;
+        rig.Move(KedBardu + new Vector2(20, 30));
+        rig.Clock += QuestPathBridge.OffPathFor;
         rig.Move(KedBardu + new Vector2(20, 30));
         Assert.Equal(2, rig.Pending.Count);
     }

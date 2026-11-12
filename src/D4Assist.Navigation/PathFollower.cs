@@ -54,6 +54,28 @@ public sealed class PathFollower
         return (PointAt(Math.Min(along + lookahead, NextCorner(along, along + lookahead))), best, _lengthTo[^1] - along);
     }
 
+    /// <summary>The path from the player's spot on it (as <see cref="Follow"/> last found it) on for <paramref name="units"/>, the
+    /// end at most: what lies ahead of the player, where a prop that turned up now would bar the way.</summary>
+    public IReadOnlyList<Vector2> Ahead(float units)
+    {
+        var points = new List<Vector2> { PointAt(_along) };
+        for (int i = _leg + 1; i < _path.Count && _lengthTo[i] < _along + units; i++) points.Add(_path[i]);
+        points.Add(PointAt(_along + units));
+        return points;
+    }
+
+    /// <summary>The spot <paramref name="units"/> on along the path from the player's spot on it (as <see cref="Follow"/> last
+    /// found it) and the path's points after it; null when the path ends before. A player who strayed is led back to that spot and
+    /// on along the same path, so the way doesn't change with every step aside (Malnok 2026-11-12: 565, 579, 602, 671, 820 units).</summary>
+    public (Vector2 Join, IReadOnlyList<Vector2> After)? From(float units)
+    {
+        float at = _along + units;
+        if (_path.Count < 2 || at >= _lengthTo[^1]) return null;
+        int i = _leg;
+        while (_lengthTo[i + 1] < at) i++;
+        return (PointAt(at), [.. _path.Skip(i + 1)]);
+    }
+
     // The path length to the first corner more than CornerNearUnits ahead and before until; past the end when there is none.
     private float NextCorner(float along, float until)
     {

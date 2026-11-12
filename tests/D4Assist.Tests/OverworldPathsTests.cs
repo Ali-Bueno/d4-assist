@@ -157,4 +157,14 @@ public class OverworldPathsTests
         Assert.False(OverworldPaths.Bars([crate], [new(0, 12f), new(40, 12f)]));
         Assert.False(OverworldPaths.Bars([], [new(0, 10.5f), new(40, 10.5f)]));
     }
+
+    [Fact]
+    public void A_prop_the_search_knew_never_bars_the_path()
+    {
+        var crate = new DoorWall(new HashSet<(int X, int Y)> { (20, 10) }, 0);
+        var known = OverworldPaths.Cells([crate]);
+
+        Assert.False(OverworldPaths.Bars([crate], [new(0, 10.5f), new(40, 10.5f)], known));
+        Assert.True(OverworldPaths.Bars([crate, new DoorWall(new HashSet<(int X, int Y)> { (30, 10) }, 0)], [new(0, 10.5f), new(40, 10.5f)], known));
+    }
 }

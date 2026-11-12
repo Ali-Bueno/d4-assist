@@ -532,7 +532,8 @@ internal static class Program
                 legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
                 directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget,
                 propsVersion: openWorldProps is null ? null : () => openWorldProps.Version,
-                propsOnPath: openWorldProps is null ? null : path => OverworldPaths.Bars(openWorldProps.Walls(), path),
+                propsOnPath: openWorldProps is null ? null : (path, known) => OverworldPaths.Bars(openWorldProps.Walls(), path, known),
+                propCells: openWorldProps is null ? null : () => OverworldPaths.Cells(openWorldProps.Walls()),
                 blockedSpots: BlockedSpots.Load(AppContext.BaseDirectory, log: Console.WriteLine),
                 strongholdTargets: StrongholdTargetsAt);
             session.MapMarkersRead += pathBridge.OnMapMarkers;

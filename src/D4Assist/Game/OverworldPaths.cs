@@ -174,17 +174,29 @@ public sealed class OverworldPaths(
     public const float PropBarsUnits = 1f;
 
     /// <summary>True when a prop's cell lies within <see cref="PropBarsUnits"/> of the path's line (its points in order).</summary>
-    public static bool Bars(IReadOnlyList<DoorWall> props, IReadOnlyList<Vector2> path)
+    /// <param name="known">Cells of props the search already weighed (<see cref="Cells"/> when it started): they don't count, the
+    /// search went past or over them on purpose. Counting them found the same path again every 3 s, 175 times in one stronghold
+    /// run (Malnok 2026-11-12). Null counts every prop.</param>
+    public static bool Bars(IReadOnlyList<DoorWall> props, IReadOnlyList<Vector2> path, IReadOnlySet<(int X, int Y)>? known = null)
     {
         if (props.Count == 0 || path.Count < 2) return false;
         foreach (var prop in props)
             foreach (var (x, y) in prop.Cells)
             {
+                if (known is not null && known.Contains((x, y))) continue;
                 var centre = new Vector2(x + 0.5f, y + 0.5f);
                 for (int i = 1; i < path.Count; i++)
                     if (DistanceToSegment(centre, path[i - 1], path[i]) <= PropBarsUnits) return true;
             }
         return false;
+    }
+
+    /// <summary>Every cell the props stand on: what a search weighed, for <see cref="Bars"/>.</summary>
+    public static IReadOnlySet<(int X, int Y)> Cells(IReadOnlyList<DoorWall> props)
+    {
+        var cells = new HashSet<(int X, int Y)>();
+        foreach (var prop in props) cells.UnionWith(prop.Cells);
+        return cells;
     }
 
     private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)

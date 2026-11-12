@@ -72,6 +72,21 @@ public sealed class QuestPathBridge
     /// <summary>Farther than this from the path, the player has strayed and a new path is found.</summary>
     public const float OffPathUnits = 12f;
 
+    /// <summary>The player stays off the path this long before a new one is found: a dodge or a few steps toward a monster
+    /// come back by themselves.</summary>
+    public static readonly TimeSpan OffPathFor = TimeSpan.FromSeconds(2);
+
+    /// <summary>A player who strayed no farther than this is led back to the path they left, <see cref="RejoinAheadUnits"/> on
+    /// from where they left it, and on along it, rather than a whole new way found from where they stand (Malnok 2026-11-12: every
+    /// step aside chose another way, 565 to 840 units).</summary>
+    public const float RejoinMaxOffUnits = 40f;
+
+    /// <summary>How far along the old path past the player's last spot on it the way back joins it.</summary>
+    public const float RejoinAheadUnits = 25f;
+
+    /// <summary>A prop newly standing counts as barring the path only this far ahead of the player on it.</summary>
+    public const float PropAheadUnits = 30f;
+
     /// <summary>A player on the path who stays within <see cref="StuckMoveUnits"/> of one spot this long, the walk left not
     /// shrinking, is stuck: the static surfaces call floor what the game blocks (a stronghold's fortifications, Altar of Ruin
     /// 2026-11-11), so the way ahead counts as blocked and another is found.</summary>
@@ -156,8 +171,12 @@ public sealed class QuestPathBridge
     private int _pathWalls;
     private int _pathProps;
     private IReadOnlyList<Vector2> _pathPoints = [];
+    private IReadOnlySet<(int X, int Y)> _pathPropCells = new HashSet<(int X, int Y)>();
+    private TimeSpan? _offSince;
+    private bool _toldExplore;
     private readonly Func<int> _propsVersion;
-    private readonly Func<IReadOnlyList<Vector2>, bool> _propsOnPath;
+    private readonly Func<IReadOnlyList<Vector2>, IReadOnlySet<(int X, int Y)>, bool> _propsOnPath;
+    private readonly Func<IReadOnlySet<(int X, int Y)>> _propCells;
     private TimeSpan _lastAimLog;
     // Which start the active place is: a legion target's place moves with its marker, so the place itself can't tell.
     private int _activeId;
@@ -197,8 +216,10 @@ public sealed class QuestPathBridge
     /// <param name="directionStyle">How a spot under attack's side is said (screen or compass).</param>
     /// <param name="forgetPaths">Lets go of what the searches keep (OverworldPaths.Forget) once the guide stops; null for nothing.</param>
     /// <param name="propsVersion">Changes when a prop starts or stops standing (BreakableProps.Version); null for never.</param>
-    /// <param name="propsOnPath">True when a standing prop bars the path's points (OverworldPaths.Bars): only then is the path found
-    /// again, as props come and go all the time while the player walks; null for never.</param>
+    /// <param name="propsOnPath">True when a standing prop not among the given cells (those the search weighed) bars the given path
+    /// points ahead of the player (OverworldPaths.Bars): only then is the path found again, as props come and go all the time while
+    /// the player walks; null for never.</param>
+    /// <param name="propCells">The cells props stand on now (OverworldPaths.Cells), kept when a search starts; null for none.</param>
     /// <param name="blockedSpots">Where the player stood stuck, by world, kept across runs (BlockedSpots.Load); null for this run only.</param>
     /// <param name="strongholdTargets">The running stronghold the player stands in with its targets, exploring or not
     /// (StrongholdTargeting.At); null when there is none. Inside one D-pad left switches the stronghold guide on and off, and
@@ -211,13 +232,15 @@ public sealed class QuestPathBridge
         Func<string, Vector2, float, IReadOnlyList<QuestMapPlace>>? entrances = null, Func<int>? wallsVersion = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, IReadOnlyList<LegionTarget>>? legionTargets = null,
         Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen,
-        Action? forgetPaths = null, Func<int>? propsVersion = null, Func<IReadOnlyList<Vector2>, bool>? propsOnPath = null,
+        Action? forgetPaths = null, Func<int>? propsVersion = null,
+        Func<IReadOnlyList<Vector2>, IReadOnlySet<(int X, int Y)>, bool>? propsOnPath = null, Func<IReadOnlySet<(int X, int Y)>>? propCells = null,
         BlockedSpots? blockedSpots = null, Func<IReadOnlyList<MarkedActor>, Vector2, bool, StrongholdTargets?>? strongholdTargets = null)
     {
         _strongholdTargets = strongholdTargets ?? ((_, _, _) => null);
         _spots = blockedSpots ?? new BlockedSpots();
         _propsVersion = propsVersion ?? (() => 0);
-        _propsOnPath = propsOnPath ?? (_ => false);
+        _propsOnPath = propsOnPath ?? ((_, _) => false);
+        _propCells = propCells ?? (() => new HashSet<(int X, int Y)>());
         _forgetPaths = forgetPaths ?? (() => { });
         _legionTargets = legionTargets ?? ((_, _) => []);
         _legionMarkers = legionMarkers ?? ((_, _) => null);
@@ -356,6 +379,7 @@ public sealed class QuestPathBridge
             _strongholdPhase = stronghold.Phase;
             _reached.Clear();
             _toldNone = false;
+            _toldExplore = false;
         }
         var open = Open(stronghold, here);
         // A step with no target left (none named, or all reached) explores, as the dungeon guide does once its objectives are done:
@@ -363,8 +387,13 @@ public sealed class QuestPathBridge
         if (open.Count == 0 && !_explore && _strongholdTargets(_markers, here, true) is { } explored)
         {
             open = Open(explored, here);
-            if (open.Count > 0 && (_active is null || _held)) Log("PATH stronghold step has no target left: exploring");
+            if (open.Count > 0 && (_active is null || _held) && !_toldExplore)
+            {
+                Log("PATH stronghold step has no target left: exploring"); // once: this runs on every map read while holding
+                _toldExplore = true;
+            }
         }
+        else _toldExplore = false;
         if (_active is { } active && !moved)
         {
             if (_held && Vector2.Distance(here, active.Position) <= HoldUnits) return; // holding at a target reached
@@ -534,7 +563,9 @@ public sealed class QuestPathBridge
         if (_player is { } player) FindPath(player);
     }
 
-    private void FindPath(Vector3 player)
+    // rejoin: the player strayed from a path found; the way back to it and on along it comes first, a whole new way only when
+    // there is none back.
+    private void FindPath(Vector3 player, bool rejoin = false)
     {
         if (_active is not { } place || _world is not { } world) return;
         if (_searching)
@@ -548,13 +579,23 @@ public sealed class QuestPathBridge
         _pathTo = place.Position;
         _pathWalls = _wallsVersion();
         _pathProps = _propsVersion();
+        _pathPropCells = _propCells();
         _searching = true;
         var from = new Vector2(player.X, player.Y);
+        var join = rejoin && _pathFound && _follower is { } follower ? follower.From(RejoinAheadUnits) : null;
         _runInBackground(() =>
         {
             var started = _clock();
             IReadOnlyList<Vector2>? points = null;
-            try { points = _findPath(world, player, place.Position); }
+            try
+            {
+                if (join is { } back && _findPath(world, player, back.Join) is { } way)
+                {
+                    points = [.. way, .. back.After];
+                    Log($"PATH back to the path at ({back.Join.X:F1},{back.Join.Y:F1}) in {way.Count} points");
+                }
+                else points = _findPath(world, player, place.Position);
+            }
             catch (Exception e) when (e is InvalidDataException or IOException or ArgumentException)
             {
                 Log($"PATH search failed: {e.Message}");
@@ -594,6 +635,7 @@ public sealed class QuestPathBridge
         }
         _pathPoints = [from, .. points];
         _follower = new PathFollower(_pathPoints);
+        _offSince = null;
         if (_player is { } now) Lead(now);
     }
 
@@ -659,11 +701,18 @@ public sealed class QuestPathBridge
             Stop();
             return;
         }
+        if (off <= OffPathUnits) _offSince = null;
         if (_searching) { } // the next search waits for the running one; the ping keeps following the old path
-        else if (off > OffPathUnits && _clock() - _lastPath >= RepathInterval)
+        else if (off > OffPathUnits)
         {
-            Log($"PATH off the path at ({here.X:F1},{here.Y:F1}), {off:F0} units, finding a new one");
-            FindPath(player); // the ping keeps following the old path meanwhile
+            // A step aside comes back by itself; the ping keeps pointing at the path meanwhile, and after the search too when the
+            // way back joins it.
+            _offSince ??= _clock();
+            if (_clock() - _offSince >= OffPathFor && _clock() - _lastPath >= RepathInterval)
+            {
+                Log($"PATH off the path at ({here.X:F1},{here.Y:F1}), {off:F0} units, finding a new one");
+                FindPath(player, rejoin: off <= RejoinMaxOffUnits);
+            }
         }
         else if (_wallsVersion() != _pathWalls && _clock() - _lastPath >= RepathInterval)
         {
@@ -673,7 +722,7 @@ public sealed class QuestPathBridge
         else if (_propsVersion() != _pathProps && _clock() - _lastPath >= RepathInterval)
         {
             _pathProps = _propsVersion();
-            if (_propsOnPath(_pathPoints))
+            if (_propsOnPath(follower.Ahead(PropAheadUnits), _pathPropCells))
             {
                 Log("PATH a prop stands on the path, finding a new one"); // crates, rubble: listed only once the player comes near
                 FindPath(player);
@@ -750,6 +799,7 @@ public sealed class QuestPathBridge
         _held = false;
         _missingSince = null;
         _stuckSince = null;
+        _offSince = null;
     }
 
     private static float Length(Vector2 from, IReadOnlyList<Vector2> points)

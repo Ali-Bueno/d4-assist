@@ -278,7 +278,31 @@ public sealed class QuestPathBridge
             (_markers, _markersRead) = (markers, true);
             if (_strongholdOn) UpdateStronghold();
             else if (_active?.Legion is not null) TrackLegionTarget();
+            else if (_active?.Chosen == true && _player is { } player && ChosenStrongholdEntered(new Vector2(player.X, player.Y)) is { } entered)
+                StartStronghold(entered, "the stronghold chosen in the map list is entered");
         }
+    }
+
+    // The place chosen in a map list is a stronghold not freed yet, and the player stands in it: its guide takes over. The list's
+    // spot is only where the stronghold's quest starts, often behind what its steps open (live 2026-11-12, Kor Dragan: the path
+    // to it ended at a shut gate, while the map marked the step's targets all around).
+    private StrongholdTargets? ChosenStrongholdEntered(Vector2 here)
+    {
+        if (_chosen is not { } chosen || chosen.World != _world) return null;
+        if (_strongholdTargets(_markers, here, _explore) is not { } stronghold) return null;
+        return _strongholdTargets(_markers, chosen.Place.Position, _explore)?.QuestSno == stronghold.QuestSno ? stronghold : null;
+    }
+
+    private void StartStronghold(StrongholdTargets stronghold, string reason)
+    {
+        Log($"PATH stronghold guide on in {stronghold.Name} (quest {stronghold.QuestSno} at phase {stronghold.Phase?.ToString() ?? "unknown"}), {(_explore ? "exploring" : "step targets")}: {reason}");
+        Reset();
+        _chosen = null;
+        _strongholdOn = true;
+        _strongholdPhase = stronghold.Phase;
+        _reached.Clear();
+        _toldNone = false;
+        UpdateStronghold();
     }
 
     /// <summary>The place chosen with Enter in a map menu list (a dungeon, cellar or stronghold, WaypointListBridge): the next D-pad
@@ -489,15 +513,11 @@ public sealed class QuestPathBridge
                 return;
             }
             if (_active is null && ChosenTooFar(here)) return;
-            if (_active is null && (_chosen is null || _chosen.Value.World != _world) && _strongholdTargets(_markers, here, _explore) is { } stronghold)
+            if (_active is null && ((_chosen is null || _chosen.Value.World != _world ? _strongholdTargets(_markers, here, _explore) : null)
+                ?? ChosenStrongholdEntered(here)) is { } stronghold)
             {
-                Log($"PATH stronghold guide on in {stronghold.Name} (quest {stronghold.QuestSno} at phase {stronghold.Phase?.ToString() ?? "unknown"}), {(_explore ? "exploring" : "step targets")}");
                 _speech.Speak(strings.GuideOn, interrupt: true);
-                _strongholdOn = true;
-                _strongholdPhase = stronghold.Phase;
-                _reached.Clear();
-                _toldNone = false;
-                UpdateStronghold();
+                StartStronghold(stronghold, "D-pad left");
                 return;
             }
             if (_log is not null && _legionMarkers(_markers, here) is { } inLegion) Log($"PATH legion area markers: {inLegion}");

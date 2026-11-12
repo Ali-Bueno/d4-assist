@@ -233,6 +233,41 @@ public class StrongholdGuideTests
         Assert.Equal(Priest, rig.Target);
     }
 
+    // Live 2026-11-12, Kor Dragan: chosen in the map list, the path to its spot went on inside, to a shut gate.
+    [Fact]
+    public void A_stronghold_chosen_in_the_map_list_hands_over_to_its_guide_once_entered()
+    {
+        var rig = new Rig();
+        rig.Move(Altar + new Vector2(300, 0));
+        rig.Bridge.Choose(World, "Altar of Ruin", Altar);
+        rig.Pad.Press();
+        Assert.Equal(Altar, rig.Target); // outside: the way to the place chosen
+
+        rig.Move(Altar + new Vector2(StrongholdTargeting.StrongholdUnits - 20, 0));
+        rig.Read();
+
+        Assert.Equal(Priest, rig.Target); // inside: the step's target, no press
+
+        rig.Pad.Press();
+        Assert.Equal(AppStrings.English.GuideOff, rig.Speech.Texts.Last());
+        rig.Pad.Press();
+        Assert.Equal(Priest, rig.Target); // the place chosen is done with: the stronghold guide again
+        Assert.Equal(AppStrings.English.GuideOn, rig.Speech.Texts[^2]);
+    }
+
+    [Fact]
+    public void A_place_chosen_elsewhere_keeps_leading_through_a_stronghold()
+    {
+        var rig = new Rig();
+        var cellar = Altar + new Vector2(400, 0);
+        rig.Move(Altar);
+        rig.Bridge.Choose(World, "Cellar", cellar);
+        rig.Pad.Press();
+        rig.Read();
+
+        Assert.Equal(cellar, rig.Target);
+    }
+
     private sealed class FakeFeed : IDungeonFeed
     {
         public event Action<int, string, bool>? WorldChanged;

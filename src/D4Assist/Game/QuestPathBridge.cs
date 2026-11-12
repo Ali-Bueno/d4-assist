@@ -413,12 +413,14 @@ public sealed class QuestPathBridge
             _toldNone = false;
             _toldExplore = false;
         }
-        var open = Open(stronghold, here);
+        var open = Open(stronghold, here, _explore);
         // A step with no target left (none named, or all reached) explores, as the dungeon guide does once its objectives are done:
         // "Kill the high priests" named only the cave's, already killed, and the player had to switch to exploring (live 2026-11-11).
-        if (open.Count == 0 && !_explore && _strongholdTargets(_markers, here, true) is { } explored)
+        // Not while a monster of the step still stands, though reached: the boss fought at led off to bats 80 units away each time
+        // the player stood where it had been reached (live 2026-11-12, Kor Dragan's Nilcar).
+        if (open.Count == 0 && !_explore && !stronghold.Targets.Any(t => t.Monster) && _strongholdTargets(_markers, here, true) is { } explored)
         {
-            open = Open(explored, here);
+            open = Open(explored, here, exploring: true);
             if (open.Count > 0 && (_active is null || _held) && !_toldExplore)
             {
                 Log("PATH stronghold step has no target left: exploring"); // once: this runs on every map read while holding
@@ -466,10 +468,11 @@ public sealed class QuestPathBridge
         Start(best.Place, here, $"stronghold, tier {best.Tier}", 1, 1);
     }
 
-    // The targets not reached yet, best first.
-    private List<StrongholdTarget> Open(StrongholdTargets stronghold, Vector2 here) =>
+    // The targets not reached yet, best first. A monster of the step stays one while it stands, reached or not: the guide leads
+    // back to a boss the player stepped away from, instead of saying there is nothing left.
+    private List<StrongholdTarget> Open(StrongholdTargets stronghold, Vector2 here, bool exploring) =>
         [.. stronghold.Targets
-            .Where(t => !_reached.Exists(r => Vector2.Distance(r, t.Place.Position) <= SamePlaceUnits))
+            .Where(t => (t.Monster && !exploring) || !_reached.Exists(r => Vector2.Distance(r, t.Place.Position) <= SamePlaceUnits))
             .OrderBy(t => t.Tier).ThenBy(t => Vector2.Distance(here, t.Place.Position))];
 
     private QuestMapPlace LegionPlace(LegionTarget target)

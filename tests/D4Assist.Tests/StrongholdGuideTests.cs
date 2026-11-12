@@ -156,6 +156,11 @@ public class StrongholdGuideTests
         Assert.Equal(Priest, rig.Target);     // holds there
 
         rig.Move(Priest + new Vector2(QuestPathBridge.HoldUnits + 2, 0));
+        Assert.Equal(Priest, rig.Target);     // a monster still standing: back to it
+
+        rig.MapMarks.RemoveAll(m => m.ActorSno == PriestSno); // killed
+        rig.Read();
+        rig.Wait(QuestPathBridge.GoneAfter);
 
         Assert.Equal(Trigger, rig.Target);    // the next target, no press
     }
@@ -204,6 +209,23 @@ public class StrongholdGuideTests
 
         Assert.Equal(Trigger, rig.Target); // the nearest place the quest names anywhere
         Assert.DoesNotContain(AppStrings.English.NoQuestPlace, rig.Speech.Texts);
+    }
+
+    // Live 2026-11-12, Kor Dragan: fighting the boss where it was reached, the guide led off to bats 80 units away.
+    [Fact]
+    public void A_steps_monster_reached_and_still_standing_keeps_the_guide_from_exploring()
+    {
+        var rig = new Rig();
+        rig.Move(Altar);
+        rig.Phase = KillPhase;
+        rig.MapMarks.RemoveAll(m => m.ActorSno == Priest3Sno);
+        rig.Pad.Press();
+        rig.Move(Priest + new Vector2(1, 0)); // reached, the fight goes on
+        rig.Read();
+        rig.Move(Priest + new Vector2(QuestPathBridge.HoldUnits + 2, 0)); // steps back in the fight
+        rig.Read();
+
+        Assert.Equal(Priest, rig.Target); // not the trigger or the cultist
     }
 
     [Fact]

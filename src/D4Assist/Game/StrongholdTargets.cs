@@ -4,7 +4,7 @@ using D4Data.Readers;
 namespace D4Assist.Game;
 
 /// <summary>A place the stronghold guide may lead to, and its rank: lower first (StrongholdTargeting).</summary>
-public sealed record StrongholdTarget(QuestMapPlace Place, int Tier);
+public sealed record StrongholdTarget(QuestMapPlace Place, int Tier, bool Monster = false);
 
 /// <summary>The running stronghold the player stands in, its quest's phase as last read (null unknown), and its targets.</summary>
 public sealed record StrongholdTargets(int QuestSno, string Name, uint? Phase, IReadOnlyList<StrongholdTarget> Targets);
@@ -56,7 +56,7 @@ public static class StrongholdTargeting
             if (Vector2.Distance(at, Spot(stronghold)) > StrongholdUnits) continue;
             int? tier = explore ? Explored(marker, at, phases) : Tier(marker, at, step, next, phases, isQuestMarker(marker));
             if (tier is { } t)
-                targets.Add(new(new QuestMapPlace(stronghold.QuestSno, nameOf(marker) ?? name, marker.ActorSno, at), t));
+                targets.Add(new(new QuestMapPlace(stronghold.QuestSno, nameOf(marker) ?? name, marker.ActorSno, at), t, marker.Kind == MonsterMarkerKind));
         }
         return new StrongholdTargets(stronghold.QuestSno, name, phase, targets);
     }

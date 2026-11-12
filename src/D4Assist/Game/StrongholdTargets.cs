@@ -28,18 +28,26 @@ public static class StrongholdTargeting
     /// <summary>The ranks of the targets (lower first).</summary>
     public const int ShownTier = 0, NextShownTier = 1, HiddenTier = 2, NextHiddenTier = 3;
 
+    /// <summary>Exploring: a place the map marks in the stronghold that no step names and no monster stands at (a shrine, a
+    /// chest, a well), after the monsters and the quest's places.</summary>
+    public const int ExploredPlaceTier = 1;
+
     /// <param name="running">The quests in progress (owned): a freed stronghold's quest is not.</param>
     /// <param name="phaseOf">A quest's phase as last read; null unknown.</param>
     /// <param name="phasesOf">A quest's phases in order with the objects each names (QuestScriptMarkerReader.PhaseObjects).</param>
     /// <param name="nameOf">A marker's name to speak (its actor's in-game name), else null for the stronghold's name.</param>
     /// <param name="isQuestMarker">The game's own quest marker (Symbol_Quest_Proxy): the step's place, whatever the quest names.</param>
+    /// <param name="isPlace">A marker worth walking to when exploring though no step names it (a shrine, a chest, a well; not a
+    /// traversal, a herb or a hidden trigger); null for none.</param>
     public static StrongholdTargets? At(
         Vector2 here, IReadOnlyList<MarkedActor> markers, bool explore, IReadOnlyList<Stronghold> strongholds,
         IReadOnlyCollection<int> running, Func<int, uint?> phaseOf, Func<int, IReadOnlyList<QuestPhaseObjects>> phasesOf,
-        Func<Stronghold, string> strongholdName, Func<MarkedActor, string?> nameOf, Func<MarkedActor, bool> isQuestMarker)
+        Func<Stronghold, string> strongholdName, Func<MarkedActor, string?> nameOf, Func<MarkedActor, bool> isQuestMarker,
+        Func<MarkedActor, bool>? isPlace = null)
     {
+        int? hereArea = PlayerArea(markers, here);
         var stronghold = strongholds
-            .Where(s => running.Contains(s.QuestSno) && Vector2.Distance(here, Spot(s)) <= StrongholdUnits)
+            .Where(s => running.Contains(s.QuestSno) && Holds(s, here, hereArea))
             .OrderBy(s => Vector2.Distance(here, Spot(s))).FirstOrDefault();
         if (stronghold is null) return null;
         var phases = phasesOf(stronghold.QuestSno);
@@ -53,8 +61,12 @@ public static class StrongholdTargeting
         foreach (var marker in markers)
         {
             var at = new Vector2(marker.X, marker.Y);
-            if (Vector2.Distance(at, Spot(stronghold)) > StrongholdUnits) continue;
-            int? tier = explore ? Explored(marker, at, phases) : Tier(marker, at, step, next, phases, isQuestMarker(marker));
+            // The stronghold's own level areas where the game data tells them (its walls, not a circle that takes in the
+            // wilderness around), else the circle.
+            if (stronghold.LevelAreas is { Count: > 0 } areas ? !areas.Contains(marker.LevelAreaSno)
+                : Vector2.Distance(at, Spot(stronghold)) > StrongholdUnits) continue;
+            int? tier = explore ? Explored(marker, at, phases) ?? (isPlace?.Invoke(marker) == true ? ExploredPlaceTier : null)
+                : Tier(marker, at, step, next, phases, isQuestMarker(marker));
             if (tier is { } t)
                 targets.Add(new(new QuestMapPlace(stronghold.QuestSno, nameOf(marker) ?? name, marker.ActorSno, at), t, marker.Kind == MonsterMarkerKind));
         }
@@ -62,6 +74,20 @@ public static class StrongholdTargeting
     }
 
     private static Vector2 Spot(Stronghold stronghold) => new(stronghold.Position.X, stronghold.Position.Y);
+
+    /// <summary>The map's marker kind of the player.</summary>
+    public const int PlayerMarkerKind = 1;
+
+    /// <summary>The level area the map puts the player in (its own marker's, at <paramref name="here"/>); null when it marks none there.</summary>
+    public static int? PlayerArea(IReadOnlyList<MarkedActor> markers, Vector2 here) =>
+        markers.FirstOrDefault(m => m.Kind == PlayerMarkerKind && Vector2.Distance(new(m.X, m.Y), here) <= PlayerMarkerUnits)?.LevelAreaSno;
+
+    private const float PlayerMarkerUnits = 10f;
+
+    /// <summary>Whether <paramref name="here"/> lies in the stronghold: near its quest's spot, or in one of its level areas (a
+    /// large one reaches further than <see cref="StrongholdUnits"/> from the spot: Kichuk spans 236 units).</summary>
+    public static bool Holds(Stronghold stronghold, Vector2 here, int? hereArea) =>
+        Vector2.Distance(here, Spot(stronghold)) <= StrongholdUnits || (hereArea is { } area && stronghold.LevelAreas?.Contains(area) == true);
 
     private static int IndexOf(IReadOnlyList<QuestPhaseObjects> phases, uint uid)
     {

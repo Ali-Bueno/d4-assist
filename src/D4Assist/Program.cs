@@ -492,7 +492,8 @@ internal static class Program
             StrongholdTargets? StrongholdTargetsAt(IReadOnlyList<MarkedActor> marks, System.Numerics.Vector2 here, bool explore)
             {
                 static System.Numerics.Vector2 Spot(Stronghold s) => new(s.Position.X, s.Position.Y);
-                var near = strongholds.Where(s => System.Numerics.Vector2.Distance(here, Spot(s)) <= StrongholdTargeting.StrongholdUnits)
+                int? hereArea = StrongholdTargeting.PlayerArea(marks, here);
+                var near = strongholds.Where(s => StrongholdTargeting.Holds(s, here, hereArea))
                     .OrderBy(s => System.Numerics.Vector2.Distance(here, Spot(s))).FirstOrDefault();
                 if (near is null)
                 {
@@ -522,7 +523,8 @@ internal static class Program
                             bool reads = found?.TryGetValue(near.QuestSno, out uint phase) == true;
                             if (reads) questHistory.Record(near.QuestSno, found![near.QuestSno]);
                             bool monsters = marks.Any(m => m.Kind == StrongholdTargeting.MonsterMarkerKind
-                                && System.Numerics.Vector2.Distance(new(m.X, m.Y), Spot(near)) <= StrongholdTargeting.StrongholdUnits);
+                                && (near.LevelAreas is { Count: > 0 } areas ? areas.Contains(m.LevelAreaSno)
+                                    : System.Numerics.Vector2.Distance(new(m.X, m.Y), Spot(near)) <= StrongholdTargeting.StrongholdUnits));
                             if (unreadStronghold != near.QuestSno && (reads || monsters))
                             {
                                 unreadStronghold = near.QuestSno;
@@ -536,7 +538,9 @@ internal static class Program
                 lock (cascGate)
                     return StrongholdTargeting.At(here, marks, explore, strongholds, inProgress, questHistory.Last, questScripts.PhaseObjects,
                         s => strongholdCatalog.Name(s, locale), m => InGameActorName(store, locale, m.ActorSno),
-                        m => GameQuestMarkers.Is(m, store.Name));
+                        m => GameQuestMarkers.Is(m, store.Name),
+                        m => m.Kind == StrongholdPlaceMarkerKind && store.Name(m.ActorSno) is { } place
+                            && !StrongholdPlaceSkipped.Any(prefix => place.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
             }
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
@@ -1050,6 +1054,11 @@ internal static class Program
 
     // The stronghold guide reads the quests in progress at most this often.
     private static readonly TimeSpan RunningQuestsInterval = TimeSpan.FromSeconds(3);
+
+    // Exploring a stronghold takes in what the map marks in it as a gizmo (kind 11: shrines, chests, wells), but not what is
+    // no place to see: the ways across (the path uses them), herbs and ores, hidden triggers, waypoints.
+    private const int StrongholdPlaceMarkerKind = 11;
+    private static readonly string[] StrongholdPlaceSkipped = ["Traversal_", "HarvestNode_", "Trigger_", "Waypoint", "MarkerLocation"];
 
     // A stronghold quest the owned read misses has its phase pair searched in the module data at most this often.
     private static readonly TimeSpan StrongholdPairInterval = TimeSpan.FromSeconds(10);

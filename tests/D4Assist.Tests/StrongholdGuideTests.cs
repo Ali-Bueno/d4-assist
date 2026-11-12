@@ -90,6 +90,28 @@ public class StrongholdGuideTests
         Assert.Contains(targets.Targets, t => t.Place.ActorSno == ProxySno && t.Tier == StrongholdTargeting.ShownTier);
     }
 
+    // Kor Dragan, 2026-11-12: its level areas bound it (not a circle that takes in the tundra's monsters), and exploring takes
+    // in the places the map marks in them once the monsters and the quest's places are done.
+    [Fact]
+    public void Exploring_a_stronghold_with_level_areas_takes_its_marked_places_after_the_monsters()
+    {
+        const int Inside = 77, Outside = 78, ShrineSno = 600, HerbSno = 601;
+        var walled = AltarOfRuin with { LevelAreas = new HashSet<int> { Inside } };
+        MarkedActor[] map =
+        [
+            new(CultistSno, -9, -734, 0, Inside, 10),
+            new(CultistSno, -20, -700, 0, Outside, 10),   // in the circle, outside the walls
+            new(ShrineSno, -200, -800, 0, Inside, 11),    // inside the walls, outside the circle
+            new(HerbSno, -30, -730, 0, Inside, 11),
+        ];
+        var targets = StrongholdTargeting.At(Altar, map, explore: true, [walled], [Quest], _ => ExplorePhase, _ => Phases, _ => "Altar of Ruin",
+            _ => null, _ => false, m => m.ActorSno == ShrineSno)!;
+
+        Assert.Equal(2, targets.Targets.Count);
+        Assert.Contains(targets.Targets, t => t.Place.ActorSno == CultistSno && t.Tier == StrongholdTargeting.ShownTier && t.Place.Position.X == -9);
+        Assert.Contains(targets.Targets, t => t.Place.ActorSno == ShrineSno && t.Tier == StrongholdTargeting.ExploredPlaceTier);
+    }
+
     // The guide itself: D-pad left on and off, no list; reached targets chime, hold, and lead on.
     private sealed class Rig
     {

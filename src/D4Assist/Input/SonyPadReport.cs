@@ -26,6 +26,20 @@ public static class SonyPadReport
         return (report[offset] & HatMask) is HatLeft or HatUpLeft or HatDownLeft;
     }
 
+    /// <summary>The left stick must lie this far from its middle (128) on an axis to count as pushed.</summary>
+    public const int StickPushedFrom = 40;
+
+    /// <summary>True while the left stick is pushed (the player steers the character); null for a report without sticks.</summary>
+    public static bool? IsLeftStickPushed(ReadOnlySpan<byte> report, SonyPadModel model, bool bluetooth)
+    {
+        if (report.IsEmpty || ButtonsOffset(report[0], model, bluetooth) is not { } buttons) return null;
+        // The sticks lead the report: seven bytes before the buttons in a DualSense's full reports (triggers and a counter lie
+        // between), four before them in every other.
+        int x = buttons - (model == SonyPadModel.DualSense && !(bluetooth && report[0] == 0x01) ? 7 : 4);
+        if (x < 1 || x + 1 >= report.Length) return null;
+        return Math.Abs(report[x] - 128) >= StickPushedFrom || Math.Abs(report[x + 1] - 128) >= StickPushedFrom;
+    }
+
     // Offset of the first button byte by report id. Over Bluetooth a pad sends a short 0x01 report until the game
     // switches it to the full one (DualSense 0x31, DualShock 4 0x11), which has extra header bytes.
     private static int? ButtonsOffset(byte reportId, SonyPadModel model, bool bluetooth) => (model, reportId) switch

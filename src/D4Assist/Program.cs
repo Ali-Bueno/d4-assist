@@ -482,24 +482,59 @@ internal static class Program
             IReadOnlyList<Stronghold> strongholds;
             lock (cascGate) strongholds = strongholdCatalog.All;
             IReadOnlyList<int> running = [];
-            TimeSpan? runningRead = null; // never read yet
+            // A stronghold whose quest the owned read misses (Kor Dragan, live 2026-11-12: its steps name hardly an actor, so it
+            // was never found in progress and the guide stayed off): running while its phase pair reads, else from the moment
+            // the map marks a monster in it until the player leaves it. A freed one is a town: no pair, no monster.
+            int? unreadStronghold = null;
+            TimeSpan? runningRead = null, pairSearched = null; // never read yet
             var runningGate = new object(); // asked from the pad's thread and the map read's
             var runningClock = System.Diagnostics.Stopwatch.StartNew();
             StrongholdTargets? StrongholdTargetsAt(IReadOnlyList<MarkedActor> marks, System.Numerics.Vector2 here, bool explore)
             {
-                if (!strongholds.Any(s => System.Numerics.Vector2.Distance(here, new(s.Position.X, s.Position.Y)) <= StrongholdTargeting.StrongholdUnits))
+                static System.Numerics.Vector2 Spot(Stronghold s) => new(s.Position.X, s.Position.Y);
+                var near = strongholds.Where(s => System.Numerics.Vector2.Distance(here, Spot(s)) <= StrongholdTargeting.StrongholdUnits)
+                    .OrderBy(s => System.Numerics.Vector2.Distance(here, Spot(s))).FirstOrDefault();
+                if (near is null)
+                {
+                    lock (runningGate) unreadStronghold = null;
                     return null;
+                }
+                int[] inProgress;
                 lock (runningGate)
+                {
                     if (runningRead is not { } read || runningClock.Elapsed - read >= RunningQuestsInterval)
                     {
                         IReadOnlyList<int>? owned = null;
                         session.Query(r => owned = r.ReadOwnedQuests());
                         if (owned is not null) running = owned;
                         runningRead = runningClock.Elapsed;
+                        if (!running.Contains(near.QuestSno))
+                        {
+                            IReadOnlyList<QuestPhaseObjects> phases;
+                            lock (cascGate) phases = questScripts.PhaseObjects(near.QuestSno);
+                            var wanted = new Dictionary<int, IReadOnlySet<uint>> { [near.QuestSno] = phases.Select(p => p.PhaseUid).ToHashSet() };
+                            IReadOnlyDictionary<int, uint>? found = null;
+                            if (pairSearched is not { } searched || runningClock.Elapsed - searched >= StrongholdPairInterval)
+                            {
+                                session.Query(r => found = r.FindQuestPhases(wanted));
+                                pairSearched = runningClock.Elapsed;
+                            }
+                            bool reads = found?.TryGetValue(near.QuestSno, out uint phase) == true;
+                            if (reads) questHistory.Record(near.QuestSno, found![near.QuestSno]);
+                            bool monsters = marks.Any(m => m.Kind == StrongholdTargeting.MonsterMarkerKind
+                                && System.Numerics.Vector2.Distance(new(m.X, m.Y), Spot(near)) <= StrongholdTargeting.StrongholdUnits);
+                            if (unreadStronghold != near.QuestSno && (reads || monsters))
+                            {
+                                unreadStronghold = near.QuestSno;
+                                if (debug) Console.WriteLine($"PATH stronghold quest {near.QuestSno} not among the owned: {(reads ? $"its phase reads {found![near.QuestSno]}" : "monsters marked in it")}, counts as running");
+                            }
+                        }
                     }
+                    inProgress = unreadStronghold is { } unread && !running.Contains(unread) ? [.. running, unread] : [.. running];
+                }
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 lock (cascGate)
-                    return StrongholdTargeting.At(here, marks, explore, strongholds, [.. running], questHistory.Last, questScripts.PhaseObjects,
+                    return StrongholdTargeting.At(here, marks, explore, strongholds, inProgress, questHistory.Last, questScripts.PhaseObjects,
                         s => strongholdCatalog.Name(s, locale), m => InGameActorName(store, locale, m.ActorSno),
                         m => GameQuestMarkers.Is(m, store.Name));
             }
@@ -535,7 +570,9 @@ internal static class Program
                 propsOnPath: openWorldProps is null ? null : (path, known) => OverworldPaths.Bars(openWorldProps.Walls(), path, known),
                 propCells: openWorldProps is null ? null : () => OverworldPaths.Cells(openWorldProps.Walls()),
                 blockedSpots: BlockedSpots.Load(AppContext.BaseDirectory, log: Console.WriteLine),
-                strongholdTargets: StrongholdTargetsAt);
+                strongholdTargets: StrongholdTargetsAt,
+                // Either pad's stick pushed steers; at rest on every pad read does not; no pad read: unknown (keyboard, mouse).
+                steering: () => xboxPad?.StickPushed is true || hidPad?.StickPushed is true ? true : xboxPad?.StickPushed ?? hidPad?.StickPushed);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -1013,6 +1050,9 @@ internal static class Program
 
     // The stronghold guide reads the quests in progress at most this often.
     private static readonly TimeSpan RunningQuestsInterval = TimeSpan.FromSeconds(3);
+
+    // A stronghold quest the owned read misses has its phase pair searched in the module data at most this often.
+    private static readonly TimeSpan StrongholdPairInterval = TimeSpan.FromSeconds(10);
 
     // An actor's name as the game shows it (its UIName, else the first line of its Name); null for one without (a trigger).
     private static string? InGameActorName(SnoStore store, string locale, int actorSno) =>

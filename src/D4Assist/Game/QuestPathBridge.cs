@@ -177,6 +177,10 @@ public sealed class QuestPathBridge
     private readonly Func<int> _propsVersion;
     private readonly Func<IReadOnlyList<Vector2>, IReadOnlySet<(int X, int Y)>, bool> _propsOnPath;
     private readonly Func<IReadOnlySet<(int X, int Y)>> _propCells;
+    // Whether the player steers the character now (a pad's left stick pushed); null unknown. Only a player who steers and gets
+    // nowhere is stuck: one who stands (reading, fighting, at a portal) had the way ahead blocked every eight seconds, way after
+    // way, until none was left (live 2026-11-12, Kor Dragan).
+    private readonly Func<bool?> _steering;
     private TimeSpan _lastAimLog;
     // Which start the active place is: a legion target's place moves with its marker, so the place itself can't tell.
     private int _activeId;
@@ -224,6 +228,8 @@ public sealed class QuestPathBridge
     /// <param name="strongholdTargets">The running stronghold the player stands in with its targets, exploring or not
     /// (StrongholdTargeting.At); null when there is none. Inside one D-pad left switches the stronghold guide on and off, and
     /// holding it switches between the step's targets and exploring; null for no stronghold guide.</param>
+    /// <param name="steering">Whether the player steers the character now (a pad's left stick pushed), null unknown: only then
+    /// does standing on one spot count as stuck; null for always steering.</param>
     public QuestPathBridge(
         IDungeonFeed feed, Func<string, bool> leadsIn, Func<IReadOnlyList<MarkedActor>, IReadOnlyList<QuestMapPlace>> questPlaces,
         Func<string, Vector3, Vector2, IReadOnlyList<Vector2>?> findPath, GuidePingPlayer ping, ISpeechSink speech,
@@ -234,8 +240,10 @@ public sealed class QuestPathBridge
         Func<IReadOnlyList<MarkedActor>, Vector2, string?>? legionMarkers = null, DirectionStyle directionStyle = DirectionStyle.Screen,
         Action? forgetPaths = null, Func<int>? propsVersion = null,
         Func<IReadOnlyList<Vector2>, IReadOnlySet<(int X, int Y)>, bool>? propsOnPath = null, Func<IReadOnlySet<(int X, int Y)>>? propCells = null,
-        BlockedSpots? blockedSpots = null, Func<IReadOnlyList<MarkedActor>, Vector2, bool, StrongholdTargets?>? strongholdTargets = null)
+        BlockedSpots? blockedSpots = null, Func<IReadOnlyList<MarkedActor>, Vector2, bool, StrongholdTargets?>? strongholdTargets = null,
+        Func<bool?>? steering = null)
     {
+        _steering = steering ?? (() => true);
         _strongholdTargets = strongholdTargets ?? ((_, _, _) => null);
         _spots = blockedSpots ?? new BlockedSpots();
         _propsVersion = propsVersion ?? (() => 0);
@@ -763,6 +771,7 @@ public sealed class QuestPathBridge
     private void TrackStuck(Vector3 player, Vector2 aim, float off, float remaining)
     {
         var here = new Vector2(player.X, player.Y);
+        if (_steering() != true) { _stuckSince = null; return; }
         if (off > OffPathUnits || _stuckSince is null
             || Vector2.Distance(here, _stuckAt) > StuckMoveUnits || remaining < _stuckRemaining - StuckMoveUnits)
         {

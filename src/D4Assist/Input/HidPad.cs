@@ -19,6 +19,7 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
     {
         public string Name { get; } = name;
         public volatile bool Left;
+        public volatile int Stick; // the left stick: 0 unknown, 1 at rest, 2 pushed
         public bool LeftSeen, ReportSeen, HatMoved;
         public long? FirstHat;
         public PressHold Button { get; } = new();
@@ -35,6 +36,24 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
 
     public event Action? DpadLeftPressed;
     public event Action? DpadLeftHeld;
+
+    /// <summary>Whether a pad's left stick is pushed now (the player steers); null when no pad read here reports its sticks.</summary>
+    public bool? StickPushed
+    {
+        get
+        {
+            lock (_gate)
+            {
+                bool known = false;
+                foreach (var (_, pad) in _reading.Values)
+                {
+                    if (pad.Stick == 2) return true;
+                    known |= pad.Stick == 1;
+                }
+                return known ? false : null;
+            }
+        }
+    }
 
     /// <param name="log">Connect, disconnect, open-failure and first-press lines (a few per session).</param>
     public HidPad(Action<string> log) => _log = log;
@@ -128,6 +147,8 @@ public sealed class HidPad : IGuideTogglePad, IDisposable
             if (hat is not null) NoteReport(pad, report, read, hatValue);
             bool? left = sony is { } model ? SonyPadReport.IsDpadLeft(report.AsSpan(0, read), model, device.IsBluetooth)
                 : hatValue is { } value ? hat!.IsLeft(value) : null;
+            if (sony is { } sonyModel && SonyPadReport.IsLeftStickPushed(report.AsSpan(0, read), sonyModel, device.IsBluetooth) is { } pushed)
+                pad.Stick = pushed ? 2 : 1;
             if (left is not { } now) continue;
             pad.Left = now;
             if (!now || pad.LeftSeen) continue;

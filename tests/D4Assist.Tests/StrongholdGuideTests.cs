@@ -103,6 +103,7 @@ public class StrongholdGuideTests
         public List<MarkedActor> MapMarks = [.. Map];
         public int[] Running = [Quest];
         public List<Vector2> SearchedTo = [];
+        public bool? Steering = true;
 
         public Rig()
         {
@@ -110,7 +111,8 @@ public class StrongholdGuideTests
             Bridge = new QuestPathBridge(Feed, w => w == World, _ => [], (_, _, to) => { SearchedTo.Add(to); return [to]; }, ping, Speech,
                 new LanguageSetting(SpeechLanguage.English), Pad, runInBackground: work => work(), clock: () => Clock,
                 strongholdTargets: (marks, here, explore) => StrongholdTargeting.At(here, marks, explore, [AltarOfRuin], Running, _ => Phase,
-                    _ => Phases, _ => "Altar of Ruin", m => m.ActorSno == PriestSno ? "Cultist High Priestess" : null, _ => false));
+                    _ => Phases, _ => "Altar of Ruin", m => m.ActorSno == PriestSno ? "Cultist High Priestess" : null, _ => false),
+                steering: () => Steering);
             Feed.RaiseWorld(World);
             Read();
         }
@@ -267,6 +269,44 @@ public class StrongholdGuideTests
 
         Assert.Equal(cellar, rig.Target);
     }
+
+    // Live 2026-11-12, Kor Dragan: the player stood still (at a portal, reading), and every eight seconds the way ahead was
+    // blocked and another found, until none was left.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public void A_player_who_does_not_steer_is_not_stuck(bool? steering)
+    {
+        var rig = new Rig { Steering = steering };
+        rig.Move(Altar + new Vector2(60, 0));
+        rig.Pad.Press();
+        int searches = rig.SearchedTo.Count;
+
+        for (int i = 0; i < 300; i++) rig.Move(Altar + new Vector2(60, 0)); // 30 s on one spot
+
+        Assert.Equal(searches, rig.SearchedTo.Count);
+        Assert.DoesNotContain(PathStrings.English.Blocked, rig.Speech.Texts);
+    }
+
+    [Fact]
+    public void A_player_who_steers_and_gets_nowhere_is_stuck()
+    {
+        var rig = new Rig();
+        rig.Move(Altar + new Vector2(60, 0));
+        rig.Pad.Press();
+
+        for (int i = 0; i < 300; i++) rig.Move(Altar + new Vector2(60, 0));
+
+        Assert.Contains(PathStrings.English.Blocked, rig.Speech.Texts);
+    }
+
+    [Theory]
+    [InlineData(new byte[] { 0x01, 128, 128, 0, 0, 0, 0, 0, 8 }, false, false)] // USB, at rest
+    [InlineData(new byte[] { 0x01, 200, 128, 0, 0, 0, 0, 0, 8 }, false, true)]  // USB, pushed right
+    [InlineData(new byte[] { 0x01, 128, 30, 0, 0, 8 }, true, true)]             // Bluetooth short report, pushed up
+    [InlineData(new byte[] { 0x31, 0, 128, 128, 0, 0, 0, 0, 0, 8 }, true, false)] // Bluetooth full report, at rest
+    public void A_dualsense_report_tells_whether_the_left_stick_is_pushed(byte[] report, bool bluetooth, bool pushed) =>
+        Assert.Equal(pushed, SonyPadReport.IsLeftStickPushed(report, SonyPadModel.DualSense, bluetooth));
 
     private sealed class FakeFeed : IDungeonFeed
     {

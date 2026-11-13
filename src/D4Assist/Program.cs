@@ -679,6 +679,12 @@ internal static class Program
                         int? tier = null;
                         session.Query(r => tier = r.ReadWorldTier());
                         return tier;
+                    },
+                    () =>
+                    {
+                        IReadOnlySet<int>? completed = null;
+                        session.Query(r => completed = r.ReadCompletedQuests());
+                        return completed;
                     }),
                 // D-pad left leads to the place Enter chose (user request 2026-11-06).
                 placeChosen: choice => pathBridge?.Choose(store.Name(choice.WorldSno) ?? "", choice.Name, new Vector2((float)choice.X, (float)choice.Y)));
@@ -1092,21 +1098,23 @@ internal static class Program
     }
 
     // The map menu's lists besides the waypoints (Shift+F1, user request 2026-11-06): the dungeons and the cellars the map shows,
-    // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds, freed or not
-    // (user request: to find the places near one before it is freed; which are freed is not read yet), with the region of the
-    // waypoint nearest to each; and the boss lairs, only on a Torment tier, as the map shows them (each portal names the tier it
+    // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds not freed yet
+    // (the character's completed quests hold a freed one's quest, as the map drops its icon; all while that set is unreadable),
+    // with the region of the waypoint nearest to each; and the boss lairs, only on a Torment tier, as the map shows them (each portal names the tier it
     // is there from: Torment 1, Mephisto's Torment 10; the campaign each also asks for is taken as done).
     private static IReadOnlyList<MapPlaceList> MapPlaceLists(DungeonEntranceCatalog catalog, StrongholdCatalog strongholds,
-        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate, Func<int?> worldTier)
+        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate, Func<int?> worldTier,
+        Func<IReadOnlySet<int>?> completedQuests)
     {
         IReadOnlyList<MapPlace> Strongholds()
         {
+            var completed = completedQuests(); // read before taking the data lock, as the world tier is
             lock (cascGate)
             {
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 return
                 [
-                    .. strongholds.All.Select(s => new MapPlace(strongholds.Name(s, locale),
+                    .. strongholds.All.Where(s => completed?.Contains(s.QuestSno) != true).Select(s => new MapPlace(strongholds.Name(s, locale),
                         waypoints.All.Where(w => w.WorldSno == s.WorldSno)
                             .MinBy(w => Vector2.Distance(new Vector2(w.Position.X, w.Position.Y), new Vector2(s.Position.X, s.Position.Y))) is { } near
                             ? waypoints.Zone(near, locale) : null,

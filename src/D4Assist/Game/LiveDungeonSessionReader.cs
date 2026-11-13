@@ -568,6 +568,9 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
 
     public int? ReadWorldTier() => _offsets is { } offsets ? WorldTierReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 
+    public IReadOnlySet<int>? ReadCompletedQuests() =>
+        _offsets is { } offsets ? CompletedQuestsReader.Read(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
+
     public bool? ReadWorldTierMenuOpen() =>
         _offsets is { } offsets ? WorldTierMenuReader.IsOpen(_process, _moduleBase, offsets.GameObjectPointerRva) : null;
 

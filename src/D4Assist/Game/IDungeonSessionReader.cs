@@ -81,6 +81,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The game's world tier (eWorldTier: 0 Normal … 3 Penitent, 4 Torment 1 …, WorldTierReader); null when unreadable.</summary>
     int? ReadWorldTier() => null;
 
+    /// <summary>The quest SNOs the local character has completed (CompletedQuestsReader); null when unreadable.</summary>
+    IReadOnlySet<int>? ReadCompletedQuests() => null;
+
     /// <summary>Whether the difficulty statue's menu is open (WorldTierMenuReader; no screen of the registry); null when unreadable.</summary>
     bool? ReadWorldTierMenuOpen() => null;
 

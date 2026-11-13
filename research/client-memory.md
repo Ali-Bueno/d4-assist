@@ -569,6 +569,19 @@ restart while mounted (the player's RActor is still listed) and in a dungeon.
   `WorldTierCondition` reads the floor; `DungeonEntrance.MinWorldTier`. Other portals with a floor: the Throne of Hatred and
   the Butcher's S12 lair (4), seasonal capstones and `MJD_*`/`X1R_*` places (`EntranceKind.Other`, not listed).
 
+### Completed quests (live 2026-11-13, build 3.2.3, Dry Steppes, Qara-Yisu freed)
+
+- **`[[[G + 0xA80] + 0xA8] + 0]`**: a hash set of the character's completed quest SNOs. Buffer: u32 capacity at +0x10 (512), u32
+  entry size 16 at +0x14, entries from +0x50, each a chain pointer (or 0) and the quest SNO at +8; the u32 at +12 is leftover
+  memory (high halves of pointers, `FFFFFFFF`, changing between reads), no state. 335 entries on a character that had freed six
+  strongholds (Malnok, Kor Dragan, Altar of Ruin, Omaths, Túr Dúlra, Qara-Yisu: their map icons are gone) and no other of the 21;
+  Qara-Yisu absent before the user freed it, present after (one entry added in between). A second character's set (another
+  buffer after the switch) held 296 quests, names like `S01_Quest_Completed_Player_Hidden`, and no stronghold. `CompletedQuestsReader`;
+  the map menu leaves freed strongholds out.
+- Not proven: whether an accepted, unfinished quest is already in it.
+- Dead ends: the zone_progress hero state (`ZoneProgressHeroStateDataPerZone`) holds only `uRewardClaimedFlags`; a stronghold's
+  own waypoint marks it freed for 10 of 21 only (the waypoint activates on freeing, user); heap clusters of chain SNOs held all 21.
+
 ### Currencies (live 2026-10-28, build 3.2.3.73883, Scosglen helltide)
 
 - **The local player's currencies sit at slot + 0x7688** (H): 98 entries 16 bytes apart, one per `eCurrencyType` (as many

@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>D4Assist</RootNamespace>
     <!-- Logged at start (with the commit): a tester's log tells which build it came from. -->
-    <Version>0.1.33</Version>
+    <Version>0.1.34</Version>
     <!-- PRISM is x64 only (no x86 build exists): reference/screen-reader-integration/prism-prebuilt.md. -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>

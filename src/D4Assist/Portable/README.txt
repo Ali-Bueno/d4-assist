@@ -143,6 +143,10 @@ closer:
 - Characters you can talk to get a little wooden tap, the two nearest at once
   (the settings let you pick 1 to 4). Companions who follow you in a quest
   stay quiet.
+- Other players near you can play a soft, slow note, up to three at once and
+  from about twice as far as the tap. It is off until you turn on "Other
+  players" in the settings (Characters): it can't tell your party from other
+  players yet, and it hasn't been tried with another player around.
 - Bosses growl with a metallic ring, and unique monsters growl with chattering
   teeth, everywhere, quest or not: the nearest of each. A boss nothing can hurt
   for now goes quiet, so what you must kill meanwhile stands out.
@@ -196,6 +200,9 @@ another one.
 Ctrl+Alt+Shift plus a number from 1 to 8 plays each sound with its name, so
 you can learn them: exit, open floor, wall, door, unexplored exit, quest
 sound, guide ping and arrival.
+
+Ctrl+Alt+Shift+X says your level and how much experience is left to the next
+one; at the level cap, your paragon level and what is left to the next.
 
 Left on the D-pad turns the guide on and off in dungeons (Xbox controllers,
 PlayStation's DualSense or DualShock 4, and other gamepads); it acts when you

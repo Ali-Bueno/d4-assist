@@ -5,8 +5,8 @@ namespace D4Assist.Input;
 
 /// <summary>
 /// Ctrl+Alt+Shift hotkeys (Win32 RegisterHotKey) served by a private message-loop thread: the digits play the sound examples,
-/// G toggles the guide like D-pad left and E switches its mode like holding it; F2 alone (when asked for) says the helltide's
-/// cinders and hearts. A registered key goes to this app alone, so they are registered only while the game
+/// G toggles the guide like D-pad left and E switches its mode like holding it, X says the level and the experience left; F2
+/// alone (when asked for) says the helltide's cinders and hearts. A registered key goes to this app alone, so they are registered only while the game
 /// window is in front (user, 2026-10-26: only the settings and exit keys work everywhere); the game never sees them.
 /// </summary>
 public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
@@ -14,8 +14,8 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
     // winuser.h: MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT; WM_HOTKEY, WM_QUIT, WM_APP; virtual keys '1', 'G', 'E' and F2.
     private const uint ModAlt = 0x1, ModControl = 0x2, ModShift = 0x4, ModNoRepeat = 0x4000;
     private const uint WmHotkey = 0x0312, WmQuit = 0x0012, WmSetActive = 0x8001;
-    private const uint FirstDigitKey = 0x31, GuideKey = 0x47, GuideModeKey = 0x45, WalletKey = 0x71;
-    private const int GuideHotkeyId = 100, GuideModeHotkeyId = 101, WalletHotkeyId = 102; // past the digit ids 1-9
+    private const uint FirstDigitKey = 0x31, GuideKey = 0x47, GuideModeKey = 0x45, WalletKey = 0x71, ExperienceKey = 0x58;
+    private const int GuideHotkeyId = 100, GuideModeHotkeyId = 101, WalletHotkeyId = 102, ExperienceHotkeyId = 103; // past the digit ids 1-9
 
     // Checked at the player-poll rate, like the cue pause while the game is in the background.
     private const int ActivePollMs = GameSession.DefaultPlayerPollIntervalMs;
@@ -37,6 +37,9 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
 
     /// <summary>Raised on the hotkey thread for F2: the cinders and hearts (WalletAnnouncer).</summary>
     public event Action? WalletKeyPressed;
+
+    /// <summary>Raised on the hotkey thread for Ctrl+Alt+Shift+X: the level and the experience left (ExperienceAnnouncer).</summary>
+    public event Action? ExperienceKeyPressed;
 
     event Action? IGuideTogglePad.DpadLeftPressed { add => GuideKeyPressed += value; remove => GuideKeyPressed -= value; }
     public event Action? GuideModeKeyPressed;
@@ -81,6 +84,9 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
                 case WmHotkey when (int)message.WParam == WalletHotkeyId:
                     WalletKeyPressed?.Invoke();
                     break;
+                case WmHotkey when (int)message.WParam == ExperienceHotkeyId:
+                    ExperienceKeyPressed?.Invoke();
+                    break;
                 case WmHotkey:
                     DigitPressed?.Invoke((int)message.WParam);
                     break;
@@ -96,6 +102,7 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
         Register(GuideHotkeyId, GuideKey, "Ctrl+Alt+Shift+G is already taken by another program; toggle the guide with D-pad left.");
         Register(GuideModeHotkeyId, GuideModeKey, "Ctrl+Alt+Shift+E is already taken by another program; switch the guide's mode by holding D-pad left.");
         if (_walletKey) Register(WalletHotkeyId, WalletKey, "F2 is already taken by another program; the cinders and hearts can't be asked for.", ModNoRepeat);
+        Register(ExperienceHotkeyId, ExperienceKey, "Ctrl+Alt+Shift+X is already taken by another program; the experience can't be asked for.");
     }
 
     // Registered again each time the game comes to the front: a key another program holds is reported once.
@@ -111,6 +118,7 @@ public sealed class GlobalHotkeys : IGuideTogglePad, IDisposable
         UnregisterHotKey(IntPtr.Zero, GuideHotkeyId);
         UnregisterHotKey(IntPtr.Zero, GuideModeHotkeyId);
         UnregisterHotKey(IntPtr.Zero, WalletHotkeyId);
+        UnregisterHotKey(IntPtr.Zero, ExperienceHotkeyId);
     }
 
     public void Dispose()

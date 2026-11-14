@@ -13,7 +13,7 @@ public enum SoundCue
     Door, Chest, Corpse, Readable, PointOfInterest, HealingWell,
     Portal, Waypoint, QuestObjective, Prisoner, Enticement, SafeZone, StolenSkill, AkaratLight, WardBreaker,
     GuidePing, GuideArrival,
-    Npc, Boss, Elite,
+    Npc, OtherPlayer, Boss, Elite,
     Telegraph,
 }
 
@@ -67,7 +67,10 @@ public sealed class SoundSettings
     public CueSetting Group(SoundGroup group) => Entry(_groups, group.ToString());
 
     /// <summary>The cue's entry, created with the defaults when missing.</summary>
-    public CueSetting Cue(SoundCue cue) => Entry(_cues, cue.ToString(), DefaultVolume(cue));
+    public CueSetting Cue(SoundCue cue) => Entry(_cues, cue.ToString(), DefaultVolume(cue), DefaultEnabled(cue));
+
+    // Other players' note is asked for in the settings: it can't tell a party from strangers yet (2026-11-13).
+    private static bool DefaultEnabled(SoundCue cue) => cue != SoundCue.OtherPlayer;
 
     // The scroll loop on books, notes and signs sounds at half its designed level by default (user, 2026-10-01).
     private static int DefaultVolume(SoundCue cue) => cue == SoundCue.Readable ? CueSetting.MaxVolume / 2 : CueSetting.MaxVolume;
@@ -89,9 +92,9 @@ public sealed class SoundSettings
         return this;
     }
 
-    private static CueSetting Entry(Dictionary<string, CueSetting> entries, string key, int volume = CueSetting.MaxVolume)
+    private static CueSetting Entry(Dictionary<string, CueSetting> entries, string key, int volume = CueSetting.MaxVolume, bool enabled = true)
     {
-        if (!entries.TryGetValue(key, out var entry) || entry is null) entries[key] = entry = new CueSetting { Volume = volume };
+        if (!entries.TryGetValue(key, out var entry) || entry is null) entries[key] = entry = new CueSetting { Volume = volume, Enabled = enabled };
         return entry;
     }
 }

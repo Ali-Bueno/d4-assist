@@ -77,6 +77,7 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "Сигнал проводника",
             [SoundCue.GuideArrival] = "Прибытие",
             [SoundCue.Npc] = "Персонажи для разговора",
+            [SoundCue.OtherPlayer] = "Другие игроки",
             [SoundCue.Boss] = "Боссы",
             [SoundCue.Elite] = "Элита и уникальные",
             [SoundCue.Telegraph] = "Предупреждение об атаках боссов",

@@ -61,6 +61,11 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private static readonly string[] AcdNames =
         [.. ActorFilter.AcdFlags, AcdFlagReader.RtcPlaying, AcdFlagReader.HitpointsCur, AcdFlagReader.HitpointsMaxTotal];
 
+    // Read when the game's table has them, never reported missing: the player's level and experience (ExperienceAnnouncer).
+    private static readonly string[] ExperienceAcdNames =
+        [AcdFlagReader.Level, AcdFlagReader.LevelCap, AcdFlagReader.ExperienceNextLo, AcdFlagReader.ExperienceNextHi,
+         AcdFlagReader.ParagonLevel, AcdFlagReader.ParagonExperienceNextLo, AcdFlagReader.ParagonExperienceNextHi];
+
     // With the switch log, its attributes too, when the game's table has them.
     private static readonly string[] DiagnosticAcdNames = [.. AcdNames, .. SwitchStateLog.Attributes.Except(AcdNames)];
 
@@ -358,6 +363,21 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             : null;
     }
 
+    // The player's level and the experience left to the next one (ACD Level, Level_Cap, Experience_Next_Lo/Hi and their paragon
+    // counterparts); the ACD id comes from the last actor read.
+    public PlayerExperience? ReadExperience()
+    {
+        if (_flags is not { } flags || _playerAcdId is not { } acd || !flags.Known.Contains(AcdFlagReader.ExperienceNextLo)) return null;
+        var read = flags.Integers(acd);
+        if (read.Count == 0) return null;
+        long Wide(string lo, string hi) => (read.GetValueOrDefault(hi) << 32) | read.GetValueOrDefault(lo);
+        return new PlayerExperience(
+            (int)read.GetValueOrDefault(AcdFlagReader.Level), Wide(AcdFlagReader.ExperienceNextLo, AcdFlagReader.ExperienceNextHi),
+            (int)read.GetValueOrDefault(AcdFlagReader.ParagonLevel),
+            Wide(AcdFlagReader.ParagonExperienceNextLo, AcdFlagReader.ParagonExperienceNextHi),
+            (int)read.GetValueOrDefault(AcdFlagReader.LevelCap));
+    }
+
     // The player's own record: the closest one with the player's actor SNO (another player of the same class can be near).
     private RActorRecord? PlayerRecord(IReadOnlyList<RActorRecord> records, PlayerState? p) =>
         p is not null
@@ -386,7 +406,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
             return null;
         }
         if (!AcdReader.TryOpen(_process, _moduleBase, offsets, out _)) return null;
-        _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, _switches is null ? AcdNames : DiagnosticAcdNames);
+        _flags = AcdFlagReader.TryOpen(_process, _moduleBase, offsets, [.. _switches is null ? AcdNames : DiagnosticAcdNames, .. ExperienceAcdNames]);
         var missing = AcdNames.Except(_flags?.Known ?? []).ToList();
         if (missing.Count > 0) Console.WriteLine($"ACD attributes not found: {string.Join(", ", missing)}.");
         _health?.Report(ReadCheck.Attributes, missing.Count == 0, $"attributes not found: {string.Join(", ", missing)}");
@@ -426,6 +446,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
                 r => Naming(r, named, places), r => mappedBySno[r.ActorSno].Any(g =>
                     Vector2.Distance(new(g.Position.X, g.Position.Y), new(r.Position.X, r.Position.Y)) <= ActiveQuests.MarkerReach),
                 _activeQuests?.Owned));
+            if (player is { } own) actors = ActorFilter.MarkLocalPlayer(actors, own.Id);
             return _questOwner is null || _activeQuests is null ? actors : ActorFilter.LockOthersQuests(actors, _questOwner, _activeQuests.Owned);
         }
 

@@ -76,6 +76,7 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "Rehber sinyali",
             [SoundCue.GuideArrival] = "Varış",
             [SoundCue.Npc] = "Konuşulacak karakterler",
+            [SoundCue.OtherPlayer] = "Diğer oyuncular",
             [SoundCue.Boss] = "Patronlar",
             [SoundCue.Elite] = "Elitler ve benzersizler",
             [SoundCue.Telegraph] = "Boss saldırısı uyarısı",

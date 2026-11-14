@@ -77,6 +77,7 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "導引提示音",
             [SoundCue.GuideArrival] = "抵達",
             [SoundCue.Npc] = "可對話的角色",
+            [SoundCue.OtherPlayer] = "其他玩家",
             [SoundCue.Boss] = "首領",
             [SoundCue.Elite] = "精英與獨特怪物",
             [SoundCue.Telegraph] = "首領攻擊警告",

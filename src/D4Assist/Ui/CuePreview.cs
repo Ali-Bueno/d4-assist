@@ -16,6 +16,8 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
     /// <summary>The ping and tap repeat at their mid-range cadence: half the distance over which they speed up.</summary>
     private static readonly double GuideIntervalSeconds = GuidePingPlayer.IntervalSeconds(GuidePingPlayer.FarDistanceUnits / 2);
     private static readonly double NpcIntervalSeconds = NpcCuePlayer.IntervalSeconds(NpcCuePlayer.DefaultRangeUnits / 2);
+    private static readonly double PlayerIntervalSeconds =
+        NpcCuePlayer.IntervalSeconds(NpcCuePlayer.OtherPlayer, NpcCuePlayer.OtherPlayer.RangeUnits / 2, NpcCuePlayer.OtherPlayer.RangeUnits);
     private static readonly double EnemyIntervalSeconds = EnemyCuePlayer.IntervalSeconds(EnemyCuePlayer.RangeUnits / 2);
 
     /// <summary>The cue a group's own volume and speed are heard on.</summary>
@@ -62,6 +64,7 @@ public sealed class CuePreview(AudioMixer mixer, IReadOnlyDictionary<string, flo
             case SoundCue.GuidePing: return (Repeated(GuidePingSynth.Synthesize(1.0), GuideIntervalSeconds / rate), Boost, 0);
             case SoundCue.GuideArrival: return (GuidePingSynth.SynthesizeArrived(), Boost, 0);
             case SoundCue.Npc: return (Repeated(NpcCueSynth.Synthesize(1.0), NpcIntervalSeconds / rate), Boost, 0);
+            case SoundCue.OtherPlayer: return (Repeated(PlayerCueSynth.Synthesize(1.0), PlayerIntervalSeconds / rate), Boost, 0);
             case SoundCue.Boss: return (Repeated(EnemyCueSynth.Synthesize(EnemyClass.Boss, 1.0), EnemyIntervalSeconds / rate), Boost, 0);
             case SoundCue.Telegraph: return (TelegraphCueSynth.Synthesize(), Boost, 0);
             case SoundCue.Elite: return (Repeated(EnemyCueSynth.Synthesize(EnemyClass.Elite, 1.0), EnemyIntervalSeconds / rate), Boost, 0);

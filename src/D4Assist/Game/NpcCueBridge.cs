@@ -8,7 +8,7 @@ namespace D4Assist.Game;
 /// NpcCuePlayer.Voices (a setting, two by default; D2R taps one, d2r-access docs/entity-cues.md). Direct bearing, no line of
 /// sight: the overworld has no walk grid. Only NPCs the player can talk to or trade with get it (ActorState.Talkable); quest companions following
 /// the player (ActorState.QuestFollower) stay silent (user, 2026-09-30).
-/// Silent on a world change.
+/// Silent on a world change. A second one aims the other players' soft note the same way (player request 2026-11-13).
 /// </summary>
 public sealed class NpcCueBridge
 {
@@ -16,6 +16,7 @@ public sealed class NpcCueBridge
     private readonly Func<ActorState, bool> _isNpc;
     private readonly Func<int, string?> _nameOf;
     private readonly Action<string>? _log;
+    private readonly bool _otherPlayers;
     // Feed events arrive on different poll threads.
     private readonly object _gate = new();
     private readonly HashSet<uint> _loggedSilent = [];
@@ -24,12 +25,16 @@ public sealed class NpcCueBridge
 
     /// <param name="isNpc">True for an actor that gets the tap (NpcClassifier, minus actors with their own loop).</param>
     /// <param name="log">Debug sink for target changes; null when not debugging.</param>
-    public NpcCueBridge(IDungeonFeed feed, NpcCuePlayer player, Func<ActorState, bool> isNpc, Func<int, string?> nameOf, Action<string>? log = null)
+    /// <param name="otherPlayers">True to tap every actor <paramref name="isNpc"/> takes, talkable or not: other players' soft note.</param>
+    public NpcCueBridge(
+        IDungeonFeed feed, NpcCuePlayer player, Func<ActorState, bool> isNpc, Func<int, string?> nameOf, Action<string>? log = null,
+        bool otherPlayers = false)
     {
         _player = player;
         _isNpc = isNpc;
         _nameOf = nameOf;
         _log = log;
+        _otherPlayers = otherPlayers;
         feed.WorldChanged += (_, _, _) => { lock (_gate) { _npcs = []; _tapping = []; _loggedSilent.Clear(); _player.Silence(); } };
         feed.ActorsUpdated += actors => { lock (_gate) OnActors(actors); };
         feed.PlayerMoved += p => { if (!p.IsWorldUnloaded) lock (_gate) Aim(p); };
@@ -37,6 +42,12 @@ public sealed class NpcCueBridge
 
     private void OnActors(IReadOnlyList<ActorState> actors)
     {
+        if (_otherPlayers)
+        {
+            // Without the player's own actor told apart, it would sound as another player.
+            _npcs = actors.Any(a => a.LocalPlayer) ? [.. actors.Where(_isNpc)] : [];
+            return;
+        }
         var npcs = actors.Where(_isNpc).ToList();
         foreach (var npc in npcs.Where(n => (n.QuestFollower || !n.Talkable) && _loggedSilent.Add(n.Id)))
             _log?.Invoke($"NPC {(npc.QuestFollower ? "follows the player" : "offers no interaction")}, silent: {Name(npc)}");
@@ -48,7 +59,7 @@ public sealed class NpcCueBridge
         var nearest = _npcs.Select(n => (Npc: n, Distance: Distance(n, p))).Where(n => n.Distance <= _player.RangeUnits)
             .OrderBy(n => n.Distance).Take(_player.Voices).ToList();
         foreach (var (npc, distance) in nearest.Where(n => !_tapping.Contains(n.Npc.Id)))
-            _log?.Invoke($"NPC tap: {Name(npc)} at ({npc.X:F1},{npc.Y:F1}) distance={distance:F1}");
+            _log?.Invoke($"{(_otherPlayers ? "PLAYER" : "NPC")} tap: {Name(npc)} at ({npc.X:F1},{npc.Y:F1}) distance={distance:F1}");
         _tapping = [.. nearest.Select(n => n.Npc.Id)];
         _player.Aim([.. nearest.Select(n =>
         {

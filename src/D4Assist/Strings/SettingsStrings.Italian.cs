@@ -76,6 +76,7 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "Segnale della guida",
             [SoundCue.GuideArrival] = "Arrivo",
             [SoundCue.Npc] = "Personaggi con cui parlare",
+            [SoundCue.OtherPlayer] = "Altri giocatori",
             [SoundCue.Boss] = "Boss",
             [SoundCue.Elite] = "Élite e unici",
             [SoundCue.Telegraph] = "Avviso di attacchi dei boss",

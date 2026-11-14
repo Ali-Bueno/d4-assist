@@ -289,6 +289,11 @@ internal static class Program
         };
         using var npcTap = new NpcCuePlayer(mixer);
         StartNpcTap(session, npcTap, definitionOf, store.Name, debug);
+        // Other players nearby: every actor of a player class with a game record that isn't the player's own.
+        using var playerTap = new NpcCuePlayer(mixer, sound: NpcCuePlayer.OtherPlayer);
+        _ = new NpcCueBridge(
+            session, playerTap, a => !a.LocalPlayer && !a.ClientOnly && playerActorSnos.Contains(a.ActorSno), store.Name,
+            debug ? Console.WriteLine : null, otherPlayers: true);
         var markerLog = new MapMarkerLog(store.Name, Console.WriteLine, everyKind: debug);
         session.MapMarkersRead += markerLog.OnMarkers;
         session.WorldChanged += (_, _, _) => markerLog.Reset();
@@ -359,6 +364,7 @@ internal static class Program
             mixer.MasterVolume = mix.Master;
             (npcTap.Volume, npcTap.Rate) = mix.Level(SoundCue.Npc);
             npcTap.Voices = mix.NpcVoices;
+            (playerTap.Volume, playerTap.Rate) = mix.Level(SoundCue.OtherPlayer);
             foreach (var (kind, cue) in new[] { (EnemyClass.Boss, SoundCue.Boss), (EnemyClass.Elite, SoundCue.Elite) })
             {
                 var (volume, rate) = mix.Level(cue);
@@ -386,6 +392,11 @@ internal static class Program
                 : null,
             speech, language, debug ? Console.WriteLine : null);
         hotkeys.WalletKeyPressed += wallet.Announce;
+        // Ctrl+Alt+Shift+X: the level and the experience left to the next one. Always logged: a key press is rare.
+        var experience = new ExperienceAnnouncer(
+            () => { PlayerExperience? read = null; session.Query(r => read = r.ReadExperience()); return read; },
+            speech, language, Console.WriteLine);
+        hotkeys.ExperienceKeyPressed += experience.Announce;
         // In a game menu (inventory, map...) the D-pad navigates the menu, so presses there never toggle the guide; the key still does.
         // The pad is read whatever window has the focus: in another game, or with Diablo IV closed, its D-pad isn't ours.
         // A swallowed press is always logged with its reason: presses are rare, and a tester's pad that "does nothing" needs it.

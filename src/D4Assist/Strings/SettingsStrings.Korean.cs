@@ -77,6 +77,7 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "안내 신호음",
             [SoundCue.GuideArrival] = "도착",
             [SoundCue.Npc] = "대화할 캐릭터",
+            [SoundCue.OtherPlayer] = "다른 플레이어",
             [SoundCue.Boss] = "보스",
             [SoundCue.Elite] = "정예 및 고유 몬스터",
             [SoundCue.Telegraph] = "보스 공격 경고",

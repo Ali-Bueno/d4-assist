@@ -13,7 +13,9 @@ public class SoundMixTests
         var mix = SoundMix.From(new SoundSettings());
 
         Assert.Equal(0.25, mix.Master, Tolerance); // 50 on the squared curve
-        Assert.All(Enum.GetValues<SoundCue>().Where(c => c != SoundCue.Readable), cue => Assert.Equal(CueLevel.Full, mix.Level(cue)));
+        Assert.All(Enum.GetValues<SoundCue>().Where(c => c is not (SoundCue.Readable or SoundCue.OtherPlayer)),
+            cue => Assert.Equal(CueLevel.Full, mix.Level(cue)));
+        Assert.Equal(0, mix.Level(SoundCue.OtherPlayer).Gain); // off until asked for in the settings
         Assert.Equal(SoundMix.From(new SoundSettings { Cues = new() { ["Readable"] = new CueSetting { Volume = 50 } } }).Level(SoundCue.Readable),
             mix.Level(SoundCue.Readable));
         Assert.All(Enum.GetValues<SoundGroup>(), group => Assert.Equal(CueLevel.Full, mix.GroupLevel(group)));

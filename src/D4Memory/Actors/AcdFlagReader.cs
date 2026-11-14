@@ -61,6 +61,13 @@ public sealed class AcdFlagReader
     /// <summary>A unit's life now and its full life (the names are in the build's table; not yet read live).</summary>
     public const string HitpointsCur = "Hitpoints_Cur", HitpointsMaxTotal = "Hitpoints_Max_Total";
 
+    /// <summary>The player's level, the highest one and the experience left to the next, in two 32-bit halves; the same for
+    /// paragon levels (live 2026-11-13, research/client-memory.md §4).</summary>
+    public const string Level = "Level", LevelCap = "Level_Cap";
+    public const string ExperienceNextLo = "Experience_Next_Lo", ExperienceNextHi = "Experience_Next_Hi";
+    public const string ParagonLevel = "Paragon_Level", ParagonExperienceNextLo = "Paragon_Experience_Next_Lo",
+        ParagonExperienceNextHi = "Paragon_Experience_Next_Hi";
+
     // The live descriptor table held 1366 attributes, ids up to 0x571.
     private const uint MaxAttributeId = 0x1000;
 
@@ -116,6 +123,18 @@ public sealed class AcdFlagReader
             if (a.RawValue != 0 && _flags.TryGetValue(a.AttributeId, out var name))
                 numbers[name] = a.Kind == AcdAttribute.IntegerKind ? (int)a.RawValue : BitConverter.UInt32BitsToSingle(a.RawValue);
         return numbers;
+    }
+
+    /// <summary>The named attributes set (nonzero) on the actor behind <paramref name="acdId"/> as whole numbers, exact for an
+    /// integer's full 32 bits (Numbers rounds those to a float); empty when its ACD is gone.</summary>
+    public IReadOnlyDictionary<string, long> Integers(uint acdId)
+    {
+        var integers = new Dictionary<string, long>();
+        if (!_acds.TryGet(acdId, out var acd)) return integers;
+        foreach (var a in AcdAttributeReader.Read(_reader, acd.AttributesAddress))
+            if (a.RawValue != 0 && _flags.TryGetValue(a.AttributeId, out var name))
+                integers[name] = a.Kind == AcdAttribute.IntegerKind ? a.RawValue : (long)MathF.Round(BitConverter.UInt32BitsToSingle(a.RawValue));
+        return integers;
     }
 
     /// <summary>The raw values of the flags set (nonzero) on the actor behind <paramref name="acdId"/>; empty when its ACD is gone.</summary>

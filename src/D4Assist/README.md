@@ -368,6 +368,12 @@ the `Cinematic` mute (`CUES muted: Cinematic`). A world change lifts it. Also un
 the nearest NPCs within 15 units, on every player poll: the two nearest by default, 1 to 4 in the settings (`Sound.NpcVoices`;
 D2R taps one, user request 2026-10-02). Each repeats on its own rhythm, faster as the NPC gets closer: 450 ms at the edge,
 150 ms at contact. It is panned by screen side and pitched lower when the NPC is below the player.
+- **Other players** (player request 2026-11-13, not live-tested): a second `NpcCueBridge` plays `Audio/PlayerCueSynth`'s soft
+  note (`NpcCuePlayer.OtherPlayer`: 500 ms at contact to 1200 ms at 30 units, three at once) at every actor of a player class
+  with a game record that isn't the player's own (`ActorState.LocalPlayer`, the record the reader takes for the player); silent
+  while that one isn't told apart. Party members and strangers sound alike
+  ([client-memory](../../research/client-memory.md) §4). Cue `OtherPlayer` in the settings, off by default
+  (`SoundSettings.DefaultEnabled`). Live 2026-11-13: silent with the player alone in three towns; no other player was near.
 - **Which NPCs:** `Game/NpcClassifier` takes the fIsNPC monsters off the hostile team, including quest followers and
   escorts. It leaves out hired mercenaries (family `NPC_Mercenary` on the player's team; the Den's Raheir, on the neutral
   team, taps), cinematic stand-ins and prisoners, which have their own loop
@@ -493,6 +499,10 @@ near an edge costs more. Traversals join the floors they split: every two traver
 bar the floor within 2 units of their base height, on their cells and one cell round them: the Darkened Way's invisible doors stood
 on the straight way down from Lilith's petal, a cell apart (testers 2026-10-31 and 2026-11-01,
 [dungeon-data](../../research/dungeon-data.md) §4.1c). A door locking or unlocking finds the path again (`PATH doors changed`).
+Invisible collision props a layer of the world places (`LayerBlockers`: server props named for their collision in the
+`<World> (<Layer>)` marker sets, sized by their marker's scale) bar the floor under their whole height once the client lists an
+actor only that layer places, until a quest phase moves on with none listed (`LAYER on` / `LAYER off`, always logged): the
+Darkened Way's blocked stairs (tester 2026-11-11, §4.1c).
 Map markers in another world's level area (its name begins with that world's, `LevelAreaWorlds`) are no places: the map keeps
 a dungeon's markers after the player leaves it.
 
@@ -634,6 +644,11 @@ a dungeon's markers after the player leaves it.
   anywhere: before patch 3.3.0 the cinders vanish when the helltide ends, the hearts stay. `CurrencyReader` reads the local
   player's currencies (slot + 0x7688 of the player block, research/client-memory.md §4); `--debug` logs `WALLET …`. Off in
   the settings ("Glut und Unheilsherzen auf F2"), then the game keeps F2.
+- **Ctrl+Alt+Shift+X** (keyboard, while the game is in front) — the level and the experience left to the next one (player
+  request 2026-11-13, live-tested at level 20 and at the cap): "Level 37. 123456 experience to the next level."; at the cap
+  (`Level` = `Level_Cap`), the paragon level and what is left to the next. `ExperienceAnnouncer` reads the player's ACD
+  attributes `Level`, `Level_Cap`, `Experience_Next_Lo/Hi`, `Paragon_Level`, `Paragon_Experience_Next_Lo/Hi`
+  (research/client-memory.md §4); every press logs `XP …` with what it read.
 - **Ctrl+Alt+Shift+C** (keyboard, anywhere) — opens the settings window (see Notification area and settings window).
 - **Ctrl+Alt+Shift+Q** (keyboard, anywhere) — exits the app at once, as Exit in the notification-area menu.
 

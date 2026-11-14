@@ -61,6 +61,35 @@ public class NpcTests
         Assert.Equal(1, mixer.ActiveEntityVoiceCount);
     }
 
+    [Fact]
+    public void Other_players_sound_once_the_players_own_actor_is_told_apart()
+    {
+        const int PaladinSno = 50, SorcererSno = 51;
+        var classes = new HashSet<int> { PaladinSno, SorcererSno };
+        var feed = new FakeFeed();
+        var mixer = new AudioMixer();
+        double now = 0;
+        using var note = new NpcCuePlayer(mixer, () => now, autoTick: false, NpcCuePlayer.OtherPlayer);
+        _ = new NpcCueBridge(
+            feed, note, a => !a.LocalPlayer && !a.ClientOnly && classes.Contains(a.ActorSno), _ => null, otherPlayers: true);
+        ActorState[] others =
+        [
+            new(2, PaladinSno, 10, 0, 0), new(3, SorcererSno, 0, 20, 0), // same class as the player, and another
+            new(4, SorcererSno, 5, 0, 0, ClientOnly: true), // a cinematic's copy
+            new(5, MonkSno, 3, 0, 0, Talkable: true), new(6, PaladinSno, 90, 0, 0),
+        ];
+
+        feed.RaiseActors([new ActorState(1, PaladinSno, 0, 0, 0), .. others]); // the player's own actor not told apart
+        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
+        note.Tick();
+        Assert.Equal(0, mixer.ActiveEntityVoiceCount);
+
+        feed.RaiseActors([.. ActorFilter.MarkLocalPlayer([new ActorState(1, PaladinSno, 0, 0, 0)], 1), .. others]);
+        feed.RaisePlayer(new PlayerState(0, 0, 1, 0));
+        note.Tick();
+        Assert.Equal(2, mixer.ActiveEntityVoiceCount);
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(NpcCuePlayer.DefaultVoices, 2)]

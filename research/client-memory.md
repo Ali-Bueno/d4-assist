@@ -243,6 +243,19 @@ presence): attribute `Gizmo_Has_Been_Operated` (id 0x229 in this build) = 1, mos
   (`Pale_Frac_DoorC_Dyn`, 2026-09-30) held `Gizmo_State` = 1 alone: no operated mark, RActor `+0x148` = 0, not
   usable. The app reads `Gizmo_State` set on a door as open: no door loop, no radar knock.
 - Real chests (`Chest_Open`, id 0x220, never seen set), levers and prisoners are not checked.
+- **Level and experience** (live 2026-11-13, 3.2.4.74043, `D4MemScan acd --match <class>`, H): on the player's ACD, integers.
+  - A level 20 rogue: `Level` 20, `Level_Cap` 70, `Experience_Next_Lo` 6546, no paragon attribute. The game's table
+    (GameBalance `ExperienceTable` 1309, `ExperienceLevel.nDeltaXP`, entry 19) gives 139,640 for that level, so 6546 left is
+    95.3 % done, as the HUD bar showed: the attribute is the experience **left** to the next level.
+  - A level 70 barbarian at paragon 267: `Level` 70 = `Level_Cap`, `Paragon_Level` 267, `Paragon_Experience_Next_Lo`
+    302,040,630, and `Experience_Next_Lo` still 7240 (a leftover: at the cap only the paragon pair counts).
+  - The `_Hi` halves were unset in both. The name table also lies as plain strings in `Diablo IV.exe` on disk.
+  - The game shows no tooltip for a mouse parked on the bar by `SendInput` (preset "keyboard only", mouse aiming off).
+- **`Player_In_Town_Level_Area`** = 1 on the player in Kyovashad, Nevesk and Jirandai (same session); not read outside a town.
+- **Other players** (L, 2026-11-13): assumed to be RActors with a player class's SNO (eType 7) and an ACD; the reader's own
+  record is the closest of the player's SNO. Live: alone in those three towns the scan listed one player actor within 80-120
+  units, the player's own, and the app's note stayed silent; no other player was met. Nothing read tells a party member from a
+  stranger; leads, by name only: `Player_Is_Party_Invitable`, `Player IDX`, the four player slots at `[G + 0xA80]` (§6).
 - **Quest gizmos** (live 2026-09-30, Darkened Way, 2 samples, M): `Gizmo_Is_Quest_Restricted` (0x226) = 1 marks a gizmo
   the quest controls, usable or not:
   - the scripted entrance gate `Qst_Frac_Ancients_UnderWorld_LargeEntrance_Door_01_Dyn` (gizmo 0, the game offers no

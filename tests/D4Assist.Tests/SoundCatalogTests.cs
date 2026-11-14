@@ -17,13 +17,21 @@ public class SoundCatalogTests
     }
 
     [Fact]
+    public void Every_cue_starts_switched_on_but_the_other_players_note()
+    {
+        var sound = new SoundSettings().Complete();
+
+        Assert.All(Enum.GetValues<SoundCue>(), cue => Assert.Equal(cue != SoundCue.OtherPlayer, sound.Cue(cue).Enabled));
+    }
+
+    [Fact]
     public void Repeats_only_for_objects_quest_guide_ping_and_characters()
     {
         SoundCue[] expected =
         [
             SoundCue.Door, SoundCue.Chest, SoundCue.Corpse, SoundCue.Readable, SoundCue.PointOfInterest, SoundCue.HealingWell,
             SoundCue.Portal, SoundCue.Waypoint, SoundCue.QuestObjective, SoundCue.Prisoner, SoundCue.Enticement, SoundCue.SafeZone, SoundCue.StolenSkill, SoundCue.AkaratLight, SoundCue.WardBreaker, SoundCue.GuidePing, SoundCue.Npc,
-            SoundCue.Boss, SoundCue.Elite,
+            SoundCue.OtherPlayer, SoundCue.Boss, SoundCue.Elite,
         ];
 
         Assert.Equal(expected.Order(), Enum.GetValues<SoundCue>().Where(SoundCatalog.Repeats).Order());

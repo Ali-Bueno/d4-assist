@@ -96,6 +96,10 @@ public static class ActorFilter
     public static IReadOnlyList<ActorState> LockOthersQuests(IReadOnlyList<ActorState> actors, Func<int, int?> ownerOf, IReadOnlyList<int> followed) =>
         [.. actors.Select(a => !a.QuestStep && ownerOf(a.ActorSno) is { } quest && !followed.Contains(quest) ? a with { QuestLocked = true } : a)];
 
+    /// <summary>Marks the player's own actor (LiveDungeonSessionReader.PlayerRecord), to tell it from other players'.</summary>
+    public static IReadOnlyList<ActorState> MarkLocalPlayer(IReadOnlyList<ActorState> actors, uint id) =>
+        [.. actors.Select(a => a.Id == id ? a with { LocalPlayer = true } : a)];
+
     /// <summary>Rotation about Z of a unit quaternion, from +X towards +Y.</summary>
     public static float Yaw(Quaternion q) =>
         MathF.Atan2(2 * (q.W * q.Z + q.X * q.Y), 1 - 2 * (q.Y * q.Y + q.Z * q.Z));

@@ -46,6 +46,46 @@ public class NpcCueTests
     }
 
     [Fact]
+    public void The_other_players_note_is_softer_lower_and_slower_than_the_tap()
+    {
+        var note = PlayerCueSynth.Synthesize(1.0);
+        var tap = NpcCueSynth.Synthesize(1.0);
+        var sound = NpcCuePlayer.OtherPlayer;
+
+        Assert.True(SignalAnalysis.PeakAbs(note) > 0.03f);
+        Assert.True(SignalAnalysis.PeakAbs(note) < SignalAnalysis.PeakAbs(tap));
+        Assert.True((double)ZeroCrossings(note) / note.Length < (double)ZeroCrossings(tap) / tap.Length);
+        Assert.True(Math.Abs(note[note.Length / 100]) < SignalAnalysis.PeakAbs(note) / 2); // a slow onset, no click
+        for (double part = 0; part <= 1; part += 0.25)
+            Assert.True(NpcCuePlayer.IntervalSeconds(sound, part * sound.RangeUnits, sound.RangeUnits)
+                > 2 * NpcCuePlayer.IntervalSeconds(part * NpcCuePlayer.DefaultRangeUnits));
+    }
+
+    [Fact]
+    public void A_player_for_other_players_takes_their_reach_voices_and_rhythm()
+    {
+        var clock = new Clock();
+        var mixer = new AudioMixer();
+        using var players = new NpcCuePlayer(mixer, () => clock.Now, autoTick: false, NpcCuePlayer.OtherPlayer);
+        Assert.Equal(NpcCuePlayer.OtherPlayer.RangeUnits, players.RangeUnits);
+        Assert.Equal(3, players.Voices);
+
+        players.Aim([new NpcAim(1, 1, 0, 0)]);
+        players.Tick();
+        Assert.Equal(1, mixer.ActiveEntityVoiceCount);
+        Listen(mixer); // the note plays out
+        Listen(mixer);
+        clock.Now = 0.45; // past the tap's slowest interval, short of the note's fastest
+        players.Aim([new NpcAim(1, 1, 0, 0)]);
+        players.Tick();
+        Assert.Equal(0, mixer.ActiveEntityVoiceCount);
+        clock.Now = 0.51;
+        players.Aim([new NpcAim(1, 1, 0, 0)]);
+        players.Tick();
+        Assert.Equal(1, mixer.ActiveEntityVoiceCount);
+    }
+
+    [Fact]
     public void Screen_down_lowers_the_pitch()
     {
         Assert.Equal(1.0, NpcCueSynth.Pitch(1), 9);

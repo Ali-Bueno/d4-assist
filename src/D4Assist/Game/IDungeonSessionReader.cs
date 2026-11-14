@@ -32,6 +32,9 @@ public interface IDungeonSessionReader : IDisposable
     /// <summary>The player's life; null while unreadable.</summary>
     PlayerLife? ReadLife() => null;
 
+    /// <summary>The player's level and the experience left to the next one; null while unreadable.</summary>
+    PlayerExperience? ReadExperience() => null;
+
     /// <summary>The places the active quests' current phases name, as of the last actor read; null when unknown.</summary>
     IReadOnlyList<QuestPlace>? ReadQuestPlaces() => null;
 

@@ -77,6 +77,7 @@ public sealed partial record SettingsStrings
             [SoundCue.GuidePing] = "ガイドの合図音",
             [SoundCue.GuideArrival] = "到着",
             [SoundCue.Npc] = "話しかけるキャラクター",
+            [SoundCue.OtherPlayer] = "他のプレイヤー",
             [SoundCue.Boss] = "ボス",
             [SoundCue.Elite] = "エリートとユニーク",
             [SoundCue.Telegraph] = "ボスの攻撃の警告",

@@ -202,5 +202,84 @@ public class JumpRouteTests
         Assert.Equal(Ladder.A, guide.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
     }
 
+    // Tester log of 2026-11-14, the same chamber's north-west ladder: its web left free floor beside the foot, the guide led to
+    // the foot three times, and each time the player stood there and walked away without getting up.
+    private static readonly IReadOnlySet<(int X, int Y)> WebByTheFoot =
+        Enumerable.Range(16, 3).SelectMany(x => Enumerable.Range(9, 3).Select(y => (x, y))).ToHashSet();
+    private static readonly PlayerInput AtTheFoot = new(18.5f, 10.5f, 0), WalkedAway = new(29.5f, 10.5f, 0);
+
+    private static ExplorationGuide ChamberWithAWebbedLadderTried(bool wayRound, PlayerInput then)
+    {
+        var guide = Chamber(wayRound);
+        guide.SetPropCells(WebByTheFoot);
+        Assert.Equal(Ladder.A, guide.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
+        guide.Step(AtTheFoot, objectives: [Tumor]);
+        guide.Step(then, objectives: [Tumor]);
+        return guide;
+    }
+
+    [Fact]
+    public void A_webbed_ladder_stood_at_and_left_uncrossed_gives_way_to_the_way_round()
+    {
+        var closed = new List<JumpLink>();
+        var guide = Chamber(wayRound: true);
+        guide.TraversalClosed += closed.Add;
+        guide.SetPropCells(WebByTheFoot);
+        Assert.Equal(Ladder.A, guide.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
+        guide.Step(AtTheFoot, objectives: [Tumor]);
+
+        var step = guide.Step(WalkedAway, objectives: [Tumor]);
+
+        Assert.Equal([Ladder], closed);
+        Assert.Empty(guide.JumpLinks);
+        Assert.Equal("tumor", step.Target!.Id);
+        Assert.Null(step.JumpAt);
+        Assert.True(step.Waypoint.Y > 20f, $"waypoint {step.Waypoint}");
+    }
+
+    [Fact]
+    public void A_webbed_ladder_given_up_with_no_way_round_no_longer_leads()
+    {
+        var guide = ChamberWithAWebbedLadderTried(wayRound: false, WalkedAway);
+
+        var step = guide.Step(OnMainFloor, objectives: [Tumor]);
+
+        Assert.Null(step.JumpAt);
+        Assert.NotEqual("tumor", step.Target?.Id);
+    }
+
+    [Fact]
+    public void A_webbed_ladder_only_passed_by_or_still_stood_near_keeps_leading()
+    {
+        var passedBy = Chamber(wayRound: true);
+        passedBy.SetPropCells(WebByTheFoot);
+        passedBy.Step(AtTheFoot with { X = 24.5f }, objectives: [Tumor]); // led over it, never at its foot
+        Assert.Equal(Ladder.A, passedBy.Step(WalkedAway, objectives: [Tumor]).JumpAt);
+
+        var near = ChamberWithAWebbedLadderTried(wayRound: true, AtTheFoot with { X = 17.5f + ExplorationGuide.TraversalLeaveUnits - 1f });
+        Assert.Equal(Ladder.A, near.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
+    }
+
+    [Fact]
+    public void A_webbed_ladder_the_player_climbed_stays_open()
+    {
+        var guide = ChamberWithAWebbedLadderTried(wayRound: true, new PlayerInput(Ladder.B.X, Ladder.B.Y, 0));
+        guide.Step(new PlayerInput(2.5f, 3.5f, 0), objectives: [Tumor]); // on along the platform, far from the foot
+
+        Assert.Equal(Ladder.A, guide.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
+    }
+
+    [Fact]
+    public void A_ladder_given_up_leads_again_once_its_web_is_gone_or_the_guide_is_switched_on_again()
+    {
+        var freed = ChamberWithAWebbedLadderTried(wayRound: true, WalkedAway);
+        freed.SetPropCells(new HashSet<(int X, int Y)>());
+        Assert.Equal(Ladder.A, freed.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
+
+        var rearmed = ChamberWithAWebbedLadderTried(wayRound: true, WalkedAway);
+        rearmed.Rearm();
+        Assert.Equal(Ladder.A, rearmed.Step(OnMainFloor, objectives: [Tumor]).JumpAt);
+    }
+
     private static float Distance((float X, float Y) a, (float X, float Y) b) => MathF.Sqrt(MathF.Pow(a.X - b.X, 2) + MathF.Pow(a.Y - b.Y, 2));
 }

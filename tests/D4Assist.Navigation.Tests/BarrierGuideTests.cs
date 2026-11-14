@@ -217,7 +217,7 @@ public class BarrierGuideTests
         Assert.Equal(GuideTargetKind.Gate, guide.Step(Centre(4), objectives: objectives).Target!.Kind); // a step back, still near
         Assert.Equal(GuideTargetKind.UnvisitedTile, guide.Step(Centre(3), objectives: objectives).Target!.Kind);
 
-        guide.RearmGates();
+        guide.Rearm();
         Assert.Equal(GuideTargetKind.Gate, guide.Step(Centre(3), objectives: objectives).Target!.Kind);
     }
 

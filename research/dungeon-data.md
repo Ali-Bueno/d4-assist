@@ -208,6 +208,13 @@ couldn't walk". A tile with no exit, live or authored, and no walk map now joins
 exits nor a walk map, 69 of them fillers; the other 37 are static story-area scenes (`Kehj_Hell_Sightless_Eye_*`) and menu scenes,
 so the radar, which runs in story areas too, keeps reading such tiles Unknown. 43 more fillers have a walk map: `FloorMeets` decides.
 
+The same through an exit opening (tester log 2026-11-14, the Darkened Holt, `CSD_Frac_GaleValley_IllusionWoods` 536086):
+`Frac_Pine_POI_FLEX_IllusionWoods_01` (96×96 at (−96,−32), live exits on every side) has a 3-unit run of floor on its west edge at
+(−4.5,−32), where `Frac_Pine_FILLER_01` (at (−32,−64), exit 0, no walk map) lies. `OpeningFinder` found the opening, an unknown walk
+map counted as floor beyond, and the guide chose `UnvisitedTile tile:-1,-2 at (-4.5,-32.0)`: the player stood against the trees
+at (−13.3,−23.5) three times in 100 s, until the guide was switched off and on. An opening onto such a tile now joins nothing
+(`DarkenedHoltFillerRealDataTests`).
+
 ### 4.1d Wall-less tiles: floor islands at the edges (offline, 2026-10-30, `CSD_Hawe_Verge_CorrosiveSwamp` 600744)
 
 - The 14 `Hawe_Swamp_*` tiles have no walls: floor of 17–64 cells touches edges with no exit bit, in scattered islands.

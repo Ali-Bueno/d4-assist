@@ -100,6 +100,10 @@ its use costs `RoomPathfinder.JumpExtraCost`). A traversal whose end has no free
 `PropPenalty` per unit of prop walked to free floor, so the guide goes round through other tiles where they reach the far region,
 and over the traversal where nothing else does (the Necropolis's platform ladders wrapped in flesh webs that open only when the
 tumor dies, tester log 2026-11-01, research/dungeon-objectives.md §12). The room route still decides the steps inside a room.
+A traversal a prop reaches (`BuriedTraversals.Webbed`), buried or not, is closed once the guide has pointed at one of its ends
+and the player has stood within `JumpReachUnits` of it and walked `ExplorationGuide.TraversalLeaveUnits` away without landing at
+the other end: it joins nothing in the graph or in a room route (`JumpLinks` leaves it out), and its tile stays split. It opens
+again when no prop reaches it or on `Rearm` (tester log 2026-11-14, the same ladders: led to a webbed foot three times).
 
 ## D2R correspondence
 

@@ -425,6 +425,24 @@ Things the player must go to during a fight, looped until gone or locked (`Objec
     and the duck-under keep free floor within reach and stay open, as they were in play.
   - **Props taking turns (0.1.27 only):** `ExitLeft_02` and `Slime_01` rounded to one spot (−43,−19) and replaced each other every
     poll (326,907 `PROP standing` lines, 30 MB); fixed in 0.1.28 (9f78bc5, keyed by spot and kind).
+- **Tester log 0.1.34 `--debug` (2026-11-14, chamber placed at (−64,0): world = offline + (−64,0)):** four tumors "just fine", the
+  north-west platform's (−48.3,55.7,8) after 8 minutes: "places where I could technically see the tumor but I was below it".
+  - The guide said `via jump at (-44.0,50.0)`, that platform's ladder foot, four times (00:50:33, 00:53:59, 00:55:27, 00:56:12),
+    and three times the player stood 1.3–2.8 units from it at (−44.4,52.0), (−44.1,48.7), (−42.7,52.5) for 6–10 s, then walked
+    16–19 units off. `ExitRight_02` (216 cells, centred 0.7 from the foot) and `ExitRight_01B` stood from 00:50:11 on; the top's
+    `ExitRight_01` and slime entered the list only at 00:56:44, the second the player climbed at (−8,56) (likely
+    `BreakableProps.SameFloorUnits`: props count on the player's floor only).
+  - The way round lay in tiles loaded from 00:50:30 on: the climb at (−8,56)–(−5,56), the ledge out east at about (−19.5,64),
+    `Ancients_Blood_EW_01` at (−32,64) and (−64,64), and back in at (−48.5,64) onto the platform. The player found it at 00:58:41
+    coming back from the quest place at (−23.4,120.2): (−49.6,87.9), (−48.9,62.9), (−46.0,55.9). So the prop cost of the ladder
+    (`PropPenalty` × units of prop past reach) was under the ~90 units the way round adds, or the ladder did not read buried.
+  - Twice the tumor's target gave way to a quest place (`quest-place:700166`, route 122.7 and 60.9): the moment its actor was
+    listed (00:50:42), and 5 s after the top's props were (00:56:49). Cause not known; no player height in the log.
+  - **App rule (unit-tested, not live):** a traversal a standing prop reaches (a cell within `JumpReachUnits` of an end) that the
+    guide pointed at, once the player has stood within reach of that end and walked `TraversalLeaveUnits` (10) from it without
+    landing at the other end, is closed: no hop, no room route over it, its tile split into floor regions. It opens when no prop
+    reaches it or the guide is switched on again. `--debug`: `GUIDE gives up the traversal (a)-(b)`. `PROP standing` now ends in
+    `, invulnerable` when the prop's ACD says so: unknown for these webs.
 - **Open (2.5D):** the overlook gallery (Z 12.5) and the floor below touch in the flat walk map at (80,56)–(86,52): from the main
   floor the route to the gallery tumor (87.1,34.4,12) climbs that wall instead of the ladder, and from the overlook entrance routes
   to the others take the ladder backwards and drop off at (80,58). The tile has `m_cellBytes` surfaces (6,688 voxels,

@@ -21,6 +21,9 @@ public sealed class NavigationBridge
     {
         _diagnostics = diagnostics;
         _engine = new NavigationEngine(walkability, language, isExitCandidate);
+        if (diagnostics)
+            _engine.Guide.TraversalClosed += link => Log(
+                $"GUIDE gives up the traversal ({link.A.X:F1},{link.A.Y:F1})-({link.B.X:F1},{link.B.Y:F1}): stood at under a prop, left uncrossed");
         _engine.Settings.Enabled = announcementsEnabled;
         _engine.Settings.DirectionStyle = directionStyle;
         _engine.Announce += (text, interrupt) =>
@@ -76,10 +79,10 @@ public sealed class NavigationBridge
         lock (_gate) _engine.Guide.SetGates(gates);
     }
 
-    /// <summary>Lets the shut doors the player walked away from lead again (ExplorationGuide.RearmGates).</summary>
-    public void RearmGates()
+    /// <summary>Lets the shut doors and the traversals the player walked away from lead again (ExplorationGuide.Rearm).</summary>
+    public void Rearm()
     {
-        lock (_gate) _engine.Guide.RearmGates();
+        lock (_gate) _engine.Guide.Rearm();
     }
 
     /// <summary>The jump links of the loaded tiles, for the guide's routes; an equal list is a no-op (ExplorationGuide.SetJumpLinks).</summary>

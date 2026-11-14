@@ -87,14 +87,84 @@ public sealed class ExplorationGuide
     {
         if (jumps.SequenceEqual(_jumps)) return;
         _jumps = jumps;
-        _jumpsVersion++;
+        UsableJumpsChanged();
     }
 
     private IReadOnlyList<JumpLink> _jumps = [];
+    // _jumps without the closed ones: what a route may cross.
+    private IReadOnlyList<JumpLink> _usable = [];
     private int _jumpsVersion, _cachedJumps = -1;
 
-    /// <summary>The jump links last set; the same instance until they change.</summary>
-    public IReadOnlyList<JumpLink> JumpLinks => _jumps;
+    /// <summary>The jump links last set, without those the player gave up on (<see cref="TraversalLeaveUnits"/>); the same
+    /// instance until they change.</summary>
+    public IReadOnlyList<JumpLink> JumpLinks => _usable;
+
+    private void UsableJumpsChanged()
+    {
+        _usable = _closed.Count == 0 ? _jumps : [.. _jumps.Where(j => !_closed.Contains(j))];
+        _jumpsVersion++;
+    }
+
+    /// <summary>Walking this far from the end of a traversal the guide pointed at, after standing at it and without crossing, gives
+    /// up on it. In the Necropolis of the First Born a flesh web that opens only when the tumor above dies wraps a platform's
+    /// ladder: a tester stood 2-3 units from its foot three times, moved up to 6 units around it, then left (log of 2026-11-14).</summary>
+    public const float TraversalLeaveUnits = 10f;
+
+    // Traversals a standing prop reaches (BuriedTraversals.Webbed): those the guide pointed the player at, by the end pointed at;
+    // the one the player now stands at; and those walked away from uncrossed, closed until no prop reaches them or Rearm.
+    private readonly HashSet<(JumpLink Link, bool FromA)> _pointedAt = [];
+    private (JumpLink Link, bool FromA)? _stoodAt;
+    private readonly HashSet<JumpLink> _closed = [];
+    private HashSet<JumpLink> _webbed = [];
+    private (int Jumps, int Props) _webbedKey = (-1, -1);
+
+    private void WatchTraversals((float X, float Y) here)
+    {
+        if (_webbedKey != (_jumpsVersion, _propsVersion))
+        {
+            _webbed = BuriedTraversals.Webbed(_jumps, _props);
+            _pointedAt.RemoveWhere(p => !_webbed.Contains(p.Link));
+            if (_stoodAt is { } freed && !_webbed.Contains(freed.Link)) _stoodAt = null;
+            if (_closed.RemoveWhere(l => !_webbed.Contains(l)) > 0) UsableJumpsChanged();
+            _webbedKey = (_jumpsVersion, _propsVersion);
+        }
+
+        if (_stoodAt is not { } stood)
+        {
+            foreach (var pointed in _pointedAt)
+                if (TileRoutes.Distance(here, pointed.FromA ? pointed.Link.A : pointed.Link.B) <= RoomPathfinder.JumpReachUnits)
+                {
+                    _stoodAt = pointed;
+                    break;
+                }
+            return;
+        }
+
+        var (near, far) = stood.FromA ? (stood.Link.A, stood.Link.B) : (stood.Link.B, stood.Link.A);
+        float toNear = TileRoutes.Distance(here, near), toFar = TileRoutes.Distance(here, far);
+        bool crossed = toFar < toNear && toFar <= RoomPathfinder.JumpReachUnits;
+        if (!crossed && toNear <= TraversalLeaveUnits) return;
+        _pointedAt.Remove(stood);
+        _stoodAt = null;
+        if (crossed) return;
+        _closed.Add(stood.Link);
+        UsableJumpsChanged();
+        _webbedKey = (_jumpsVersion, _propsVersion);
+        TraversalClosed?.Invoke(stood.Link);
+    }
+
+    /// <summary>The player gave up on this traversal (<see cref="TraversalLeaveUnits"/>): for the log.</summary>
+    public event Action<JumpLink>? TraversalClosed;
+
+    // Remembers the webbed traversal a step leads over, by the end it leads to.
+    private GuideStep Pointed(GuideStep step)
+    {
+        if (step.JumpAt is not { } at) return step;
+        foreach (var link in _webbed)
+            if (link.A == at) _pointedAt.Add((link, true));
+            else if (link.B == at) _pointedAt.Add((link, false));
+        return step;
+    }
 
     /// <summary>The cells breakable props stand on (1-unit world cells): routes inside a room walk around them where they can, never
     /// a wall (RoomPathfinder.PropPenalty). Compared by content, like <see cref="SetBlockedCells"/>.</summary>
@@ -125,12 +195,20 @@ public sealed class ExplorationGuide
     private readonly HashSet<string> _atGates = [];
     private readonly HashSet<string> _spentGates = [];
 
-    /// <summary>Lets the shut doors the player walked away from lead again (the guide was just switched on by a lost player).</summary>
-    public void RearmGates()
+    /// <summary>Lets the shut doors and the traversals the player walked away from lead again (the guide was just switched on by a
+    /// lost player).</summary>
+    public void Rearm()
     {
-        if (_spentGates.Count == 0) return;
-        _spentGates.Clear();
-        _gatesVersion++;
+        if (_spentGates.Count > 0)
+        {
+            _spentGates.Clear();
+            _gatesVersion++;
+        }
+        _pointedAt.Clear();
+        _stoodAt = null;
+        if (_closed.Count == 0) return;
+        _closed.Clear();
+        UsableJumpsChanged();
     }
 
     /// <summary>Within this of a shut door's spot the player waits at it: its footprint's cells reach about this far from the spot.</summary>
@@ -151,7 +229,10 @@ public sealed class ExplorationGuide
         _rechecking = false;
         _blocked = BlockedCells.None;
         _jumps = [];
-        _jumpsVersion++;
+        _pointedAt.Clear();
+        _stoodAt = null;
+        _closed.Clear();
+        UsableJumpsChanged();
         _props = BlockedCells.None;
         _propsVersion++;
         _gates = [];
@@ -179,6 +260,7 @@ public sealed class ExplorationGuide
     {
         if (_map.TileAt(player.X, player.Y) is not { } tile) return GuideStep.Unknown;
 
+        WatchTraversals((player.X, player.Y));
         var graph = CurrentGraph();
         if (_beforeOpening is { } before)
         {
@@ -200,7 +282,7 @@ public sealed class ExplorationGuide
             _cachedRecheck == _recheckVersion && _cachedExitMissing == exitMissing && _cachedDestinations == destinationKey && _cachedJumps == _jumpsVersion && _cachedGates == _gatesVersion &&
             _cachedProps == _propsVersion &&
             TileRoutes.Distance(here, _cachedPlayer) <= RoomRouteCache.RecomputeThresholdUnits)
-            return _cached;
+            return Pointed(_cached);
 
         _cached = Compute(graph, tile, player, exitMissing, destinations, objectives);
         _cachedPlayer = here;
@@ -213,7 +295,7 @@ public sealed class ExplorationGuide
         _cachedJumps = _jumpsVersion;
         _cachedGates = _gatesVersion;
         _cachedProps = _propsVersion;
-        return _cached;
+        return Pointed(_cached);
     }
 
     private TileGraph CurrentGraph()
@@ -235,7 +317,7 @@ public sealed class ExplorationGuide
     {
         if (_traversalsKey == (_map.Version, _jumpsVersion, _propsVersion)) return _traversals;
         _traversalsKey = (_map.Version, _jumpsVersion, _propsVersion);
-        var now = BuriedTraversals.Of(_map, _walkability, _jumps, _props);
+        var now = BuriedTraversals.Of(_map, _walkability, _jumps, _props, _closed);
         if (!now.SequenceEqual(_traversals)) _traversals = now;
         return _traversals;
     }
@@ -477,7 +559,7 @@ public sealed class ExplorationGuide
         if (point && room is not null && hops.All(h => h.To is { } next && roomTiles.Contains(TileGraph.Key(next.Tile))))
         {
             float reach = chosen.Reach > 0 ? chosen.Reach : DestinationArrivalUnits;
-            var near = RoomRouteCache.TraceToPoint(room, (player.X, player.Y), chosen.Target.Position, reach, _jumps, _props);
+            var near = RoomRouteCache.TraceToPoint(room, (player.X, player.Y), chosen.Target.Position, reach, _usable, _props);
             if (!near.UsedFallback)
             {
                 remaining = near.Length;
@@ -491,8 +573,8 @@ public sealed class ExplorationGuide
         if (room is null) return hop.Opening.Position;
 
         var trace = hop.Traversal
-            ? RoomRouteCache.TraceToPoint(room, (player.X, player.Y), hop.Opening.Position, RoomPathfinder.JumpReachUnits, _jumps, _props)
-            : RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening, _jumps, _props);
+            ? RoomRouteCache.TraceToPoint(room, (player.X, player.Y), hop.Opening.Position, RoomPathfinder.JumpReachUnits, _usable, _props)
+            : RoomRouteCache.Trace(room, (player.X, player.Y), hop.Opening, _usable, _props);
         remaining = trace.UsedFallback ? total : trace.Length + (total - hop.LengthSoFar);
         jumpAt = trace.JumpAt;
         return trace.Point;
@@ -532,7 +614,7 @@ public sealed class ExplorationGuide
         if (frontiers.Count == 0) return;
 
         var here = (player.X, player.Y);
-        bool Walked(RoomOpening opening) => !RoomRouteCache.Trace(room, here, opening, _jumps).UsedFallback;
+        bool Walked(RoomOpening opening) => !RoomRouteCache.Trace(room, here, opening, _usable).UsedFallback;
         var cutOff = frontiers.Where(f => !Walked(f.Opening)).ToList();
         if (cutOff.Count == 0) return;
         var cutPositions = cutOff.Select(f => f.Opening.Position).ToHashSet();

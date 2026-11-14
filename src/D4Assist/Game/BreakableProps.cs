@@ -61,7 +61,8 @@ public sealed class BreakableProps(
             _standing[key] = new Prop(actor.ActorSno, new Vector2(actor.X, actor.Y), cells, !actor.ClientOnly);
             listed.Add(key);
             _changed = true;
-            log?.Invoke($"PROP standing: {nameOf(actor.ActorSno)} at ({actor.X:F1},{actor.Y:F1}), {cells.Count} cells");
+            // Whether the game marks a prop no attack breaks (the Necropolis's flesh webs, research/dungeon-objectives.md §12) is unknown.
+            log?.Invoke($"PROP standing: {nameOf(actor.ActorSno)} at ({actor.X:F1},{actor.Y:F1}), {cells.Count} cells{(actor.Invulnerable ? ", invulnerable" : "")}");
         }
 
         var here = new Vector2(player.X, player.Y);

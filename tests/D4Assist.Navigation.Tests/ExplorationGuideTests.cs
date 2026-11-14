@@ -287,6 +287,25 @@ public class ExplorationGuideTests
         Assert.Null(step.Target);
     }
 
+    // Log of 2026-11-14, the Darkened Holt: Frac_Pine_POI_FLEX_IllusionWoods_01 (exits on every side) has floor up to its
+    // west edge where Frac_Pine_FILLER_01 lies, so the exit opening itself led into the filler.
+    [Fact]
+    public void An_exit_opening_onto_a_filler_tile_leads_nowhere()
+    {
+        const uint room = 0x66;
+        const int floorScene = 1, fillerScene = 2;
+        var cells = new bool[32, 32];
+        for (var r = 0; r < 32; r++)
+            for (var c = 0; c < 32; c++) cells[r, c] = true;
+        var walkability = new FakeTileWalkability().Add(floorScene, new WalkGrid(1f, 0f, 0f, 32, 32, cells));
+        var map = Map(Tile(0, 0, E, room, floorScene), Tile(0, 1, 0, room, fillerScene));
+        Visit(map, (0, 0));
+
+        var step = new ExplorationGuide(map, walkability).Step(Centre(0, 0));
+
+        Assert.Null(step.Target);
+    }
+
     // A tile of the room with no walk map but an exit is unknown ground, not rock.
     [Fact]
     public void A_room_tile_with_an_exit_and_no_walk_map_still_leads()

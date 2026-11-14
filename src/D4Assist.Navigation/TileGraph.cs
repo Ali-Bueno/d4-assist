@@ -18,7 +18,7 @@ internal readonly record struct TileHop(RoomOpening Opening, TileNode? To, float
 /// rooms' live exit masks can omit their internal sides (research/client-memory.md §1), but only where both walk maps
 /// have floor at their shared edge: the Skovos docks are one room, water parts two of its tiles, and the guide led to the
 /// far one across it (live 2026-10-17). A tile that live barriers split, or one a standing prop buries a traversal of, is one
-/// node per floor region (TileRegions), joined where its floor meets the crossing and by its traversals.
+/// node per floor region (TileRegions), joined where its floor meets the crossing and by its traversals, but for the closed ones.
 /// </summary>
 internal sealed class TileGraph
 {
@@ -43,7 +43,7 @@ internal sealed class TileGraph
     {
         blocked ??= BlockedCells.None;
         traversals ??= [];
-        var buriedTiles = traversals.Where(t => t.Buried)
+        var buriedTiles = traversals.Where(t => t.Splits)
             .SelectMany(t => new[] { map.TileAt(t.Link.A.X, t.Link.A.Y), map.TileAt(t.Link.B.X, t.Link.B.Y) })
             .OfType<MapTile>().Select(Key).ToHashSet();
         var graph = new TileGraph();
@@ -57,8 +57,10 @@ internal sealed class TileGraph
                 var far = neighbour is null ? null : graph._tiles.GetValueOrDefault(Key(neighbour));
                 // The Labyrinthhain's entrance tile has floor along its west edge at y 8-14 and 20-26; beyond the first run lie only
                 // two stray floor cells, and the guide led into the trees there (live 2026-10-21). The far side's own opening
-                // comes back as a reverse hop below.
-                if (far is not null && !FloorReaches(far.Tile, opening, walkability, FloorRunCells)) continue;
+                // comes back as a reverse hop below. A filler beyond is rock whatever floor reaches the edge on this side: the
+                // Darkened Holt's first room has a 3-unit gap at (-4.5,-32) into Frac_Pine_FILLER_01, and the guide led a
+                // tester against it for a minute and a half (log of 2026-11-14).
+                if (far is not null && (IsSolid(far.Tile, walkability) || !FloorReaches(far.Tile, opening, walkability, FloorRunCells))) continue;
                 foreach (var (from, to, crossing) in Contacts(near, far, opening))
                     from.Hops.Add(new TileHop(crossing, to));
             }
@@ -88,7 +90,7 @@ internal sealed class TileGraph
     private void Join(DungeonMap map, GraphTraversal traversal)
     {
         var (a, b) = (traversal.Link.A, traversal.Link.B);
-        if (map.TileAt(a.X, a.Y) is not { } tile || map.TileAt(b.X, b.Y) is not { } other || Key(tile) != Key(other)
+        if (traversal.Closed || map.TileAt(a.X, a.Y) is not { } tile || map.TileAt(b.X, b.Y) is not { } other || Key(tile) != Key(other)
             || _tiles[Key(tile)] is not { IsSplit: true } regions) return;
         var (from, to) = (regions.At(a), regions.At(b));
         if (from == to) return;

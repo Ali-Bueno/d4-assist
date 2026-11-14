@@ -456,7 +456,7 @@ internal static class Program
                         .. waves.Destinations(countsWaves, objectives.LastQuestSpot), .. portals!.ObjectiveDestinations(),
                         .. elsewhere ? portals.WayOutDestinations() : []];
                 },
-                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.RearmGates(); },
+                objectives is null ? null : walkedThrough => { objectives.Rearm(walkedThrough); portals!.Rearm(); lockedDoors.Rearm(); navigation.Rearm(); },
                 () => routeBridge?.IsActive == true || pathBridge?.TakesPad == true, () => objectives?.BossFight == true);
         var routes = routesEnabled ? LoadQuestRoutes(store, schema, cascGate, debug) : [];
         if (guidePing is not null && routes.Count > 0)

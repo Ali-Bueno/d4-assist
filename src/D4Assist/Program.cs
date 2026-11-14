@@ -454,6 +454,11 @@ internal static class Program
         if (guidePing is not null && routesEnabled)
         {
             var paths = OverworldPaths.FromGameData(store, schema, cascGate);
+            // Invisible collision a quest's layer of the world places on walkable floor (the Darkened Way's stairs).
+            var layerBlockers = LayerBlockers.FromGameData(store, schema, cascGate, definitionOf, Console.WriteLine);
+            session.WorldChanged += (_, name, _) => layerBlockers.EnterWorld(name);
+            session.ActorsUpdated += layerBlockers.Update;
+            session.QuestMovedOn += layerBlockers.QuestMovedOn;
             var legionTargets = new LegionTargets(store.Name);
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
@@ -470,10 +475,10 @@ internal static class Program
                     }
                     return QuestMapPlaces(markers, owned, FindPhases, questHistory, store, questScripts, language, cascGate, debug ? Console.WriteLine : null);
                 },
-                (world, from, to) => paths.Find(world, from, to, lockedDoors.Walls()),
+                (world, from, to) => paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls()]),
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(entranceCatalog, store, schema, language, cascGate),
-                wallsVersion: () => lockedDoors.Version,
+                wallsVersion: () => lockedDoors.Version + layerBlockers.Version,
                 legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
                 directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget);
             session.MapMarkersRead += pathBridge.OnMapMarkers;

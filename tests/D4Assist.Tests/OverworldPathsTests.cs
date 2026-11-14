@@ -100,6 +100,19 @@ public class OverworldPathsTests
     }
 
     [Fact]
+    public void A_tall_blocker_bars_the_floors_within_its_height()
+    {
+        var from = new Vector3(10, 48, 0);
+        DoorWall Blocker(float z, float height) => Door(z) with { Height = height };
+
+        var shut = Paths().Find("W", from, new Vector2(80, 48), [Blocker(-6, 5)]);
+        var above = Paths().Find("W", from, new Vector2(80, 48), [Blocker(-12, 5)]);
+
+        Assert.True(Length(new(from.X, from.Y), shut!) > 120f);
+        Assert.InRange(Length(new(from.X, from.Y), above!), 68f, 75f);
+    }
+
+    [Fact]
     public void A_door_on_another_floor_bars_only_that_floor()
     {
         var from = new Vector3(10, 48, 0);

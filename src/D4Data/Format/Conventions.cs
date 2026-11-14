@@ -28,6 +28,7 @@ public static class Conventions
 
     // ActorDefinition.eType (+8): 1 = monster/NPC (has ptMonsterData / ptNPCData), 2 = gizmo. research/dungeon-objectives.md �3.
     public const int ActorTypeMonster = 1;
+    public const int ActorTypeServerProp = 4;       // props the server places (`*_ServerProp`, `*_Arrangement_SP`), invisible collision among them
     public const int ActorTypePlayer = 7;           // only the player-class actors (<class>M / <class>F)
     public const int HostileTeam = 19;              // ActorDefinition.eDefaultTeam of hostile monsters, incl. hostile NPC stand-ins
     public const int FriendlyTeam = 2;              // the player's side: hired mercenaries, followers (research/dungeon-objectives.md §9)

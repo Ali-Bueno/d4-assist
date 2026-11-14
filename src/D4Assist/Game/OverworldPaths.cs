@@ -119,7 +119,7 @@ public sealed class OverworldPaths(
     /// <summary>The route's points (SurfacePathfinder.Find), or null when there is none or the walk is too long.</summary>
     /// <param name="doors">Closed doors the player can't open yet (LockedDoors.Walls): their floor is no way. The Darkened Way's
     /// invisible doors stand on the straight way from Lilith's petal down to the Ancient City (tester 2026-10-31,
-    /// research/dungeon-data.md §4.1c).</param>
+    /// research/dungeon-data.md §4.1c). Collision props a standing layer places bar the same way (LayerBlockers.Walls).</param>
     public IReadOnlyList<Vector2>? Find(string worldName, Vector3 from, Vector2 to, IReadOnlyList<DoorWall>? doors = null)
     {
         var start = new Vector2(from.X, from.Y);
@@ -154,7 +154,7 @@ public sealed class OverworldPaths(
         {
             var barred = BarredCells(doors);
             voxels.RemoveAll(v => barred.TryGetValue(((int)MathF.Floor(v.X), (int)MathF.Floor(v.Y)), out var floors)
-                && floors.Exists(z => MathF.Abs(v.Z - z) <= DoorFloorUnits));
+                && floors.Exists(f => v.Z >= f.Low - DoorFloorUnits && v.Z <= f.High + DoorFloorUnits));
         }
         if (SurfacePathfinder.SurfaceMap.Create(voxels, Links(ends)) is not { } map) return null;
         lock (_gate)
@@ -174,24 +174,27 @@ public sealed class OverworldPaths(
         {
             int cells = 0;
             foreach (var cell in door.Cells) cells += cell.GetHashCode(); // order-free
-            key = HashCode.Combine(key, door.Z, door.Cells.Count, cells);
+            key = HashCode.Combine(key, door.Z, door.Height, door.Cells.Count, cells);
         }
         return key;
     }
 
     /// <summary>Each door's cells and one cell round them, by the heights of the doors there: the player's body doesn't pass a
     /// cell from a door, and the Darkened Way's invisible doors stand a cell apart across the ramp they shut (tester 2026-11-01).</summary>
-    private static Dictionary<(int X, int Y), List<float>> BarredCells(IReadOnlyList<DoorWall> doors)
+    private static Dictionary<(int X, int Y), List<(float Low, float High)>> BarredCells(IReadOnlyList<DoorWall> doors)
     {
-        var barred = new Dictionary<(int X, int Y), List<float>>();
+        var barred = new Dictionary<(int X, int Y), List<(float Low, float High)>>();
         foreach (var door in doors)
+        {
+            var reach = (door.Z, door.Z + door.Height);
             foreach (var (x, y) in door.Cells)
                 for (int dx = -1; dx <= 1; dx++)
                     for (int dy = -1; dy <= 1; dy++)
                     {
                         if (!barred.TryGetValue((x + dx, y + dy), out var floors)) barred[(x + dx, y + dy)] = floors = [];
-                        if (!floors.Contains(door.Z)) floors.Add(door.Z);
+                        if (!floors.Contains(reach)) floors.Add(reach);
                     }
+        }
         return barred;
     }
 

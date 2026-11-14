@@ -36,6 +36,14 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
         return sink;
     }
 
+    /// <summary>As <see cref="ReadAll"/>, each marker with its whole transform (scale, turn, place) into the set's frame.</summary>
+    public IReadOnlyList<(PlacedMarker Marker, Matrix4x4 ToFrame)> ReadAllPlaced(int markerSetSno)
+    {
+        var sink = new List<(PlacedMarker, Matrix4x4)>();
+        Walk(markerSetSno, Matrix4x4.Identity, 0, (group, sno, _, local, _) => sink.Add((new PlacedMarker(group, sno, local.Translation), local)));
+        return sink;
+    }
+
     /// <summary>The top-level marker <paramref name="markerId"/> (Marker.nID) of a marker set, in the set's frame; null when absent.</summary>
     public PlacedMarker? Find(int markerSetSno, int markerId) => TopLevel(markerSetSno).GetValueOrDefault(markerId);
 

@@ -3,8 +3,8 @@ using D4Assist.Navigation;
 
 namespace D4Assist.Game;
 
-/// <summary>A locked door's 1-unit world cells and the height of its base.</summary>
-public sealed record DoorWall(IReadOnlySet<(int X, int Y)> Cells, float Z);
+/// <summary>A locked door's 1-unit world cells and the height of its base; a tall blocker also says how far up it reaches.</summary>
+public sealed record DoorWall(IReadOnlySet<(int X, int Y)> Cells, float Z, float Height = 0);
 
 /// <summary>
 /// Closed doors the player can't open yet, as walls for the guide's routes: doorways are baked walkable (research/dungeon-objectives.md

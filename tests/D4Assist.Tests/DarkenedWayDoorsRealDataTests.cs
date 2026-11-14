@@ -40,6 +40,36 @@ public class DarkenedWayDoorsRealDataTests
         Assert.DoesNotContain(shut, p => p.X is > -131 and < -123 && p.Y is > 52 and < 66); // not down the ramp
     }
 
+    // Tester 2026-11-11 (0.1.33, same step, pressed past the gate): the way round by the free climb ran east, down the stairs at
+    // (-104,40), where the petal quest's layer puts two invisible collision cubes; the open way is west through Casama.
+    [Fact]
+    public async Task The_petal_layers_collision_cubes_send_the_path_through_Casama()
+    {
+        if (Load() is not { } loaded) return;
+        var (paths, doors, store) = loaded;
+        using var _ = store;
+        var schema = TypeSchema.Load(RealData.FindDefinitions()!);
+        var definitions = new ActorDefinitionReader(store, schema);
+        var blockers = LayerBlockers.FromGameData(store, schema, new object(), sno => definitions.Read(sno));
+        await blockers.EnterWorld(World);
+        var from = new Vector3(-152.9f, 69.6f, 1.1f);
+        bool OnTheStairs(Vector2 p) => p.X is > -112 and < -96 && p.Y is > 34 and < 46;
+
+        Assert.Empty(blockers.Walls());
+        Assert.Contains(paths.Find(World, from, Trigger, doors)!, OnTheStairs);
+
+        int door = store.Resolve(schema.SnoGroup("ActorDefinition"), "DesignKit_InvisibleDoor");
+        blockers.Update([new ActorState(1, door, InvisibleDoors[0].X, InvisibleDoors[0].Y, InvisibleDoors[0].Z)]);
+        Assert.Equal(2, blockers.Walls().Count);
+        var round = paths.Find(World, from, Trigger, [.. doors, .. blockers.Walls()]);
+
+        Assert.NotNull(round);
+        Assert.DoesNotContain(round, OnTheStairs);
+        Assert.DoesNotContain(round, p => p.X is > -131 and < -123 && p.Y is > 52 and < 66); // nor down the ramp
+        Assert.Contains(round, p => p.X < -160); // west past the gate
+        Assert.Contains(round, p => Vector2.Distance(p, new(-144f, 26f)) < 12f); // the layer's own trigger on the way
+    }
+
     private static float Length(Vector3 from, IReadOnlyList<Vector2> points)
     {
         float length = 0;

@@ -173,6 +173,19 @@ Validated on 2107 cells of 408 DRLG tiles from 132 tilesets, which carry both fo
   half units they lay 4 cells each and leave column −129, on the ramp, between them: the paths at 14:41:16 and 14:41:41
   (34 and 25 units) ran down it with the upper row locked. Paths now bar one cell round each door too. The ramp (x −129..−125,
   y 57..67) drops from Z −2 to −8; Z per cell from `SceneReader.SurfaceVoxels`.
+- **Collision props a layer places** (tester 2026-11-11, 0.1.33 `--debug`, same step, pressed past the gate at (−153,70)): the
+  way round by the free climb (124 units) ran back east and down the stairs at x −103…−98, y 38…44 (Z 2 → 6), and the player
+  stood against a wall at y 44.4 for a minute. `Frac_Underworld (QST_Frac_Underworld_LilithVhenardPetals)`, the set that places
+  the invisible doors and the gate, also places two `InvisibleCollision_Cube_ServerProp` (692874, eType 4, bounds half 0.5) at
+  (−101.0,40.5,3.6) and (−106.9,40.5,3.6) with marker scale 7.5 (boxes 7.5 wide and high, y 36.7…44.2) and three brick piles
+  there; the S surfaces show floor under them. The open way is west through Casama: the set's own triggers at (−170,52.5) and
+  (−144,26), then the free climb's top (−123.4,29.8) from the west (about as long, along a 2-unit-wide strip at x −166).
+  **App rule (offline replay `DarkenedWayDoorsRealDataTests`, not live):** `LayerBlockers` reads the server props named for
+  their collision in the world's `<World> (<Layer>)` sets, boxes from the actor's bounds through the marker's whole transform,
+  and bars the floor under their height once the client lists an actor only that layer places (here the invisible doors, read
+  from ~50 units); a quest phase moving on drops a layer with none listed. Census (3.2.4): 68 actors named `*Collision*`, 395
+  marker sets place one, only world-named sets are read (subzone sets like `Kehj_Caldeum (QST_Kehj_Penitent_03)` and scene
+  sets are not). Unknown: whether the client lists the cubes themselves. The radar still reads those stairs open.
 - **DRLG tiles** link every traversal kind but the slide too (`JumpLinkCollector`, 2026-10-28): the Necropolis's tumor platforms
   (ladders) and pocket (duck-under), [dungeon-objectives](dungeon-objectives.md) §12.
 - **Traversals are prefabs** (census of 448 scenes, 2026-10-30): each is one `Traversal_*` marker-set prefab: `Jump_6m_Gizmo`,

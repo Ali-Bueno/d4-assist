@@ -246,6 +246,27 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void Copies_known_only_from_the_map_of_a_kind_used_as_the_step_stay_done_when_a_later_phase_names_it()
+    {
+        // Guulrahn's jail (tester log 2026-11-15): phase 66 marked five more cell gates on the map; the escape's phase 155 named the
+        // kind again (a hidden callback) and the guide led back to them instead of on through the wall.
+        var (feed, memory) = NewMemory();
+        QuestPlace[] marked = [new(LeverSno, Far, 0, Ahead: true, Marked: true), new(LeverSno, Far, 20, Ahead: true, Marked: true)];
+        feed.RaisePlayer(At(0, 0));
+        memory.ObservePlaces(marked);
+        memory.Heard(Lever(1, 0, quest: true));
+        feed.RaisePlayer(At(2, 0));
+
+        memory.QuestMovedOn();
+        memory.ObservePlaces([]); // the next phase names no gate
+        memory.Heard();
+        memory.ObservePlaces(marked);
+        memory.ObserveNamed(new HashSet<int> { LeverSno });
+
+        Assert.Empty(memory.Destinations());
+    }
+
+    [Fact]
     public void The_step_done_as_the_quest_moved_on_leads_again_once_it_loops_again()
     {
         var (feed, memory) = NewMemory();
@@ -568,6 +589,60 @@ public class ObjectiveMemoryTests
         feed.RaisePlayer(At(-Far, 0)); // the stone found: Yorin holds again until the step moves on
         memory.ObservePlaces(yorin);
         Assert.Equal((0f, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
+    public void An_npc_the_quest_moved_on_at_waits_while_the_new_step_names_an_item_to_carry_not_found_yet()
+    {
+        // The Weeping Cairns (tester log 2026-11-14): the stone placed, phase 184 still named Yorin, who kept looping, and the guide
+        // held at him instead of leading through the door it unlocked.
+        const int YorinSno = 525351, StoneSno = 1008173;
+        bool holding = false;
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, carryableWaits: sno => sno == StoneSno ? holding : null, isNpc: sno => sno == YorinSno);
+        var yorin = new ActorState(7, YorinSno, 0, 0, 0, QuestStep: true);
+        feed.RaisePlayer(At(1, 0));
+        memory.ObservePlaces([new QuestPlace(YorinSno, 0, 0)]);
+        memory.Heard(yorin);
+        feed.RaisePlayer(At(1, 0));
+
+        memory.QuestMovedOn();
+        memory.ObserveNamed(new HashSet<int> { YorinSno, StoneSno });
+        memory.Heard(yorin); // still looping
+        Assert.Empty(memory.Destinations()); // the guide explores
+
+        memory.Heard(yorin, new ActorState(11, StoneSno, -Far, 5, 0, QuestStep: true));
+        Assert.Equal((-Far, 5f), Assert.Single(memory.Destinations()).Position);
+
+        feed.RaisePlayer(At(-Far, 4));
+        holding = true; // taken: Yorin leads again
+        memory.Observe(new ObjectiveSighting([yorin], [], [yorin, new ActorState(99, StoneSno, -Far, 0, 0, ClientOnly: true)]));
+        Assert.All(memory.Destinations(), d => Assert.Equal((0f, 0f), d.Position));
+        Assert.NotEmpty(memory.Destinations());
+    }
+
+    [Fact]
+    public void The_body_of_a_pile_used_sets_aside_the_others_the_player_stands_at()
+    {
+        // The Orbei Monastery (tester log 2026-11-15): three monk corpses the minimap marks, one searchable; the guide held at the
+        // others for a minute and led back to them when the priest was done.
+        var feed = new FakeFeed();
+        var memory = new ObjectiveMemory(feed, NameOf, isBody: sno => sno == LeverSno);
+        ActorState[] pile = [Lever(0, 0, 1, quest: true), Lever(1, -3, 2, quest: true), Lever(3, -1, 3, quest: true)];
+        ActorState far = Lever(Far, 0, 4, quest: true);
+        memory.Heard([.. pile, far]);
+        feed.RaisePlayer(At(1, -1));
+
+        memory.Observe(new ObjectiveSighting([pile[1], pile[2], far], [pile[0]], [.. pile, far]));
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position);
+
+        var altar = Altar(5, 5);
+        memory.Heard(pile[1], pile[2], far, altar);
+        memory.Observe(new ObjectiveSighting([pile[1], pile[2], far], [altar], [.. pile, far, altar])); // another objective done
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position); // does not lead back to the pile
+
+        memory.Rearm(); // the guide switched on
+        Assert.Equal(3, memory.Destinations().Count);
     }
 
     [Fact]

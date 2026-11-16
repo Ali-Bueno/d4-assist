@@ -221,6 +221,20 @@ public sealed class QuestPathBridge
         }
     }
 
+    // A place chosen beyond the guide's reach (a helltide object 2000 units off, issue #5) says how far and which way rather than
+    // lead to another place; it leads once the player travelled nearer.
+    private bool ChosenTooFar(Vector2 here)
+    {
+        if (_chosen is not { } chosen || chosen.World != _world) return false;
+        var to = chosen.Place.Position - here;
+        if (to.Length() <= MaxDistanceUnits) return false;
+        Log($"PATH chosen {chosen.Place.QuestName} too far: {to.Length():F0} units");
+        string direction = NavigationPhrases.For(_language.Current).Direction(ScreenDirections.Bin(to.X, to.Y), _directionStyle);
+        _speech.Speak(string.Format(MapMenuStrings.For(_language.Current).ChosenTooFarFormat, chosen.Place.QuestName, MathF.Round(to.Length()), direction),
+            interrupt: true);
+        return true;
+    }
+
     // Follows the active legion target's marker; once the map stops marking it, leads on to the nearest target left.
     private void TrackLegionTarget()
     {
@@ -289,6 +303,7 @@ public sealed class QuestPathBridge
                 return;
             }
             var here = new Vector2(player.X, player.Y);
+            if (_active is null && ChosenTooFar(here)) return;
             if (_log is not null && _legionMarkers(_markers, here) is { } inLegion) Log($"PATH legion area markers: {inLegion}");
             var places = Places(here);
             Log($"PATH places: {string.Join("; ", places.Select(p => $"{p.QuestName} ({p.Position.X:F0},{p.Position.Y:F0}) {Vector2.Distance(here, p.Position):F0}"))}");

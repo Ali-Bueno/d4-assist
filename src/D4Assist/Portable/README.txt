@@ -247,7 +247,11 @@ lists from anywhere, as the map shows it from afar. It works like the waypoint l
 for the cursor, Escape to close. The game shows these objects only while you
 are out in the helltide's area, not in a town; until then Enter says to go
 there. Zoomed far out the map does not show them as icons, so Enter on an
-object first zooms the map in with the mouse wheel. Between two helltides
+object first zooms the map in with the mouse wheel. An object too far for
+that puts the cursor on the activated waypoint nearest to it, never the one
+you stand at: travel there and choose it again. A helltide object or whisper
+chosen with Enter is also where D-pad left leads first, from up to 1500
+meters away; farther, D-pad left says how far and which way. Between two helltides
 Shift+F2 says when the next one starts. A helltide the game's map marks
 objects of, as in Nahantu or Skovos, also lists while you are in it, with no
 minutes left: the program can't yet tell its end, or see it from afar.

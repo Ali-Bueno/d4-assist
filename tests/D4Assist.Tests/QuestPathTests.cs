@@ -322,6 +322,24 @@ public class QuestPathTests
     }
 
     [Fact]
+    public void A_chosen_place_beyond_the_guides_reach_says_how_far_and_which_way_and_leads_once_nearer()
+    {
+        // Issue #5: a helltide object 2000 units off.
+        var gift = KedBardu + new Vector2(2000, 0);
+        var rig = new Rig();
+        rig.Move(KedBardu);
+        rig.Bridge.Choose(World, "Claim Tortured Gifts", gift);
+
+        rig.Pad.Press();
+        string east = NavigationPhrases.For(SpeechLanguage.English).Direction(ScreenDirections.Bin(2000, 0), DirectionStyle.Screen);
+        Assert.Equal($"Claim Tortured Gifts: 2000 meters, {east}. Too far for the guide: travel nearer and press again.", rig.Speech.Texts.Last());
+
+        rig.Move(gift - new Vector2(100, 0));
+        rig.Pad.Press();
+        Assert.StartsWith("Chosen place: Claim Tortured Gifts, 100 meters.", rig.Speech.Texts.Last());
+    }
+
+    [Fact]
     public void A_chosen_place_stops_the_running_guide_and_belongs_to_its_world_only()
     {
         var rig = new Rig();

@@ -52,8 +52,8 @@ namespace D4Assist.Game;
 /// null for any other marker; null for no goblin list (Shift+F3, user request 2026-10-29).</param>
 /// <param name="readWhispers">The whispers up now; null when the world states are unreadable. Null for no whispers' entry in the events menu.</param>
 /// <param name="eventsReading">True while the map's first read since it opened still runs (MapBountyWatch.Reading): no event listed yet is no answer.</param>
-/// <param name="placeChosen">Told the entry Enter chose in a map menu list other than the waypoints, whether or not the cursor can reach it:
-/// D-pad left then leads there (QuestPathBridge.Choose, user request 2026-11-06).</param>
+/// <param name="placeChosen">Told the entry Enter chose in a map menu list other than the waypoints, or a helltide object or whisper,
+/// whether or not the cursor can reach it: D-pad left then leads there (QuestPathBridge.Choose, user request 2026-11-06, issue #5).</param>
 public sealed class WaypointListBridge(
     IReadOnlyList<Waypoint> waypoints, Func<Waypoint, string> nameOf, Func<IReadOnlySet<int>, IReadOnlyList<int>?> readActivated,
     Func<MapView?> readMapView, Func<int> currentWorld, ISpeechSink speech, LanguageSetting language, DirectionStyle directionStyle, IMapListKeys keys,
@@ -507,7 +507,8 @@ public sealed class WaypointListBridge(
             }
             if (_list.Current is not { } entry) return;
             if (_mode == Mode.Goblins) entry = Fresh(entry);
-            if (_mode == Mode.Places)
+            // A helltide object or a whisper stands still: D-pad left can lead there too (issue #5). A goblin runs off.
+            if (_mode is Mode.Places or Mode.Objects or Mode.Whispers)
             {
                 log?.Invoke($"MAPLIST chosen {entry.Name} at ({entry.X:F0},{entry.Y:F0}) for D-pad left");
                 placeChosen?.Invoke(new MapPlaceChoice(entry.Name, currentWorld(), entry.X, entry.Y));
@@ -545,8 +546,9 @@ public sealed class WaypointListBridge(
                     return;
                 }
                 // A stopover is an activated waypoint to travel to, the one nearest to the entry the cursor reaches; zoomed out all
-                // the way the most of them are in reach (user request 2026-11-06).
-                if (farthestZoom >= MapProjection.MaxZoom && view.Zoom < MapProjection.MaxZoom - SettledWithin)
+                // the way the most of them are in reach (user request 2026-11-06). A waypoint's icon takes the cursor at any zoom:
+                // held at a helltide object's zoom, the only one in view was the one the player stood at (issue #5).
+                if (view.Zoom < MapProjection.MaxZoom - SettledWithin)
                     view = ZoomOut(entry with { X = view.CenterX, Y = view.CenterY }, view, size, all: true);
                 if (Hop(entry, view, size) is { } hop && mouse.MoveTo(hop.Pixel.X, hop.Pixel.Y))
                 {
@@ -677,11 +679,12 @@ public sealed class WaypointListBridge(
     private const double TargetInset = 60;
 
     // The activated waypoint nearest to the target that the cursor reaches in this view and that lies nearer to it than the view's
-    // center (user request 2026-11-06: "the nearest waypoint"); null for none.
+    // center and, by StopoverGainUnits, than the player (user request 2026-11-06: "the nearest waypoint"); null for none.
     private (WaypointEntry Entry, (int X, int Y) Pixel)? Hop(WaypointEntry target, MapView view, (int Width, int Height) size)
     {
         double Remaining(double x, double y) => Math.Sqrt(Math.Pow(target.X - x, 2) + Math.Pow(target.Y - y, 2));
-        double fromHere = Remaining(view.CenterX, view.CenterY);
+        double fromHere = Math.Min(Remaining(view.CenterX, view.CenterY),
+            _player is { } player ? Remaining(player.X, player.Y) - StopoverGainUnits : double.PositiveInfinity);
         return ActivatedHere(view.CenterX, view.CenterY)
             .Where(e => Remaining(e.X, e.Y) > SamePlaceUnits && Remaining(e.X, e.Y) < fromHere)
             .Select(e => (Entry: e, Pixel: MapProjection.ToClient(view, e.X, e.Y, size.Width, size.Height, StopoverInset)))
@@ -693,6 +696,10 @@ public sealed class WaypointListBridge(
 
     // A waypoint this close to the target is the target itself.
     private const double SamePlaceUnits = 1;
+
+    // A stopover cuts the way left by at least this much: the waypoint the player stood by, Samuk, cut 11 of 2025 units and was
+    // offered again after the trip (issue #5). A trip this short is a walk the guide leads (QuestPathBridge.MovedAwayUnits).
+    private const double StopoverGainUnits = QuestPathBridge.MovedAwayUnits;
 
     private void Close(bool spoken)
     {

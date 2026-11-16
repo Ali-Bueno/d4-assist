@@ -52,7 +52,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
 {
     private const string Quest = "QuestDefinition", Phase = "QuestPhase", Set = "QuestObjectiveSet", Callback = "QuestCallback";
     private const string ActorDefinition = "ActorDefinition", SnoName = "DT_SNO_NAME", SceneDefinition = "SceneDefinition";
-    private const string WorldDefinition = "WorldDefinition", SubzoneDefinition = "SubzoneDefinition";
+    private const string WorldDefinition = "WorldDefinition", SubzoneDefinition = "SubzoneDefinition", LevelAreaDefinition = "LevelAreaDefinition";
     private const string MessageMap = "ScriptMessageMap", Filter = "ScriptMessageMapFilter";
     private const string Param = "ScriptEventParamBase", MarkerHandleParam = "ScriptEventParamMarkerHandle", QuestParam = "ScriptEventParamQuest";
     private const string ActorGroupParam = "ScriptEventParamActorGroup", LevelAreaParam = "ScriptEventParamLevelArea";
@@ -67,6 +67,9 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private Dictionary<uint, List<(int MarkerSet, PlacedMarker Marker)>>? _groupMarkers;
     private Dictionary<int, List<(int Host, Matrix4x4 ToHost)>>? _prefabHosts;
     private SceneLayerIndex? _sceneLayers;
+    private List<(int Scene, Matrix4x4 ToScene)>? _bossSpawns;
+    private Dictionary<string, HashSet<string>>? _scenesByLevelArea;
+    private readonly Dictionary<int, List<(int Scene, Matrix4x4 ToScene)>?> _bossSpawnLandings = [];
 
     /// <summary>Empty for an unknown quest or one naming no marker.</summary>
     public IReadOnlyList<PlacedMarker> Markers(int questSno)
@@ -282,7 +285,7 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
             return new Landing([], [.. scenes.Select(scene => new SceneMarker(scene, marker, markerSet, LayerAnchors(markerSet)))]);
         if (FrameOf(store.Name(markerSet)) is not null) return new Landing([marker], []);
         var hosts = Hosts(markerSet, 0).ToList();
-        if (hosts.Count == 0) return null;
+        if (hosts.Count == 0) return BossSpawnLanding(markerSet, marker);
         var world = new List<PlacedMarker>();
         var inScenes = new List<SceneMarker>();
         foreach (var (hostScenes, toFrame) in hosts)
@@ -309,6 +312,61 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 foreach (var (scenes, toFrame) in Hosts(host, depth + 1))
                     yield return (scenes, toHost * toFrame);
         }
+    }
+
+    // A frameless set no prefab places, named after a level area's tail (EliasPalace_OverlookFight for
+    // CSD_Kehj_Magnus_EliasPalace_OverlookFight), is put down by the server at a tile's boss spawn location: in the tiles with a set
+    // of that level area ("<scene> (<area>)"), else in those with no level area's set (the Elias palace's tunnels have the
+    // MageHoldout's, its boss room none). Read as
+    // world space, Elias's last step led back to the entrance (tester log 2026-11-15, research/dungeon-objectives.md §34). Null for none.
+    private Landing? BossSpawnLanding(int markerSet, PlacedMarker marker)
+    {
+        if (!_bossSpawnLandings.TryGetValue(markerSet, out var spawns))
+            _bossSpawnLandings[markerSet] = spawns = BossSpawnsOf(markerSet);
+        return spawns is null ? null
+            : new Landing([], [.. spawns.Select(s => new SceneMarker(s.Scene, marker with { Position = Vector3.Transform(marker.Position, s.ToScene) }))]);
+    }
+
+    // The boss spawn locations a set lands at; null for a set no level area is named after, or none found.
+    private List<(int Scene, Matrix4x4 ToScene)>? BossSpawnsOf(int markerSet)
+    {
+        if (store.Name(markerSet) is not { } setName) return null;
+        var scenesByArea = ScenesByLevelArea();
+        if (scenesByArea.Keys.FirstOrDefault(a => a.EndsWith("_" + setName, StringComparison.OrdinalIgnoreCase)) is not { } area) return null;
+        bool Has(string area, int scene) => store.Name(scene) is { } name && scenesByArea[area].Contains(name);
+        var chosen = BossSpawns().Where(s => Has(area, s.Scene)).ToList();
+        if (chosen.Count == 0) chosen = [.. BossSpawns().Where(s => !scenesByArea.Keys.Any(a => Has(a, s.Scene)))];
+        return chosen.Count > 0 ? chosen : null;
+    }
+
+    // Every level area by name, with the scenes that have a marker set of it ("<scene> (<area>)"; none: an empty set), read once.
+    private Dictionary<string, HashSet<string>> ScenesByLevelArea()
+    {
+        if (_scenesByLevelArea is not null) return _scenesByLevelArea;
+        var byArea = store.AllEntries(schema.SnoGroup(LevelAreaDefinition))
+            .ToDictionary(e => e.Name, _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+        foreach (var (_, name) in store.AllEntries(schema.SnoGroup("MarkerSetDefinition")))
+            if (FrameOf(name) is { } scene && name.EndsWith(')') && byArea.TryGetValue(name[(scene.Length + 2)..^1], out var scenes)) scenes.Add(scene);
+        return _scenesByLevelArea = byArea;
+    }
+
+    // The SpawnLocTypes entry the server puts a dungeon's boss set down at (GameBalance SpawnLocTypes, research/dungeon-objectives.md §34).
+    private static readonly uint DungeonBossSpawn = Conventions.GameBalanceId("Dungeon_Boss");
+
+    // Every scene layer's boss spawn locations, scene-local, read once on first use.
+    private List<(int Scene, Matrix4x4 ToScene)> BossSpawns()
+    {
+        if (_bossSpawns is not null) return _bossSpawns;
+        var spawns = new List<(int Scene, Matrix4x4 ToScene)>();
+        int sceneGroup = schema.SnoGroup(SceneDefinition);
+        foreach (var (scene, _) in store.AllEntries(sceneGroup))
+        {
+            if (store.Meta(sceneGroup, scene) is not { } meta) continue;
+            foreach (int layer in meta.Array(schema.Offset(SceneDefinition, "arLayers"), schema.Size("LayerData")))
+                foreach (var (type, toScene) in markers.SpawnLocations(meta.I32(layer + schema.Offset("LayerData", "snoLayerMarkerset"))))
+                    if (type == DungeonBossSpawn) spawns.Add((scene, toScene));
+        }
+        return _bossSpawns = spawns;
     }
 
     // Every set that holds actor groups (blueprints, overlays and scene layers), read once on first use.

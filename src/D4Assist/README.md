@@ -509,8 +509,9 @@ a dungeon's markers after the player leaves it.
 - **D-pad left** there leads to the nearest marked quest place within 1500 units and speaks "Objetivo de
   misión: <quest>, N metros.", with "K de M." added when several places are marked; each further press moves on to the next nearest; a press after the last says "Guía
   desactivada." and stops. With none marked it says "No hay objetivos de misión en el mapa.".
-- **A place chosen in the map menu** (Enter in Dungeons, Keller or Stützpunkte, user request 2026-11-06; also when the cursor
-  can only reach a stopover) comes first, within 1500 units, spoken "Gewähltes Ziel: <name>, N Meter." (`MapMenuStrings`,
+- **A place chosen in the map menu** (Enter in Dungeons, Keller or Stützpunkte, user request 2026-11-06; a helltide object or
+  whisper too, issue #5; also when the cursor can only reach a stopover) comes first, within 1500 units, spoken "Gewähltes Ziel:
+  <name>, N Meter."; farther, a press says how far and which way and leads nowhere else (`PATH chosen … too far`; `MapMenuStrings`,
   `QuestPathBridge.Choose`, debug `MAPLIST chosen` / `PATH chosen in the map list`); a new choice stops a running guide;
   reached it says "Ziel erreicht." and is no longer offered.
 - **Inside a legion event** (user request 2026-11-04) the event's targets come first (`Game/LegionTargets`): the map
@@ -594,7 +595,8 @@ a dungeon's markers after the player leaves it.
   game, never a click) and closes the list; Escape closes it. A waypoint off the view that zooming out would show says
   "zoom out"; one farther than the map shows even all the way out (zoom 3046: ~1400 units above and below the center,
   live 2026-10-19, Farobru from Temis and Ichorfall) puts the cursor on a stopover instead: the activated waypoint in
-  view nearest to it, preferring one from which it is in view (`WAYPOINT hop …`), and says to choose it again after the
+  view nearest to it, preferring one from which it is in view (`WAYPOINT hop …`), chosen zoomed out all the way even for a
+  helltide object, and at least 150 units nearer to it than the player (issue #5), and says to choose it again after the
   trip; with no stopover it says which way to move the map. Every line also goes to the braille display
   (`ISpeechSink.Output`: PRISM's speech + braille; user request 2026-10-25). `Input/MapListKeys` registers Shift+F1 only while
   `screen_Map` is open and the game has the focus, the list keys only while the list is open (the map closing or the game leaving the front closes it). `--debug` logs

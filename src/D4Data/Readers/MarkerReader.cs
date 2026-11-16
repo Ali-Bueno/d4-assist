@@ -102,7 +102,26 @@ public sealed class MarkerReader(SnoStore store, TypeSchema schema)
         return result;
     }
 
-    private const string ActorData = "MarkerActorData";
+    private const string ActorData = "MarkerActorData", SpawnLocData = "MarkerSpawnLocData";
+
+    /// <summary>The top-level spawn locations of a marker set (Marker.ptBase holds a MarkerSpawnLocData): the SpawnLocTypes entry's
+    /// GBID and the marker's transform into the set's frame. The server puts a set down at one (research/dungeon-objectives.md §34).</summary>
+    public IReadOnlyList<(uint Type, Matrix4x4 ToFrame)> SpawnLocations(int markerSetSno)
+    {
+        var result = new List<(uint, Matrix4x4)>();
+        if (store.Meta(MarkerSetGroup, markerSetSno) is not { } meta) return result;
+        var blob = schema.IsInPayload(MarkerSet, "tMarkerSet") ? store.Payload(MarkerSetGroup, markerSetSno) : meta;
+        if (blob is null || !schema.HasType(SpawnLocData)) return result;
+        int typeField = schema.Offset("MarkerDataBase", "dwType");
+        foreach (var m in blob.Array(schema.Offset(MarkerSet, "tMarkerSet"), schema.Size(Marker)))
+        {
+            int? sizeOf(int p) => p + typeField + sizeof(uint) <= blob.Length && schema.TypeName(blob.U32(p + typeField)) is { } t ? schema.Size(t) : null;
+            foreach (int data in blob.PolymorphicElements(m + schema.Offset(Marker, "ptBase"), sizeOf) ?? [])
+                if (schema.TypeName(blob.U32(data + typeField)) == SpawnLocData)
+                    result.Add((blob.U32(data + schema.Offset(SpawnLocData, "gbidSpawnLocType")), LocalMatrix(blob, m)));
+        }
+        return result;
+    }
 
     // Visits every non-prefab marker with its composed transform and the innermost prefab that placed it (null at the top),
     // expanding nested prefab marker sets.

@@ -7,7 +7,7 @@ namespace D4Data.Tests;
 /// <summary>Reads the local Diablo IV install; each test returns early (passes vacuously) when the install or definitions.json is absent.</summary>
 public class QuestScriptMarkerReaderRealDataTests
 {
-    private const int DarkenedWayGate = 1232628, DemonBody = 1256947;
+    private const int DarkenedWayGate = 1232628, DemonBody = 1256947, EliasPalaceQuest = 574680;
 
     [Theory]
     [InlineData("QST_Frac_Underworld_01", DemonBody, -62.4f, 27.3f)]
@@ -110,6 +110,26 @@ public class QuestScriptMarkerReaderRealDataTests
         Assert.Equal("NPC_Step_OrbeiMonastery_MadPriest_M_Praying", store.Name(marker.Sno));
         Assert.Equal(16.0f, marker.Position.X, 0.5f);
         Assert.Equal(14.6f, marker.Position.Y, 0.5f);
+    }
+
+    [Fact]
+    public void ASetNamedAfterALevelAreaLandsAtTheBossSpawnOfThatAreasTile()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // Elias's palace (quest 574680 phase 44, tester log 2026-11-15, research/dungeon-objectives.md §34): EliasPalace_OverlookFight
+        // is placed by no prefab; the server puts it at the boss room's Dungeon_Boss spawn location. Read as world space, its trigger
+        // stood at the entrance; the MageHoldout's tunnels, with their own level area's sets, get no copy.
+        var step = reader.PhaseObjects(EliasPalaceQuest).Single(p => p.PhaseUid == 44);
+        int Scene(string name) => store.Resolve(schema.SnoGroup("SceneDefinition"), name);
+        Assert.Empty(step.Markers);
+        var trigger = Assert.Single(step.SceneMarkers, m => m.SceneSno == Scene("ProtoDun_South_S_POI_EliasPalace")).Marker;
+        Assert.Equal(27.7f, trigger.Position.X, 0.5f);
+        Assert.Equal(16.0f, trigger.Position.Y, 0.5f);
+        Assert.DoesNotContain(step.SceneMarkers, m => m.SceneSno == Scene("ProtoDun_South_EW_POI_HoldoutTunnel_01"));
     }
 
     [Fact]

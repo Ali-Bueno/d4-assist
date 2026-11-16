@@ -25,6 +25,7 @@ public class WaypointListBridgeTests
 
     // All the way out over Temis (live 2026-10-19): Farobru, ~3800 units off, is beyond the map's view.
     private static readonly MapView OutAtTemis = new(2575f, -478f, MapProjection.MaxZoom);
+    private static readonly PlayerState AtTemis = new(2575f, -478f, 0, 0);
 
     private static readonly MapView FarOut = new(681.64f, -410.26f, 1877.56f);
 
@@ -124,6 +125,25 @@ public class WaypointListBridgeTests
         Assert.Equal(MapProjection.ToClient(view, 781, -410, 1920, 1080), mouse.Moved);
         Assert.StartsWith("Cursor on Tortured Gift of Mysteries", speech.Last);
         Assert.False(keys.ListKeys);
+    }
+
+    // Issue #5: an object ~2000 units off fits no helltide zoom; the stopover offered was the waypoint the player stood at.
+    [Fact]
+    public void A_helltide_object_too_far_takes_a_stopover_chosen_zoomed_out_never_the_waypoint_the_player_is_at_and_is_led_to()
+    {
+        MapPlaceChoice? chosen = null;
+        var view = new MapView(681.64f, -410.26f, 1100f);
+        var (bridge, keys, speech, mouse) = Create([GeaKul, Zarbinzet], readView: () => view, helltidePlace: Helltide, placeChosen: c => chosen = c);
+        mouse.Scrolled = notches => view = view with { Zoom = notches < 0 ? MapProjection.MaxZoom : 1100f };
+        bridge.OnMapMarkers([new MarkedActor(Gift, -700, 1200, 0, 1, 11)]);
+
+        keys.OpenHelltide();
+        keys.Enter();
+
+        Assert.Equal(MapProjection.MaxZoom, view.Zoom);
+        Assert.Equal(MapProjection.ToClient(view, -236, 386, 1920, 1080), mouse.Moved);
+        Assert.Contains("Stopover: cursor on Hawe_Zarbinzet", speech.Last);
+        Assert.Equal((-700d, 1200d), (chosen!.X, chosen.Y));
     }
 
     [Fact]
@@ -391,7 +411,8 @@ public class WaypointListBridgeTests
     public void A_waypoint_too_far_for_the_map_puts_the_cursor_on_a_stopover_in_view_on_the_way()
     {
         // Gea Kul is nearer Farobru but at the map's top edge (y 99): the stopover is the Bazaar, well inside.
-        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar, Farobru], view: OutAtTemis);
+        var (bridge, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar, Farobru], view: OutAtTemis);
+        bridge.OnPlayerMoved(AtTemis);
         keys.Open();
         keys.Down();
         keys.Down();
@@ -830,8 +851,9 @@ public class WaypointListBridgeTests
     public void A_place_too_far_puts_the_cursor_on_the_activated_waypoint_nearest_to_it()
     {
         MapPlaceChoice? chosen = null;
-        var (_, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar], view: OutAtTemis, placeLists: Lists(false, FarobruDungeon),
+        var (bridge, keys, speech, mouse) = Create([Temis, GeaKul, Bazaar], view: OutAtTemis, placeLists: Lists(false, FarobruDungeon),
             placeChosen: c => chosen = c);
+        bridge.OnPlayerMoved(AtTemis);
         keys.Open();
         keys.Down();
         keys.Enter();

@@ -776,7 +776,8 @@ internal static class Program
             session, store.Name, debug ? Console.WriteLine : null, sno => definitionOf(sno)?.TriggerRadius, selector.ReceptacleTakesHeld,
             sno => definitionOf(sno) is { } info ? MathF.Max(info.BoundsHalfExtents.X, info.BoundsHalfExtents.Y) : null, lockedDoor,
             selector.CarryableWaits, safeZones.EscortRadius, objectives.IsBossOrUnique, questNpcs.IsNpc,
-            sno => definitionOf(sno) is { } info && ObjectiveClassifier.IsStructure(store.Name(sno), info));
+            sno => definitionOf(sno) is { } info && ObjectiveClassifier.IsStructure(store.Name(sno), info),
+            sno => interactables.Classify(sno)?.Sound == InteractableClassifier.CorpseSound);
         loops.ObjectivesSeen += objectiveMemory.Observe;
         session.QuestPlacesRead += objectiveMemory.ObservePlaces;
         var portals = new PortalMemory(

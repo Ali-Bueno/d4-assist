@@ -86,6 +86,8 @@ public sealed class ObjectiveMemory
         public int MissingPolls { get; set; }
         /// <summary>Done as a followed quest moved on with the player at it: using it was the step.</summary>
         public bool UsedByStep { get; set; }
+        /// <summary>A followed quest's phase moved on with the player at it; looping again doesn't clear it.</summary>
+        public bool MovedOnAt { get; set; }
         /// <summary>A sub-quest step whose phase can't be read (QuestPlace.Step); 0 for none.</summary>
         public int Step { get; init; }
     }
@@ -100,6 +102,7 @@ public sealed class ObjectiveMemory
     private readonly Func<int, float?> _escortRadius;
     private readonly Func<int, bool> _isBoss;
     private readonly Func<int, bool> _isNpc;
+    private readonly Func<int, bool> _isBody;
     private volatile bool _bossFight;
     private (float X, float Y, float? Z)? _lastQuestSpot;
 
@@ -142,12 +145,15 @@ public sealed class ObjectiveMemory
     /// the distance that counts as inside; null for any other actor. Null for none.</param>
     /// <param name="toBreak">True for a structure broken by attacking it (ObjectiveClassifier.IsStructure): reached within
     /// <see cref="MeleeUnits"/> of its edge. Null for none.</param>
+    /// <param name="isBody">True for a body to search (InteractableClassifier corpse): of a pile, the one used sets aside the
+    /// others the player stands at. Null for none.</param>
     public ObjectiveMemory(
         IDungeonFeed feed, Func<int, string?> nameOf, Action<string>? log = null, Func<int, float?>? triggerRadius = null,
         Func<int, bool?>? takesHeld = null, Func<int, float?>? footprint = null, Func<int, (float X, float Y), bool>? locked = null,
         Func<int, bool?>? carryableWaits = null, Func<int, float?>? escortRadius = null, Func<int, bool>? isBoss = null,
-        Func<int, bool>? isNpc = null, Func<int, bool>? toBreak = null)
+        Func<int, bool>? isNpc = null, Func<int, bool>? toBreak = null, Func<int, bool>? isBody = null)
     {
+        _isBody = isBody ?? (_ => false);
         _isNpc = isNpc ?? (_ => false);
         _toBreak = toBreak ?? (_ => false);
         _isBoss = isBoss ?? (_ => false);
@@ -169,13 +175,16 @@ public sealed class ObjectiveMemory
     public IReadOnlyList<GuideDestination> Destinations()
     {
         lock (_gate)
+        {
+            bool carryLeft = CarryLeft();
             return [.. _escorts.Select(a => new GuideDestination(
                     $"{EscortKind}:{a.Id}", (a.X, a.Y), QuestTier, a.Z, _escortRadius(a.ActorSno)!.Value * EscortHoldFactor, Located: true)),
                 .. _places.Where(Leads).Concat(_objectives).Select(o => (Objective: o, Delivers: _takesHeld(o.Sno)))
                 .Where(x => x.Objective.Pending && !x.Objective.Reached && x.Delivers != false && !_locked(x.Objective.Sno, x.Objective.Position)
-                    && _carryableWaits(x.Objective.Sno) != true)
+                    && _carryableWaits(x.Objective.Sno) != true && !(carryLeft && x.Objective.MovedOnAt && _isNpc(x.Objective.Sno)))
                 .Select(x => new GuideDestination(x.Objective.Id, x.Objective.Position,
                     x.Objective.Quest || x.Delivers == true ? QuestTier : DungeonTier, x.Objective.Z, x.Objective.Radius, Located(x.Objective)))];
+        }
     }
 
     /// <summary>The objectives heard here and not done yet, to outlive a restart of the app (quest places are named again).</summary>
@@ -234,12 +243,16 @@ public sealed class ObjectiveMemory
     /// <summary>Takes the actor SNOs the active quests' current phases name (GameSession.QuestActorsNamed, every actor poll). One
     /// heard earlier, then done or set aside, leads again as a quest step once a phase starts naming its SNO, though it is out of
     /// earshot: the key found, the phase names the gate (live 2026-10-17, the Light's Watch: the guide fell silent with every
-    /// tile explored, and the gate sounded again only once the player came back within earshot).</summary>
+    /// tile explored, and the gate sounded again only once the player came back within earshot). A copy known only from the map, of a
+    /// kind one copy of which was the step, stays done: Guulrahn's escape named the cell gates again and led back to five locked ones
+    /// (tester log 2026-11-15, research/dungeon-objectives.md §29).</summary>
     public void ObserveNamed(IReadOnlySet<int> snos)
     {
         lock (_gate)
         {
-            foreach (var objective in _objectives.Where(o => snos.Contains(o.Sno) && !_namedSnos.Contains(o.Sno) && (!o.Pending || o.Reached) && !o.UsedByStep))
+            var usedKinds = _objectives.Where(o => o.UsedByStep).Select(o => o.Sno).ToHashSet();
+            foreach (var objective in _objectives.Where(o => snos.Contains(o.Sno) && !_namedSnos.Contains(o.Sno) && (!o.Pending || o.Reached) && !o.UsedByStep
+                && !(o.PlacedOnly && usedKinds.Contains(o.Sno))))
             {
                 objective.Pending = true;
                 objective.Reached = false;
@@ -256,17 +269,22 @@ public sealed class ObjectiveMemory
     /// <summary>A followed quest's phase moved on (GameSession.QuestMovedOn): the objective the player stands at was the step, and is
     /// done though the game marks no use on it. A later phase naming its kind doesn't call it back from afar; looping again, it
     /// leads again. Guulrahn's jail gate, opened to free Oyun, drew the guide back when the escape's step named its kind again
-    /// (tester, 2026-10-28; research/dungeon-objectives.md §29).</summary>
+    /// (tester, 2026-10-28; research/dungeon-objectives.md §29). An NPC it moved on at, still named, waits while the new step names
+    /// an item to carry not found yet (research/dungeon-objectives.md §28).</summary>
     public void QuestMovedOn()
     {
         lock (_gate)
+        {
+            foreach (var place in _places.Where(o => o.Pending && o.AtIt)) place.MovedOnAt = true;
             foreach (var objective in _objectives.Where(o => o.Pending && o.AtIt))
             {
                 objective.Pending = false;
                 objective.AtIt = false;
                 objective.UsedByStep = true;
+                objective.MovedOnAt = true;
                 Log("done (quest moved on at it)", objective);
             }
+        }
     }
 
     // A gizmo the phase names, placed by a loaded tile or marked on the map, is an objective before it's heard. It's done once
@@ -345,11 +363,29 @@ public sealed class ObjectiveMemory
                     Log("done (its actor is done)", place);
                 }
             }
+            SetAsidePiles(done);
             // A carryable taken lets the place its step waits on lead again (the Weeping Cairns' ward stone, back to Yorin); any other
             // objective done leaves quest places reached in this phase reached.
             if (done.Count > 0) RearmReached(MaxTimesLeft, places: done.Any(o => _carryableWaits(o.Sno) is not null));
         }
     }
+
+    // Of a pile of quest bodies the minimap marks, one can be searched; the others keep looping where the player stands (tester log
+    // 2026-11-15, the Orbei Monastery: held at one for a minute, then led back to the pile). Only the guide's toggle leads to them again.
+    private void SetAsidePiles(List<Objective> done)
+    {
+        foreach (var used in done.Where(o => _isBody(o.Sno)))
+            foreach (var body in _objectives.Where(o => o.Pending && o.AtIt && _isBody(o.Sno) && Distance(o.Position, used.Position) <= PileUnits))
+            {
+                body.AtIt = false;
+                body.Reached = true;
+                body.TimesLeft = MaxTimesLeft;
+                Log("set aside (a body of its pile was used)", body);
+            }
+    }
+
+    /// <summary>Bodies this close lie in one pile: two arms' reach (the Orbei Monastery's lay 2.8-3.3 units from the one used).</summary>
+    public const float PileUnits = 2 * InteractUnits;
 
     // A quest place an NPC marks is where it stood: it walked off (Tysa ran to Elias, tester 2026-10-29), so the place gives way once the NPC
     // is heard elsewhere, or once the player stands there and no copy of it is listed for a while. Heard again, the NPC itself leads.
@@ -492,6 +528,10 @@ public sealed class ObjectiveMemory
     // (another objective done).
     private bool CarryToFind() =>
         _namedSnos.Any(sno => (_carryableWaits(sno) is not null || _takesHeld(sno) is not null) && !_objectives.Any(o => o.Sno == sno));
+
+    // The step names an item to carry not found yet, or not taken from the ground yet.
+    private bool CarryLeft() =>
+        CarryToFind() || _namedSnos.Any(sno => _carryableWaits(sno) is not null && _objectives.Any(o => o.Sno == sno && o.Pending));
 
     // A trigger the quest names by place, or a tile places: it has no loop and no "used" state.
     private bool UnheardTrigger(Objective objective) =>

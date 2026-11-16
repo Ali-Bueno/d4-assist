@@ -1043,3 +1043,43 @@ Tester report (0.1.26, VoH campaign; the log of the second half was overwritten,
   (the Condemned Mines, `QST_Skov_Celestia_03` 279 and 283, `QST_X2_Skov_Lycander_Mindscape_01` 58, `QST_Skov_Prologue_03` 235), 556 name no
   world, 71 of those after a place (`DPO_Frac_AnicasClaim` 43 counts 30, `DPO_CAP_Tier3_Step_FallenTemple` 32 counts 10). One kill is a
   monster to find, so it is left out. `D4MemScan quest` prints `counts N kills`.
+
+## 34. Acts 2 to 4 on 0.1.35: an NPC still named, piles of bodies, gates named again (tester logs, 2026-11-14/15)
+
+Tester logs (`--debug`, 0.1.35): act 2 (Weeping Cairns) and acts 3-4 (Orbei Monastery, Guulrahn's jail, Elias's palace).
+
+- **Weeping Cairns** (`CSD_Scos_Hills_WeepingCairns` 522978, quest 523697; H): the first stone placed, phase 184 unlocks
+  `ScosglenHU_Druid_WeepingCairns_Door_01_Dyn` (-79.9,4.0) and still names Yorin (525351) with the next ward stone to find. Yorin
+  kept looping (questStep), so "done (quest moved on at it)" read "looping again" a poll later and the guide held at him for 25 s,
+  then led back to him until the player walked 20 units off. **App rule (unit-tested, not live):** an NPC, place or objective, the
+  followed quest moved on at (`MovedOnAt`) leads not while the step names an item to carry not found or not taken from the ground yet
+  (`ObjectiveMemory.CarryLeft`); taken, he leads again (§28).
+- **Orbei Monastery** (`CSD_Step_Orbei_OrbeiMonastery` 439752; H for the log, M for the cause): piles of three
+  `QST_Step_Corpse_Monk_Orbei_M_01` 756449 / `_F_01` 548481 (2.8-3.3 units apart, quest-restricted gizmos the minimap marks:
+  `questStep` though no phase names them; the same SNOs elsewhere loop as plain chests). In each pile one went silent when searched;
+  the other two kept looping where the player stood: the guide held at one for 70 s, and each objective done later led back to the
+  pile. **App rule (unit-tested, not live):** a body done sets aside the bodies within `PileUnits` the player stands at, for good
+  until the guide is switched on (`ObjectiveMemory.SetAsidePiles`). Not known: whether those two can be searched at all.
+- **Guulrahn's jail, after Oyun** (quest 449298, §29): phase 66 marked five more `QST_Step_GuulrahnPrison_TEMP_LockedGate` 544359 on
+  the map (`seen ahead (map)`); phase 155 names the kind again by a hidden event 32 (indicator 3; the shown callback is the exit
+  portal) and re-armed all five, so the guide led back to locked cells instead of on through the second
+  `Guulrahn_CrackedWall_Multistage` (-303.9,-282.3). **App rule (unit-tested, not live):** a copy known only from the map or a tile,
+  of a kind one copy of which was the step (`UsedByStep`), is not called back by a later phase naming the kind. The wall itself is a
+  breakable prop, a path penalty only (`ExplorationGuide.SetPropCells`), so the route to the exit trigger goes through it.
+- **Elias's palace, the last fight** (`CSD_Kehj_Magnus_EliasPalace` 551995, quest 574680; H, offline + log): phase 44 hides
+  `Trigger_Box_EliasTrigger` (marker 23 of set 578414 `EliasPalace_OverlookFight`, set-local (0.97,-3.27)); phase 45 is the fight
+  (`elias_boss`, awaits level area 577903 `…_OverlookFight`). No data names who places the set: only the quest's marker handles
+  reference it (every group scanned). The server puts it down at a `Dungeon_Boss` spawn location (`MarkerSpawnLocData.gbidSpawnLocType`
+  1258990150, GameBalance `SpawnLocTypes`, id = lowercased ×33 hash): the boss tile `ProtoDun_South_S_POI_EliasPalace` (scene 948403,
+  Game set 948397 marker 28, local (24.39,15.0), +90° about Z). Placed so, the set's `elias_boss` and Lorath land on the map's live
+  markers to 0.1 unit ((-277.0,-111.5), (-278.8,-111.5)) and the trigger at (-260.3,-112.0), mid boss room; read as world space it stood
+  at the entrance, so the guide led back from the boss room's door (tester: "tries to backtrack you to unexplored space"). The
+  MageHoldout's set 577907 lands the same way in `ProtoDun_South_EW/NS_POI_HoldoutTunnel_01` (their `Dungeon_Boss` at (16,16); the
+  rotation matters: without it the boss lands 17 units off). Both tunnel tiles also have a `Dungeon_Boss` spawn location; what tells
+  the tiles apart is the level area each set is named after: the tunnels have sets "`<scene> (CSD_Kehj_Magnus_EliasPalace_MageHoldout)`",
+  the boss tile none. **App rule (real-data test, not live):** a frameless set no prefab places, named after a level area's tail, lands
+  at the `Dungeon_Boss` spawn locations of the tiles with a set of that level area, else of the tiles with no level area's set
+  (`QuestScriptMarkerReader.BossSpawnLanding`; `MarkerReader.SpawnLocations`). Census: 128 of the 324 quest-named frameless sets have
+  no prefab host (124 are tile overlays within 100 units of the origin, many `*_Cellar_Contents` / `*_DGN_Boss`); only 3 are named
+  after a level area (the two Elias sets, `S15_Lair_Rakanishu_Boss`). The rest may hang off other spawn types (`PlayerQuestPrefab`,
+  `Dungeon_Quest_Objective`, `Dungeon_Boss_Alt*`, `Dungeon_Boss_Vignette*`), not checked; 358 `Dungeon_Boss` markers exist.

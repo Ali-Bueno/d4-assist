@@ -4,6 +4,14 @@ namespace D4Data.Format;
 /// <remarks>Evidence and confidence for each value: research/dungeon-data.md.</remarks>
 public static class Conventions
 {
+    /// <summary>A game balance entry's id: the hash of its lowercased name ("Bounty_Type_Culling" is 946503055, as the quests name it).</summary>
+    public static uint GameBalanceId(string name)
+    {
+        uint hash = 0;
+        foreach (char c in name) hash = unchecked(hash * 33 + char.ToLowerInvariant(c));
+        return hash;
+    }
+
     // WorldDefinition.eLayoutType: 0 = one fixed scene, 1 = fixed scene grid (ptSceneChunks filled),
     // 2 = DRLG, generated server-side (ptSceneChunks empty in client data for all 802 such worlds).
     public const int LayoutSingleScene = 0;

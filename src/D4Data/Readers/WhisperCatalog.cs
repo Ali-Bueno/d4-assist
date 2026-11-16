@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.RegularExpressions;
 using D4Data.Casc;
+using D4Data.Format;
 using D4Data.Schema;
 
 namespace D4Data.Readers;
@@ -130,16 +131,8 @@ public sealed partial class WhisperCatalog(SnoStore store, TypeSchema schema)
         // The name runs up to the header's gbid field, which the file leaves at -1: the id is hashed from the name.
         int nameBytes = schema.Offset(Header, "gbid") - schema.Offset(Header, "szName");
         foreach (int entry in file.Array(content + schema.Offset(DefinitionTable, "tEntries"), schema.Size(Definition)))
-            favors[Gbid(file.InlineString(entry + schema.Offset(Definition, "tHeader") + schema.Offset(Header, "szName"), nameBytes))] =
+            favors[Conventions.GameBalanceId(file.InlineString(entry + schema.Offset(Definition, "tHeader") + schema.Offset(Header, "szName"), nameBytes))] =
                 file.I32(entry + schema.Offset(Definition, "dwBountyPoints"));
         return favors;
-    }
-
-    // A game balance entry's id is the hash of its lowercased name: "Bounty_Type_Culling" is 946503055, as the quests name it.
-    private static uint Gbid(string name)
-    {
-        uint hash = 0;
-        foreach (char c in name) hash = unchecked(hash * 33 + char.ToLowerInvariant(c));
-        return hash;
     }
 }

@@ -220,6 +220,7 @@ internal static class Program
         session.ActorRewrite = ward.Apply;
         var levelAreaWorlds = new LevelAreaWorlds(store.Name, name => WorldSnoOrNone(store, schema, name) != GameSession.NoWorldSno);
         session.MarkerInWorld = (marker, world) => { lock (cascGate) return levelAreaWorlds.InWorld(marker.LevelAreaSno, world); };
+        session.GameQuestMarker = marker => { lock (cascGate) return GameQuestMarkers.Is(marker, store.Name); };
         session.WorldChanged += (_, _, _) => ward.Reset();
 
         var walkability = new LockedTileWalkability(new CascTileWalkability(sceneReader), cascGate);
@@ -948,12 +949,10 @@ internal static class Program
         }
         return places;
 
-        bool IsQuestSymbol(MarkedActor marker) => marker.Kind == QuestSymbolMarkerKind && store.Name(marker.ActorSno) is { } name && QuestSymbolActors.Contains(name);
+        bool IsQuestSymbol(MarkedActor marker) => GameQuestMarkers.Is(marker, store.Name);
     }
 
-    // The game's generic quest map markers and their marker kind; quest objects this near name their quest.
-    private static readonly string[] QuestSymbolActors = ["Symbol_Quest_Proxy", "MarkerLocation"];
-    private const int QuestSymbolMarkerKind = 12;
+    // Quest objects this near a game quest marker name its quest.
     private const float QuestSymbolNamingUnits = 60f;
 
     // The War Plans command table in Temis ("War Plans Command Table"; Warplans_Vendor_NonInteractable is its stand-in for

@@ -219,7 +219,9 @@ The Undercity attunement switches (spirit hearths and beacons, name token `Entic
 are objectives too (reason `enticement`), on their own settings cue; they fall silent once used.
 Quest places: the current phase of an active quest names spots such as a trigger to walk into ("chase Lilith"); the
 exploration guide leads to them in the quest tier, before unexplored ground, until the phase moves on
-(`ObjectiveMemory.ObservePlaces`; research/client-memory.md §4). `--debug` logs `… in progress here: …` and
+(`ObjectiveMemory.ObservePlaces`; research/client-memory.md §4). In a dungeon the game's own quest markers on the map
+(`Symbol_Quest_Proxy`, `MarkerLocation`) are quest places too, until the map drops them (`GameQuestMarkers`;
+research/dungeon-objectives.md §35). `--debug` logs `… in progress here: …` and
 `OBJECTIVE seen (quest place): …`. A place stood at is set aside once walked 1.5× its reach away while another is still to
 reach or the phase names a carryable or receptacle not heard yet (`left undone`), and leads again once another objective is
 done. The objective the player stands at when a followed quest moves on is done (using it was the step), and a later phase

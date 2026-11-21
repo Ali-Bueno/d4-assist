@@ -117,6 +117,9 @@ public sealed class GameSession : IDungeonFeed, IDisposable
     /// <summary>Keeps a map marker of the world entered, by its name (LevelAreaWorlds.InWorld); null keeps every marker.</summary>
     public Func<MarkedActor, string, bool>? MarkerInWorld { get; set; }
 
+    /// <summary>Tells the game's own quest markers (GameQuestMarkers.Is), which lead in a dungeon as quest places; null adds none.</summary>
+    public Func<MarkedActor, bool>? GameQuestMarker { get; set; }
+
     public GameSession(
         IWorldNameSource feed, IWorldClassifier classifier,
         Func<int, IReadOnlySet<int>, IDungeonSessionReader?> openSession, IReadOnlySet<int> sceneSnos,
@@ -380,13 +383,18 @@ public sealed class GameSession : IDungeonFeed, IDisposable
                 Deliver(lease, () => Raise("actors", ActorsUpdated, h => h(actors)));
             }
             if (QuestMoved(session)) Deliver(lease, () => Raise("quest moved on", QuestMovedOn, h => h()));
-            if (session.ReadQuestPlaces() is { } places) Deliver(lease, () => Raise("quest places", QuestPlacesRead, h => h(places)));
-            if (session.ReadMapMarkers() is { } listed)
+            // The map keeps a dungeon's markers after the player leaves it, in that dungeon's own coordinates (2026-11-01).
+            var listed = session.ReadMapMarkers();
+            IReadOnlyList<MarkedActor>? marks = listed is not null && MarkerInWorld is { } inWorld && CurrentWorld?.Name is { } world
+                ? [.. listed.Where(m => inWorld(m, world))] : listed;
+            if (session.ReadQuestPlaces() is { } questPlaces)
             {
-                // The map keeps a dungeon's markers after the player leaves it, in that dungeon's own coordinates (2026-11-01).
-                IReadOnlyList<MarkedActor> marks = MarkerInWorld is { } inWorld && CurrentWorld?.Name is { } world ? [.. listed.Where(m => inWorld(m, world))] : listed;
-                Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
+                // A sub-quest step whose phase is unread leads only by the game's marker (research/dungeon-objectives.md §35).
+                var places = marks is not null && GameQuestMarker is { } isGameMarker && CurrentWorldKind == WorldKind.Dungeon
+                    ? GameQuestMarkers.WithMarkers(questPlaces, marks, isGameMarker) : questPlaces;
+                Deliver(lease, () => Raise("quest places", QuestPlacesRead, h => h(places)));
             }
+            if (marks is not null) Deliver(lease, () => Raise("map markers", MapMarkersRead, h => h(marks)));
             if (session.ReadQuestActorSnos() is { } named) Deliver(lease, () => Raise("quest actors", QuestActorsNamed, h => h(named)));
             if (session.ReadCinematic() is { } cinematic) Deliver(lease, () => Raise("cinematic", CinematicRead, h => h(cinematic)));
             if (session.ReadLife() is { } life) Deliver(lease, () => Raise("life", LifeRead, h => h(life)));

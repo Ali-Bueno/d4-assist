@@ -1083,3 +1083,22 @@ Tester logs (`--debug`, 0.1.35): act 2 (Weeping Cairns) and acts 3-4 (Orbei Mona
   no prefab host (124 are tile overlays within 100 units of the origin, many `*_Cellar_Contents` / `*_DGN_Boss`); only 3 are named
   after a level area (the two Elias sets, `S15_Lair_Rakanishu_Boss`). The rest may hang off other spawn types (`PlayerQuestPrefab`,
   `Dungeon_Quest_Objective`, `Dungeon_Boss_Alt*`, `Dungeon_Boss_Vignette*`), not checked; 358 `Dungeon_Boss` markers exist.
+
+## 35. A sub-quest step only the game's map marker leads to (tester log, 2026-11-18)
+
+Tester log (`--debug`, 0.1.36), act 4, the Corrosive Swamp (`CSD_Hawe_Verge_CorrosiveSwamp` 600744, quest 589546; H):
+"it took me through all of the unexplored areas, and then … sent me back to the earlier quest objective" at the Maggot Queen.
+
+- Phase 158 waits on sub-quest 810088 (`D4MemScan quest --sno 810088`): uid 0 enter 8 units of a linked marker in a group, 5 and
+  12 kill actor groups (`DRLG_Spawner_Maggot_adult` scene markers of other tilesets' arenas), 9 kill
+  `maggot_melee_unique_QST_CSD_CorrosiveSwamp_01` 810097, 20 pick up `QST_Hawe_Verge5_Maggot_Ichor`. Its phase is not in the module
+  data, so its places are walked as steps (`ActiveQuests.UnreadSteps`); none lands in this world, and actors are not steps.
+- When phase 158 began the game put `Symbol_Quest_Proxy` 56602 (map kind 12) at the queen's hole (111.3,-13.6), where
+  `Maggot_Prop_Hole_Edge_3x3_01_Arrangement_SP` was marked kind 12 from the start. The guide used neither. It explored every tile
+  (tile (3,-1) counted visited at its doorway, 15 units from the hole, outside the 8-unit trigger) and then said all explored and led
+  back to the campfire, 119 units off. The player found the queen alone 5 minutes later.
+- **App rule (unit-tested, not live):** in a dungeon, each kind-12 `Symbol_Quest_Proxy` / `MarkerLocation` on this world's map that
+  no quest place already stands at (within `ActiveQuests.MarkerReach`) is a quest place the map marks (`GameQuestMarkers.WithMarkers`,
+  `GameSession`). It leads like a marked place beyond loaded ground, and is done once the map drops it. The open world's D-pad left
+  already offers these markers. Not known: whether the proxy leaves the map when the step ends (markers are logged only when first
+  seen; the place's `done (phase moved on)` line will show it).

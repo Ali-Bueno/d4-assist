@@ -260,11 +260,15 @@ internal static class Program
         Func<int, bool> walkedAround = sno => definitionOf(sno) is { } prop
             && (prop.GizmoType == Conventions.GizmoBreakable
                 || (ObjectiveClassifier.IsStructure(store.Name(sno), prop) && !namedByAnyQuest(sno)));
+        // The open world's props (crates, tables, a stronghold's rubble barricades) bar the guide's overworld paths; only those near
+        // the player are kept, and not logged one by one (a helltide passes hundreds).
+        var openWorldProps = config.BreakablePropsAvoided
+            ? new BreakableProps(store.Name, definitionOf, isProp: walkedAround, forgetBeyondUnits: OpenWorldPropUnits) : null;
         var barrierBridge = new BarrierBridge(
             session, config.LiveBarriersEnabled ? new BarrierObstacles(store.Name, definitionOf, Console.WriteLine) : null, lockedDoors,
             radarWorld.SetBarriers, navigation.SetBlockedCells, navigation.SetGates,
             config.BreakablePropsAvoided ? new BreakableProps(store.Name, definitionOf, debug ? Console.WriteLine : null, walkedAround) : null,
-            cells => { navigation.SetPropCells(cells); radarWorld.SetProps(cells); });
+            cells => { navigation.SetPropCells(cells); radarWorld.SetProps(cells); }, openWorldProps);
         // A boss room's door opens when the objective is done, often while the player is too far for the client to list it.
         session.QuestMovedOn += barrierBridge.QuestMovedOn;
 
@@ -472,6 +476,72 @@ internal static class Program
             session.ActorsUpdated += layerBlockers.Update;
             session.QuestMovedOn += layerBlockers.QuestMovedOn;
             var legionTargets = new LegionTargets(store.Name);
+            // The stronghold guide (user request 2026-11-11): the strongholds, and the quests in progress, read at most every few
+            // seconds (each map read asks).
+            var strongholdCatalog = new StrongholdCatalog(store, schema);
+            IReadOnlyList<Stronghold> strongholds;
+            lock (cascGate) strongholds = strongholdCatalog.All;
+            IReadOnlyList<int> running = [];
+            // A stronghold whose quest the owned read misses (Kor Dragan, live 2026-11-12: its steps name hardly an actor, so it
+            // was never found in progress and the guide stayed off): running while its phase pair reads, else from the moment
+            // the map marks a monster in it until the player leaves it. A freed one is a town: no pair, no monster.
+            int? unreadStronghold = null;
+            TimeSpan? runningRead = null, pairSearched = null; // never read yet
+            var runningGate = new object(); // asked from the pad's thread and the map read's
+            var runningClock = System.Diagnostics.Stopwatch.StartNew();
+            StrongholdTargets? StrongholdTargetsAt(IReadOnlyList<MarkedActor> marks, System.Numerics.Vector2 here, bool explore)
+            {
+                static System.Numerics.Vector2 Spot(Stronghold s) => new(s.Position.X, s.Position.Y);
+                int? hereArea = StrongholdTargeting.PlayerArea(marks, here);
+                var near = strongholds.Where(s => StrongholdTargeting.Holds(s, here, hereArea))
+                    .OrderBy(s => System.Numerics.Vector2.Distance(here, Spot(s))).FirstOrDefault();
+                if (near is null)
+                {
+                    lock (runningGate) unreadStronghold = null;
+                    return null;
+                }
+                int[] inProgress;
+                lock (runningGate)
+                {
+                    if (runningRead is not { } read || runningClock.Elapsed - read >= RunningQuestsInterval)
+                    {
+                        IReadOnlyList<int>? owned = null;
+                        session.Query(r => owned = r.ReadOwnedQuests());
+                        if (owned is not null) running = owned;
+                        runningRead = runningClock.Elapsed;
+                        if (!running.Contains(near.QuestSno))
+                        {
+                            IReadOnlyList<QuestPhaseObjects> phases;
+                            lock (cascGate) phases = questScripts.PhaseObjects(near.QuestSno);
+                            var wanted = new Dictionary<int, IReadOnlySet<uint>> { [near.QuestSno] = phases.Select(p => p.PhaseUid).ToHashSet() };
+                            IReadOnlyDictionary<int, uint>? found = null;
+                            if (pairSearched is not { } searched || runningClock.Elapsed - searched >= StrongholdPairInterval)
+                            {
+                                session.Query(r => found = r.FindQuestPhases(wanted));
+                                pairSearched = runningClock.Elapsed;
+                            }
+                            bool reads = found?.TryGetValue(near.QuestSno, out uint phase) == true;
+                            if (reads) questHistory.Record(near.QuestSno, found![near.QuestSno]);
+                            bool monsters = marks.Any(m => m.Kind == StrongholdTargeting.MonsterMarkerKind
+                                && (near.LevelAreas is { Count: > 0 } areas ? areas.Contains(m.LevelAreaSno)
+                                    : System.Numerics.Vector2.Distance(new(m.X, m.Y), Spot(near)) <= StrongholdTargeting.StrongholdUnits));
+                            if (unreadStronghold != near.QuestSno && (reads || monsters))
+                            {
+                                unreadStronghold = near.QuestSno;
+                                if (debug) Console.WriteLine($"PATH stronghold quest {near.QuestSno} not among the owned: {(reads ? $"its phase reads {found![near.QuestSno]}" : "monsters marked in it")}, counts as running");
+                            }
+                        }
+                    }
+                    inProgress = unreadStronghold is { } unread && !running.Contains(unread) ? [.. running, unread] : [.. running];
+                }
+                string locale = SpeechLanguages.GameLocale(language.Current);
+                lock (cascGate)
+                    return StrongholdTargeting.At(here, marks, explore, strongholds, inProgress, questHistory.Last, questScripts.PhaseObjects,
+                        s => strongholdCatalog.Name(s, locale), m => InGameActorName(store, locale, m.ActorSno),
+                        m => GameQuestMarkers.Is(m, store.Name),
+                        m => m.Kind == StrongholdPlaceMarkerKind && store.Name(m.ActorSno) is { } place
+                            && !StrongholdPlaceSkipped.Any(prefix => place.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
+            }
             // The session sets the world's kind before it raises the world change.
             pathBridge = new QuestPathBridge(
                 session, _ => session.CurrentWorldKind is WorldKind.Overworld or WorldKind.RadarOnly,
@@ -487,12 +557,26 @@ internal static class Program
                     }
                     return QuestMapPlaces(markers, owned, FindPhases, questHistory, store, questScripts, language, cascGate, debug ? Console.WriteLine : null);
                 },
-                (world, from, to) => paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls()]),
+                (world, from, to) =>
+                {
+                    var props = openWorldProps?.Walls();
+                    // Spots the player stood stuck at, in this run or an earlier one, bar the way as doors do (QuestPathBridge.Blocked).
+                    var blocked = pathBridge?.Blocked ?? [];
+                    if (debug) Console.WriteLine($"PATH props standing near: {props?.Count ?? 0}; spots known blocked: {blocked.Count}");
+                    return paths.Find(world, from, to, [.. lockedDoors.Walls(), .. layerBlockers.Walls(), .. blocked], props);
+                },
                 guidePing, speech, language, pad, log: debug ? Console.WriteLine : null, routeActive: () => routeBridge?.IsActive == true,
                 entrances: NearbyEntrances(entranceCatalog, store, schema, language, cascGate),
                 wallsVersion: () => lockedDoors.Version + layerBlockers.Version,
                 legionTargets: legionTargets.Near, legionMarkers: legionTargets.Describe,
-                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget);
+                directionStyle: config.CompassDirections ? DirectionStyle.Compass : DirectionStyle.Screen, forgetPaths: paths.Forget,
+                propsVersion: openWorldProps is null ? null : () => openWorldProps.Version,
+                propsOnPath: openWorldProps is null ? null : (path, known) => OverworldPaths.Bars(openWorldProps.Walls(), path, known),
+                propCells: openWorldProps is null ? null : () => OverworldPaths.Cells(openWorldProps.Walls()),
+                blockedSpots: BlockedSpots.Load(AppContext.BaseDirectory, log: Console.WriteLine),
+                strongholdTargets: StrongholdTargetsAt,
+                // Either pad's stick pushed steers; at rest on every pad read does not; no pad read: unknown (keyboard, mouse).
+                steering: () => xboxPad?.StickPushed is true || hidPad?.StickPushed is true ? true : xboxPad?.StickPushed ?? hidPad?.StickPushed);
             session.MapMarkersRead += pathBridge.OnMapMarkers;
         }
         xboxPad?.Start();
@@ -595,6 +679,12 @@ internal static class Program
                         int? tier = null;
                         session.Query(r => tier = r.ReadWorldTier());
                         return tier;
+                    },
+                    () =>
+                    {
+                        IReadOnlySet<int>? completed = null;
+                        session.Query(r => completed = r.ReadCompletedQuests());
+                        return completed;
                     }),
                 // D-pad left leads to the place Enter chose (user request 2026-11-06).
                 placeChosen: choice => pathBridge?.Choose(store.Name(choice.WorldSno) ?? "", choice.Name, new Vector2((float)choice.X, (float)choice.Y)));
@@ -929,6 +1019,22 @@ internal static class Program
                 (remembered.Count > 0 ? "; remembered: " + string.Join(", ", remembered.Select(q => $"{q} at {questHistory.Last(q)}")) : ""));
         }
 
+        // The index names only markers a quest's scripts hold by handle; a phase's actor group (resolved in PhaseObjects) names
+        // its markers too: "Kill the high priests" named the cave's priest only by group (Altar of Ruin 2026-11-11), and the
+        // guide never offered him while "Explore the cave" waited on his keystone.
+        lock (cascGate)
+            foreach (int quest in inProgress)
+            {
+                var phases = questScripts.PhaseObjects(quest);
+                foreach (var marker in markers.Where(m => !IsQuestSymbol(m)))
+                {
+                    var at = new System.Numerics.Vector2(marker.X, marker.Y);
+                    if (!named.Contains((marker, quest)) && phases.Any(p => p.Markers.Any(m => m.Sno == marker.ActorSno
+                        && System.Numerics.Vector2.Distance(new(m.Position.X, m.Position.Y), at) <= ActiveQuests.MarkerReach)))
+                        named.Add((marker, quest));
+                }
+            }
+
         var places = new List<QuestMapPlace>();
         lock (cascGate)
         {
@@ -952,6 +1058,26 @@ internal static class Program
         bool IsQuestSymbol(MarkedActor marker) => GameQuestMarkers.Is(marker, store.Name);
     }
 
+    // The stronghold guide reads the quests in progress at most this often.
+    private static readonly TimeSpan RunningQuestsInterval = TimeSpan.FromSeconds(3);
+
+    // Exploring a stronghold takes in what the map marks in it as a gizmo (kind 11: shrines, chests, wells), but not what is
+    // no place to see: the ways across (the path uses them), herbs and ores, hidden triggers, waypoints.
+    private const int StrongholdPlaceMarkerKind = 11;
+    private static readonly string[] StrongholdPlaceSkipped = ["Traversal_", "HarvestNode_", "Trigger_", "Waypoint", "MarkerLocation"];
+
+    // A stronghold quest the owned read misses has its phase pair searched in the module data at most this often.
+    private static readonly TimeSpan StrongholdPairInterval = TimeSpan.FromSeconds(10);
+
+    // An actor's name as the game shows it (its UIName, else the first line of its Name); null for one without (a trigger).
+    private static string? InGameActorName(SnoStore store, string locale, int actorSno) =>
+        store.Name(actorSno) is { } actor
+            ? StripGrammarTag(store.Text(locale, "Actor_" + actor, "UIName") ?? store.Text(locale, "Actor_" + actor, "Name")?.Split(['\r', '\n'])[0])
+            : null;
+
+    // Open-world props farther than this from the player are forgotten: the client lists actors well within it.
+    private const float OpenWorldPropUnits = 250f;
+
     // Quest objects this near a game quest marker name its quest.
     private const float QuestSymbolNamingUnits = 60f;
 
@@ -972,21 +1098,23 @@ internal static class Program
     }
 
     // The map menu's lists besides the waypoints (Shift+F1, user request 2026-11-06): the dungeons and the cellars the map shows,
-    // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds, freed or not
-    // (user request: to find the places near one before it is freed; which are freed is not read yet), with the region of the
-    // waypoint nearest to each; and the boss lairs, only on a Torment tier, as the map shows them (each portal names the tier it
+    // each named after where it leads, with the region it lies in; one entry per name and spot; and the strongholds not freed yet
+    // (the character's completed quests hold a freed one's quest, as the map drops its icon; all while that set is unreadable),
+    // with the region of the waypoint nearest to each; and the boss lairs, only on a Torment tier, as the map shows them (each portal names the tier it
     // is there from: Torment 1, Mephisto's Torment 10; the campaign each also asks for is taken as done).
     private static IReadOnlyList<MapPlaceList> MapPlaceLists(DungeonEntranceCatalog catalog, StrongholdCatalog strongholds,
-        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate, Func<int?> worldTier)
+        WaypointCatalog waypoints, ZoneCatalog zones, SnoStore store, LanguageSetting language, object cascGate, Func<int?> worldTier,
+        Func<IReadOnlySet<int>?> completedQuests)
     {
         IReadOnlyList<MapPlace> Strongholds()
         {
+            var completed = completedQuests(); // read before taking the data lock, as the world tier is
             lock (cascGate)
             {
                 string locale = SpeechLanguages.GameLocale(language.Current);
                 return
                 [
-                    .. strongholds.All.Select(s => new MapPlace(strongholds.Name(s, locale),
+                    .. strongholds.All.Where(s => completed?.Contains(s.QuestSno) != true).Select(s => new MapPlace(strongholds.Name(s, locale),
                         waypoints.All.Where(w => w.WorldSno == s.WorldSno)
                             .MinBy(w => Vector2.Distance(new Vector2(w.Position.X, w.Position.Y), new Vector2(s.Position.X, s.Position.Y))) is { } near
                             ? waypoints.Zone(near, locale) : null,

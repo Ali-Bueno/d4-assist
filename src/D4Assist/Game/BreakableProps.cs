@@ -11,8 +11,11 @@ namespace D4Assist.Game;
 /// spot broken once stays broken in this world.
 /// </summary>
 /// <param name="isProp">True for an actor SNO walked around while it stands; null for the breakable props (gizmo 48) only.</param>
+/// <param name="forgetBeyondUnits">Props farther than this from the player are forgotten, standing or broken (the open world,
+/// which would otherwise gather every prop the player ever passed); null keeps them for the whole world (a dungeon).</param>
 public sealed class BreakableProps(
-    Func<int, string?> nameOf, Func<int, ActorDefinitionInfo?> definition, Action<string>? log = null, Func<int, bool>? isProp = null)
+    Func<int, string?> nameOf, Func<int, ActorDefinitionInfo?> definition, Action<string>? log = null, Func<int, bool>? isProp = null,
+    float? forgetBeyondUnits = null)
 {
     private readonly Func<int, bool> _isProp = isProp ?? (sno => definition(sno) is { GizmoType: Conventions.GizmoBreakable });
 
@@ -23,10 +26,11 @@ public sealed class BreakableProps(
     /// apart (a slide drops 5 units, research/dungeon-data.md §4.1c).</summary>
     public const float SameFloorUnits = 2f;
 
-    private sealed class Prop(int sno, Vector2 spot, IReadOnlyList<(int X, int Y)> cells, bool hadRecord)
+    private sealed class Prop(int sno, Vector2 spot, float baseZ, IReadOnlyList<(int X, int Y)> cells, bool hadRecord)
     {
         public int Sno { get; } = sno;
         public Vector2 Spot { get; } = spot;
+        public float BaseZ { get; } = baseZ;
         public IReadOnlyList<(int X, int Y)> Cells { get; } = cells;
         public bool HadRecord { get; set; } = hadRecord;
         public int MissingPolls { get; set; }
@@ -37,7 +41,14 @@ public sealed class BreakableProps(
     private readonly Dictionary<(int X, int Y, int Sno), Prop> _standing = [];
     private readonly HashSet<(int X, int Y, int Sno)> _broken = [];
     private IReadOnlySet<(int X, int Y)> _cells = new HashSet<(int X, int Y)>();
+    private IReadOnlyList<DoorWall> _walls = [];
     private bool _changed;
+
+    /// <summary>Changes whenever a prop starts or stops standing.</summary>
+    public int Version { get; private set; }
+
+    /// <summary>Each standing prop's cells at the height of its base, after the last actor poll (for OverworldPaths.Find).</summary>
+    public IReadOnlyList<DoorWall> Walls() => _walls;
 
     /// <summary>The cells every standing prop covers, after this actor poll.</summary>
     public IReadOnlySet<(int X, int Y)> Update(IReadOnlyList<ActorState> actors, PlayerState player)
@@ -58,7 +69,7 @@ public sealed class BreakableProps(
             if (actor.Operated || !OnPlayerFloor(actor, info, player.Z)) continue;
             var cells = DoorObstacles.Footprint(actor, info.PropCenter, info.PropHalfExtents).Cells;
             if (cells.Count == 0) continue;
-            _standing[key] = new Prop(actor.ActorSno, new Vector2(actor.X, actor.Y), cells, !actor.ClientOnly);
+            _standing[key] = new Prop(actor.ActorSno, new Vector2(actor.X, actor.Y), Base(actor, info), cells, !actor.ClientOnly);
             listed.Add(key);
             _changed = true;
             // Whether the game marks a prop no attack breaks (the Necropolis's flesh webs, research/dungeon-objectives.md §12) is unknown.
@@ -71,9 +82,22 @@ public sealed class BreakableProps(
             prop.MissingPolls = listed.Contains(key) || Vector2.Distance(here, prop.Spot) > ConfirmRadiusUnits ? 0 : prop.MissingPolls + 1;
             if (prop.MissingPolls >= ObjectiveMemory.MissingPollsForDone) Break(key, prop, "gone");
         }
-        if (_changed) _cells = _standing.Values.SelectMany(p => p.Cells).ToHashSet();
+        if (forgetBeyondUnits is { } far) Forget(here, far);
+        if (_changed)
+        {
+            _cells = _standing.Values.SelectMany(p => p.Cells).ToHashSet();
+            _walls = [.. _standing.Values.Select(p => new DoorWall(p.Cells.ToHashSet(), p.BaseZ))];
+            Version++;
+        }
         _changed = false;
         return _cells;
+    }
+
+    private void Forget(Vector2 here, float far)
+    {
+        foreach (var (key, prop) in _standing.ToList())
+            if (Vector2.Distance(here, prop.Spot) > far) { _standing.Remove(key); _changed = true; }
+        _broken.RemoveWhere(key => Vector2.Distance(here, new Vector2(key.X, key.Y)) > far);
     }
 
     /// <summary>A new dungeon: nothing stands or was broken.</summary>
@@ -82,6 +106,8 @@ public sealed class BreakableProps(
         _standing.Clear();
         _broken.Clear();
         _cells = new HashSet<(int X, int Y)>();
+        _walls = [];
+        Version++;
     }
 
     private void Break((int X, int Y, int Sno) key, Prop prop, string cause)
@@ -93,7 +119,9 @@ public sealed class BreakableProps(
     }
 
     private static bool OnPlayerFloor(ActorState prop, ActorDefinitionInfo info, float playerZ) =>
-        MathF.Abs(playerZ - (prop.Z + info.PropCenter.Z - info.PropHalfExtents.Z)) <= SameFloorUnits;
+        MathF.Abs(playerZ - Base(prop, info)) <= SameFloorUnits;
+
+    private static float Base(ActorState prop, ActorDefinitionInfo info) => prop.Z + info.PropCenter.Z - info.PropHalfExtents.Z;
 
     private static (int X, int Y, int Sno) Key(ActorState actor) => ((int)MathF.Round(actor.X), (int)MathF.Round(actor.Y), actor.ActorSno);
 }

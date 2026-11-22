@@ -31,12 +31,45 @@ public class PathFollowerTests
     }
 
     [Fact]
-    public void The_aim_turns_the_corner_and_stops_at_the_end()
+    public void Ahead_is_the_path_from_the_players_spot_on_it_on_for_the_distance()
+    {
+        var follower = L();
+        follower.Follow(new(5, 1), 8);
+
+        Assert.Equal([new(5, 0), new(10, 0), new(20, 0), new(20, -2)], follower.Ahead(17));
+        Assert.Equal(new Vector2(20, -20), follower.Ahead(100)[^1]);
+    }
+
+    [Fact]
+    public void From_joins_the_path_on_from_the_players_spot_and_keeps_its_points_after()
+    {
+        var follower = L();
+        follower.Follow(new(5, 1), 8);
+
+        var (join, after) = follower.From(17)!.Value;
+
+        Assert.Equal(new Vector2(20, -2), join);
+        Assert.Equal([new(20, -10), new(20, -20)], after);
+        Assert.Null(follower.From(40));
+    }
+
+    // Altar of Ruin 2026-11-11: aiming past a corner pointed through the wall the path turns round.
+    [Fact]
+    public void The_aim_stops_at_a_corner_until_the_player_is_at_it_then_turns_it_and_stops_at_the_end()
     {
         var follower = L();
 
-        Assert.Equal(new Vector2(20, -5), follower.Follow(new(17, 0), 8).Aim);
+        Assert.Equal(new Vector2(20, 0), follower.Follow(new(17, 0), 8).Aim);
+        Assert.Equal(new Vector2(20, -7), follower.Follow(new(19, 0), 8).Aim);
         Assert.Equal(new Vector2(20, -20), follower.Follow(new(20, -18), 8).Aim);
+    }
+
+    [Fact]
+    public void A_slight_bend_does_not_stop_the_aim()
+    {
+        var follower = new PathFollower([new(0, 0), new(10, 0), new(20, 2)]); // 11 degrees
+
+        Assert.True(follower.Follow(new(5, 0), 8).Aim.X > 12);
     }
 
     [Fact]

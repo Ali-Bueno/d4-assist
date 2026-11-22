@@ -121,4 +121,50 @@ public class OverworldPathsTests
 
         Assert.InRange(Length(new(from.X, from.Y), path!), 68f, 75f);
     }
+
+    // Altar of Ruin 2026-11-11: mining crates the static surfaces call floor stood in the stronghold's only gap.
+    [Fact]
+    public void A_prop_in_the_gap_sends_the_path_round_on_the_same_map()
+    {
+        var paths = Paths();
+        var from = new Vector3(10, 48, 0);
+        var to = new Vector2(80, 48);
+        paths.Find("W", from, to, null);
+
+        var round = paths.Find("W", from, to, null, [Door(0)]);
+
+        Assert.Equal((1, 1), paths.MapUse); // props weigh in the search only
+        Assert.True(Length(new(from.X, from.Y), round!) > 120f);
+    }
+
+    [Fact]
+    public void A_prop_on_another_floor_leaves_the_way_open()
+    {
+        var from = new Vector3(10, 48, 0);
+
+        var path = Paths().Find("W", from, new Vector2(80, 48), null, [Door(OverworldPaths.DoorFloorUnits + 4)]);
+
+        Assert.InRange(Length(new(from.X, from.Y), path!), 68f, 75f);
+    }
+
+    [Fact]
+    public void A_prop_bars_a_path_whose_line_passes_its_cells()
+    {
+        var crate = new DoorWall(new HashSet<(int X, int Y)> { (20, 10) }, 0);
+
+        Assert.True(OverworldPaths.Bars([crate], [new(0, 10.5f), new(40, 10.5f)]));
+        Assert.True(OverworldPaths.Bars([crate], [new(0, 11.4f), new(40, 11.4f)])); // past the cell's edge: the body touches it
+        Assert.False(OverworldPaths.Bars([crate], [new(0, 12f), new(40, 12f)]));
+        Assert.False(OverworldPaths.Bars([], [new(0, 10.5f), new(40, 10.5f)]));
+    }
+
+    [Fact]
+    public void A_prop_the_search_knew_never_bars_the_path()
+    {
+        var crate = new DoorWall(new HashSet<(int X, int Y)> { (20, 10) }, 0);
+        var known = OverworldPaths.Cells([crate]);
+
+        Assert.False(OverworldPaths.Bars([crate], [new(0, 10.5f), new(40, 10.5f)], known));
+        Assert.True(OverworldPaths.Bars([crate, new DoorWall(new HashSet<(int X, int Y)> { (30, 10) }, 0)], [new(0, 10.5f), new(40, 10.5f)], known));
+    }
 }

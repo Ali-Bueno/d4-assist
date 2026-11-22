@@ -53,7 +53,10 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     }
 
     /// <summary>One slot's sample: the buttons, and the packet number XInput moves on with any change of the pad's state.</summary>
-    private readonly record struct Reading(ushort Buttons, uint Packet);
+    private readonly record struct Reading(ushort Buttons, uint Packet, bool StickPushed = false);
+
+    /// <summary>The left stick must lie this far from its middle on an axis to count as pushed (XInput's own dead zone is 7849).</summary>
+    public const int StickPushedFrom = 10000;
 
     private readonly Func<int, Reading?> _read;
     private readonly Func<int, string?> _describe = _ => null;
@@ -73,6 +76,24 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
     public event Action? DpadLeftPressed;
     public event Action? DpadLeftHeld;
 
+    private readonly bool[] _stick = new bool[MaxUsers];
+
+    /// <summary>Whether a connected pad's left stick is pushed now (the player steers); null with no pad connected.</summary>
+    public bool? StickPushed
+    {
+        get
+        {
+            bool known = false;
+            for (int slot = 0; slot < MaxUsers; slot++)
+            {
+                if (!Volatile.Read(ref _connected[slot])) continue;
+                if (Volatile.Read(ref _stick[slot])) return true;
+                known = true;
+            }
+            return known ? false : null;
+        }
+    }
+
     /// <summary>Production: loads XInput from the system; if it is unavailable the pad never fires.</summary>
     /// <param name="log">The library loaded and each slot's connect and disconnect (a few lines per session).</param>
     public XInputPad(Action<string>? log = null)
@@ -85,7 +106,8 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
             if (!NativeLibrary.TryGetExport(library, "XInputGetState", out var export)) { NativeLibrary.Free(library); continue; }
             var getState = Marshal.GetDelegateForFunctionPointer<XInputGetStateFn>(export);
             _library = library;
-            _read = slot => getState((uint)slot, out var state) == ErrorSuccess ? new Reading(state.Buttons, state.PacketNumber) : null;
+            _read = slot => getState((uint)slot, out var state) == ErrorSuccess ? new Reading(state.Buttons, state.PacketNumber,
+                Math.Abs((int)state.ThumbLX) >= StickPushedFrom || Math.Abs((int)state.ThumbLY) >= StickPushedFrom) : null;
             var capabilities = GetProcAddress(library, CapabilitiesExOrdinal);
             if (capabilities != 0)
             {
@@ -151,6 +173,7 @@ public sealed class XInputPad : IGuideTogglePad, IDisposable
                 continue;
             }
             ushort b = r.Buttons;
+            _stick[slot] = r.StickPushed;
             if (r.Packet != _firstPacket[slot] && !_inputSeen[slot])
             {
                 _inputSeen[slot] = true;

@@ -102,6 +102,84 @@ public class ExplorationPersistenceTests : IDisposable
         Assert.Equal(ObjectiveMemory.QuestTier, lever.Tier);
     }
 
+    // Stands in the first of a phase's two places, walks out of it, and the next tile poll saves.
+    private App ReachFirstPlace(QuestPlace[] step)
+    {
+        var app = Start();
+        app.Feed.RaiseTiles(TileA, TileB);
+        app.Feed.RaisePlayer(16, 16);
+        app.Objectives.ObservePlaces(step);
+        app.Feed.RaisePlayer(step[0].X, step[0].Y);
+        app.Feed.RaisePlayer(16, 16);
+        app.Feed.RaiseTiles(TileA, TileB);
+        Assert.Equal((step[1].X, step[1].Y), Assert.Single(app.Objectives.Destinations()).Position);
+        return app;
+    }
+
+    [Fact]
+    public void A_restart_keeps_the_quest_places_reached_in_the_phase()
+    {
+        // Live 2026-10-23, the Tunnels of Hefaetrust: after a restart the guide walked the player back through four dialog triggers.
+        QuestPlace[] step = [new(LeverSno, 40, 16), new(LeverSno, 60, 40)];
+        ReachFirstPlace(step);
+
+        var restarted = Start();
+        restarted.Feed.RaiseTiles(TileA, TileB);
+        restarted.Objectives.ObservePlaces(step);
+
+        Assert.Equal((60f, 40f), Assert.Single(restarted.Objectives.Destinations()).Position);
+        Assert.Contains(restarted.Log, l => l.Contains("1 quest places reached"));
+
+        restarted.Objectives.Rearm(walkedThrough: true); // nothing left to explore: it leads again, as within a run
+        Assert.Equal(2, restarted.Objectives.Destinations().Count);
+    }
+
+    [Fact]
+    public void A_quest_place_named_before_the_restore_is_set_aside_too()
+    {
+        QuestPlace[] step = [new(LeverSno, 40, 16), new(LeverSno, 60, 40)];
+        ReachFirstPlace(step);
+
+        var restarted = Start();
+        restarted.Objectives.ObservePlaces(step);
+        Assert.Equal(2, restarted.Objectives.Destinations().Count);
+        restarted.Feed.RaiseTiles(TileA, TileB);
+
+        Assert.Equal((60f, 40f), Assert.Single(restarted.Objectives.Destinations()).Position);
+    }
+
+    [Fact]
+    public void A_quest_place_saved_as_reached_waits_for_its_phase_after_a_restart()
+    {
+        QuestPlace[] step = [new(LeverSno, 40, 16), new(LeverSno, 60, 40)];
+        ReachFirstPlace(step);
+
+        var restarted = Start();
+        restarted.Feed.RaiseTiles(TileA, TileB);
+
+        Assert.Empty(restarted.Objectives.Destinations());
+    }
+
+    [Fact]
+    public void A_quest_place_whose_actor_is_done_stays_done_after_a_restart()
+    {
+        QuestPlace[] step = [new(LeverSno, 20, 16), new(LeverSno, 60, 40)];
+        var lever = new ActorState(5, LeverSno, 20, 16, 0, QuestStep: true);
+        var app = Start();
+        app.Feed.RaiseTiles(TileA, TileB);
+        app.Feed.RaisePlayer(16, 16);
+        app.Objectives.ObservePlaces(step);
+        app.Objectives.Observe(new ObjectiveSighting([lever], [], [lever]));
+        app.Objectives.Observe(new ObjectiveSighting([], [lever], [lever]));
+        app.Feed.RaiseTiles(TileA, TileB);
+
+        var restarted = Start();
+        restarted.Objectives.ObservePlaces(step); // named before the restore, so it leads until then
+        restarted.Feed.RaiseTiles(TileA, TileB);
+
+        Assert.Equal((60f, 40f), Assert.Single(restarted.Objectives.Destinations()).Position);
+    }
+
     [Fact]
     public void Another_game_run_or_instance_starts_fresh()
     {

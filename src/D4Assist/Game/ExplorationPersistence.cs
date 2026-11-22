@@ -77,7 +77,7 @@ public sealed class ExplorationPersistence
         var state = _navigation.ExportExploration();
         _store.Save(new ExplorationSnapshot(
             key.World, key.Instance, key.GameStartedUtc, state.Tiles, [.. state.Visited.Select(c => new[] { c.X, c.Y })], _portals?.Export() ?? [],
-            _objectives?.Export() ?? [], _layers?.Export() ?? []));
+            _objectives?.Export() ?? [], _layers?.Export() ?? [], _objectives?.ExportPlaces() ?? []));
     }
 
     private void Restore(ExplorationSnapshot saved, IReadOnlyList<TileState> live)
@@ -95,8 +95,9 @@ public sealed class ExplorationPersistence
             t.SceneSno, t.Name, t.OriginX, t.OriginY, t.SizeX, t.SizeY, t.ExitMask, t.NodeId, t.GroupId, t.YawDegrees, t.AuthoredExitMask))]);
         _portals?.Restore(saved.Portals);
         _objectives?.Restore(saved.Objectives ?? []);
+        _objectives?.RestorePlaces(saved.Places ?? []);
         _layers?.Restore(saved.Layers ?? []);
-        _log?.Invoke($"Exploration: restored {(_otherInstance ? $"instance {saved.Instance}'s " : "")}{saved.Tiles.Count} tiles ({saved.Visited.Count} explored), {saved.Portals.Count} portals and " +
-            $"{saved.Objectives?.Count ?? 0} objectives from the last run.");
+        _log?.Invoke($"Exploration: restored {(_otherInstance ? $"instance {saved.Instance}'s " : "")}{saved.Tiles.Count} tiles ({saved.Visited.Count} explored), {saved.Portals.Count} portals, " +
+            $"{saved.Objectives?.Count ?? 0} objectives and {saved.Places?.Count ?? 0} quest places reached from the last run.");
     }
 }

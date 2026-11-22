@@ -205,6 +205,38 @@ public sealed class ObjectiveMemory
                     _objectives.Add(new Objective(s.Sno, s.Name, (s.X, s.Y), Reach(s.Sno)) { Quest = s.Quest });
     }
 
+    /// <summary>The quest places already reached or whose actor is done, to outlive a restart of the app: a phase's places are named
+    /// again, and all of them led again (live 2026-10-23, the Tunnels of Hefaetrust: the guide walked the player back through four dialog
+    /// triggers, about 2.5 minutes). As within a run, a place stays reached if a later phase names it; only nothing left to explore re-arms it.</summary>
+    public IReadOnlyList<SavedPlace> ExportPlaces()
+    {
+        lock (_gate)
+            return [.. _places.Where(o => o.Reached || o.ActorDone).Select(o => new SavedPlace(
+                o.Sno, o.Name, o.Position.X, o.Position.Y, o.Z, o.Step, o.Reached, o.WalkedThrough, o.TimesLeft, o.ActorDone))];
+    }
+
+    /// <summary>Adds back what <see cref="ExportPlaces"/> saved; the phase may have named a place again already (the restore waits for a
+    /// tile poll). One not named yet waits for the phase, as one its phase moved on from.</summary>
+    public void RestorePlaces(IEnumerable<SavedPlace> saved)
+    {
+        lock (_gate)
+            foreach (var s in saved)
+            {
+                var place = _places.FirstOrDefault(o => o.Sno == s.Sno && Distance(o.Position, (s.X, s.Y)) <= SameSpotUnits);
+                if (place is null)
+                {
+                    place = new Objective(s.Sno, s.Name, (s.X, s.Y), Reach(s.Sno), QuestPlaceKind) { Quest = true, Z = s.Z, Step = s.Step, Pending = false };
+                    _places.Add(place);
+                }
+                else if (s.ActorDone) place.Pending = false;
+                place.AtIt = false;
+                place.Reached = s.Reached;
+                place.WalkedThrough = s.WalkedThrough;
+                place.TimesLeft = s.TimesLeft;
+                place.ActorDone = s.ActorDone;
+            }
+    }
+
     /// <summary>Takes the places the active quests' current phases name (GameSession.QuestPlacesRead, every actor poll).</summary>
     public void ObservePlaces(IReadOnlyList<QuestPlace> places)
     {
@@ -590,3 +622,6 @@ public sealed class ObjectiveMemory
 
 /// <summary>A remembered objective as ExplorationStore saves it.</summary>
 public sealed record SavedObjective(int Sno, string Name, float X, float Y, bool Quest);
+
+/// <summary>A quest place already reached, or whose actor is done, as ExplorationStore saves it.</summary>
+public sealed record SavedPlace(int Sno, string Name, float X, float Y, float? Z, int Step, bool Reached, bool WalkedThrough, int TimesLeft, bool ActorDone);

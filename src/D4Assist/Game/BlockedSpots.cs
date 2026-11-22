@@ -13,7 +13,7 @@ public sealed class BlockedSpots
 {
     public const string FileName = "d4assist-blocked.json";
 
-    /// <summary>A spot learned this long ago is forgotten.</summary>
+    /// <summary>A spot learned or stood stuck at again this long ago is forgotten.</summary>
     public const int KeepDays = 60;
 
     /// <summary>One blocked spot: its 1-unit cells at the height of the player's feet, where the player stood stuck, and when (UTC).</summary>
@@ -78,12 +78,22 @@ public sealed class BlockedSpots
         lock (_gate) return _spots.TryGetValue(world, out var list) ? list.Count : 0;
     }
 
+    // Spots this near in height are on one floor (BreakableProps.SameFloorUnits).
+    private const float SameFloorUnits = BreakableProps.SameFloorUnits;
+
     public void Add(string world, IReadOnlySet<(int X, int Y)> cells, float z, Vector2 stuckAt)
     {
         lock (_gate)
         {
             if (!_spots.TryGetValue(world, out var list)) _spots[world] = list = [];
-            list.Add(new Spot([.. cells.Select(c => new[] { c.X, c.Y })], z, stuckAt.X, stuckAt.Y, _clock()));
+            // Stuck again on a spot known: one spot with both's cells, its date renewed.
+            var merged = cells.ToHashSet();
+            foreach (var old in list.Where(s => MathF.Abs(s.Z - z) <= SameFloorUnits && s.Cells.Exists(c => merged.Contains((c[0], c[1])))).ToList())
+            {
+                merged.UnionWith(old.Cells.Select(c => (c[0], c[1])));
+                list.Remove(old);
+            }
+            list.Add(new Spot([.. merged.Select(c => new[] { c.X, c.Y })], z, stuckAt.X, stuckAt.Y, _clock()));
             Changed(world);
         }
     }
@@ -110,7 +120,13 @@ public sealed class BlockedSpots
     {
         _walls.Remove(world);
         if (_path is null) return;
-        try { File.WriteAllText(_path, JsonSerializer.Serialize(_spots.Where(w => w.Value.Count > 0).ToDictionary(w => w.Key, w => w.Value))); }
+        try
+        {
+            // Replaced only once the new file is complete: a crash mid-write keeps the old spots.
+            string temporary = _path + ".tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(_spots.Where(w => w.Value.Count > 0).ToDictionary(w => w.Key, w => w.Value)));
+            File.Move(temporary, _path, overwrite: true);
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             _log?.Invoke($"{FileName} not saved: {e.Message}");

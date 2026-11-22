@@ -9,7 +9,7 @@ namespace D4Assist.Game;
 /// A new world clears them. In the open world only <c>openWorldProps</c> follows the actors: its props bar the guide's
 /// overworld paths (OverworldPaths.Find), which read them when they search.
 /// </summary>
-internal sealed class BarrierBridge
+public sealed class BarrierBridge
 {
     private static readonly IReadOnlySet<(int X, int Y)> None = new HashSet<(int X, int Y)>();
 
@@ -37,14 +37,18 @@ internal sealed class BarrierBridge
     /// <param name="props">Breakable props; null when they are switched off.</param>
     /// <param name="propCells">Receives the cells every standing prop covers, for the guide's routes; null for none.</param>
     /// <param name="openWorldProps">The props standing in the open world, updated on its actor polls; null for none.</param>
+    private readonly Func<bool> _openWorldPropsWanted;
+    private bool _openWorldTracked;
+
     public BarrierBridge(
         IDungeonFeed feed, BarrierObstacles? barriers, LockedDoors? doors,
         Action<IReadOnlySet<(int X, int Y)>> walls, Action<IReadOnlySet<(int X, int Y)>> routes,
         Action<IReadOnlyList<GuideGate>>? gates = null, BreakableProps? props = null, Action<IReadOnlySet<(int X, int Y)>>? propCells = null,
-        BreakableProps? openWorldProps = null)
+        BreakableProps? openWorldProps = null, Func<bool>? openWorldPropsWanted = null)
     {
         (_barriers, _doors, _applyWalls, _applyRoutes, _applyGates, _props, _applyProps) = (barriers, doors, walls, routes, gates, props, propCells);
         _openWorldProps = openWorldProps;
+        _openWorldPropsWanted = openWorldPropsWanted ?? (() => true);
         feed.WorldChanged += (_, _, _) =>
         {
             lock (_gate)
@@ -62,9 +66,25 @@ internal sealed class BarrierBridge
             lock (_gate)
             {
                 if (feed.CurrentWorldKind != WorldKind.Overworld) OnActors(actors);
-                else if (_openWorldProps is not null && _player is { } player) _openWorldProps.Update(actors, player);
+                else OnOpenWorldActors(actors);
             }
         };
+    }
+
+    // Only while the overworld guide leads: classifying every actor of a helltide on each poll costs CPU for nothing otherwise.
+    private void OnOpenWorldActors(IReadOnlyList<ActorState> actors)
+    {
+        if (_openWorldProps is null || _player is not { } player) return;
+        if (_openWorldPropsWanted())
+        {
+            _openWorldProps.Update(actors, player);
+            _openWorldTracked = true;
+        }
+        else if (_openWorldTracked)
+        {
+            _openWorldProps.Reset(); // stale props would bar the next search before the first poll
+            _openWorldTracked = false;
+        }
     }
 
     /// <summary>A quest phase moved on: doors and barriers out of sight may have opened, so they stop blocking until seen again.</summary>

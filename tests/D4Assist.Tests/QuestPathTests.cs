@@ -190,6 +190,21 @@ public class QuestPathTests
     }
 
     [Fact]
+    public void With_the_phase_unknown_a_place_every_phase_hides_is_hidden()
+    {
+        var statue = new PlacedMarker(1, Sphere, new(2719.3f, -24.8f, 5.8f));
+        var forest = new PlacedMarker(1, Sphere, new(2498.8f, 29.9f, 15.7f));
+        QuestPhaseObjects[] phases =
+        [
+            new(12, [statue, forest], new HashSet<int>(), [], HiddenMarkers: new HashSet<PlacedMarker> { forest }),
+            new(21, [statue], new HashSet<int>(), []),
+        ];
+
+        Assert.Equal(StepPlace.Hidden, QuestStep.OfAny(phases, Sphere, new(2498.8f, 29.9f)));
+        Assert.Equal(StepPlace.Shown, QuestStep.OfAny(phases, Sphere, new(2719.5f, -25f)));
+    }
+
+    [Fact]
     public void With_no_quest_place_marked_it_says_so()
     {
         var rig = new Rig();

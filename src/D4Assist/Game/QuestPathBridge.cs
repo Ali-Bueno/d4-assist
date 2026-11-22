@@ -34,6 +34,13 @@ public static class QuestStep
         if (named.Count > 0) return named.All(m => step.HiddenMarkers?.Contains(m) == true) ? StepPlace.Hidden : StepPlace.Shown;
         return step.ActorSnos.Contains(actorSno) ? StepPlace.Shown : StepPlace.NotInStep;
     }
+
+    /// <summary>The phase unknown: hidden when every phase that marks the actor at its spot hides it, else shown.</summary>
+    public static StepPlace OfAny(IReadOnlyList<QuestPhaseObjects> phases, int actorSno, Vector2 at)
+    {
+        var roles = phases.Select(p => Of(p with { ActorSnos = new HashSet<int>() }, actorSno, at)).Where(r => r != StepPlace.NotInStep).ToList();
+        return roles.Count > 0 && roles.All(r => r == StepPlace.Hidden) ? StepPlace.Hidden : StepPlace.Shown;
+    }
 }
 
 /// <summary>
@@ -189,6 +196,7 @@ public sealed class QuestPathBridge
     // The place chosen in a map menu list, and its world's name: offered first until reached (user request 2026-11-06).
     private (string World, QuestMapPlace Place)? _chosen;
     private TimeSpan? _missingSince;
+    private TimeSpan? _strongholdGoneSince;
 
     // The stronghold guide (StrongholdTargeting): on until switched off or the stronghold is left or freed.
     private readonly Func<IReadOnlyList<MarkedActor>, Vector2, bool, StrongholdTargets?> _strongholdTargets;
@@ -200,6 +208,9 @@ public sealed class QuestPathBridge
 
     /// <summary>True where D-pad left leads to quest places: the exploration guide then leaves the press to it.</summary>
     public bool TakesPad { get { lock (_gate) return _leads; } }
+
+    /// <summary>The guide leads now (a place or a stronghold); read without the lock, from the actor poll.</summary>
+    public bool IsGuiding => Volatile.Read(ref _active) is not null || Volatile.Read(ref _strongholdOn);
 
     /// <param name="leadsIn">True for a world it leads in, by name (the open world and the story areas).</param>
     /// <param name="questPlaces">The quest places among the map's markers, named in the current language.</param>
@@ -399,11 +410,15 @@ public sealed class QuestPathBridge
         var here = new Vector2(player.X, player.Y);
         if (_strongholdTargets(_markers, here, _explore) is not { } stronghold)
         {
+            _strongholdGoneSince ??= _clock();
+            if (_clock() - _strongholdGoneSince < GoneAfter) return; // one read without the player's area may be torn
             Log($"PATH stronghold guide off: left or freed at ({here.X:F1},{here.Y:F1})");
             Stop();
+            _explore = false; // the next stronghold starts on its step's targets
             _speech.Speak(AppStrings.For(_language.Current).GuideOff, interrupt: true);
             return;
         }
+        _strongholdGoneSince = null;
         bool moved = stronghold.Phase != _strongholdPhase;
         if (moved)
         {
@@ -433,8 +448,10 @@ public sealed class QuestPathBridge
             if (_held && Vector2.Distance(here, active.Position) <= HoldUnits) return; // holding at a target reached
             var same = open.Where(t => t.Place.ActorSno == active.ActorSno && Vector2.Distance(t.Place.Position, active.Position) <= TrackUnits)
                 .OrderBy(t => Vector2.Distance(t.Place.Position, active.Position)).FirstOrDefault();
-            if (same is not null && !_held && same.Tier <= open[0].Tier)
+            // A monster reached and stepped away from (a boss fought at) is followed on, not started again.
+            if (same is not null && (!_held || same.Monster) && same.Tier <= open[0].Tier)
             {
+                _held = false;
                 _missingSince = null;
                 _active = active with { Position = same.Place.Position };
                 if (!_searching && Vector2.Distance(same.Place.Position, _pathTo) > OffPathUnits && _clock() - _lastPath >= RepathInterval)
@@ -489,6 +506,7 @@ public sealed class QuestPathBridge
     private void EnterWorld(string worldName)
     {
         Stop();
+        _explore = false;
         _player = null;
         _markers = [];
         _markersRead = false;
@@ -686,8 +704,11 @@ public sealed class QuestPathBridge
             if (!_held && to <= ArriveUnits)
             {
                 Log($"PATH reached stronghold target {place.QuestName} at ({here.X:F1},{here.Y:F1}); holding while the player stays");
-                _ping.PlayArrived();
-                _reached.Add(place.Position);
+                if (!_reached.Exists(r => Vector2.Distance(r, place.Position) <= SamePlaceUnits))
+                {
+                    _ping.PlayArrived(); // once per target: a boss is reached again and again in the fight
+                    _reached.Add(place.Position);
+                }
                 _held = true;
             }
             else if (_held && to > HoldUnits)
@@ -830,6 +851,7 @@ public sealed class QuestPathBridge
         _activeId++;
         _held = false;
         _missingSince = null;
+        _strongholdGoneSince = null;
         _stuckSince = null;
         _offSince = null;
     }

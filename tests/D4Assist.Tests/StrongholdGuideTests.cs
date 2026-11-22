@@ -259,8 +259,50 @@ public class StrongholdGuideTests
 
         rig.Running = [];
         rig.Read();
+        Assert.NotEqual(AppStrings.English.GuideOff, rig.Speech.Texts.Last()); // one read without it may be torn
 
+        rig.Clock += QuestPathBridge.GoneAfter;
+        rig.Read();
         Assert.Equal(AppStrings.English.GuideOff, rig.Speech.Texts.Last());
+    }
+
+    [Fact]
+    public void A_boss_reached_and_stepped_away_from_is_followed_on_without_a_new_search()
+    {
+        var rig = new Rig { Phase = KillPhase };
+        rig.Move(Altar);
+        rig.Pad.Press();
+        Assert.Equal(Priest, rig.Target);
+        int searches = rig.SearchedTo.Count;
+
+        for (int i = 0; i < 3; i++) // kiting round the boss
+        {
+            rig.Move(Priest + new Vector2(0, 2)); // reached
+            rig.Read();
+            rig.Move(Priest + new Vector2(0, 15)); // stepped away
+            rig.Read();
+        }
+
+        Assert.Equal(searches, rig.SearchedTo.Count);
+        Assert.DoesNotContain(AppStrings.English.GuideOff, rig.Speech.Texts);
+    }
+
+    [Fact]
+    public void One_read_without_the_stronghold_keeps_the_guide_on()
+    {
+        var rig = new Rig();
+        rig.Move(Altar);
+        rig.Pad.Press();
+        var target = rig.Target;
+
+        rig.Running = [];
+        rig.Read();
+        rig.Running = [Quest];
+        rig.Clock += QuestPathBridge.GoneAfter;
+        rig.Read();
+
+        Assert.DoesNotContain(AppStrings.English.GuideOff, rig.Speech.Texts);
+        Assert.Equal(target, rig.Target);
     }
 
     [Fact]

@@ -38,6 +38,18 @@ public class BlockedSpotsTests : IDisposable
     }
 
     [Fact]
+    public void Stuck_again_on_a_known_spot_merges_it_and_renews_its_date()
+    {
+        Load().Add(World, Gap, -10.5f, new Vector2(-11.5f, -699.7f));
+        _now += TimeSpan.FromDays(BlockedSpots.KeepDays - 1);
+        Load().Add(World, new HashSet<(int X, int Y)> { (-13, -699), (-12, -699) }, -10.5f, new Vector2(-11.5f, -699.7f));
+
+        _now += TimeSpan.FromDays(2); // the first learning is past the keep days, the second is not
+        var wall = Assert.Single(Load().Walls(World));
+        Assert.Equal(new HashSet<(int X, int Y)>([.. Gap, (-12, -699)]), wall.Cells.ToHashSet());
+    }
+
+    [Fact]
     public void Walking_through_a_spot_opens_it_in_the_file_too_but_swaying_where_stuck_does_not()
     {
         var spots = Load();

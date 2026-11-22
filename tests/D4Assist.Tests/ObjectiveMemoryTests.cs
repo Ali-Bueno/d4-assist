@@ -474,6 +474,26 @@ public class ObjectiveMemoryTests
     }
 
     [Fact]
+    public void A_place_only_a_hidden_step_names_waits_while_a_shown_one_is_still_to_reach()
+    {
+        // The Foul Undercrypts (tester log 2026-11-21): after Elias, quest 588362 phase 11 showed the trigger on the way out past him
+        // and hid "near Donan's group" at the entrance, 190 units back; the guide led back to the entrance first.
+        var (feed, memory) = NewMemory();
+        feed.RaisePlayer(At(0, 0));
+        QuestPlace[] places = [new(TriggerSno, -90, -60), new(TriggerSno + 1, Far, 0, Hidden: true)];
+
+        memory.ObservePlaces(places);
+        Assert.Equal((-90f, -60f), Assert.Single(memory.Destinations()).Position);
+
+        feed.RaisePlayer(At(-90, -59)); // at the shown trigger, the phase not moved on yet: the guide holds there
+        memory.ObservePlaces(places);
+        Assert.Equal((-90f, -60f), Assert.Single(memory.Destinations()).Position);
+
+        memory.ObservePlaces([places[1]]); // no shown place left: the hidden one leads
+        Assert.Equal((Far, 0f), Assert.Single(memory.Destinations()).Position);
+    }
+
+    [Fact]
     public void A_quest_place_the_map_marks_is_located_so_exploring_heads_for_it()
     {
         // Live 2026-10-22, "Die Leere": the map marked lock room B's trigger at (-16,205), on a tile not loaded yet.

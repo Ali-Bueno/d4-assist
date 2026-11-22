@@ -108,13 +108,15 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
                 .Concat(groups.Where(g => g.PhaseUid == uid).SelectMany(g => BlueprintGroupMarkers(g.Group))).Distinct().ToList();
             var landed = named.Where(m => m.Blueprint is null)
                 .Select(m => (m.Hidden, At: Land(m.MarkerSet, m.Marker!) ?? new Landing([m.Marker!], []))).ToList();
-            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => GroupLandings(g.Group)).ToList();
-            var hidden = landed.Where(m => m.Hidden).SelectMany(m => m.At.World.Concat(m.At.InScenes.Select(s => s.Marker))).ToHashSet();
+            var overlays = groups.Where(g => g.PhaseUid == uid).SelectMany(g => GroupLandings(g.Group).Select(at => (g.Hidden, At: at))).ToList();
+            var hidden = landed.Concat(overlays).Where(m => m.Hidden).SelectMany(m => m.At.World.Concat(m.At.InScenes.Select(s => s.Marker)))
+                .Except(landed.Concat(overlays).Where(m => !m.Hidden).SelectMany(m => m.At.World.Concat(m.At.InScenes.Select(s => s.Marker))))
+                .ToHashSet();
             var areas = entered.Where(e => e.PhaseUid == uid).Select(e => e.LevelArea).ToHashSet();
             return new QuestPhaseObjects(uid,
-                [.. landed.SelectMany(m => m.At.World), .. overlays.SelectMany(o => o.World).Distinct()],
+                [.. landed.SelectMany(m => m.At.World), .. overlays.SelectMany(o => o.At.World).Distinct()],
                 actors.Where(a => a.PhaseUid == uid).Select(a => a.Sno).ToHashSet(),
-                [.. landed.SelectMany(m => m.At.InScenes), .. overlays.SelectMany(o => o.InScenes).Distinct()],
+                [.. landed.SelectMany(m => m.At.InScenes), .. overlays.SelectMany(o => o.At.InScenes).Distinct()],
                 waitsOn.Count > 0 ? waitsOn : null,
                 shownIn.Count > 0 ? shownIn : null,
                 kinds.Count > 0 ? kinds : null,
@@ -434,11 +436,16 @@ public sealed class QuestScriptMarkerReader(SnoStore store, TypeSchema schema, M
     private static bool IsFootprint(string? actor) =>
         actor is not null && actor.StartsWith("Dungeon_Template_", StringComparison.OrdinalIgnoreCase) && actor.Contains("_Footprint", StringComparison.OrdinalIgnoreCase);
 
-    // The actor groups (GBIDs) a phase's scripts name; 0 is none.
-    private IEnumerable<(uint PhaseUid, uint Group)> ActorGroups(SnoBlob quest) =>
-        Params(quest).Where(p => p.Type == ActorGroupParam)
-            .Select(p => (p.PhaseUid, Group: quest.U32(p.Param + schema.Offset(ActorGroupParam, "gbidActorGroup"))))
-            .Where(g => g.Group != 0);
+    // The actor groups (GBIDs) a phase's scripts name; 0 is none. Hidden as for Handles (research/dungeon-objectives.md §36).
+    private IEnumerable<(uint PhaseUid, uint Group, bool Hidden)> ActorGroups(SnoBlob quest)
+    {
+        int? indicator = schema.HasField(Callback, "eIndicatorType") ? schema.Offset(Callback, "eIndicatorType") : null;
+        return Params(quest).Where(p => p.Type == ActorGroupParam)
+            .Select(p => (p.PhaseUid, Group: quest.U32(p.Param + schema.Offset(ActorGroupParam, "gbidActorGroup")),
+                Hidden: indicator is { } at && quest.I32(p.Callback + at) == HiddenIndicator))
+            .Where(g => g.Group != 0)
+            .GroupBy(g => (g.PhaseUid, g.Group)).Select(g => (g.Key.PhaseUid, g.Key.Group, g.All(n => n.Hidden)));
+    }
 
     private IEnumerable<int> Phases(SnoBlob quest) => quest.PolymorphicArray(schema.Offset(Quest, "arQuestPhases"), schema.Size(Phase));
 

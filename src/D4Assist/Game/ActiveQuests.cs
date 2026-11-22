@@ -13,15 +13,26 @@ public sealed record QuestSearchArea(int WorldSno, IReadOnlyCollection<int> Scen
 /// matched by spot, actors named by SNO alone (any placed copy), and blueprint markers, naming a kind until the blueprint is placed.</summary>
 /// <param name="Steps">The places of a sub-quest whose phase can't be read, one entry per phase in order (its markers only): the
 /// guide walks them one step at a time (<see cref="ActiveQuests"/>).</param>
+/// <param name="Hidden">The markers (world space or scene-local) only steps the game doesn't show name, in no phase shown
+/// (QuestPhaseObjects.HiddenMarkers); null for none.</param>
 public sealed record QuestNames(
     IReadOnlyList<PlacedMarker> Markers, IReadOnlySet<int> ActorSnos, IReadOnlyList<SceneMarker> SceneMarkers, IReadOnlyList<BlueprintMarker> KindMarkers,
-    IReadOnlyList<QuestNames>? Steps = null)
+    IReadOnlyList<QuestNames>? Steps = null, IReadOnlySet<PlacedMarker>? Hidden = null)
 {
     public static readonly QuestNames None = new([], new HashSet<int>(), [], []);
 
-    public static QuestNames Of(IEnumerable<QuestPhaseObjects> phases) =>
-        new([.. phases.SelectMany(p => p.Markers)], phases.SelectMany(p => p.ActorSnos).ToHashSet(), [.. phases.SelectMany(p => p.SceneMarkers)],
-            [.. phases.SelectMany(p => p.KindMarkers ?? [])]);
+    public static QuestNames Of(IEnumerable<QuestPhaseObjects> phases)
+    {
+        var list = phases.ToList();
+        var shown = list.SelectMany(p => p.Markers.Concat(p.SceneMarkers.Select(s => s.Marker)).Where(m => p.HiddenMarkers?.Contains(m) != true)).ToHashSet();
+        var hidden = list.SelectMany(p => p.HiddenMarkers ?? Enumerable.Empty<PlacedMarker>()).Where(m => !shown.Contains(m)).ToHashSet();
+        return new([.. list.SelectMany(p => p.Markers)], list.SelectMany(p => p.ActorSnos).ToHashSet(), [.. list.SelectMany(p => p.SceneMarkers)],
+            [.. list.SelectMany(p => p.KindMarkers ?? [])], Hidden: hidden.Count > 0 ? hidden : null);
+    }
+
+    /// <summary>Only the markers <see cref="Hidden"/> holds: placed like the whole, to tell which of its places are hidden.</summary>
+    public QuestNames HiddenOnly() => Hidden is not { } h ? None
+        : new([.. Markers.Where(h.Contains)], new HashSet<int>(), [.. SceneMarkers.Where(s => h.Contains(s.Marker))], []);
 
     public int Count => Markers.Count + ActorSnos.Count + SceneMarkers.Count + KindMarkers.Count;
 }

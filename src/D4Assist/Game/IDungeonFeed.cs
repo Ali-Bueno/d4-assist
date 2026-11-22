@@ -39,7 +39,8 @@ public sealed record ActorState(
 /// it streams in, rather than a spot to stand in (research/dungeon-objectives.md §18).</param>
 /// <param name="Marked">The game's map marks it (an Ahead gizmo, or a place's trigger): the server has it there, even before it streams in (§19).</param>
 /// <param name="Step">A step of a sub-quest whose phase can't be read (1 first, QuestNames.Steps); 0 for a place the phase names.</param>
-public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false, bool Marked = false, int Step = 0);
+/// <param name="Hidden">Named only by callbacks the game doesn't show (QuestNames.Hidden): it leads only once no shown place is left.</param>
+public sealed record QuestPlace(int ActorSno, float X, float Y, float Z = 0, bool Ahead = false, bool Marked = false, int Step = 0, bool Hidden = false);
 
 /// <summary>An actor the game's map marks, streamed in or not (research/dungeon-objectives.md §19).</summary>
 /// <param name="Kind">The marker kind (D4Memory MapMarkerReader: 10 a boss, 11 a gizmo or trigger).</param>

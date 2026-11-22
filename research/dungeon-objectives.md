@@ -1102,3 +1102,19 @@ Tester log (`--debug`, 0.1.36), act 4, the Corrosive Swamp (`CSD_Hawe_Verge_Corr
   `GameSession`). It leads like a marked place beyond loaded ground, and is done once the map drops it. The open world's D-pad left
   already offers these markers. Not known: whether the proxy leaves the map when the step ends (markers are logged only when first
   seen; the place's `done (phase moved on)` line will show it).
+
+## 36. A hidden step's actor group led back past a shown step (tester log, 2026-11-21)
+
+- **Seen (0.1.37, act 5, `CSD_Hawe_Wetland_ZakFortCrypts`, the Foul Undercrypts, `--debug`):** at Elias's death quest 567862 went to
+  phase 0 and quest 588362 came in at phase 11, naming `BCD_Trigger_Sphere_8m` (-234.6,-15.1) and `NPC_QST_Donan_NonCombat_Horadrim`
+  (16.9,14.4). The guide led to Donan, 188 units back at the entrance; he was not there ("its NPC is gone" a minute later), and only
+  then did it explore on to the trigger, Tysa and the second exit. Tester: "the guide leads you all the way back to the dungeon
+  entrance and then it leads you to follow Tysa".
+- **Data (`D4MemScan quest --sno 588362 --callbacks`):** phase uid 11 has a shown callback (event 52, indicator 2) on marker 3 of
+  `Hawe_Swamp_SE_01`'s layer 589364 (the trigger) and hidden ones (indicator 3): enter the world (49), a 0.5 s timer (13), and the
+  player within range of actor group 743184395 (51), which is where Donan stands at the entrance tile. `QuestScriptMarkerReader` marked
+  a marker handle hidden but never an actor group, so Donan's place counted as shown.
+- **App rule (unit- and real-data-tested, not live):** an actor group only hidden callbacks of a phase name is hidden like a marker
+  handle (`QuestPhaseObjects.HiddenMarkers`, so the open world's D-pad left offers it after the shown places too); in dungeons a quest
+  place named only by hidden steps (`QuestPlace.Hidden`, `QuestNames.Hidden`) leads only while no shown quest place of the phase is
+  still pending (`ObjectiveMemory.Leads`).

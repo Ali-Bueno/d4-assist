@@ -36,6 +36,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     private readonly SceneLayerPlacement _layers;
     private IReadOnlyList<PlacedMarker> _questPlaces = [];
     private IReadOnlyList<PlacedMarker> _markedPlaces = [];
+    private IReadOnlySet<PlacedMarker> _hiddenPlaces = new HashSet<PlacedMarker>();
     private readonly BlueprintPlacement _blueprints = new();
     private IReadOnlyList<(int Sno, Vector3 Position, bool Marked)> _questGizmosAhead = [];
     // The places of a sub-quest whose phase can't be read, by step (QuestNames.Steps, 1 first).
@@ -434,6 +435,8 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
                     [.. records.Where(r => r.IsPlaced).Select(r => (r.ActorSno, r.Position)), .. marked.Select(m => (m.ActorSno, m.Position))]))];
             var places = Placed(named);
             _questPlaces = places;
+            // A step the game hides leads only after the shown ones (research/dungeon-objectives.md §36).
+            _hiddenPlaces = named.Hidden is null ? new HashSet<PlacedMarker>() : Placed(named.HiddenOnly()).ToHashSet();
             _stepPlaces = [.. (named.Steps ?? []).SelectMany((step, i) => Placed(step).Select(m => (m, i + 1)))];
             _markedPlaces = [.. places.Where(p => marked.Any(m => m.ActorSno == p.Sno
                 && Vector2.Distance(new(m.Position.X, m.Position.Y), new(p.Position.X, p.Position.Y)) <= ActiveQuests.MarkerReach))];
@@ -524,7 +527,7 @@ public sealed class LiveDungeonSessionReader : IDungeonSessionReader
     public IReadOnlyList<QuestPlace>? ReadQuestPlaces() =>
         _activeQuests is null ? null :
         [
-            .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z, Marked: _markedPlaces.Contains(m))),
+            .. _questPlaces.Select(m => new QuestPlace(m.Sno, m.Position.X, m.Position.Y, m.Position.Z, Marked: _markedPlaces.Contains(m), Hidden: _hiddenPlaces.Contains(m))),
             .. _stepPlaces.Select(s => new QuestPlace(s.Marker.Sno, s.Marker.Position.X, s.Marker.Position.Y, s.Marker.Position.Z, Step: s.Step)),
             .. _questGizmosAhead.Select(g => new QuestPlace(g.Sno, g.Position.X, g.Position.Y, g.Position.Z, Ahead: true, g.Marked)),
         ];

@@ -75,6 +75,24 @@ public class QuestScriptMarkerReaderRealDataTests
     }
 
     [Fact]
+    public void AnActorGroupOnlyAHiddenStepNamesIsHidden()
+    {
+        if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;
+        using var store = new SnoStore(install);
+        var schema = TypeSchema.Load(definitions);
+        var reader = new QuestScriptMarkerReader(store, schema, new MarkerReader(store, schema));
+
+        // The Foul Undercrypts after Elias (tester log 2026-11-21): quest 588362 phase 11 shows the trigger past him (a marker handle)
+        // and hides "near Donan's group" at the entrance (an actor group); the guide led back to Donan first.
+        const int Donan = 1305455;
+        var step = reader.PhaseObjects(588362).Single(p => p.PhaseUid == 11);
+        var all = step.Markers.Concat(step.SceneMarkers.Select(s => s.Marker)).ToList();
+        Assert.Contains(all, m => m.Sno == Donan);
+        Assert.Contains(all, m => m.Sno != Donan);
+        Assert.All(step.HiddenMarkers!, m => Assert.Equal(Donan, m.Sno));
+    }
+
+    [Fact]
     public void AStepsOverlayLandsOnTheHoldoutTunnelsFootprint()
     {
         if (!SnoStore.TryLocateInstall(out var install) || RealData.FindDefinitions() is not { } definitions) return;

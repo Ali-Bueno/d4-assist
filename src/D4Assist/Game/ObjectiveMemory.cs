@@ -82,6 +82,8 @@ public sealed class ObjectiveMemory
         public bool PlacedOnly { get; set; }
         /// <summary>The game's map marks it now.</summary>
         public bool Marked { get; set; }
+        /// <summary>A quest place only a step the game hides names (QuestPlace.Hidden).</summary>
+        public bool Hidden { get; set; }
         /// <summary>Actor polls in a row it was missing from the actors read.</summary>
         public int MissingPolls { get; set; }
         /// <summary>Done as a followed quest moved on with the player at it: using it was the step.</summary>
@@ -228,6 +230,7 @@ public sealed class ObjectiveMemory
                     SetAsideIfWalked(objective);
                 }
                 objective.Marked = place.Marked;
+                objective.Hidden = place.Hidden;
                 named.Add(objective);
             }
             foreach (var objective in _places.Where(o => !named.Contains(o)))
@@ -503,8 +506,10 @@ public sealed class ObjectiveMemory
     /// <summary>A place of the waiting phase this close to a later step's place waits for that step.</summary>
     public const float LaterStepUnits = 10f;
 
+    // A place only a hidden step names waits while a shown one is still to reach (research/dungeon-objectives.md §36).
     private bool Leads(Objective place)
     {
+        if (place.Hidden && _places.Any(o => !o.Hidden && o.Step == 0 && o.Pending && !o.Reached && !o.ActorDone)) return false;
         if (CurrentStep() is not { } step) return true;
         if (place.Step > 0) return place.Step == step;
         return !_places.Any(o => o.Step > step && o.Pending && !o.Reached && Distance(o.Position, place.Position) <= LaterStepUnits);

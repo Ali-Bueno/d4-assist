@@ -187,6 +187,12 @@ open world just the nearby sounds, because the game's navigation assist
 already does a good job there. In both, left on the D-pad leads you to the
 places your quest marks on the map, along a path the app finds (over jumps and
 slides too).
+Inside a stronghold whose quest is in progress, left on the D-pad leads like
+in a dungeon: to each place the quest's step marks, with the arrival sound at
+each, and it explores by itself when the step marks nothing left. On the way,
+the path goes round crates and stands, and a spot you stay stuck at (stick
+pushed, hardly moving) counts as blocked: the app says so and finds another
+way, and remembers that spot for 60 days.
 
 
 Settings and shortcuts
@@ -220,7 +226,7 @@ D-pad and the program's keys do nothing and are left to the other programs;
 only Ctrl+Alt+Shift+C (settings) and Ctrl+Alt+Shift+Q (exit) work.
 
 Map menu. With the world map open, Shift+F1 opens the map menu: Waypoints,
-Dungeons, Cellars and Strongholds (all of them, freed or not). Up and down choose, Enter opens a list, Escape goes back
+Dungeons, Cellars and Strongholds (those not yet freed). Up and down choose, Enter opens a list, Escape goes back
 to the menu and closes it from there. Every list is nearest first; Enter puts
 the mouse cursor on the entry and zooms the map out if needed. An entry too far
 for the map puts the cursor on the activated waypoint nearest to it: travel

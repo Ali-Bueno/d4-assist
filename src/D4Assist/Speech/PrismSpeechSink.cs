@@ -15,13 +15,18 @@ public sealed class PrismSpeechSink : ISpeechSink
     private const ulong SpielId = 0x478B44F14AD3D89C;
     private static readonly ulong[] WineBridgeIds = [OrcaId, SpeechDispatcherId, SpielId];
 
-    private readonly PrismContext _context;
+    private readonly IDisposable? _context;
     private readonly IPrismBackend _backend;
+    private readonly Action<string> _log;
+    private bool _outputFails;
+    private string? _lastFailure;
 
-    private PrismSpeechSink(PrismContext context, IPrismBackend backend)
+    /// <param name="context">The PRISM context the backend came from, disposed with the sink.</param>
+    public PrismSpeechSink(IPrismBackend backend, IDisposable? context = null, Action<string>? log = null)
     {
         _context = context;
         _backend = backend;
+        _log = log ?? Console.WriteLine;
     }
 
     /// <summary>The sink on PRISM's best backend (under Wine, the best one its bridges reach), or null with the reason when it
@@ -41,7 +46,7 @@ public sealed class PrismSpeechSink : ISpeechSink
                 context.Dispose();
                 return null;
             }
-            return new PrismSpeechSink(context, backend);
+            return new PrismSpeechSink(backend, context);
         }
         catch (PrismException e)
         {
@@ -88,24 +93,43 @@ public sealed class PrismSpeechSink : ISpeechSink
 
     public string BackendName => _backend.Name;
 
-    public void Speak(string text, bool interrupt) => _backend.Speak(text, interrupt);
+    // A screen reader can fail a call (PRISM's "Internal backend error"). A failed call is logged, not
+    // thrown: speech runs on the hotkey and game threads, where an exception would end the app.
+    public void Speak(string text, bool interrupt) => Guard("speak", () => _backend.Speak(text, interrupt));
 
     // PRISM's output speaks and brailles at once (NVDA, JAWS); a backend with braille but no output gets both calls, one
-    // without braille (SAPI) only speaks.
+    // without braille (SAPI) only speaks. A backend whose output failed once gets the two calls from then on.
     public void Output(string text, bool interrupt)
     {
         var features = _backend.Features;
-        if (features.HasFlag(PrismBackendFeature.SupportsOutput)) _backend.Output(text, interrupt);
-        else
+        if (!_outputFails && features.HasFlag(PrismBackendFeature.SupportsOutput))
         {
-            _backend.Speak(text, interrupt);
-            if (features.HasFlag(PrismBackendFeature.SupportsBraille)) _backend.Braille(text);
+            if (Guard("output", () => _backend.Output(text, interrupt))) return;
+            _outputFails = true;
+        }
+        Speak(text, interrupt);
+        if (features.HasFlag(PrismBackendFeature.SupportsBraille)) Guard("braille", () => _backend.Braille(text));
+    }
+
+    private bool Guard(string call, Action action)
+    {
+        try
+        {
+            action();
+            return true;
+        }
+        catch (PrismException e)
+        {
+            string failure = $"PRISM {_backend.Name} {call} failed: {e.Message}";
+            if (failure != _lastFailure) _log(failure); // a reader that keeps failing is logged once, not per line
+            _lastFailure = failure;
+            return false;
         }
     }
 
     public void Dispose()
     {
         _backend.Dispose();
-        _context.Dispose();
+        _context?.Dispose();
     }
 }
